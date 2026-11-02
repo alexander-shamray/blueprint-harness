@@ -53,11 +53,15 @@ class ConfigTests(unittest.TestCase):
             ({**MINIMAL, "settings": {"deny": [1]}}, "deny"),
             ({**MINIMAL, "settings": {"env": {"A": 1}}}, "env"),
             ({**MINIMAL, "settings": {"hooks": {"Stop": {}}}}, "hooks"),
+            ({**MINIMAL, "settings": {"hooks": {"Stop": [1]}}}, "hooks"),
+            ({**MINIMAL, "settings": {"hooks": {"Stop": [{"matcher": "x"}]}}}, "hooks"),
+            ({**MINIMAL, "settings": {"hooks": {"Stop": [{"hooks": [{"type": "command"}]}]}}}, "hooks"),
         ]
         for data, key in bad:
-            with self.subTest(key=key), self.assertRaises(ConfigError) as ctx:
-                self.load(data)
-            self.assertIn(key, str(ctx.exception))
+            with self.subTest(key=key):
+                with self.assertRaises(ConfigError) as ctx:
+                    self.load(data)
+                self.assertIn(key, str(ctx.exception))
 
     def test_non_object_top_level(self) -> None:
         with self.assertRaises(ConfigError):
