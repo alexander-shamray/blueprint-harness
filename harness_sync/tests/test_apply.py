@@ -398,6 +398,30 @@ class ApplyTests(unittest.TestCase):
             apply(self.payload, self.target, COMMIT)
         self.assertIn("passes through a link", str(ctx.exception))
 
+    # Fix round 3.
+    def test_link_inside_directory_at_managed_path_refused_before_any_deletion(self) -> None:
+        outside = self.target.parent / "elsewhere"
+        outside.mkdir()
+        self.put(self.payload, "keep.md", b"k\n")
+        self.put(self.payload, "z.md", b"z\n")
+        apply(self.payload, self.target, COMMIT)
+        (self.payload / "keep.md").unlink()
+        (self.target / "z.md").unlink()
+        (self.target / "z.md").mkdir()
+        link = self.target / "z.md" / "link"
+        try:
+            os.symlink(outside, link, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            if os.name != "nt" or subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(link), str(outside)], capture_output=True
+            ).returncode:
+                self.skipTest("this OS refuses to create links")
+        with self.assertRaises(ApplyError) as ctx:
+            apply(self.payload, self.target, COMMIT)
+        self.assertIn("link", str(ctx.exception))
+        self.assertTrue((self.target / "keep.md").exists())  # no deletion ran
+        self.assertTrue(outside.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
