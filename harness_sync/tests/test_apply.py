@@ -130,6 +130,30 @@ class ApplyTests(unittest.TestCase):
         self.assertFalse((self.target / "skip/a.md").exists())
         self.assertNotIn("skip/a.md", self.manifest().files)
 
+    def test_excluded_payload_path_that_exists_in_the_target_is_refused(self) -> None:
+        """Exclude means not delivered, never replaced (spec 5.2): a kept copy of a managed file is a fork."""
+        self.config({**CONFIG, "exclude": ["skip/**"]})
+        self.put(self.payload, "skip/a.md", b"a\n")
+        self.put(self.target, "skip/a.md", b"my own\n")
+        with self.assertRaises(ApplyError) as ctx:
+            apply(self.payload, self.target, COMMIT)
+        self.assertIn("skip/a.md", str(ctx.exception))
+        self.assertFalse((self.target / ".harness/manifest.json").exists())
+
+    def test_a_file_excluded_after_a_sync_is_removed_not_refused(self) -> None:
+        self.put(self.payload, "skip/a.md", b"a\n")
+        apply(self.payload, self.target, COMMIT)
+        self.config({**CONFIG, "exclude": ["skip/**"]})
+        result = apply(self.payload, self.target, COMMIT)
+        self.assertIn("skip/a.md", result.deleted)
+
+    def test_a_local_excluded_path_that_exists_is_still_refused(self) -> None:
+        self.config({**CONFIG, "exclude": ["skip/**"], "local": ["skip/**"]})
+        self.put(self.payload, "skip/a.md", b"a\n")
+        self.put(self.target, "skip/a.md", b"a\n")
+        with self.assertRaises(ApplyError):
+            apply(self.payload, self.target, COMMIT)
+
     def test_pycache_is_not_walked(self) -> None:
         self.put(self.payload, ".harness/__pycache__/render.cpython-312.pyc", b"\x00")
         self.put(self.payload, ".harness/stray.pyc", b"\x00")

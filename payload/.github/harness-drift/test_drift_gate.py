@@ -12,6 +12,7 @@ import shutil
 import tempfile
 import types
 import unittest
+from unittest import mock
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -365,6 +366,48 @@ class AgainstThePayload(unittest.TestCase):
         self.tree.save_manifest()
         self.assertIn('    "env"', rendered)
         self.assertEqual(check(self.tree.root, self.payload), [])
+
+    def test_an_excluded_payload_path_that_exists_in_the_tree_fails(self) -> None:
+        rel = ".claude/skills/a/SKILL.md"
+        self.tree.write_json(".harness/config.json", {"exclude": [rel]})
+        del self.tree.files[rel]
+        self.tree.save_manifest()  # the file stays in the tree: excluded means not delivered, never replaced
+        problems = check(self.tree.root, self.payload)
+        self.assertTrue(any("excluded but exists" in p for p in problems), problems)
+
+    def test_a_local_path_that_is_a_link_is_a_problem(self) -> None:
+        rel = ".claude/skills/a/SKILL.md"
+        self.tree.write_json(".harness/config.json", {"local": [rel]})
+        del self.tree.files[rel]
+        self.tree.save_manifest()
+        outside = self.base / "outside.md"
+        outside.write_bytes(b"one\ntwo\n")
+        (self.tree.root / rel).unlink()
+        try:
+            (self.tree.root / rel).symlink_to(outside)
+        except OSError:
+            self.skipTest("symlinks need privileges here")
+        self.assertTrue(any("link" in p for p in check(self.tree.root, self.payload)))
+
+    def test_an_unreadable_local_copy_is_a_problem_not_a_traceback(self) -> None:
+        rel = ".claude/skills/a/SKILL.md"
+        self.tree.write_json(".harness/config.json", {"local": [rel]})
+        del self.tree.files[rel]
+        self.tree.save_manifest()
+        original = Path.read_bytes
+
+        def deny(path: Path) -> bytes:
+            if path.name == "SKILL.md" and path.is_relative_to(self.tree.root):
+                raise PermissionError("denied")
+            return original(path)
+
+        with mock.patch.object(Path, "read_bytes", deny):
+            problems = check(self.tree.root, self.payload)
+        self.assertTrue(any("cannot read" in p for p in problems), problems)
+
+    def test_local_protection_of_base_is_case_sensitive_like_apply(self) -> None:
+        self.tree.write_json(".harness/config.json", {"local": [".HARNESS/render.py"]})
+        self.assertFalse(any("needs managed" in p for p in check(self.tree.root, self.payload)))
 
     def test_payload_that_is_not_a_directory_is_a_problem(self) -> None:
         self.assertTrue(check(self.tree.root, self.base / "nope"))

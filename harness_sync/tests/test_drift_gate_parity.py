@@ -79,6 +79,31 @@ class DriftGateParity(unittest.TestCase):
             apply(repo / "payload", target, "a" * 40)
             self.assertEqual(self.gate.check(target, repo / "payload"), [])
 
+    def test_an_excluded_file_that_exists_is_refused_by_both(self) -> None:
+        """Exclude means not delivered, never replaced: apply refuses it and the gate reports it."""
+        import json
+
+        from harness_sync.apply import ApplyError, apply
+
+        repo = GATE.parents[3]
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            (target / ".harness").mkdir()
+            config = json.loads((repo / "targets/blueprint-backend.config.json").read_text(encoding="utf-8"))
+            (target / ".harness/config.json").write_text(json.dumps(config), encoding="utf-8")
+            apply(repo / "payload", target, "a" * 40)
+            config["exclude"] = [".claude/hooks/*"]
+            (target / ".harness/config.json").write_text(json.dumps(config), encoding="utf-8")
+            self.assertTrue(list((target / ".claude/hooks").glob("*")), "the payload ships hooks")
+            problems = self.gate.check(target, repo / "payload")
+            self.assertTrue(any("excluded but exists" in p for p in problems), problems)
+            # With no manifest the hooks are not on their way out as dropped files, so apply refuses, naming one.
+            name = next(p.name for p in (repo / "payload/.claude/hooks").glob("*") if p.is_file())
+            (target / ".harness/manifest.json").unlink()
+            with self.assertRaises(ApplyError) as ctx:
+                apply(repo / "payload", target, "a" * 40)
+            self.assertIn(name, str(ctx.exception))
+
     def test_walk_skips_what_apply_skips(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
