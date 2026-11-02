@@ -2,8 +2,11 @@
 
 Owner: spec 2026-11-02-shared-harness-design.md section 4 ("Agents stop more
 often"). A stop is an AskUserQuestion tool use, a handover whose last line
-starts "ACTION REQUIRED", or a tool error that is a permission refusal. The
+starts "⚠️ ACTION REQUIRED", or a tool error that is a permission refusal. The
 transcript field shapes are recorded in test_stops.py.
+
+Narrowing of the spec's definition: the exact handover "⚠️ ACTION REQUIRED
+— none" is not counted, because it hands the owner nothing to run.
 
 Usage:
     py -3.12 measure/stops.py --project 'C--dev-ashamray-blueprint-backend*' \
@@ -29,8 +32,9 @@ _PERMISSION_REFUSAL = re.compile(
     r"|The server-side auto mode classifier gave no verdict)"
 )
 _ACTION_REQUIRED = "⚠️ ACTION REQUIRED"
+_NO_HANDOVER = _ACTION_REQUIRED + " — none"
 _NOT_A_TURN = ("<local-command", "<bash-input>", "<bash-stdout>", "<bash-stderr>", "<task-notification>",
-               "<system-reminder>")
+               "<system-reminder>", "[Request interrupted")
 
 
 def _lines(transcript):
@@ -39,7 +43,10 @@ def _lines(transcript):
             try:
                 yield json.loads(raw)
             except ValueError:
-                continue  # a torn final line from a live session
+                # A live session can leave a torn final line. A corrupt line
+                # mid-file would lose only its own event, so skipping it
+                # undercounts by at most that event; the measure is a floor.
+                continue
 
 
 def _parts(entry):
@@ -63,7 +70,13 @@ def _is_genuine_user(entry):
         return not content.lstrip().startswith(_NOT_A_TURN)
     if isinstance(content, list):
         kinds = {p.get("type") for p in content if isinstance(p, dict)}
-        return "tool_result" not in kinds and bool(kinds & {"text", "image"})
+        if "tool_result" in kinds:
+            return False
+        # Interruption markers arrive as a list holding one text part.
+        texts = [p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"]
+        if "image" not in kinds and all(t.lstrip().startswith(_NOT_A_TURN) for t in texts):
+            return False
+        return bool(kinds & {"text", "image"})
     return False
 
 
@@ -78,7 +91,7 @@ def count_stops(transcript):
                     counts["ask_user"] += 1
                 elif part.get("type") == "text":
                     last = [line for line in part.get("text", "").splitlines() if line.strip()][-1:]
-                    if last and last[0].startswith(_ACTION_REQUIRED) and not last[0].rstrip().endswith("none"):
+                    if last and last[0].startswith(_ACTION_REQUIRED) and last[0].strip() != _NO_HANDOVER:
                         counts["action_required"] += 1
         elif kind == "user":
             for part in _parts(entry):
@@ -103,7 +116,12 @@ def is_command_session(transcript, command):
 def summarise(rows):
     if not rows:
         return {"sessions": 0, "median": None}
-    return {"sessions": len(rows), "median": {k: statistics.median(r[k] for r in rows) for k in KEYS}}
+    return {
+        "sessions": len(rows),
+        "median": {k: statistics.median(r[k] for r in rows) for k in KEYS},
+        "total": {k: sum(r[k] for r in rows) for k in KEYS},
+        "max": {k: max(r[k] for r in rows) for k in KEYS},
+    }
 
 
 def sessions(project, since, root):
