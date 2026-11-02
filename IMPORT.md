@@ -223,7 +223,10 @@ files to backend's first-sync diff, which spec 7 step 2 wants near-empty. #5
 tracks splitting them so their generic cases run here. Until then, Task 7's
 config for this repository excludes
 `.github/workflows/comment-gate.yml`, whose suite stays in backend, so its
-`python -m unittest` would find no tests here and fail.
+`python -m unittest` would find no tests here and fail. The config is
+`.harness/config.json` and it does exclude that workflow (ruling R18); JSON
+has no comments, so this is where the reason is recorded. Remove the exclusion
+when #5 lands.
 
 ## Test counts
 

@@ -1,0 +1,18 @@
+{
+  "repo": "alexander-shamray/blueprint-harness",
+  "task_list": ".todo/blueprint-harness.md",
+  "settings": {
+    "env": {},
+    "allow": [],
+    "deny": [],
+    "hooks": {}
+  },
+  "local": [
+    "payload/**",
+    "harness_sync/**",
+    "measure/**"
+  ],
+  "exclude": [
+    ".github/workflows/comment-gate.yml"
+  ]
+}
