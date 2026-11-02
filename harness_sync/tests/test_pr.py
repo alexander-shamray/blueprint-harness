@@ -18,8 +18,7 @@ from harness_sync.manifest import Manifest
 from harness_sync.pr import SyncError, open_sync_pr
 
 PAYLOAD_GATES = Path(__file__).resolve().parents[2] / "payload/.github"
-OLD = "a" * 40
-NEW = "b1c2d3e" + "4" * 33
+RUN_URL = "https://github.com/alexander-shamray/blueprint-harness/actions/runs/123"
 BASE = {"env": {}, "permissions": {"allow": [], "deny": []}, "hooks": {}}
 CONFIG = {"repo": "o/r", "task_list": ".todo/r.md"}
 # The test repositories commit under an identity of their own, so the sync commit's author is the tool's or nobody's.
@@ -70,8 +69,8 @@ class FakeGh:
                 raise SyncError("simulated failure after the pull request was created")
             return f"https://github.com/o/r/pull/{self.number}\n"
         if args[:2] == ["pr", "close"]:
-            branch = f"chore/harness-sync-{NEW[:7]}"
-            self.tip_at_close.append(self._tip(branch))
+            if "--head" in self.created:
+                self.tip_at_close.append(self._tip(self.created["--head"]))
             self.open_prs = [pr for pr in self.open_prs if str(pr["number"]) != args[2]]
             return ""
         raise AssertionError(f"unexpected gh call {args}")
@@ -85,7 +84,12 @@ class SyncTestCase(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         root = Path(tmp.name)
-        self.payload, self.origin, self.target = root / "payload", root / "origin.git", root / "target"
+        self.harness, self.origin, self.target = root / "harness", root / "origin.git", root / "target"
+        # The harness checkout orders commits, so it is a real repository: old, then new on top of it.
+        git(root, "init", "-q", "-b", "main", str(self.harness))
+        self.old = self.harness_commit("harness: old")
+        self.new = self.harness_commit("harness: new")
+        self.payload = self.harness / "payload"
         self.put(self.payload, ".harness/settings.base.json", json.dumps(BASE))
         self.put(self.payload, "docs/a.md", "a\n")
         self.put(self.payload, "docs/b.md", "b\n")
@@ -97,24 +101,28 @@ class SyncTestCase(unittest.TestCase):
         self.put(self.target, ".harness/config.json", json.dumps(CONFIG))
         self.put(self.target, "README.md", "target\n")
 
+    def harness_commit(self, message: str) -> str:
+        git(self.harness, *SEED, "commit", "-q", "--allow-empty", "-m", message)
+        return git(self.harness, "rev-parse", "HEAD").strip()
+
     def put(self, root: Path, rel: str, text: str) -> None:
         path = root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(text.encode("utf-8"))
 
-    def seed(self, synced: bool = True) -> None:
-        """The target's main: onboarded and, when synced, holding the payload as it stood at OLD."""
+    def seed(self, synced: bool = True, at: str | None = None) -> None:
+        """The target's main: onboarded and, when synced, holding the payload under a manifest naming `at`."""
         if synced:
-            apply(self.payload, self.target, OLD)
+            apply(self.payload, self.target, at or self.old)
         git(self.target, "add", "-A")
         git(self.target, *SEED, "commit", "-q", "-m", "chore: seed")
         git(self.target, "push", "-q", "origin", "main")
 
-    def sync(self, gh: FakeGh, commit: str = NEW):
-        return open_sync_pr(self.target, commit, gh, payload=self.payload)
+    def sync(self, gh: FakeGh, commit: str | None = None, run_url: str | None = RUN_URL):
+        return open_sync_pr(self.target, commit or self.new, gh, payload=self.payload, run_url=run_url)
 
-    def branch(self, commit: str = NEW) -> str:
-        return f"chore/harness-sync-{commit[:7]}"
+    def branch(self, commit: str | None = None) -> str:
+        return f"chore/harness-sync-{(commit or self.new)[:7]}"
 
     def remote_tip(self, branch: str) -> str:
         return git(self.origin, "rev-parse", f"refs/heads/{branch}").strip()
@@ -150,12 +158,51 @@ class NothingToSyncTests(SyncTestCase):
         self.assertEqual(outcome.state, "current")
         self.assertIsNone(outcome.pr)
         self.assertEqual(outcome.superseded, [])
-        self.assertIn(OLD[:7], outcome.reason)
-        self.assertEqual(gh.calls, [])
+        self.assertIn(self.old[:7], outcome.reason)
+        # It reads the open pull requests to find stale syncs (R31), and nothing more.
+        self.assertEqual([call[:2] for call in gh.calls], [["pr", "list"]])
         self.assert_clean()
-        self.assertEqual(Manifest.read(self.target / ".harness/manifest.json").harness_commit, OLD)
+        self.assertEqual(Manifest.read(self.target / ".harness/manifest.json").harness_commit, self.old)
         self.assertEqual(self.remote_branches(), ["main"])
         self.assertEqual(git(self.target, "branch", "--show-current").strip(), "main")
+
+    def test_current_closes_the_stale_syncs(self) -> None:
+        # R31: a target already current makes every open sync stale; a fork's look-alike is not ours to close.
+        self.seed()
+        gh = FakeGh(self.origin, open_prs=[
+            {"number": 5, "headRefName": self.branch(self.old), "isCrossRepository": False},
+            {"number": 6, "headRefName": "chore/harness-sync-fedcba9", "isCrossRepository": False},
+            {"number": 8, "headRefName": "chore/harness-sync-1111111", "isCrossRepository": True},
+            {"number": 9, "headRefName": "docs/unrelated", "isCrossRepository": False},
+        ])
+        outcome = self.sync(gh)
+        self.assertEqual((outcome.state, outcome.pr, outcome.superseded), ("current", None, [5, 6]))
+        closes = gh.closes()
+        self.assertEqual([call[2] for call in closes], ["5", "6"])
+        for call in closes:
+            self.assertIn("--delete-branch", call)
+            comment = call[call.index("--comment") + 1]
+            self.assertIn(f"blueprint-harness {self.new[:7]} leaves this target current; this sync is stale", comment)
+        self.assertFalse(any(call[:2] == ["pr", "create"] for call in gh.calls))
+        self.assert_clean()
+
+    def test_downgrade_is_refused(self) -> None:
+        # R30: the target already holds the newer sync, so a run carrying the older commit opens nothing.
+        self.seed(at=self.new)
+        self.change_payload()
+        gh = FakeGh(self.origin)
+        with self.assertRaisesRegex(SyncError, "only moves forward"):
+            self.sync(gh, self.old)
+        self.assertEqual(gh.calls, [])
+        self.assert_clean()
+        self.assertEqual(self.remote_branches(), ["main"])
+
+    def test_commit_outside_the_harness_history_is_refused(self) -> None:
+        self.seed()
+        self.change_payload()
+        with self.assertRaisesRegex(SyncError, "not in the harness checkout"):
+            self.sync(FakeGh(self.origin), "f" * 40)
+        self.assert_clean()
 
     def test_target_without_config_is_not_onboarded(self) -> None:
         (self.target / ".harness/config.json").unlink()
@@ -172,7 +219,7 @@ class NothingToSyncTests(SyncTestCase):
 
     def test_first_sync_opens_even_when_every_file_is_already_in_place(self) -> None:
         # A first manifest is the drift gate's whole input, so its arrival alone is worth a pull request.
-        apply(self.payload, self.target, OLD)
+        apply(self.payload, self.target, self.old)
         (self.target / ".harness/manifest.json").unlink()
         self.seed(synced=False)
         gh = FakeGh(self.origin)
@@ -202,17 +249,24 @@ class OpenedTests(SyncTestCase):
         self.assertEqual(outcome.state, "opened")
         self.assertEqual(outcome.pr, 42)
         body = gh.created["--body"]
-        self.assertEqual(gh.created["--title"], f"chore(harness): sync to blueprint-harness {NEW[:7]}")
+        self.assertEqual(gh.created["--title"], f"chore(harness): sync to blueprint-harness {self.new[:7]}")
         self.assertEqual(gh.created["--head"], self.branch())
         self.assertEqual(gh.created["--base"], "main")
         self.assertIn("| | |\n|---|---|\n| Class | D |\n| Touch set | ", body)
         self.assertIn("\n| Closes | — |\n", body)
-        self.assertIn(f"https://github.com/alexander-shamray/blueprint-harness/commit/{NEW}", body)
+        self.assertIn(f"https://github.com/alexander-shamray/blueprint-harness/commit/{self.new}", body)
         self.assertIn("## What changed", body)
         self.assertIn("`docs/b.md`", body.split("## What changed", 1)[1])
         self.assertIn("`docs/c.md`", body.split("## What changed", 1)[1])
-        self.assertTrue(body.rstrip("\n").endswith("https://claude.ai/code/session_01QAU7oJ2QcJaGTDrt5YwePy"))
-        self.assertIn("🤖 Generated with [Claude Code](https://claude.com/claude-code)", body)
+        # The run that opened it, not a session: no session writes a sync.
+        self.assertTrue(body.endswith(f"\n\nOpened by the blueprint-harness sync workflow, in run {RUN_URL}.\n"))
+        self.assertNotIn("claude.ai/code/session", body)
+
+    def test_body_without_a_run_names_the_workflow_alone(self) -> None:
+        gh = FakeGh(self.origin)
+        self.sync(gh, run_url=None)
+        self.assertTrue(gh.created["--body"].endswith("\n\nOpened by the blueprint-harness sync workflow.\n"))
+        self.assertNotIn("actions/runs", gh.created["--body"])
 
     def test_touch_set_lists_only_changed_paths(self) -> None:
         gh = FakeGh(self.origin)
@@ -242,7 +296,7 @@ class OpenedTests(SyncTestCase):
         author = git(self.origin, "show", "-s", "--format=%an <%ae>|%cn <%ce>", tip).strip()
         bot = "github-actions[bot] <41898+github-actions[bot]@users.noreply.github.com>"
         self.assertEqual(author, f"{bot}|{bot}")
-        self.assertIn(NEW, self.message(tip))
+        self.assertIn(self.new, self.message(tip))
         # The checkout is left as it was found: on its branch, clean, the sync branch pushed rather than held.
         self.assert_clean()
         self.assertEqual(git(self.target, "branch", "--show-current").strip(), "main")
@@ -262,7 +316,8 @@ class OpenedTests(SyncTestCase):
         for call in closes:
             comment = call[call.index("--comment") + 1]
             self.assertIn("Superseded by #42", comment)
-            self.assertIn(NEW, comment)
+            self.assertIn(self.new, comment)
+            self.assertIn("--delete-branch", call)
         # Closed only once the new pull request exists and its trailer is on origin.
         creates = [i for i, call in enumerate(gh.calls) if call[:2] == ["pr", "create"]]
         self.assertLess(creates[0], gh.calls.index(closes[0]))
@@ -293,6 +348,30 @@ class OpenedTests(SyncTestCase):
         outcome = self.sync(gh)
         self.assertEqual((outcome.state, outcome.pr), ("opened", 42))
         self.assertEqual(self.trailers(self.remote_tip(self.branch()))[-1], "PR: #42")
+
+    def test_old_run_syncs_the_tip_and_reuses_the_newer_pr(self) -> None:
+        # R30: a queued or rerun old run takes harness main's tip at run time, as sync.yml does, so it finds the
+        # newer sync already open and reuses it rather than replacing it with its own older commit.
+        gh = FakeGh(self.origin)
+        self.sync(gh, self.new)
+        tip = self.remote_tip(self.branch())
+        run_time_tip = git(self.harness, "rev-parse", "HEAD").strip()
+        outcome = self.sync(gh, run_time_tip)
+        self.assertEqual((outcome.state, outcome.pr, outcome.superseded), ("opened", 42, []))
+        self.assertEqual(sum(call[:2] == ["pr", "create"] for call in gh.calls), 1)
+        self.assertEqual(gh.closes(), [])
+        self.assertEqual(self.remote_tip(self.branch()), tip)
+
+    def test_older_commit_never_closes_a_newer_sync(self) -> None:
+        # R30, belt and braces: handed the older commit outright, the run refuses rather than superseding #42.
+        gh = FakeGh(self.origin)
+        self.sync(gh, self.new)
+        calls = len(gh.calls)
+        with self.assertRaisesRegex(SyncError, "#42 already syncs"):
+            self.sync(gh, self.old)
+        self.assertEqual([call[:2] for call in gh.calls[calls:]], [["pr", "list"]])
+        self.assertEqual(self.remote_branches(), ["chore/harness-sync-" + self.new[:7], "main"])
+        self.assert_clean()
 
     def test_push_replaces_a_leftover_branch_with_no_pr(self) -> None:
         # A run that pushed and died before `gh pr create` leaves the branch behind and no pull request.
@@ -338,14 +417,18 @@ class GateAcceptanceTests(SyncTestCase):
 
 
 class CliTests(SyncTestCase):
-    def run_main(self, *args: str) -> tuple[int, str, str]:
+    def run_main(self, *args: str, gh: FakeGh | None = None) -> tuple[int, str, str]:
+        # The real GhCli would reach GitHub; the CLI is tested for what it passes and prints.
+        self.gh = gh or FakeGh(self.origin)
         out, err = io.StringIO(), io.StringIO()
-        with redirect_stdout(out), redirect_stderr(err):
-            code = main(list(args))
+        with mock.patch("harness_sync.__main__.GhCli", return_value=self.gh) as self.cli:
+            with redirect_stdout(out), redirect_stderr(err):
+                code = main(list(args))
         return code, out.getvalue(), err.getvalue()
 
-    def argv(self, commit: str = NEW) -> list[str]:
-        return ["open-pr", "--payload", str(self.payload), "--target", str(self.target), "--commit", commit]
+    def argv(self, commit: str | None = None) -> list[str]:
+        return ["open-pr", "--payload", str(self.payload), "--target", str(self.target), "--commit",
+                commit or self.new]
 
     def test_not_onboarded_prints_one_line_and_exits_0(self) -> None:
         (self.target / ".harness/config.json").unlink()
@@ -362,7 +445,7 @@ class CliTests(SyncTestCase):
         self.assertEqual(code, 0)
         self.assertEqual(len(out.splitlines()), 1)
         self.assertIn("current", out)
-        self.assertIn(OLD[:7], out)
+        self.assertIn(self.old[:7], out)
         self.assert_clean()
 
     def test_opened_prints_one_line(self) -> None:
@@ -371,13 +454,31 @@ class CliTests(SyncTestCase):
         gh = FakeGh(self.origin, open_prs=[
             {"number": 5, "headRefName": "chore/harness-sync-fedcba9", "isCrossRepository": False},
         ])
-        with mock.patch("harness_sync.__main__.GhCli", return_value=gh) as cli:
-            code, out, _ = self.run_main(*self.argv(), "--repo", "o/r")
+        code, out, _ = self.run_main(*self.argv(), "--repo", "o/r", "--run-url", RUN_URL, gh=gh)
         self.assertEqual(code, 0)
-        cli.assert_called_once_with(self.target, "o/r")
+        self.cli.assert_called_once_with(self.target, "o/r")
         self.assertEqual(len(out.splitlines()), 1)
         self.assertIn("#42", out)
         self.assertIn("#5", out)
+        self.assertIn(f"in run {RUN_URL}.", gh.created["--body"])
+
+    def test_current_reports_the_stale_syncs_it_closed(self) -> None:
+        self.seed()
+        gh = FakeGh(self.origin, open_prs=[
+            {"number": 5, "headRefName": "chore/harness-sync-fedcba9", "isCrossRepository": False},
+        ])
+        code, out, _ = self.run_main(*self.argv(), gh=gh)
+        self.assertEqual(code, 0)
+        self.assertEqual(len(out.splitlines()), 1)
+        self.assertIn("closed stale #5", out)
+
+    def test_downgrade_exits_non_zero(self) -> None:
+        self.seed(at=self.new)
+        self.change_payload()
+        code, _, err = self.run_main(*self.argv(self.old), "--harness", str(self.harness))
+        self.assertNotEqual(code, 0)
+        self.assertIn("only moves forward", err)
+        self.assertEqual(self.gh.calls, [])
 
     def test_apply_error_exits_non_zero(self) -> None:
         self.seed()

@@ -19,11 +19,8 @@ IDENTITY = (
     "-c", "user.name=github-actions[bot]",
     "-c", "user.email=41898+github-actions[bot]@users.noreply.github.com",
 )
-# /pr's footer (`.claude/commands/pr.md`, *Body*, item 5), which the house form closes every description with.
-FOOTER = (
-    "🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\n"
-    "https://claude.ai/code/session_01QAU7oJ2QcJaGTDrt5YwePy"
-)
+# No session writes a sync, so it carries no session link: it names the workflow, and the run when one is given.
+FOOTER = "Opened by the blueprint-harness sync workflow"
 # One page of `gh pr list` is far more open pull requests than a target holds; the closure gate's page size is 100.
 LIST_LIMIT = "200"
 
@@ -110,7 +107,7 @@ def commit_message(harness_commit: str, written: list[str], deleted: list[str], 
     return f"{subject}\n\n{body}\n"
 
 
-def pr_body(harness_commit: str, written: list[str], deleted: list[str]) -> str:
+def pr_body(harness_commit: str, written: list[str], deleted: list[str], run_url: str | None = None) -> str:
     link = f"https://github.com/{HARNESS}/commit/{harness_commit}"
     opening = textwrap.fill(
         f"A sync from the harness repository: this pull request rewrites the managed paths to the payload "
@@ -133,7 +130,7 @@ def pr_body(harness_commit: str, written: list[str], deleted: list[str]) -> str:
         "## What changed\n\n"
         f"**Written ({len(written)})**\n\n{listing(written)}\n\n"
         f"**Deleted ({len(deleted)})**\n\n{listing(deleted)}\n\n"
-        f"{FOOTER}\n"
+        f"{FOOTER}{f', in run {run_url}' if run_url else ''}.\n"
     )
 
 
@@ -148,12 +145,68 @@ def _open_sync_prs(gh: GhRunner) -> list[tuple[int, str]]:
     )
 
 
+def _close(gh: GhRunner, numbers: list[int], note: str) -> list[int]:
+    # The branch goes with the pull request: a closed sync is never reopened, a newer one replaces it.
+    for number in numbers:
+        gh.run(["pr", "close", str(number), "--comment", note, "--delete-branch"])
+    return sorted(numbers)
+
+
 def _supersede(gh: GhRunner, others: list[int], number: int, harness_commit: str) -> list[int]:
     note = (f"Superseded by #{number}, the sync to blueprint-harness {harness_commit} "
             f"(https://github.com/{HARNESS}/commit/{harness_commit}).")
-    for other in others:
-        gh.run(["pr", "close", str(other), "--comment", note])
-    return sorted(others)
+    return _close(gh, others, note)
+
+
+def _resolve(harness: Path, rev: str) -> str | None:
+    done = subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}"],
+                          cwd=harness, capture_output=True, encoding="utf-8", check=False)
+    return done.stdout.strip() if done.returncode == 0 else None
+
+
+def _is_ancestor(harness: Path, older: str, newer: str) -> bool:
+    done = subprocess.run(["git", "merge-base", "--is-ancestor", older, newer],
+                          cwd=harness, capture_output=True, encoding="utf-8", check=False)
+    if done.returncode not in (0, 1):
+        raise SyncError(f"cannot compare {older} with {newer} in the harness checkout: {done.stderr.strip()}")
+    return done.returncode == 0
+
+
+def _base_commit(target: Path) -> str | None:
+    """The commit the base branch's manifest names, read from HEAD so a link in the tree is never followed."""
+    done = subprocess.run(["git", "show", f"HEAD:{MANIFEST}"], cwd=target, capture_output=True,
+                          encoding="utf-8", check=False)
+    if done.returncode != 0:
+        return None
+    try:
+        commit = json.loads(done.stdout).get("harness_commit")
+    except (ValueError, AttributeError):
+        return None  # apply refuses a malformed manifest itself, with the reason
+    return commit if isinstance(commit, str) and re.fullmatch(r"[0-9a-f]{40}", commit) else None
+
+
+def _check_forward(harness: Path, target: Path, harness_commit: str) -> None:
+    """A sync only moves forward: the drift gate's ancestry test, applied before anything opens rather than after."""
+    if _resolve(harness, harness_commit) != harness_commit:
+        raise SyncError(f"harness commit {harness_commit} is not in the harness checkout at {harness}")
+    base = _base_commit(target)
+    if base is not None and not _is_ancestor(harness, base, harness_commit):
+        raise SyncError(
+            f"the target's manifest names blueprint-harness {base}, which is not an ancestor of {harness_commit}; "
+            "a sync only moves forward, so this run is older than the sync the target already holds"
+        )
+
+
+def _check_no_newer(harness: Path, harness_commit: str, open_prs: list[tuple[int, str]]) -> None:
+    """A run carrying an older commit than an open sync must not close that sync in its own favour."""
+    for number, head in open_prs:
+        theirs = _resolve(harness, head[len(PREFIX):])
+        # A head naming no commit here is stale by definition, and is superseded like any older one.
+        if theirs and theirs != harness_commit and _is_ancestor(harness, harness_commit, theirs):
+            raise SyncError(
+                f"#{number} already syncs blueprint-harness {theirs}, which is newer than {harness_commit}; "
+                "this run is older and opens nothing"
+            )
 
 
 def _ensure_trailer(target: Path, branch: str, number: int) -> None:
@@ -169,10 +222,18 @@ def _ensure_trailer(target: Path, branch: str, number: int) -> None:
 
 
 def open_sync_pr(
-    target_checkout: Path, harness_commit: str, gh: GhRunner, *, payload: Path | None = None
+    target_checkout: Path,
+    harness_commit: str,
+    gh: GhRunner,
+    *,
+    payload: Path | None = None,
+    harness: Path | None = None,
+    run_url: str | None = None,
 ) -> SyncOutcome:
+    """`harness` is the checkout whose history judges forward and older; by default the one holding `payload`."""
     target = Path(target_checkout)
     payload = Path(payload) if payload is not None else Path(__file__).resolve().parent.parent / "payload"
+    harness = Path(harness) if harness is not None else payload.parent
     if not re.fullmatch(r"[0-9a-f]{40}", harness_commit):
         raise SyncError(f"harness commit must be 40 hex characters, got {harness_commit!r}")
     if not (target / CONFIG).is_file():
@@ -183,20 +244,34 @@ def open_sync_pr(
     base = _git(target, "branch", "--show-current").strip()
     if not base:
         raise SyncError("the target checkout is on a detached HEAD; check out the branch the sync is for")
+    _check_forward(harness, target, harness_commit)
 
     # 1-2. Apply, then decide: a manifest whose only change is the commit it names is nothing to review, but a
     # first manifest is the drift gate's whole input and is.
     had_manifest = (target / MANIFEST).is_file()
     result = apply(payload, target, harness_commit)
-    if had_manifest and not result.written and not result.deleted:
+    current = had_manifest and not result.written and not result.deleted
+    if current:
         _restore(target)
-        # Read after apply has vetted the manifest's path, and after the restore has put the base's copy back.
-        old = Manifest.read(target / MANIFEST)
-        at = _short(old.harness_commit) if old else "none"
-        return SyncOutcome("current", None, [], f"current at its manifest's commit {at}; nothing to sync")
 
     branch = f"{PREFIX}{_short(harness_commit)}"
     open_prs = _open_sync_prs(gh)
+    try:
+        _check_no_newer(harness, harness_commit, open_prs)
+    except SyncError:
+        _restore(target)
+        raise
+
+    if current:
+        # Every open sync is stale now: merging one would move the target off a payload it already matches.
+        note = (f"blueprint-harness {_short(harness_commit)} leaves this target current; this sync is stale "
+                f"(https://github.com/{HARNESS}/commit/{harness_commit}).")
+        stale = _close(gh, [number for number, _ in open_prs], note)
+        # Read after apply has vetted the manifest's path, and after the restore has put the base's copy back.
+        old = Manifest.read(target / MANIFEST)
+        at = _short(old.harness_commit) if old else "none"
+        return SyncOutcome("current", None, stale, f"current at its manifest's commit {at}; nothing to sync")
+
     others = [number for number, head in open_prs if head != branch]
     mine = [number for number, head in open_prs if head == branch]
     if mine:
@@ -218,7 +293,7 @@ def open_sync_pr(
     # 6-7. Open the pull request, then name it in the commit: the number exists only once the pull request does.
     subject = message.split("\n", 1)[0]
     url = gh.run(["pr", "create", "--base", base, "--head", branch, "--title", subject,
-                  "--body", pr_body(harness_commit, result.written, result.deleted)])
+                  "--body", pr_body(harness_commit, result.written, result.deleted, run_url)])
     found = re.search(r"/pull/(\d+)\s*$", url.strip())
     if found is None:
         raise SyncError(f"gh pr create printed no pull request URL: {url.strip()!r}")

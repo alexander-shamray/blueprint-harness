@@ -27,13 +27,18 @@ def _build_parser() -> argparse.ArgumentParser:
     opr.add_argument("--target", type=Path, required=True, help="a clean checkout of the target, on its base branch")
     opr.add_argument("--commit", required=True, help="40-hex harness commit the payload was taken from")
     opr.add_argument("--repo", help="owner/name for gh; inferred from the checkout's origin when omitted")
+    opr.add_argument("--harness", type=Path, help="the harness checkout whose history orders commits; default: "
+                     "the directory holding --payload")
+    opr.add_argument("--run-url", help="the workflow run that opens the pull request, linked from its body")
     return parser
 
 
 def _open_pr(args: argparse.Namespace) -> int:
-    outcome = open_sync_pr(args.target, args.commit, GhCli(args.target, args.repo), payload=args.payload)
+    outcome = open_sync_pr(args.target, args.commit, GhCli(args.target, args.repo), payload=args.payload,
+                           harness=args.harness, run_url=args.run_url)
     if outcome.state == "current":
-        print(f"harness_sync: {args.repo or args.target} is {outcome.reason}")
+        stale = "".join(f"; closed stale #{n}" for n in outcome.superseded)
+        print(f"harness_sync: {args.repo or args.target} is {outcome.reason}{stale}")
         return 0
     superseded = ", ".join(f"#{n}" for n in outcome.superseded) or "none"
     print(f"harness_sync: sync pull request #{outcome.pr} open for {args.commit[:7]}; superseded {superseded}")
