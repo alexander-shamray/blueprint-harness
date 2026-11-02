@@ -171,7 +171,7 @@ def _globs(root: Path, problems: list[str]) -> tuple[list[str], list[str]]:
 
 def _check_protected(local: list[str], exclude: list[str], problems: list[str]) -> None:
     for rel in _NEEDED:
-        if is_local(local, rel):
+        if _matches(local, rel):  # case-sensitive, as apply's is
             problems.append(f"{CONFIG} makes {rel} local, which the drift gate needs managed")
         if _matches(exclude, rel):
             problems.append(f"{CONFIG} excludes {rel}, which the drift gate needs managed")
@@ -218,6 +218,23 @@ def _check_required(files: dict[str, str], problems: list[str]) -> None:
             problems.append(f"{MANIFEST} does not list {rel}")
 
 
+def _check_local_copy(root: Path, rel: str, digest: str, problems: list[str]) -> None:
+    link = _link_problem(root, rel)
+    if link:
+        problems.append(f"{rel} is local but unreadable: {link}")
+        return
+    target = root / rel
+    if not target.is_file():
+        return
+    try:
+        same = file_hash(target.read_bytes()) == digest
+    except OSError as exc:
+        problems.append(f"cannot read {rel}: {exc}")
+        return
+    if not same:
+        problems.append(f"{rel} is local but the payload manages it and the tree differs")
+
+
 def _check_payload(
     root: Path, payload: Path, files: dict[str, str], local: list[str], exclude: list[str], problems: list[str]
 ) -> None:
@@ -227,7 +244,12 @@ def _check_payload(
         return
     expected: dict[str, str] = {}
     for rel in walk_files(payload):
-        if rel in (SETTINGS, MANIFEST, CONFIG) or _matches(exclude, rel):
+        if rel in (SETTINGS, MANIFEST, CONFIG):
+            continue
+        if _matches(exclude, rel):
+            # Exclude means not delivered, never replaced (spec 5.2); apply refuses this too.
+            if (root / rel).exists() or (root / rel).is_symlink():
+                problems.append(f"{rel} is excluded but exists in the tree")
             continue
         try:
             digest = file_hash((payload / rel).read_bytes())
@@ -235,9 +257,7 @@ def _check_payload(
             problems.append(f"cannot read payload file {rel}: {exc}")
             continue
         if _matches(local, rel):  # apply's local match is case-sensitive; a differing local file would have refused
-            target = root / rel
-            if not _link_problem(root, rel) and target.is_file() and file_hash(target.read_bytes()) != digest:
-                problems.append(f"{rel} is local but the payload manages it and the tree differs")
+            _check_local_copy(root, rel, digest, problems)
             continue
         expected[rel] = digest
     for rel, digest in sorted(expected.items()):

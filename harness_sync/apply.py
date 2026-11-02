@@ -174,6 +174,7 @@ def apply(
                 raise ApplyError(f"{kind} glob {glob!r} matches {rel}, which the drift gate needs managed")
 
     contents: dict[str, bytes] = {}
+    excluded: list[str] = []
     for rel in _walk(payload):
         if rel == SETTINGS:
             raise ApplyError(f"payload contains {SETTINGS}; it is rendered, never copied")
@@ -181,6 +182,7 @@ def apply(
             raise ApplyError(f"payload contains {rel}; the target owns it")
         _check_canonical(rel, "payload")
         if _first_match(cfg.exclude, rel) is not None:
+            excluded.append(rel)
             continue
         contents[rel] = (payload / rel).read_bytes()
     if BASE not in contents:
@@ -220,6 +222,13 @@ def apply(
         for rel in old_files
         if rel not in new_files and _first_match(cfg.local, rel, ignore_case=True) is None
     )
+
+    # Exclude means "not delivered", never "replaced" (spec 5.2): a target keeping its own copy of a managed file
+    # would fork the harness. A file this apply is about to delete as no longer managed is on its way out.
+    for rel in excluded:
+        path = target / rel
+        if (path.exists() or path.is_symlink()) and rel not in dropped:
+            raise ApplyError(f"{rel} is excluded but exists in the target; remove it, or use local to keep a copy")
 
     writes = [*managed, MANIFEST, SETTINGS]
     for rel in [*writes, *dropped]:

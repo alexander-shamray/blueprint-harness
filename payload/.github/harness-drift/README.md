@@ -31,6 +31,7 @@ caught where it is made and not at the next sync.
 
 With `--payload`, it also refuses:
 
+- a payload file excluded by the config that exists in the tree;
 - a payload file, not excluded by the config, that the manifest does not list
   with the payload's hash. The exception is a `local` path whose file in the
   tree is absent or identical to the payload's, as apply allows;
@@ -52,13 +53,26 @@ delete the line. Three things guard against that, each a different part:
   cannot weaken the gate that judges it. It does not cover the manifest or
   the config.
 - **The payload fetch** covers the manifest and the config. The workflow reads
-  `harness_commit` from the head manifest and fetches exactly that commit's
-  `payload/` from the harness repository; `--payload` makes the gate compare
-  the manifest with it. A pull request cannot change that repository.
-- **The repository ruleset** covers what neither can: that this check is
-  required and that nobody can merge around it. A pull request that edits
-  `harness_commit` can only point at another real harness commit, and a
-  sync is the only honest way to do that.
+  `harness_commit` from the head manifest and fetches that commit's
+  `payload/` from the harness repository, only if the commit is on that
+  repository's `main` (GitHub serves fork-network commits by SHA, so a SHA
+  alone proves nothing) and is the base manifest's commit or a descendant of
+  it, so a pull request cannot roll a target back to a weaker real release.
+  `--payload` makes the gate compare the manifest with it. A failed fetch or
+  a failed test fails the run. A pull request cannot change that repository.
+- **The repository ruleset and review** are the backstop for what is left.
+  `pull_request` runs the head's copy of `harness-drift.yml`, so a pull
+  request can edit the workflow itself, and only the ruleset requiring this
+  check, with review of workflow changes, stops that.
+
+The base gate judges the head workflow that calls it, so the gate's command
+line flags must stay backward compatible: renaming one makes the sync that
+carries the rename red.
+
+Exclude means "not delivered", never "replaced". A payload path the config
+excludes that still exists in the tree is refused here and by apply, because
+a target keeping its own copy of a managed file, a guard hook for example,
+would fork the harness. Use `local` for a file the target keeps.
 
 ## How to run it
 
