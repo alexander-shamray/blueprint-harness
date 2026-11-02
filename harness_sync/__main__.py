@@ -7,6 +7,7 @@ from pathlib import Path
 
 from harness_sync.apply import ApplyError, apply
 from harness_sync.config import ConfigError
+from harness_sync import render
 from harness_sync.render import RenderError
 
 
@@ -19,6 +20,7 @@ def _build_parser() -> argparse.ArgumentParser:
     cmd.add_argument("--commit", required=True, help="40-hex harness commit the payload was taken from")
     chk = sub.add_parser("check", help="run the drift gate against a target")
     chk.add_argument("--target", type=Path, required=True)
+    chk.add_argument("--payload", type=Path, help="the payload/ at the manifest's commit, to compare the manifest with")
     return parser
 
 
@@ -34,7 +36,9 @@ def _load_gate():
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     if args.command == "check":
-        return _load_gate().main(["--root", str(args.target)])
+        # The harness's own renderer, never the target's: check must not execute code a target controls.
+        argv = ["--root", str(args.target)] + (["--payload", str(args.payload)] if args.payload else [])
+        return _load_gate().main(argv, render_module=render)
     try:
         result = apply(args.payload, args.target, args.commit)
     except (ApplyError, ConfigError, RenderError) as exc:
