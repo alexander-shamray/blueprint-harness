@@ -91,7 +91,7 @@ Changed, so the file reads the value from `.harness/config.json`:
 | File | Was | Now |
 |---|---|---|
 | `.claude/commands/branch.md` | `.todo/blueprint-backend.md` | the task list named by `.harness/config.json` `task_list` |
-| `.claude/commands/dispatch.md` | `` `<list>` is `../.todo/blueprint-backend.md` `` | `` `<list>` is `../` `` and the task list named by `.harness/config.json` `task_list` |
+| `.claude/commands/dispatch.md` | `` `<list>` is `../.todo/blueprint-backend.md` `` | `` `<list>` is `../` followed by the path in `.harness/config.json` `task_list` `` |
 | `.claude/commands/ship.md` | `.todo/blueprint-backend.md` | the task list named by `.harness/config.json` `task_list` |
 
 No script or hook carries the slug or the task list: the scripts resolve the
@@ -116,22 +116,114 @@ right in every target, and `dispatch_board.py` takes the task list as
 Payload files that name a backend stack value in prose or in a step, kept as
 backend has them because the config schema has no key for a stack command and
 backend's sync diff should be empty (spec 7, step 2). Each needs a config key
-or a rewording before the first sibling's sync (spec 7, step 3):
+or a rewording before the first sibling's sync (spec 7, step 3). This
+section and the next are an inventory only: the payload text stays as backend
+has it. Both were found by grepping `payload/` for `dotnet`, `Platform.slnx`,
+each backend-local command's name and each backend-only document's path, and
+every line number was read back from the file.
 
 - `.claude/commands/bug-sweep.md:108`, `.claude/commands/security-sweep.md:52`
-  and their runbooks — the readable-root proof globs `$work/Platform.slnx`.
-- `.claude/commands/pr.md:149` — "once `Platform.slnx` exists, state the
+  — the readable-root proof globs `$work/Platform.slnx`; its argument in the
+  runbooks, `docs/commands/bug-sweep.md:218,260,287-288,328` and
+  `docs/commands/security-sweep.md:75,117,144-145,168`.
+- `.claude/commands/pr.md:149-150` — "once `Platform.slnx` exists, state the
   `dotnet build` / `dotnet test` result".
 - `.claude/commands/style-pass.md:98` — `dotnet format` and Roslyn as the
   formatter.
-- `docs/commands/branch.md:239` — "`dotnet test` … runs there".
+- `docs/commands/branch.md:239` — "`dotnet test` … runs there";
+  `docs/commands/bug-sweep.md:90` — "`dotnet test`" as what a build runs.
 - `.github/output-gate/` — the gate itself checks .NET build output against
-  `Platform.slnx`; payload by the brief.
-- `docs/harness-boundaries.md` — twelve `dotnet` mentions; spec 5.2 splits
-  this document into common boundaries and backend's residuals.
+  `Platform.slnx`; `output_gate.py:18,24` and `README.md:3,5,12,18` name
+  backend's trees and solution. Payload by the brief.
+- `.claude/scripts/sweep-slices.sh:47` — slices `tools/` as tooling, a
+  backend tree; `.claude/scripts/gh-label-ensure.sh:30` — the `code` label's
+  description names `src/`, `tests/`, `tools/`, `deploy/`;
+  `.claude/scripts/dispatch_run.py:27` — cites
+  `tools/quality-sets/quality_sets.py` as the owner of four counts.
+- `docs/harness-boundaries.md:24,1123,1163-1179,1394,1443-1444` — `dotnet`
+  and `Platform.slnx`; spec 5.2 splits this document into common boundaries
+  and backend's residuals.
 - Test fixtures that use a `dotnet` command line as a sample string
-  (`test_git_argv_guard.py`, `test_index_search_hint.py`,
-  `test_watch_session.py`, `test_cbx.py`) — data, right in any target.
+  (`test_git_argv_guard.py:241-246`, `test_index_search_hint.py:118`,
+  `test_watch_session.py:28-29`, `test_cbx.py:54`) — data, right in any
+  target.
+
+## References to backend-local commands and documents
+
+Payload files that name a command backend keeps local, or cite a document
+only backend has. Right in backend; in another target each points at nothing
+until that target has its own or the reference is reworded.
+
+Backend-local commands:
+
+- `.claude/commands/ship.md:257-259,303` — `/validate-blueprint` after Class
+  C and `/check-links` (with `docs/change-locality.md` §5).
+- `.claude/commands/pr.md:102` — `/review-branch`; `pr.md:157` —
+  `/validate-blueprint` and `/check-links`.
+- `.claude/commands/bug-sweep.md:22-23` — `/validate-blueprint`,
+  `/review-branch` in the table of neighbouring commands.
+- `.claude/agents/branch-reviewer.md:42` — takes its bar from
+  `.claude/commands/review-branch.md`'s *What counts as a finding*.
+- `docs/commands/ship.md:427-428,442,468` — `/check-links`,
+  `/validate-blueprint` and its runbook `docs/commands/validate-blueprint.md`.
+- `.claude/scripts/git-worktree-drop.sh:50` — a comment naming
+  `mutation-run.sh`'s reports.
+- `docs/harness-boundaries.md:24,78-80,900,1163-1184,1433-1446` —
+  `/review-branch`, `/check-links`, `/validate-blueprint`, `/mutation-sweep`,
+  `dotnet-test.sh`, `mutation-run.sh`.
+
+Backend-only documents:
+
+- `docs/change-locality.md` — `.claude/commands/bug-sweep.md:249`,
+  `commit.md:77`, `dispatch.md:118`, `pr.md:86`, `security-sweep.md:199`,
+  `ship.md:257,272,388`, `team.md:90`; `.claude/scripts/gh-issue-create.sh:18`;
+  `.github/issue-form-gate/README.md:7` (and `issue_form_gate.py`'s default
+  contract); `docs/commands/bug-sweep.md:696`, `security-sweep.md:505`,
+  `ship.md:446,546`, `team.md:18,106`.
+- `docs/testing.md` — `.claude/commands/ship.md:259`;
+  `.claude/scripts/review_helpers.py:19`;
+  `.claude/skills/codebase-index/SKILL.md:12`;
+  `.github/closure-gate/closure_gate.py:4`, `closure-gate/README.md:59`,
+  `comment-gate/README.md:162`, `commit-gate/README.md:32`,
+  `output-gate/README.md:38`; `docs/harness-boundaries.md:808`.
+- `docs/roadmap.md` — `.claude/commands/ship.md:259`.
+- `docs/style-guide.md` — `.claude/agents/branch-reviewer.md:46`;
+  `.claude/commands/style-pass.md:2,23,73,86,122`;
+  `.github/comment-gate/README.md:10`. (Each target has a style guide of its
+  own by spec 3; the cited sections are backend's.)
+- `docs/backend-architecture/` — `.claude/commands/ship.md:261`,
+  `style-pass.md:30`; `.claude/skills/codebase-index/SKILL.md:53`;
+  `.github/output-gate/README.md:5`, `workflow-lint/README.md:41`;
+  `docs/commands/ship.md:427`; `docs/harness-boundaries.md:78`.
+- `docs/token-plan.md` — `.claude/commands/team.md:33`;
+  `docs/commands/ship.md:729`, `team.md:28,90`;
+  `docs/harness-boundaries.md:497`.
+- `docs/superpowers/` (backend's plans and specs) —
+  `.claude/agents/branch-reviewer.md:37`; `.claude/commands/ship.md:110`;
+  `.claude/scripts/sweep-slices.sh:116`; `.github/comment-gate/README.md:97`,
+  `comment_gate.py:26,29`; `.github/plan-size-gate/README.md:3` (and
+  `plan_size_gate.py`'s default directory); `docs/commands/bug-sweep.md:616`,
+  `dispatch.md:6`, `security-sweep.md:435`, `ship.md:108,939`;
+  `docs/harness-boundaries.md:1452,1471,1501`.
+- Sections of backend's `CLAUDE.md` (spec 5.2 splits it) —
+  `.claude/agents/branch-reviewer.md:3`; `.claude/commands/branch.md:71,83`,
+  `bug-sweep.md:190`, `commit.md:27`, `style-pass.md:24,81,123`;
+  `.claude/hooks/index-search-hint.py:438`;
+  `.claude/scripts/sweep-slices.sh:113`;
+  `.github/comment-gate/comment_gate.py:27`;
+  `.github/plan-size-gate/README.md:4,25`, `plan_size_gate.py:2,20,24`;
+  `docs/commands/branch.md:39-40,141`, `dispatch.md:171`,
+  `ship.md:729,981`; `docs/harness-boundaries.md:10,34,45,50,52,68,82,304,807`.
+
+## Decided after review
+
+The whole-module classification of the mixed test modules stays for this
+plan: splitting their backend-tree cases into backend-local modules would add
+files to backend's first-sync diff, which spec 7 step 2 wants near-empty. An
+issue tracks splitting them so their generic cases run here (issue number to
+be added). Until then, Task 7's config for this repository excludes
+`.github/workflows/comment-gate.yml`, whose suite stays in backend, so its
+`python -m unittest` would find no tests here and fail.
 
 ## Test counts
 
