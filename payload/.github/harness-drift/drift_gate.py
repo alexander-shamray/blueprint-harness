@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
 """The harness drift gate: a target's managed files are what its manifest says (shared-harness spec 5.4).
 
-Stdlib only and standalone: a target has no harness_sync package, so the hash and the glob matcher below are
-copies, and harness_sync/tests/test_drift_gate_parity.py (in the harness repository) keeps them equal to apply's.
-
-The manifest and config live in the tree a pull request controls, so on their own they prove only that the tree is
-consistent with itself. `--payload` names the harness repository's payload/ at the commit the manifest records, and
-then the manifest is compared with that instead of being trusted (owner: the harness-drift README, Trust model).
-"""
+Stdlib only, so its hash and glob matcher are copies harness_sync's parity test keeps equal to apply's. A pull
+request edits the manifest freely, so `--payload` compares it with the payload (owner: the README, Trust model)."""
 
 from __future__ import annotations
 
@@ -345,10 +340,9 @@ def _check_settings(
 def check(root: Path, payload: Path | None = None, render_module: types.ModuleType | None = None) -> list[str]:
     """Problems with the tree at `root`, empty when it is exactly what its manifest records.
 
-    `payload` is the harness payload/ at the manifest's commit; given, the manifest is compared with it. Without
-    it the tree is judged against itself. `render_module` is for a caller that must not execute the tree's own
-    renderer (harness_sync check): it renders with that module instead.
-    """
+    `payload`, the harness payload/ at the manifest's commit, is what the manifest is compared with; without it the
+    tree is judged against itself. `render_module` renders in place of the tree's own renderer, for a caller that
+    must not execute that (harness_sync check)."""
     root = Path(root)
     payload = Path(payload) if payload is not None else None
     problems: list[str] = []
