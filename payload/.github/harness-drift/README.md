@@ -72,7 +72,9 @@ carries the rename red.
 Exclude means "not delivered", never "replaced". A payload path the config
 excludes that still exists in the tree is refused here and by apply, because
 a target keeping its own copy of a managed file, a guard hook for example,
-would fork the harness. Use `local` for a file the target keeps.
+would fork the harness. `local` allows only an absent or identical copy, so a
+target that needs different behaviour adds a new local path, never a
+replacement.
 
 ## How to run it
 

@@ -96,8 +96,10 @@ jobs:
           dest="$RUNNER_TEMP/harness-payload"
           rm -rf "$dest" "$RUNNER_TEMP/harness-history"
           mkdir -p "$dest" "$RUNNER_TEMP/harness-history"
-          # Two repositories: a blobless clone cannot be filled in later, so the
-          # history is kept apart from the checked-out content.
+          # Two repositories, so the blobless history clone never has to fetch
+          # content. The ancestry test stays sound even so: it asks only
+          # whether main reaches the SHA, and main can never reach an impostor
+          # (fork-network) commit, whatever else GitHub will serve by SHA.
           hist="$RUNNER_TEMP/harness-history"
           git -C "$hist" init -q
           git -C "$hist" remote add origin "$HARNESS_REPO"

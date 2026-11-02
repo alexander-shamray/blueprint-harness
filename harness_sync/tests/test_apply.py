@@ -147,6 +147,17 @@ class ApplyTests(unittest.TestCase):
         result = apply(self.payload, self.target, COMMIT)
         self.assertIn("skip/a.md", result.deleted)
 
+    def test_a_dropped_path_now_excluded_that_is_a_directory_is_refused(self) -> None:
+        self.put(self.payload, "skip/a.md", b"a\n")
+        apply(self.payload, self.target, COMMIT)
+        (self.target / "skip/a.md").unlink()
+        (self.target / "skip/a.md").mkdir()  # a directory now sits where the managed file was
+        (self.target / "skip/a.md/inner.txt").write_bytes(b"x")
+        self.config({**CONFIG, "exclude": ["skip/**"]})
+        with self.assertRaises(ApplyError) as ctx:
+            apply(self.payload, self.target, COMMIT)
+        self.assertIn("skip/a.md", str(ctx.exception))
+
     def test_a_local_excluded_path_that_exists_is_still_refused(self) -> None:
         self.config({**CONFIG, "exclude": ["skip/**"], "local": ["skip/**"]})
         self.put(self.payload, "skip/a.md", b"a\n")

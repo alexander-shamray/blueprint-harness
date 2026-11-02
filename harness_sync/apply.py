@@ -227,8 +227,14 @@ def apply(
     # would fork the harness. A file this apply is about to delete as no longer managed is on its way out.
     for rel in excluded:
         path = target / rel
-        if (path.exists() or path.is_symlink()) and rel not in dropped:
-            raise ApplyError(f"{rel} is excluded but exists in the target; remove it, or use local to keep a copy")
+        if not (path.exists() or path.is_symlink()):
+            continue
+        # The deletion loop below unlinks regular files only, so anything else would survive and stay a fork.
+        if rel not in dropped or path.is_symlink() or not path.is_file():
+            raise ApplyError(
+                f"{rel} is excluded but exists in the target; remove it. `local` allows only an absent or identical "
+                "copy; a target that needs different behaviour adds a new local path, never a replacement"
+            )
 
     writes = [*managed, MANIFEST, SETTINGS]
     for rel in [*writes, *dropped]:
