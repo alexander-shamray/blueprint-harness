@@ -13,6 +13,11 @@ from harness_sync.manifest import Manifest
 
 HARNESS = "alexander-shamray/blueprint-harness"
 PREFIX = "chore/harness-sync-"
+# Exactly the branch name this module makes. A same-repository head that merely starts with the prefix may be a
+# person's branch, so it is never closed, and its suffix is never read as a revision.
+SYNC_HEAD = re.compile(r"chore/harness-sync-[0-9a-f]{7}")
+# Where the harness checkout keeps main: origin's view first (sync.yml's checkout has both), then a local branch.
+MAIN_REFS = ("refs/remotes/origin/main", "refs/heads/main")
 # The sync is written by CI, not by a person or a session (spec 5.3); the commit gate demands no identity, so the
 # Actions bot's own is used, and only for the sync's commits (`git -c`), never as the checkout's config.
 IDENTITY = (
@@ -137,11 +142,12 @@ def pr_body(harness_commit: str, written: list[str], deleted: list[str], run_url
 def _open_sync_prs(gh: GhRunner) -> list[tuple[int, str]]:
     raw = json.loads(gh.run(["pr", "list", "--state", "open", "--limit", LIST_LIMIT,
                              "--json", "number,headRefName,isCrossRepository"]))
-    # A fork can name a branch anything, so only this repository's own branches are sync pull requests.
+    # A fork can name a branch anything, so only this repository's own branches are sync pull requests, and only
+    # those named exactly as this module names them.
     return sorted(
         (pr["number"], pr["headRefName"])
         for pr in raw
-        if not pr["isCrossRepository"] and pr["headRefName"].startswith(PREFIX)
+        if not pr["isCrossRepository"] and SYNC_HEAD.fullmatch(pr["headRefName"])
     )
 
 
@@ -159,7 +165,8 @@ def _supersede(gh: GhRunner, others: list[int], number: int, harness_commit: str
 
 
 def _resolve(harness: Path, rev: str) -> str | None:
-    done = subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}"],
+    # `--end-of-options`: a revision is never read as an option, whatever it starts with.
+    done = subprocess.run(["git", "rev-parse", "--verify", "--quiet", "--end-of-options", f"{rev}^{{commit}}"],
                           cwd=harness, capture_output=True, encoding="utf-8", check=False)
     return done.stdout.strip() if done.returncode == 0 else None
 
@@ -197,12 +204,22 @@ def _check_forward(harness: Path, target: Path, harness_commit: str) -> None:
         )
 
 
+def _main(harness: Path) -> str:
+    for ref in MAIN_REFS:
+        if (sha := _resolve(harness, ref)) is not None:
+            return sha
+    raise SyncError(f"the harness checkout at {harness} has no main ({' or '.join(MAIN_REFS)}) to order syncs by")
+
+
 def _check_no_newer(harness: Path, harness_commit: str, open_prs: list[tuple[int, str]]) -> None:
     """A run carrying an older commit than an open sync must not close that sync in its own favour."""
+    main = _main(harness) if open_prs else ""
     for number, head in open_prs:
         theirs = _resolve(harness, head[len(PREFIX):])
-        # A head naming no commit here is stale by definition, and is superseded like any older one.
-        if theirs and theirs != harness_commit and _is_ancestor(harness, harness_commit, theirs):
+        # Newer means released: a descendant on main. A suffix naming nothing here, or a commit off main (a short
+        # sha that happens to match a feature branch's commit, a branch or tag of that name), is stale.
+        if (theirs and theirs != harness_commit and _is_ancestor(harness, harness_commit, theirs)
+                and _is_ancestor(harness, theirs, main)):
             raise SyncError(
                 f"#{number} already syncs blueprint-harness {theirs}, which is newer than {harness_commit}; "
                 "this run is older and opens nothing"
@@ -249,20 +266,19 @@ def open_sync_pr(
     # 1-2. Apply, then decide: a manifest whose only change is the commit it names is nothing to review, but a
     # first manifest is the drift gate's whole input and is.
     had_manifest = (target / MANIFEST).is_file()
-    result = apply(payload, target, harness_commit)
-    current = had_manifest and not result.written and not result.deleted
-    if current:
-        _restore(target)
-
-    branch = f"{PREFIX}{_short(harness_commit)}"
-    open_prs = _open_sync_prs(gh)
     try:
+        result = apply(payload, target, harness_commit)
+        open_prs = _open_sync_prs(gh)
         _check_no_newer(harness, harness_commit, open_prs)
-    except SyncError:
+    except BaseException:
+        # Nothing is committed before the branch exists, so a failure up to here hands the checkout back as found.
         _restore(target)
         raise
+    current = had_manifest and not result.written and not result.deleted
+    branch = f"{PREFIX}{_short(harness_commit)}"
 
     if current:
+        _restore(target)
         # Every open sync is stale now: merging one would move the target off a payload it already matches.
         note = (f"blueprint-harness {_short(harness_commit)} leaves this target current; this sync is stale "
                 f"(https://github.com/{HARNESS}/commit/{harness_commit}).")

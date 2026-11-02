@@ -43,11 +43,13 @@ def git(cwd: Path, *args: str) -> str:
 class FakeGh:
     """Answers the `gh pr` calls the sync makes; a created pull request joins the open list, as on GitHub."""
 
-    def __init__(self, origin: Path, open_prs: list[dict] | None = None, number: int = 42, fail_after_create=False):
+    def __init__(self, origin: Path, open_prs: list[dict] | None = None, number: int = 42, fail_after_create=False,
+                 fail_on_list=False):
         self.origin = origin
         self.open_prs = list(open_prs or [])
         self.number = number
         self.fail_after_create = fail_after_create
+        self.fail_on_list = fail_on_list
         self.calls: list[list[str]] = []
         self.created: dict[str, str] = {}
         self.tip_at_create: str | None = None
@@ -59,6 +61,8 @@ class FakeGh:
     def run(self, args: list[str]) -> str:
         self.calls.append(list(args))
         if args[:2] == ["pr", "list"]:
+            if self.fail_on_list:
+                raise SyncError("gh pr list failed: simulated")
             return json.dumps(self.open_prs)
         if args[:2] == ["pr", "create"]:
             opts = dict(zip(args[2::2], args[3::2]))
@@ -104,6 +108,13 @@ class SyncTestCase(unittest.TestCase):
     def harness_commit(self, message: str) -> str:
         git(self.harness, *SEED, "commit", "-q", "--allow-empty", "-m", message)
         return git(self.harness, "rev-parse", "HEAD").strip()
+
+    def side_commit(self, branch: str) -> str:
+        """A commit ahead of main's tip but off main, on `branch`; the harness stays on main."""
+        git(self.harness, "checkout", "-q", "-b", branch)
+        sha = self.harness_commit(f"harness: {branch}")
+        git(self.harness, "checkout", "-q", "main")
+        return sha
 
     def put(self, root: Path, rel: str, text: str) -> None:
         path = root / rel
@@ -174,6 +185,7 @@ class NothingToSyncTests(SyncTestCase):
             {"number": 6, "headRefName": "chore/harness-sync-fedcba9", "isCrossRepository": False},
             {"number": 8, "headRefName": "chore/harness-sync-1111111", "isCrossRepository": True},
             {"number": 9, "headRefName": "docs/unrelated", "isCrossRepository": False},
+            {"number": 10, "headRefName": "chore/harness-sync-notes", "isCrossRepository": False},
         ])
         outcome = self.sync(gh)
         self.assertEqual((outcome.state, outcome.pr, outcome.superseded), ("current", None, [5, 6]))
@@ -372,6 +384,44 @@ class OpenedTests(SyncTestCase):
         self.assertEqual([call[:2] for call in gh.calls[calls:]], [["pr", "list"]])
         self.assertEqual(self.remote_branches(), ["chore/harness-sync-" + self.new[:7], "main"])
         self.assert_clean()
+
+    def test_look_alike_heads_are_neither_closed_nor_compared(self) -> None:
+        # A person's branch under the prefix is not a sync: never closed, its suffix never read as a revision, even
+        # where that suffix names a harness branch ahead of the tip and would otherwise wedge every run.
+        self.side_commit("feature")
+        gh = FakeGh(self.origin, open_prs=[
+            {"number": 10, "headRefName": "chore/harness-sync-notes", "isCrossRepository": False},
+            {"number": 11, "headRefName": "chore/harness-sync-feature", "isCrossRepository": False},
+            {"number": 12, "headRefName": "chore/harness-sync-origin/feature", "isCrossRepository": False},
+            {"number": 13, "headRefName": "chore/harness-sync-abc1234x", "isCrossRepository": False},
+        ])
+        outcome = self.sync(gh)
+        self.assertEqual((outcome.state, outcome.pr, outcome.superseded), ("opened", 42, []))
+        self.assertEqual(gh.closes(), [])
+
+    def test_branch_name_suffix_does_not_wedge(self) -> None:
+        # Seven hex characters that name a harness branch ahead of the tip, off main: stale, not newer.
+        self.side_commit("abcdef0")
+        gh = FakeGh(self.origin, open_prs=[
+            {"number": 14, "headRefName": "chore/harness-sync-abcdef0", "isCrossRepository": False},
+        ])
+        outcome = self.sync(gh)
+        self.assertEqual((outcome.state, outcome.pr, outcome.superseded), ("opened", 42, [14]))
+
+    def test_off_main_short_sha_ahead_of_the_tip_is_stale(self) -> None:
+        ahead = self.side_commit("side")
+        gh = FakeGh(self.origin, open_prs=[
+            {"number": 15, "headRefName": self.branch(ahead), "isCrossRepository": False},
+        ])
+        outcome = self.sync(gh)
+        self.assertEqual((outcome.state, outcome.pr, outcome.superseded), ("opened", 42, [15]))
+
+    def test_failed_pr_list_hands_the_checkout_back_clean(self) -> None:
+        with self.assertRaisesRegex(SyncError, "simulated"):
+            self.sync(FakeGh(self.origin, fail_on_list=True))
+        self.assert_clean()
+        self.assertEqual(git(self.target, "branch", "--show-current").strip(), "main")
+        self.assertEqual(self.remote_branches(), ["main"])
 
     def test_push_replaces_a_leftover_branch_with_no_pr(self) -> None:
         # A run that pushed and died before `gh pr create` leaves the branch behind and no pull request.
