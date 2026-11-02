@@ -10,6 +10,7 @@ import io
 import json
 import shutil
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -37,8 +38,11 @@ class Tree:
         spec = importlib.util.spec_from_file_location("_r", self.root / ".harness/render.py")
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
+        self.render = mod
         rendered = mod.dump_settings(mod.render_settings(BASE, SimpleNamespace(settings={})))
         self.add(".claude/settings.json", rendered.encode("utf-8"))
+        for rel in (".harness/settings.base.json", ".harness/render.py"):
+            self.files[rel] = sha((self.root / rel).read_bytes())
         self.add(".claude/skills/a/SKILL.md", b"one\ntwo\n")
         self.save_manifest()
 
@@ -53,6 +57,15 @@ class Tree:
     def add(self, rel: str, data: bytes) -> None:
         self.put(rel, data)
         self.files[rel] = sha(data)
+
+    def make_payload(self, where: Path) -> Path:
+        """The payload a sync of this tree would have copied: every managed file but the rendered settings."""
+        for rel in self.files:
+            if rel != ".claude/settings.json":
+                target = where / rel
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes((self.root / rel).read_bytes())
+        return where
 
     def save_manifest(self) -> None:
         self.write_json(".harness/manifest.json", {"harness_commit": "c" * 40, "files": self.files})
@@ -161,7 +174,9 @@ class DriftGate(unittest.TestCase):
                 with self.subTest(rel=rel, body=body), tempfile.TemporaryDirectory() as tmp:
                     tree = Tree(tmp)
                     tree.put(rel, body)
-                    check(tree.root)  # must not raise
+                    problems = check(tree.root)  # must not raise
+                    if body == b"[]":
+                        self.assertTrue(problems, problems)
 
     def test_bad_manifest_paths_are_problems_and_never_read(self) -> None:
         outside = Path(self.tmp).parent / "outside-secret.txt"
@@ -176,14 +191,68 @@ class DriftGate(unittest.TestCase):
                 self.assertEqual(len(problems), 1)
                 self.assertIn("canonical", problems[0])
 
-    def test_an_alternative_renderer_judges_the_settings(self) -> None:
+    def test_crlf_settings_pass(self) -> None:
         tree = Tree(self.tmp)
-        other = Path(self.tmp).parent / "other_render.py"
-        source = "def render_settings(base, cfg): return {}\ndef dump_settings(s): return '{}'\n"
-        other.write_text(source, encoding="utf-8")
-        self.addCleanup(other.unlink)
-        self.assertEqual(len(check(tree.root, other)), 1)
+        tree.put(".claude/settings.json", (tree.root / ".claude/settings.json").read_bytes().replace(b"\n", b"\r\n"))
         self.assertEqual(check(tree.root), [])
+
+    def test_without_a_payload_the_manifest_must_list_what_settings_rely_on(self) -> None:
+        for rel in (".harness/settings.base.json", ".harness/render.py", ".claude/settings.json"):
+            with self.subTest(rel=rel), tempfile.TemporaryDirectory() as tmp:
+                tree = Tree(tmp)
+                del tree.files[rel]
+                tree.save_manifest()
+                self.assertTrue(any("does not list" in p for p in check(tree.root)))
+
+    def test_base_and_renderer_cannot_be_local_or_excluded(self) -> None:
+        for key in ("local", "exclude"):
+            for rel in (".harness/settings.base.json", ".harness/render.py"):
+                with self.subTest(key=key, rel=rel), tempfile.TemporaryDirectory() as tmp:
+                    tree = Tree(tmp)
+                    tree.write_json(".harness/config.json", {key: [rel]})
+                    self.assertTrue(any("needs managed" in p for p in check(tree.root)))
+
+    def test_a_tampered_renderer_is_not_executed_without_a_payload(self) -> None:
+        tree = Tree(self.tmp)
+        marker = tree.root / "ran.txt"
+        tree.put(".harness/render.py", f"open({str(marker)!r}, 'w').close()\n".encode("utf-8"))
+        self.assertTrue(check(tree.root))  # the manifest still holds the old hash
+        self.assertFalse(marker.exists())
+
+    def test_a_linked_fixed_path_is_a_problem_and_not_read(self) -> None:
+        tree = Tree(self.tmp)
+        outside = Path(self.tmp).parent / "outside-config.json"
+        outside.write_text("{}", encoding="utf-8")
+        self.addCleanup(outside.unlink)
+        (tree.root / ".harness/config.json").unlink()
+        try:
+            (tree.root / ".harness/config.json").symlink_to(outside)
+        except OSError:
+            self.skipTest("symlinks need privileges here")
+        self.assertTrue(any("link" in p for p in check(tree.root)))
+
+    def test_a_linked_managed_directory_is_a_problem_and_not_walked(self) -> None:
+        tree = Tree(self.tmp)
+        outside = Path(self.tmp).parent / "outside-dir"
+        outside.mkdir()
+        self.addCleanup(shutil.rmtree, outside)
+        (outside / "x.sh").write_text("x\n", encoding="utf-8")
+        try:
+            (tree.root / ".claude/hooks").symlink_to(outside, target_is_directory=True)
+        except OSError:
+            self.skipTest("symlinks need privileges here")
+        problems = check(tree.root)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("link", problems[0])
+
+    def test_render_module_replaces_the_trees_renderer(self) -> None:
+        tree = Tree(self.tmp)
+        marker = tree.root / "ran.txt"
+        source = f"open({str(marker)!r}, 'w').close()\n".encode("utf-8")
+        tree.add(".harness/render.py", source)  # the manifest agrees, so only the hook keeps it from running
+        tree.save_manifest()
+        self.assertEqual(check(tree.root, render_module=tree.render), [])
+        self.assertFalse(marker.exists())
 
     def test_gate_reads_the_shipped_manifest(self) -> None:
         """The gate looks at the tree CI hands it: this file's own rendered root.
@@ -210,6 +279,101 @@ class DriftGate(unittest.TestCase):
             code = main(["--root", str(Tree(self.tmp).root)])
         self.assertEqual(code, 0)
         self.assertIn("clean", out.getvalue())
+
+
+class AgainstThePayload(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.base = Path(self._tmp.name)
+        (self.base / "t").mkdir()
+        self.tree = Tree(str(self.base / "t"))
+        self.payload = self.tree.make_payload(self.base / "p")
+
+    def test_a_synced_tree_passes(self) -> None:
+        self.assertEqual(check(self.tree.root, self.payload), [])
+
+    def test_a_file_edited_with_its_manifest_line_fails(self) -> None:
+        self.tree.add(".claude/skills/a/SKILL.md", b"evil\n")
+        self.tree.save_manifest()
+        self.assertEqual(check(self.tree.root), [])  # the tree agrees with itself
+        problems = check(self.tree.root, self.payload)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("not the payload's", problems[0])
+
+    def test_a_deleted_manifest_line_fails(self) -> None:
+        del self.tree.files[".claude/skills/a/SKILL.md"]
+        self.tree.save_manifest()
+        problems = check(self.tree.root, self.payload)
+        self.assertTrue(any("does not list it" in p for p in problems), problems)
+
+    def test_an_edited_base_with_its_manifest_line_fails(self) -> None:
+        self.tree.add(".harness/settings.base.json", json.dumps({"hooks": {}}).encode("utf-8"))
+        self.tree.save_manifest()
+        self.assertTrue(any("settings.base.json" in p for p in check(self.tree.root, self.payload)))
+
+    def test_a_manifest_entry_the_payload_lacks_fails(self) -> None:
+        self.tree.add(".claude/skills/extra.md", b"x\n")
+        self.tree.save_manifest()
+        self.assertTrue(any("not a payload file" in p for p in check(self.tree.root, self.payload)))
+
+    def test_a_local_path_that_differs_from_the_payload_fails(self) -> None:
+        self.tree.write_json(".harness/config.json", {"local": [".claude/skills/a/SKILL.md"]})
+        self.tree.put(".claude/skills/a/SKILL.md", b"mine\n")
+        del self.tree.files[".claude/skills/a/SKILL.md"]
+        self.tree.save_manifest()
+        problems = check(self.tree.root, self.payload)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("is local but the payload manages it", problems[0])
+
+    def test_a_local_path_identical_to_the_payload_or_absent_passes(self) -> None:
+        rel = ".claude/skills/a/SKILL.md"
+        self.tree.write_json(".harness/config.json", {"local": [rel]})
+        del self.tree.files[rel]
+        self.tree.save_manifest()
+        self.assertEqual(check(self.tree.root, self.payload), [])  # identical
+        (self.tree.root / rel).unlink()
+        self.assertEqual(check(self.tree.root, self.payload), [])  # absent
+
+    def test_an_excluded_payload_file_need_not_be_listed(self) -> None:
+        rel = ".claude/skills/a/SKILL.md"
+        self.tree.write_json(".harness/config.json", {"exclude": [rel]})
+        del self.tree.files[rel]
+        (self.tree.root / rel).unlink()
+        self.tree.save_manifest()
+        self.assertEqual(check(self.tree.root, self.payload), [])
+
+    def test_a_tampered_renderer_with_a_matching_line_fails_and_never_runs(self) -> None:
+        marker = self.tree.root / "ran.txt"
+        source = (self.tree.root / ".harness/render.py").read_bytes()
+        source += f"\nopen({str(marker)!r}, 'w').close()\n".encode("utf-8")
+        self.tree.add(".harness/render.py", source)
+        self.tree.save_manifest()
+        problems = check(self.tree.root, self.payload)
+        self.assertTrue(any("not trusted" in p for p in problems), problems)
+        self.assertFalse(marker.exists())
+
+    def test_a_sync_that_changes_the_renderers_output_passes(self) -> None:
+        new = (self.tree.root / ".harness/render.py").read_text(encoding="utf-8").replace("indent=2", "indent=4")
+        for where in (self.tree.root, self.payload):
+            (where / ".harness/render.py").write_text(new, encoding="utf-8", newline="\n")
+        self.tree.files[".harness/render.py"] = sha(new.encode("utf-8"))
+        module = types.ModuleType("_new")
+        exec(compile(new, "render.py", "exec"), module.__dict__)  # not imported: a stale .pyc would hide the edit
+        rendered = module.dump_settings(module.render_settings(BASE, SimpleNamespace(settings={})))
+        self.tree.add(".claude/settings.json", rendered.encode("utf-8"))
+        self.tree.save_manifest()
+        self.assertIn('    "env"', rendered)
+        self.assertEqual(check(self.tree.root, self.payload), [])
+
+    def test_payload_that_is_not_a_directory_is_a_problem(self) -> None:
+        self.assertTrue(check(self.tree.root, self.base / "nope"))
+
+    def test_cli_takes_the_payload(self) -> None:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = main(["--root", str(self.tree.root), "--payload", str(self.payload)])
+        self.assertEqual((code, out.getvalue().strip()), (0, "harness-drift: clean"))
 
 
 if __name__ == "__main__":

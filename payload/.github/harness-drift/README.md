@@ -18,38 +18,69 @@ caught where it is made and not at the next sync.
   `.github/harness-drift`; `__pycache__/` and `*.pyc` are skipped;
 - a `.claude/settings.json` that is not what `.harness/render.py` renders
   from `.harness/settings.base.json` plus the `settings` in
-  `.harness/config.json`;
+  `.harness/config.json`. The renderer runs only if its bytes match the
+  manifest and, with a payload, the payload; otherwise the gate reports that
+  and does not execute it;
+- a `local` or `exclude` glob that matches `.harness/settings.base.json` or
+  `.harness/render.py`;
 - a manifest, config, base or renderer that cannot be read, a renderer that
-  refuses the config, or a manifest path that is not a canonical relative
-  POSIX path or that passes through a link. Each is a line of output, never a
-  traceback, and the gate never reads outside the root.
+  refuses the config, a manifest path that is not a canonical relative POSIX
+  path, and any fixed path or managed directory that is a link. Each is a
+  line of output, never a traceback, and the gate never reads outside the
+  root.
 
-## Why settings are rendered, not only hashed
+With `--payload`, it also refuses:
 
-The manifest hash proves the file is what the last sync wrote. The render
-check proves that is still what the base and the config say, so a config edit
-that was never re-synced shows up here too.
+- a payload file, not excluded by the config, that the manifest does not list
+  with the payload's hash. The exception is a `local` path whose file in the
+  tree is absent or identical to the payload's, as apply allows;
+- a `local` path whose file differs from the payload's, which apply would
+  have refused;
+- a manifest entry other than `.claude/settings.json` that is not a payload
+  file with an equal hash.
+
+Without `--payload` it requires the manifest to list the base, the renderer
+and the settings.
+
+## Trust model
+
+The manifest and the config sit in the tree a pull request controls, so a
+pull request can edit a managed file and its manifest line together, or
+delete the line. Three things guard against that, each a different part:
+
+- **The base commit's copy of `drift_gate.py`** judges, so a pull request
+  cannot weaken the gate that judges it. It does not cover the manifest or
+  the config.
+- **The payload fetch** covers the manifest and the config. The workflow reads
+  `harness_commit` from the head manifest and fetches exactly that commit's
+  `payload/` from the harness repository; `--payload` makes the gate compare
+  the manifest with it. A pull request cannot change that repository.
+- **The repository ruleset** covers what neither can: that this check is
+  required and that nobody can merge around it. A pull request that edits
+  `harness_commit` can only point at another real harness commit, and a
+  sync is the only honest way to do that.
 
 ## How to run it
 
 ```bash
-py -3.12 .github/harness-drift/drift_gate.py [--root <dir>] [--render <file>]
+py -3.12 .github/harness-drift/drift_gate.py [--root <dir>] [--payload <dir>]
 ```
 
 It prints one line per problem and exits 1, or prints `harness-drift: clean`
-and exits 0. `--root` defaults to the current directory; `--render` names a
-renderer other than the root's own, which the workflow uses for the base
-commit's copy. The gate is stdlib only and imports nothing from the harness
-repository, which a target does not have. Its hash and glob matcher are
-copies of the sync tool's; the harness repository tests that they agree.
+and exits 0. `--root` defaults to the current directory. `--payload` is the
+harness repository's `payload/` at the commit in the manifest. The gate is
+stdlib only and imports nothing from the harness repository, which a target
+does not have. Its hash and glob matcher are copies of the sync tool's; the
+harness repository tests that they agree.
 
 ## How it runs
 
 [`harness-drift.yml`](../workflows/harness-drift.yml), on every pull request
-with no path filter. **The gate and renderer that judge are read out of the
-base commit**, while the suite runs the branch's copy, so a pull request
-cannot supply its own judge. When the base carries no gate, which is the
-first sync into a target, the head's copy judges and the run says so.
+with no path filter. It takes the gate from the base commit; when the base
+carries none, which is the first sync into a target, the head's copy judges
+and the run says so. It then fetches the payload, runs the gate, and only then
+runs this directory's suite, so head test code cannot tamper with the run
+before the gate has judged. A failed fetch fails the run.
 
 The suite includes `test_gate_reads_the_shipped_manifest`, which checks the
 tree it sits in. It needs a rendered tree and is never run from the harness

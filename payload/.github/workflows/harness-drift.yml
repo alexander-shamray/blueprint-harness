@@ -1,7 +1,8 @@
 name: Harness drift
 
-# A managed harness file must equal its manifest line (spec 5.4).
-# `.github/harness-drift/README.md` owns the rules; this file only runs them.
+# A managed harness file must equal the harness repository's payload at the
+# commit the manifest names (spec 5.4). `.github/harness-drift/README.md` owns
+# the rules and the trust model; this file only runs them.
 # No path filter: a pull request that touches nothing managed still passes,
 # and one that touches a managed file cannot skip the check by where it edits.
 on:
@@ -18,6 +19,13 @@ permissions:
 jobs:
   harness-drift:
     runs-on: ubuntu-latest
+    env:
+      # The one place the harness repository is named. The manifest and config
+      # live in the tree a pull request controls, so the gate compares them
+      # with the payload fetched from here at the commit the manifest records,
+      # and a pull request cannot make a managed file say what it likes by
+      # editing the file and its manifest line together.
+      HARNESS_REPO: https://github.com/alexander-shamray/blueprint-harness
     steps:
       - uses: actions/checkout@v7
         with:
@@ -29,44 +37,67 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Test the proposed gate
-        working-directory: .github/harness-drift
-        run: python -m unittest
-
-      # The base copy of the gate and of the renderer judge, as in
-      # commit-gate.yml, so a pull request cannot supply its own judge. While
-      # the base carries no gate (the first sync into a target) the head's
-      # copies judge instead, with a notice; a base with a gate but no
-      # renderer, or a head with neither, fails.
+      # The gate's own code is judged by the base commit's copy, as in
+      # commit-gate.yml, so a pull request cannot weaken the gate that judges
+      # it. While the base commit exists but carries no gate (the first sync
+      # into a target) the head's copy judges instead, with a notice. A base
+      # commit that is missing, or a head with no gate either, fails.
       - name: Take the enforcing gate from the base commit
         shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           GATE: .github/harness-drift/drift_gate.py
-          RENDER: .harness/render.py
         run: |
           set -euo pipefail
           out="$RUNNER_TEMP/harness-drift"
           mkdir -p "$out"
-          if git cat-file -e "$BASE_SHA:$GATE" 2>/dev/null; then
-            git show "$BASE_SHA:$GATE" > "$out/drift_gate.py"
-            git show "$BASE_SHA:$RENDER" > "$out/render.py"
-            echo "enforcing with the gate and renderer as of $BASE_SHA"
-          elif [ -f "$GATE" ] && [ -f "$RENDER" ]; then
-            cp "$GATE" "$out/drift_gate.py"
-            cp "$RENDER" "$out/render.py"
-            echo "::notice::the base carries no gate; this pull request introduces it and is judged by its own copy"
-          else
-            echo "::error::neither $BASE_SHA nor the head carries $GATE and $RENDER"
+          if ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            echo "::error::the base commit $BASE_SHA is not in the checkout"
             exit 1
           fi
-          if [ ! -s "$out/drift_gate.py" ] || [ ! -s "$out/render.py" ]; then
-            echo "::error::the enforcing gate or renderer is empty"
+          if git cat-file -e "$BASE_SHA:$GATE" 2>/dev/null; then
+            git show "$BASE_SHA:$GATE" > "$out/drift_gate.py"
+            echo "enforcing with the gate as of $BASE_SHA"
+          elif [ -f "$GATE" ]; then
+            cp "$GATE" "$out/drift_gate.py"
+            echo "::notice::the base carries no gate; this pull request introduces it and is judged by its own copy"
+          else
+            echo "::error::neither $BASE_SHA nor the head carries $GATE"
+            exit 1
+          fi
+          if [ ! -s "$out/drift_gate.py" ]; then
+            echo "::error::the enforcing gate is empty"
             exit 1
           fi
 
-      - name: Managed files match the manifest
+      # Exactly the commit the head manifest records, and nothing else: a
+      # failed fetch fails the step, with no fallback to a payload the pull
+      # request could have supplied.
+      - name: Fetch the payload the manifest names
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(python -c 'import json; print(json.load(open(".harness/manifest.json", encoding="utf-8"))["harness_commit"])')"
+          if ! printf '%s' "$sha" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::harness_commit in .harness/manifest.json is not 40 lowercase hex characters"
+            exit 1
+          fi
+          dest="$RUNNER_TEMP/harness-payload"
+          rm -rf "$dest"
+          mkdir -p "$dest"
+          git -C "$dest" init -q
+          git -C "$dest" fetch -q --depth 1 "$HARNESS_REPO" "$sha"
+          git -C "$dest" checkout -q FETCH_HEAD -- payload
+          echo "payload at harness commit $sha"
+
+      # Before the head's own suite runs, so head test code cannot alter
+      # $GITHUB_ENV, the checkout or the fetched payload ahead of the gate.
+      - name: Managed files match the payload and the manifest
         shell: bash
         run: |
           python "$RUNNER_TEMP/harness-drift/drift_gate.py" \
-            --root . --render "$RUNNER_TEMP/harness-drift/render.py"
+            --root . --payload "$RUNNER_TEMP/harness-payload/payload"
+
+      - name: Test the proposed gate
+        working-directory: .github/harness-drift
+        run: python -m unittest

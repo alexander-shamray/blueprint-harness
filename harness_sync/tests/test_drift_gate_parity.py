@@ -63,6 +63,22 @@ class DriftGateParity(unittest.TestCase):
                     apply_mod._first_match((glob,), path, ignore_case=True) is not None,
                 )
 
+    def test_payload_comparison_agrees_with_what_apply_writes(self) -> None:
+        """The gate's --payload rules are the ones apply used: a real apply of the real payload checks clean."""
+        import json
+
+        from harness_sync.apply import apply
+
+        repo = GATE.parents[3]
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            (target / ".harness").mkdir()
+            config = json.loads((repo / "targets/blueprint-backend.config.json").read_text(encoding="utf-8"))
+            config["exclude"] = [".github/workflows/*.yml"]
+            (target / ".harness/config.json").write_text(json.dumps(config), encoding="utf-8")
+            apply(repo / "payload", target, "a" * 40)
+            self.assertEqual(self.gate.check(target, repo / "payload"), [])
+
     def test_walk_skips_what_apply_skips(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

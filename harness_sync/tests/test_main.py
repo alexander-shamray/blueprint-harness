@@ -85,6 +85,37 @@ class MainTests(unittest.TestCase):
             self.assertEqual(code, 0, out)
             self.assertIn("clean", out)
 
+    def test_check_never_executes_the_targets_renderer(self) -> None:
+        from harness_sync.manifest import Manifest, file_hash
+
+        repo = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "t"
+            (target / ".harness").mkdir(parents=True)
+            config = (repo / "targets/blueprint-backend.config.json").read_text(encoding="utf-8")
+            (target / ".harness/config.json").write_text(config, encoding="utf-8")
+            self.run_main(*self.argv(repo / "payload", target, COMMIT))
+            marker = Path(tmp) / "ran.txt"
+            evil = f"open({str(marker)!r}, 'w').close()\n".encode("utf-8")
+            (target / ".harness/render.py").write_bytes(evil)
+            manifest = Manifest.read(target / ".harness/manifest.json")
+            manifest.files[".harness/render.py"] = file_hash(evil)  # the manifest agrees, so only the hook protects
+            manifest.write(target / ".harness/manifest.json")
+            code, out, _ = self.run_main("check", "--target", str(target))
+            self.assertEqual(code, 0, out)
+            self.assertFalse(marker.exists())
+
+    def test_check_takes_a_payload_to_compare_the_manifest_with(self) -> None:
+        repo = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "t"
+            (target / ".harness").mkdir(parents=True)
+            config = (repo / "targets/blueprint-backend.config.json").read_text(encoding="utf-8")
+            (target / ".harness/config.json").write_text(config, encoding="utf-8")
+            self.run_main(*self.argv(repo / "payload", target, COMMIT))
+            code, out, _ = self.run_main("check", "--target", str(target), "--payload", str(repo / "payload"))
+            self.assertEqual(code, 0, out)
+
 
 if __name__ == "__main__":
     unittest.main()
