@@ -28,6 +28,15 @@ def _strings(key: str, value: object) -> list[str]:
     return value
 
 
+def _globs(key: str, value: object) -> list[str]:
+    # Globs are POSIX relative paths; a backslash or leading slash would silently match nothing.
+    globs = _strings(key, value)
+    for glob in globs:
+        if "\\" in glob or glob.startswith("/"):
+            raise ConfigError(f"{key!r} glob {glob!r} must be relative POSIX: no backslash, no leading slash")
+    return globs
+
+
 def _settings(raw: object) -> dict:
     try:
         validate_settings(raw)
@@ -60,6 +69,6 @@ def load_config(path: Path) -> Config:
         repo=raw["repo"],
         task_list=raw["task_list"],
         settings=_settings(raw.get("settings", {})),
-        local=tuple(_strings("local", raw.get("local", []))),
-        exclude=tuple(_strings("exclude", raw.get("exclude", []))),
+        local=tuple(_globs("local", raw.get("local", []))),
+        exclude=tuple(_globs("exclude", raw.get("exclude", []))),
     )

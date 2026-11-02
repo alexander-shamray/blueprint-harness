@@ -1,11 +1,14 @@
 """Tests for apply, over throwaway payload and target trees."""
 
 import json
+import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
 from harness_sync.apply import ApplyError, apply, glob_match
+from harness_sync.config import ConfigError
 from harness_sync.manifest import Manifest, file_hash
 
 COMMIT = "a" * 40
@@ -186,9 +189,13 @@ class ApplyTests(unittest.TestCase):
         self.assertIn(".claude/settings.json", str(ctx.exception))
 
     def test_payload_manifest_or_config_refused(self) -> None:
-        self.put(self.payload, ".harness/config.json", b"{}")
-        with self.assertRaises(ApplyError):
-            apply(self.payload, self.target, COMMIT)
+        for name in ("config.json", "manifest.json"):
+            with self.subTest(name=name):
+                self.put(self.payload, f".harness/{name}", b"{}")
+                with self.assertRaises(ApplyError) as ctx:
+                    apply(self.payload, self.target, COMMIT)
+                self.assertIn(f".harness/{name}", str(ctx.exception))
+                (self.payload / ".harness" / name).unlink()
 
     def test_missing_settings_base_refused(self) -> None:
         (self.payload / ".harness/settings.base.json").unlink()
@@ -198,6 +205,128 @@ class ApplyTests(unittest.TestCase):
     def test_bad_commit_refused(self) -> None:
         with self.assertRaises(ApplyError):
             apply(self.payload, self.target, "abc")
+
+    # Fix round 1: the manifest and config are editable by any target PR.
+    def old_manifest(self, files: dict[str, str]) -> None:
+        self.put(self.target, ".harness/manifest.json", Manifest(COMMIT, files).dumps().encode())
+
+    def test_hostile_manifest_entries_refused(self) -> None:
+        outside = self.target.parent / "outside.txt"
+        outside.write_bytes(b"keep")
+        h = "0" * 64
+        entries = ["../outside.txt", str(outside), "..\\outside.txt", "a\\b", "C:/x", "a/./b", "a//b", "",
+                   ".harness/config.json", ".HARNESS/Config.json", ".git/config", ".Git/config"]
+        for entry in entries:
+            with self.subTest(entry=entry):
+                self.old_manifest({entry: h})
+                with self.assertRaises(ApplyError):
+                    apply(self.payload, self.target, COMMIT)
+                self.assertTrue(outside.exists())
+                self.assertTrue((self.target / ".harness/config.json").exists())
+
+    def test_case_variant_of_local_path_not_deleted(self) -> None:
+        self.config({**CONFIG, "local": ["notes/**"]})
+        self.put(self.target, "notes/a.md", b"mine\n")
+        self.old_manifest({"Notes/A.md": "0" * 64})
+        result = apply(self.payload, self.target, COMMIT)
+        self.assertEqual(result.deleted, [])
+        self.assertEqual((self.target / "notes/a.md").read_bytes(), b"mine\n")
+
+    def test_malformed_manifest_refused(self) -> None:
+        good = "0" * 64
+        bad = [b"not json", b"[]", b'{"harness_commit": "' + COMMIT.encode() + b'"}',
+               json.dumps({"harness_commit": COMMIT, "files": []}).encode(),
+               json.dumps({"harness_commit": COMMIT, "files": {"a": 1}}).encode(),
+               json.dumps({"harness_commit": COMMIT, "files": {"a": "ABC"}}).encode(),
+               json.dumps({"harness_commit": "zz", "files": {"a": good}}).encode(),
+               json.dumps({"harness_commit": COMMIT, "files": {}, "extra": 1}).encode()]
+        for data in bad:
+            with self.subTest(data=data):
+                self.put(self.target, ".harness/manifest.json", data)
+                with self.assertRaises(ApplyError):
+                    apply(self.payload, self.target, COMMIT)
+
+    def test_case_only_rename_ends_with_new_name(self) -> None:
+        self.put(self.payload, "docs/A.md", b"x\n")
+        apply(self.payload, self.target, COMMIT)
+        (self.payload / "docs/A.md").unlink()
+        self.put(self.payload, "docs/a.md", b"x\n")
+        apply(self.payload, self.target, COMMIT)
+        self.assertEqual(sorted(os.listdir(self.target / "docs")), ["a.md"])
+        self.assertEqual((self.target / "docs/a.md").read_bytes(), b"x\n")
+        self.assertIn("docs/a.md", self.manifest().files)
+
+    def test_file_to_directory_swap(self) -> None:
+        self.put(self.payload, "docs/x", b"file\n")
+        apply(self.payload, self.target, COMMIT)
+        (self.payload / "docs/x").unlink()
+        self.put(self.payload, "docs/x/y.md", b"y\n")
+        apply(self.payload, self.target, COMMIT)
+        self.assertEqual((self.target / "docs/x/y.md").read_bytes(), b"y\n")
+
+    def test_directory_to_file_swap(self) -> None:
+        self.put(self.payload, "docs/x/y.md", b"y\n")
+        apply(self.payload, self.target, COMMIT)
+        (self.payload / "docs/x/y.md").unlink()
+        (self.payload / "docs/x").rmdir()
+        self.put(self.payload, "docs/x", b"file\n")
+        apply(self.payload, self.target, COMMIT)
+        self.assertEqual((self.target / "docs/x").read_bytes(), b"file\n")
+
+    def test_directory_at_managed_file_path_refused_before_writes(self) -> None:
+        self.put(self.payload, "a.md", b"a\n")
+        self.put(self.payload, "z.md", b"z\n")
+        self.put(self.target, "z.md/stray.txt", b"s")
+        with self.assertRaises(ApplyError):
+            apply(self.payload, self.target, COMMIT)
+        self.assertFalse((self.target / "a.md").exists())
+
+    def test_symlinked_parent_refused(self) -> None:
+        outside = self.target.parent / "outside"
+        outside.mkdir()
+        (self.target).mkdir(exist_ok=True)
+        try:
+            os.symlink(outside, self.target / "docs", target_is_directory=True)
+        except (OSError, NotImplementedError):
+            # Windows without the symlink privilege can still make a junction, which is the same escape.
+            if os.name != "nt" or subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(self.target / "docs"), str(outside)], capture_output=True
+            ).returncode:
+                self.skipTest("this OS refuses to create links")
+        self.put(self.payload, "docs/a.md", b"a\n")
+        with self.assertRaises(ApplyError):
+            apply(self.payload, self.target, COMMIT)
+        self.assertEqual(os.listdir(outside), [])
+
+    def test_symlinked_file_refused(self) -> None:
+        outside = self.target.parent / "outside.txt"
+        outside.write_bytes(b"keep")
+        try:
+            os.symlink(outside, self.target / "a.md")
+        except (OSError, NotImplementedError):
+            self.skipTest("this OS refuses to create symlinks")
+        self.put(self.payload, "a.md", b"a\n")
+        with self.assertRaises(ApplyError):
+            apply(self.payload, self.target, COMMIT)
+        self.assertEqual(outside.read_bytes(), b"keep")
+
+    def test_base_and_render_must_stay_managed(self) -> None:
+        for key in ("exclude", "local"):
+            for rel in (".harness/settings.base.json", ".harness/render.py"):
+                with self.subTest(key=key, rel=rel):
+                    self.config({**CONFIG, key: [rel]})
+                    with self.assertRaises(ApplyError) as ctx:
+                        apply(self.payload, self.target, COMMIT)
+                    self.assertIn(rel, str(ctx.exception))
+
+    def test_bad_globs_rejected_at_config_load(self) -> None:
+        for key in ("local", "exclude"):
+            for glob in ("a\\b", "/a"):
+                with self.subTest(key=key, glob=glob):
+                    self.config({**CONFIG, key: [glob]})
+                    with self.assertRaises(ConfigError) as ctx:
+                        apply(self.payload, self.target, COMMIT)
+                    self.assertIn(f"{key!r} glob", str(ctx.exception))
 
 
 if __name__ == "__main__":
