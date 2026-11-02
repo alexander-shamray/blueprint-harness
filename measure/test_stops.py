@@ -31,6 +31,8 @@ shapes only, no content):
   (``task-notification``, ``plugin``); strings opening ``<local-command``,
   ``<bash-input>``, ``<bash-stdout>``, ``<task-notification>`` or
   ``<system-reminder>``.
+* Interruption marker: a ``user`` line whose content is a list holding one
+  ``text`` part opening ``[Request interrupted``; no ``origin`` or ``isMeta``.
 * Slash command: a genuine string message containing
   ``<command-name>/<name></command-name>`` (``<command-message>`` may come
   first).
@@ -85,8 +87,9 @@ class StopsTest(unittest.TestCase):
             assistant(text("Done.\n\n⚠️ ACTION REQUIRED — run: !script.sh")),
             assistant(text("⚠️ ACTION REQUIRED — mentioned mid-text\nand then more")),
             assistant(text("Nothing owed.\n⚠️ ACTION REQUIRED — none")),
+            assistant(text("⚠️ ACTION REQUIRED — run: !fix-none")),
         )
-        self.assertEqual(stops.count_stops(path)["action_required"], 1)
+        self.assertEqual(stops.count_stops(path)["action_required"], 2)
 
     def test_permission_refusal_counted(self):
         path = self.transcript(
@@ -116,6 +119,8 @@ class StopsTest(unittest.TestCase):
             user("<task-notification>x</task-notification>", origin={"kind": "task-notification"}),
             user([text("reminder")], isMeta=True),
             user("<system-reminder>x</system-reminder>"),
+            user([text("[Request interrupted by user for tool use]")]),
+            user("[Request interrupted by user]"),
             user("second"),
             user([text("third"), {"type": "image", "source": {}}], origin={"kind": "human"}),
         )
@@ -137,6 +142,8 @@ class StopsTest(unittest.TestCase):
         rows = [{"ask_user": 1, "action_required": 0, "permission_refused": 2, "user_turns": 3},
                 {"ask_user": 2, "action_required": 0, "permission_refused": 4, "user_turns": 5}]
         self.assertEqual(stops.summarise(rows)["median"]["permission_refused"], 3)
+        self.assertEqual(stops.summarise(rows)["total"]["user_turns"], 8)
+        self.assertEqual(stops.summarise(rows)["max"]["user_turns"], 5)
 
 
 if __name__ == "__main__":

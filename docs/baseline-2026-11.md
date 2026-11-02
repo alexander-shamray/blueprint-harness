@@ -9,9 +9,11 @@ task must not rise in any repository.
 `measure/stops.py` reads one session transcript (one `.jsonl` file under
 `~/.claude/projects/`) and counts four things: `ask_user` (AskUserQuestion
 tool uses), `action_required` (assistant messages whose last line starts
-`⚠️ ACTION REQUIRED`, except the `— none` form, which hands over nothing),
+`⚠️ ACTION REQUIRED`, except the exact `⚠️ ACTION REQUIRED — none`, which
+hands over nothing),
 `permission_refused` (tool errors whose text is a permission refusal, not a
-hook refusal) and `user_turns` (genuine user messages after the first).
+hook refusal) and `user_turns` (genuine user messages after the first;
+interruption markers, hook and system injections and tool results are not).
 
 A session counts when its transcript file was last modified on or after the
 `--since` date and, with `--command`, its first genuine user message is that
@@ -58,13 +60,15 @@ one session and is not a median in any useful sense.
 ## Totals and the largest session, `ship` sessions
 
 The medians are mostly zero, so the totals show where the stops fall. Each
-cell is the total over the sessions, then the largest in one session.
+cell is the total over the sessions, then the largest in one session. They
+come from the `total` and `max` fields of the final line the commands above
+print for `--command ship`, so the table is reproducible from them.
 
 | Repository | ask_user | action_required | permission_refused | user_turns |
 | --- | --- | --- | --- | --- |
-| backend | 2, max 1 | 80, max 27 | 8, max 5 | 93, max 43 |
+| backend | 2, max 1 | 80, max 27 | 8, max 5 | 92, max 43 |
 | frontend | 3, max 3 | 5, max 3 | 2, max 2 | 3, max 3 |
-| admin | 0, max 0 | 89, max 38 | 6, max 4 | 51, max 29 |
+| admin | 0, max 0 | 89, max 38 | 6, max 4 | 50, max 29 |
 
 Most `ship` sessions run without a stop; a few long ones carry most of the
 handovers. A comparison after the move should read both tables, and should
