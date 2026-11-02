@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -12,7 +13,7 @@ from harness_sync.manifest import Manifest, ManifestError, file_hash
 from harness_sync.render import dump_settings, render_settings
 
 # Fold case only where the filesystem does; on Linux `Docs/x.md` and `docs/x.md` are different files.
-_FOLD_CASE = os.name == "nt"
+_FOLD_CASE = os.name == "nt" or sys.platform == "darwin"
 SETTINGS = ".claude/settings.json"
 BASE = ".harness/settings.base.json"
 RENDER = ".harness/render.py"
@@ -130,14 +131,24 @@ def _check_inside(target: Path, rel: str) -> None:
         raise ApplyError(f"{rel} resolves outside the target")
 
 
+def _check_clearable(target: Path, path: Path, rel: str, dropped: set[str]) -> None:
+    """Only dropped files and empty directories may sit where a file lands; a link would defeat the removal."""
+    for directory, dirnames, filenames in os.walk(path):
+        for name in dirnames:
+            child = Path(directory) / name
+            if child.is_symlink() or child.is_junction():
+                raise ApplyError(f"{rel} is a directory in the target holding a link at {name}")
+        for name in filenames:
+            if (Path(directory) / name).relative_to(target).as_posix() not in dropped:
+                raise ApplyError(f"{rel} is a directory in the target but apply writes a file there")
+
+
 def _check_no_conflicts(target: Path, writes: list[str], dropped: set[str]) -> None:
     """A directory where a file will land, or a file where a directory is needed, would fail mid-apply."""
     for rel in writes:
         path = target / rel
         if path.is_dir():
-            inside = {f.relative_to(target).as_posix() for f in path.rglob("*") if f.is_file()}
-            if not inside <= dropped:
-                raise ApplyError(f"{rel} is a directory in the target but apply writes a file there")
+            _check_clearable(target, path, rel, dropped)
         parts = rel.split("/")
         for n in range(1, len(parts)):
             prefix = "/".join(parts[:n])
