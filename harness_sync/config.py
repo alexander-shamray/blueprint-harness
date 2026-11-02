@@ -4,7 +4,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-_SETTINGS_KEYS = ("env", "allow", "deny", "hooks")
+from harness_sync.render import RenderError, validate_settings
+
 _TOP_KEYS = ("repo", "task_list", "settings", "local", "exclude")
 
 
@@ -28,22 +29,15 @@ def _strings(key: str, value: object) -> list[str]:
 
 
 def _settings(raw: object) -> dict:
-    if not isinstance(raw, dict):
-        raise ConfigError("'settings' must be an object")
-    for key in raw:
-        if key not in _SETTINGS_KEYS:
-            raise ConfigError(f"unknown key {key!r} in 'settings'")
-    env = raw.get("env", {})
-    if not isinstance(env, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in env.items()):
-        raise ConfigError("'env' must be an object of strings")
-    hooks = raw.get("hooks", {})
-    if not isinstance(hooks, dict) or not all(isinstance(v, list) for v in hooks.values()):
-        raise ConfigError("'hooks' must be an object of lists, one per event")
+    try:
+        validate_settings(raw)
+    except RenderError as exc:
+        raise ConfigError(str(exc)) from exc
     return {
-        "env": dict(env),
-        "allow": list(_strings("allow", raw.get("allow", []))),
-        "deny": list(_strings("deny", raw.get("deny", []))),
-        "hooks": {event: list(groups) for event, groups in hooks.items()},
+        "env": dict(raw.get("env", {})),
+        "allow": list(raw.get("allow", [])),
+        "deny": list(raw.get("deny", [])),
+        "hooks": {event: list(groups) for event, groups in raw.get("hooks", {}).items()},
     }
 
 

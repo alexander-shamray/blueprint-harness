@@ -35,7 +35,7 @@ class RenderTests(unittest.TestCase):
 
     def test_base_is_not_mutated(self) -> None:
         b = base()
-        render_settings(b, cfg(allow=["X"], env={"B": "2"}, hooks={"PreToolUse": [{"matcher": "Y"}]}))
+        render_settings(b, cfg(allow=["X"], env={"B": "2"}, hooks={"PreToolUse": [{"matcher": "Y", "hooks": []}]}))
         self.assertEqual(b, base())
 
     def test_allow_appended_after_base(self) -> None:
@@ -69,6 +69,40 @@ class RenderTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(RenderError) as ctx:
                 render_settings(base(), cfg(**{key: ["Write(.claude/**)"]}))
             self.assertIn("Write(.claude/**)", str(ctx.exception))
+
+    def test_env_override_is_case_insensitive(self) -> None:
+        with self.assertRaises(RenderError) as ctx:
+            render_settings(base(), cfg(env={"a": "9"}))
+        self.assertIn("'a'", str(ctx.exception))
+
+    def test_render_validates_settings_shape(self) -> None:
+        for bad, key in (({"allow": "Bash(x)"}, "allow"), ({"ask": []}, "ask"), ({"env": {"A": 1}}, "env"),
+                         ({"hooks": {"Stop": [1]}}, "hooks"), ({"hooks": {"Stop": [{"hooks": [{}]}]}}, "hooks")):
+            with self.subTest(bad=bad):
+                with self.assertRaises(RenderError) as ctx:
+                    render_settings(base(), cfg(**bad))
+                self.assertIn(key, str(ctx.exception))
+
+    def test_output_shape_follows_base(self) -> None:
+        for b in ({"permissions": {"allow": ["x"]}}, {"extra": 1, "env": {}, "permissions": {}, "hooks": {}},
+                  {"$schema": "s", "hooks": {}, "zzz": [1], "env": {"A": "1"}}):
+            with self.subTest(base=b):
+                out = render_settings(b, cfg())
+                self.assertEqual(out, b)
+                self.assertEqual(list(out), list(b))
+
+    def test_section_missing_from_base_added_only_with_content(self) -> None:
+        out = render_settings({"$schema": "s"}, cfg(allow=["A"]))
+        self.assertEqual(out, {"$schema": "s", "permissions": {"allow": ["A"]}})
+
+    def test_write_rule_spellings_refused(self) -> None:
+        for rule in (" Write(x)", "Write (x)", "Write	(x)"):
+            with self.subTest(rule=rule), self.assertRaises(RenderError):
+                render_settings(base(), cfg(deny=[rule]))
+
+    def test_allow_vs_deny_comparison_strips(self) -> None:
+        with self.assertRaises(RenderError):
+            render_settings(base(), cfg(allow=["  Bash(git push --force:*) "]))
 
     def test_write_rule_in_base_refused(self) -> None:
         b = base()
