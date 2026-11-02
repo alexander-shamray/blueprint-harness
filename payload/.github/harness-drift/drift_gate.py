@@ -40,6 +40,8 @@ GATE_FILES = (
     ".github/harness-drift/test_drift_gate.py",
     ".github/workflows/harness-drift.yml",
 )
+# The config's keys, as harness_sync.config takes them.
+_TOP_KEYS = ("repo", "task_list", "settings", "local", "exclude")
 _PATH_TOKEN = re.compile(r"(?<![\w$.-])[\w.-]+(?:/[\w.-]+)+")
 
 
@@ -169,21 +171,38 @@ def _manifest_files(root: Path, problems: list[str]) -> dict[str, str] | None:
     return files
 
 
+def config_problems(raw: object) -> list[str]:
+    """What harness_sync.config refuses, as lines (a copy of its rules); `settings` is the renderer's to refuse."""
+    if not isinstance(raw, dict):
+        return [f"{CONFIG} must be a JSON object"]
+    problems = [f"{CONFIG} has unknown key {key!r}" for key in raw if key not in _TOP_KEYS]
+    for key in ("repo", "task_list"):
+        if not isinstance(raw.get(key), str):
+            problems.append(f"{CONFIG} {key!r} must be present and a string")
+    for key in ("local", "exclude"):
+        value = raw.get(key, [])
+        if not isinstance(value, list) or not all(isinstance(g, str) for g in value):
+            problems.append(f"{CONFIG} {key!r} must be a list of strings")
+            continue
+        for glob in value:
+            # A backslash or leading slash would silently match nothing.
+            if "\\" in glob or glob.startswith("/"):
+                problems.append(f"{CONFIG} {key!r} glob {glob!r} must be relative POSIX: no backslash or leading slash")
+    return problems
+
+
 def _globs(root: Path, problems: list[str]) -> tuple[list[str], list[str]]:
     """The config's local and exclude globs; a config that cannot be read yields none and a problem."""
     raw = _load_json(root, CONFIG, problems)
     if raw is None:
         return [], []
+    problems.extend(config_problems(raw))
     if not isinstance(raw, dict):
-        problems.append(f"{CONFIG} must be a JSON object")
         return [], []
     out = []
     for key in ("local", "exclude"):
         value = raw.get(key, [])
-        if not isinstance(value, list) or not all(isinstance(g, str) for g in value):
-            problems.append(f"{CONFIG} {key!r} must be a list of strings")
-            value = []
-        out.append(value)
+        out.append(value if isinstance(value, list) and all(isinstance(g, str) for g in value) else [])
     return out[0], out[1]
 
 

@@ -20,6 +20,8 @@ from drift_gate import check, main
 
 HERE = Path(__file__).resolve().parent
 BASE = {"env": {"A": "1"}, "permissions": {"allow": ["Bash(ls)"], "deny": []}, "hooks": {}}
+# The keys apply requires, so a test config fails only on what the test changes.
+CFG = {"repo": "o/r", "task_list": "t"}
 
 
 def sha(data: bytes) -> str:
@@ -34,7 +36,7 @@ class Tree:
         self.files: dict[str, str] = {}
         (self.root / ".harness").mkdir()
         shutil.copy(HERE.parents[1] / ".harness/render.py", self.root / ".harness/render.py")
-        self.write_json(".harness/config.json", {"repo": "o/r", "task_list": "t", "local": list(local)})
+        self.write_json(".harness/config.json", {**CFG, "local": list(local)})
         self.write_json(".harness/settings.base.json", base)
         spec = importlib.util.spec_from_file_location("_r", self.root / ".harness/render.py")
         mod = importlib.util.module_from_spec(spec)
@@ -148,14 +150,14 @@ class DriftGate(unittest.TestCase):
 
     def test_settings_follow_the_config(self) -> None:
         tree = Tree(self.tmp)
-        tree.write_json(".harness/config.json", {"settings": {"allow": ["Bash(pwd)"]}})
+        tree.write_json(".harness/config.json", {**CFG, "settings": {"allow": ["Bash(pwd)"]}})
         problems = check(tree.root)
         self.assertEqual(len(problems), 1)
         self.assertIn("render", problems[0])
 
     def test_render_error_is_a_problem_not_a_traceback(self) -> None:
         tree = Tree(self.tmp)
-        tree.write_json(".harness/config.json", {"settings": {"env": {"a": "2"}}})
+        tree.write_json(".harness/config.json", {**CFG, "settings": {"env": {"a": "2"}}})
         problems = check(tree.root)
         self.assertTrue(any("already set" in p for p in problems), problems)
 
@@ -210,7 +212,7 @@ class DriftGate(unittest.TestCase):
             for rel in (".harness/settings.base.json", ".harness/render.py"):
                 with self.subTest(key=key, rel=rel), tempfile.TemporaryDirectory() as tmp:
                     tree = Tree(tmp)
-                    tree.write_json(".harness/config.json", {key: [rel]})
+                    tree.write_json(".harness/config.json", {**CFG, key: [rel]})
                     self.assertTrue(any("needs managed" in p for p in check(tree.root)))
 
     def test_the_gate_files_cannot_be_local_or_excluded(self) -> None:
@@ -220,7 +222,7 @@ class DriftGate(unittest.TestCase):
                          ".github/workflows/harness-drift.yml", ".github/workflows/*.yml", ".github/**"):
                 with self.subTest(key=key, glob=glob), tempfile.TemporaryDirectory() as tmp:
                     tree = Tree(tmp)
-                    tree.write_json(".harness/config.json", {key: [glob]})
+                    tree.write_json(".harness/config.json", {**CFG, key: [glob]})
                     self.assertTrue(any("needs managed" in p for p in check(tree.root)))
 
     def test_a_file_a_hook_runs_cannot_be_local_or_excluded(self) -> None:
@@ -230,11 +232,27 @@ class DriftGate(unittest.TestCase):
         for key in ("local", "exclude"):
             with self.subTest(key=key), tempfile.TemporaryDirectory() as tmp:
                 tree = Tree(tmp, base=base)
-                tree.write_json(".harness/config.json", {key: [".claude/hooks/*"]})
+                tree.write_json(".harness/config.json", {**CFG, key: [".claude/hooks/*"]})
                 problems = check(tree.root)
                 self.assertTrue(any(".claude/hooks/guard.py" in p and "which a hook" in p for p in problems), problems)
-                tree.write_json(".harness/config.json", {key: [".claude/hooks/other.py"]})
+                tree.write_json(".harness/config.json", {**CFG, key: [".claude/hooks/other.py"]})
                 self.assertFalse(any("which a hook" in p for p in check(tree.root)))
+
+    def test_a_config_apply_refuses_is_a_problem(self) -> None:
+        cases = {
+            "not an object": [],
+            "an unknown key": {**CFG, "extra": 1},
+            "no repo": {"task_list": "t"},
+            "a task list that is not a string": {**CFG, "task_list": 1},
+            "a glob list that is not a list": {**CFG, "local": "a"},
+            "a backslash glob": {**CFG, "local": ["a\\b"]},
+            "a leading-slash glob": {**CFG, "exclude": ["/a"]},
+        }
+        for name, body in cases.items():
+            with self.subTest(name), tempfile.TemporaryDirectory() as tmp:
+                tree = Tree(tmp)
+                tree.write_json(".harness/config.json", body)
+                self.assertTrue(any(p.startswith(".harness/config.json ") for p in check(tree.root)), name)
 
     def test_a_tampered_renderer_is_not_executed_without_a_payload(self) -> None:
         tree = Tree(self.tmp)
@@ -342,7 +360,7 @@ class AgainstThePayload(unittest.TestCase):
         self.assertTrue(any("not a payload file" in p for p in check(self.tree.root, self.payload)))
 
     def test_a_local_path_that_differs_from_the_payload_fails(self) -> None:
-        self.tree.write_json(".harness/config.json", {"local": [".claude/skills/a/SKILL.md"]})
+        self.tree.write_json(".harness/config.json", {**CFG, "local": [".claude/skills/a/SKILL.md"]})
         self.tree.put(".claude/skills/a/SKILL.md", b"mine\n")
         del self.tree.files[".claude/skills/a/SKILL.md"]
         self.tree.save_manifest()
@@ -352,7 +370,7 @@ class AgainstThePayload(unittest.TestCase):
 
     def test_a_local_path_identical_to_the_payload_or_absent_passes(self) -> None:
         rel = ".claude/skills/a/SKILL.md"
-        self.tree.write_json(".harness/config.json", {"local": [rel]})
+        self.tree.write_json(".harness/config.json", {**CFG, "local": [rel]})
         del self.tree.files[rel]
         self.tree.save_manifest()
         self.assertEqual(check(self.tree.root, self.payload), [])  # identical
@@ -361,7 +379,7 @@ class AgainstThePayload(unittest.TestCase):
 
     def test_an_excluded_payload_file_need_not_be_listed(self) -> None:
         rel = ".claude/skills/a/SKILL.md"
-        self.tree.write_json(".harness/config.json", {"exclude": [rel]})
+        self.tree.write_json(".harness/config.json", {**CFG, "exclude": [rel]})
         del self.tree.files[rel]
         (self.tree.root / rel).unlink()
         self.tree.save_manifest()
@@ -392,7 +410,7 @@ class AgainstThePayload(unittest.TestCase):
 
     def test_an_excluded_payload_path_that_exists_in_the_tree_fails(self) -> None:
         rel = ".claude/skills/a/SKILL.md"
-        self.tree.write_json(".harness/config.json", {"exclude": [rel]})
+        self.tree.write_json(".harness/config.json", {**CFG, "exclude": [rel]})
         del self.tree.files[rel]
         self.tree.save_manifest()  # the file stays in the tree: excluded means not delivered, never replaced
         problems = check(self.tree.root, self.payload)
@@ -400,7 +418,7 @@ class AgainstThePayload(unittest.TestCase):
 
     def test_a_local_path_that_is_a_link_is_a_problem(self) -> None:
         rel = ".claude/skills/a/SKILL.md"
-        self.tree.write_json(".harness/config.json", {"local": [rel]})
+        self.tree.write_json(".harness/config.json", {**CFG, "local": [rel]})
         del self.tree.files[rel]
         self.tree.save_manifest()
         outside = self.base / "outside.md"
@@ -415,7 +433,7 @@ class AgainstThePayload(unittest.TestCase):
 
     def test_an_unreadable_local_copy_is_a_problem_not_a_traceback(self) -> None:
         rel = ".claude/skills/a/SKILL.md"
-        self.tree.write_json(".harness/config.json", {"local": [rel]})
+        self.tree.write_json(".harness/config.json", {**CFG, "local": [rel]})
         del self.tree.files[rel]
         self.tree.save_manifest()
         original = Path.read_bytes
@@ -430,7 +448,7 @@ class AgainstThePayload(unittest.TestCase):
         self.assertTrue(any("cannot read" in p for p in problems), problems)
 
     def test_local_protection_of_base_is_case_sensitive_like_apply(self) -> None:
-        self.tree.write_json(".harness/config.json", {"local": [".HARNESS/render.py"]})
+        self.tree.write_json(".harness/config.json", {**CFG, "local": [".HARNESS/render.py"]})
         self.assertFalse(any("needs managed" in p for p in check(self.tree.root, self.payload)))
 
     def test_payload_that_is_not_a_directory_is_a_problem(self) -> None:

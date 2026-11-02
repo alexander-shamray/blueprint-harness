@@ -160,6 +160,46 @@ class DriftGateParity(unittest.TestCase):
                 with self.subTest(config=path.name, rel=rel):
                     self.assertFalse(any(apply_mod.glob_match(g, rel) for g in config["local"] + config["exclude"]))
 
+    def test_the_config_shapes_agree(self) -> None:
+        """The gate must not pass a config apply refuses; `settings` is the renderer's, run by both."""
+        from harness_sync.config import ConfigError, load_config
+
+        good = {"repo": "o/r", "task_list": "t"}
+        cases = [good, {**good, "local": ["a/**"], "exclude": ["b.md"], "settings": {}}, [], "x", None, {},
+                 {"task_list": "t"}, {"repo": "o/r"}, {**good, "repo": 1}, {**good, "task_list": None},
+                 {**good, "extra": 1}, {**good, "local": "a"}, {**good, "exclude": [1]}, {**good, "local": ["a\\b"]},
+                 {**good, "exclude": ["/a"]}, {**good, "local": ["ok", "/a"]}]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.json"
+            for raw in cases:
+                with self.subTest(raw=raw):
+                    path.write_text(json.dumps(raw), encoding="utf-8")
+                    try:
+                        load_config(path)
+                        refused = False
+                    except ConfigError:
+                        refused = True
+                    self.assertEqual(bool(self.gate.config_problems(raw)), refused)
+
+    def test_a_config_apply_refuses_is_a_problem_for_the_gate(self) -> None:
+        from harness_sync.apply import apply
+        from harness_sync.config import ConfigError
+
+        bad = [{"extra": 1}, {"repo": None}, {"local": ["/a"]}, {"exclude": ["a\\b"]}, {"settings": {"x": 1}},
+               {"settings": {"hooks": {"E": "x"}}}]
+        config = json.loads((REPO / "targets/blueprint-backend.config.json").read_text(encoding="utf-8"))
+        for change in bad:
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as tmp:
+                target = Path(tmp)
+                (target / ".harness").mkdir()
+                (target / ".harness/config.json").write_text(json.dumps(config), encoding="utf-8")
+                apply(REPO / "payload", target, "a" * 40)
+                self.assertEqual(self.gate.check(target, REPO / "payload"), [])
+                (target / ".harness/config.json").write_text(json.dumps({**config, **change}), encoding="utf-8")
+                with self.assertRaises(ConfigError):
+                    apply(REPO / "payload", target, "a" * 40)
+                self.assertTrue(self.gate.check(target, REPO / "payload"))
+
     def test_walk_skips_what_apply_skips(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
