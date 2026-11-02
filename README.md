@@ -25,9 +25,9 @@ tool renders them into each target through an ordinary pull request.
   after review*.
 - `IMPORT.md` — the backend commit the payload was taken from, and which file
   went to the payload and which stayed in backend, with the reason for each.
-- `.github/workflows/ci.yml` — the `sync-tool` job, the required check on
-  `main`; and `payload-suites`, which applies the payload to a worktree of
-  the commit and runs the payload's suites there.
+- `.github/workflows/ci.yml` — the `sync-tool` job; and `payload-suites`,
+  which applies the payload to a worktree of the commit and runs the
+  payload's suites there. Both are required on `main` (*Changes*).
 - `.github/workflows/sync.yml` — the sync pull request a merge to `main` opens
   in each target (*The sync workflow*).
 
@@ -98,14 +98,35 @@ comment naming the new one, and its branch deleted. A rerun for the same
 commit finds its own pull request and opens no second one. A commit older than
 the target's manifest, or than a sync already open, is refused.
 
-It needs the secret `HARNESS_SYNC_TOKEN`: a fine-grained token with Contents,
-Pull requests and Workflows read-write on every repository in `targets.json`,
-this one included (four once frontend and admin are listed). Workflows,
-because the payload ships `.github/workflows/` files and GitHub refuses a push
-that changes one without it. The workflow's own
-`GITHUB_TOKEN` cannot stand in, because a pull request it opens starts none of
-the target's required checks. Until the secret is set, each target is skipped
-with a notice and the run stays green.
+It needs `HARNESS_SYNC_TOKEN`: a fine-grained token with Contents, Pull
+requests and Workflows read-write on every repository in `targets.json`, this
+one included (four once frontend and admin are listed). Workflows, because the
+payload ships `.github/workflows/` files and GitHub refuses a push that
+changes one without it. The workflow's own `GITHUB_TOKEN` cannot stand in,
+because a pull request it opens starts none of the target's required checks.
+Until the secret is set, each target is skipped with a notice and the run
+stays green.
+
+The token is a secret of the `harness-sync` environment, never of the
+repository. The owner stores it with:
+
+```bash
+gh secret set HARNESS_SYNC_TOKEN --env harness-sync --repo alexander-shamray/blueprint-harness
+```
+
+**Why an environment.** A `pull_request` run from a branch of this
+repository gets the repository's secrets and runs that branch's workflow
+files. So a branch that edits `ci.yml` or `sync.yml` could use a repository
+secret, or print it. An environment secret reaches only a job that names the
+environment. `harness-sync` deploys from `main` alone, so only workflow code
+already on `main` gets the token, and only the `sync` job names it.
+
+Inside that job the token is never written to disk. Both checkouts set
+`persist-credentials: false`, so `target/.git/config` holds no credential
+while `setup-python` and later steps run. The step that runs open-pr hands
+git the authorisation header through `GIT_CONFIG_*` variables in its own
+environment, for the target's `ls-remote`, fetch and pushes, and masks the
+header's base64 form.
 
 A target is **current** when applying the payload writes and deletes no
 managed path: only the manifest's commit would move, so no pull request is
@@ -116,4 +137,7 @@ request still open there is closed as stale. A target with no
 ## Changes
 
 `main` takes changes only through pull requests: deletion, force pushes and
-direct pushes are refused, `sync-tool` must pass, and nobody bypasses it.
+direct pushes are refused, and nobody bypasses it. Seven checks must pass:
+`sync-tool` and `payload-suites` on its three runners (`ubuntu-latest`,
+`windows-latest`, `macos-latest`) from `ci.yml`, and `commit-gate`,
+`closure-gate` and `harness-drift` from the workflows the root renders.
