@@ -6,7 +6,7 @@ on:
   push:
     branches: [main]
 
-# Read-only: the job tests the tree and writes nothing back.
+# Read-only: the jobs test the tree and write nothing back.
 permissions:
   contents: read
 
@@ -34,3 +34,82 @@ jobs:
       - run: python -m unittest discover -s harness_sync/tests -t .
 
       - run: python -m unittest discover -s measure -t .
+
+  # The payload's own suites, run where a target runs them: in a worktree of
+  # this commit with the payload applied over it under backend's draft config,
+  # from the worktree root (shared-harness spec 5.1, *Tests*). The payload is
+  # not live here, so this is the only place its tests run before a sync
+  # carries it into a target.
+  #
+  # Linux runs everything, as backend's `review-helpers` job does. Windows and
+  # macOS run only the edit-target guard and the index hook, mirroring
+  # backend's `edit-target-guard` job and on its argument: those two modules
+  # have branches no Linux runner reaches (junctions, `..` after a link, case
+  # folding, `msvcrt.locking`) and need nothing but Python, where the rest of
+  # the directory needs `bash`, `grep`, `git` and `jq` on PATH.
+  payload-suites:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        # Git's bash on Windows, so the one script below serves all three.
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      # The config is copied in rather than passed, so apply reads it from the
+      # path every target keeps it at.
+      - name: Apply the payload to a worktree of this commit
+        run: |
+          set -euo pipefail
+          rendered="$RUNNER_TEMP/rendered"
+          git worktree add --detach "$rendered" HEAD
+          mkdir -p "$rendered/.harness"
+          cp targets/blueprint-backend.config.json "$rendered/.harness/config.json"
+          python -m harness_sync apply --payload payload --target "$rendered" --commit "$(git rev-parse HEAD)"
+
+      - name: Test the review helpers
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: ${{ runner.temp }}/rendered
+        run: python -m unittest discover -s .claude/scripts
+
+      # Every gate directory the payload ships a suite for, read from the
+      # rendered tree rather than listed, so a gate added to the payload is
+      # tested from its first pull request. Each runs from its own directory,
+      # as backend's workflows run it.
+      - name: Test the gates
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: ${{ runner.temp }}/rendered
+        run: |
+          set -uo pipefail
+          ran=0 failed=0
+          for dir in .github/*/; do
+            compgen -G "${dir}test_*.py" > /dev/null || continue
+            echo "::group::${dir%/}"
+            (cd "$dir" && python -m unittest) || failed=1
+            echo "::endgroup::"
+            ran=$((ran + 1))
+          done
+          # A loop that found nothing would pass; the payload ships gate suites.
+          if [ "$ran" -eq 0 ]; then echo "no gate suite found under .github/" >&2; exit 1; fi
+          exit "$failed"
+
+      # `-v` for the lines the modules print: which link primitive was reached
+      # and which lock branch was chosen are why these legs exist.
+      - name: Test the edit-target guard
+        if: matrix.os != 'ubuntu-latest'
+        working-directory: ${{ runner.temp }}/rendered
+        run: python -m unittest discover -s .claude/scripts -p "test_edit_target_guard.py" -v
+
+      - name: Test the index hook
+        if: matrix.os != 'ubuntu-latest'
+        working-directory: ${{ runner.temp }}/rendered
+        run: python -m unittest discover -s .claude/scripts -p "test_refresh_index.py" -v

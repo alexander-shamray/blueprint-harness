@@ -42,5 +42,11 @@ class BackendRenderEquivalentTests(unittest.TestCase):
         self.assertEqual(current["env"], rendered["env"])
 
 
+class VendoredRenderTests(unittest.TestCase):
+    def test_vendored_render_identical(self) -> None:
+        vendored = ROOT / "payload" / ".harness" / "render.py"
+        self.assertEqual((ROOT / "harness_sync" / "render.py").read_bytes(), vendored.read_bytes())
+
+
 if __name__ == "__main__":
     unittest.main()
