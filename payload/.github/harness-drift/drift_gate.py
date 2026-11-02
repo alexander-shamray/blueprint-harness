@@ -30,8 +30,17 @@ MANAGED_DIRS = (
     "docs/commands",
     ".github/harness-drift",
 )
-# Apply refuses to exclude or localise these, because the gate cannot judge settings without them.
-_NEEDED = (BASE, RENDER)
+# What the gate needs delivered to judge a target; excluded or local, the target is never checked again (copy of
+# harness_sync.apply, as is the hook-path rule below).
+GATE_FILES = (
+    BASE,
+    RENDER,
+    ".github/harness-drift/README.md",
+    ".github/harness-drift/drift_gate.py",
+    ".github/harness-drift/test_drift_gate.py",
+    ".github/workflows/harness-drift.yml",
+)
+_PATH_TOKEN = re.compile(r"(?<![\w$.-])[\w.-]+(?:/[\w.-]+)+")
 
 
 def file_hash(data: bytes) -> str:
@@ -72,6 +81,20 @@ def is_local(globs: list[str] | tuple[str, ...], path: str) -> bool:
 
 def _matches(globs: list[str], path: str) -> bool:
     return any(glob_match(g, path) for g in globs)
+
+
+def hook_paths(base: object) -> list[str]:
+    """The paths the settings base's hook commands name; a target without one runs a hook that fails, unseen."""
+    found: set[str] = set()
+    hooks = base.get("hooks") if isinstance(base, dict) else None
+    for groups in hooks.values() if isinstance(hooks, dict) else ():
+        for group in groups if isinstance(groups, list) else ():
+            inner = group.get("hooks") if isinstance(group, dict) else None
+            for hook in inner if isinstance(inner, list) else ():
+                command = hook.get("command") if isinstance(hook, dict) else None
+                if isinstance(command, str):
+                    found.update(_PATH_TOKEN.findall(command))
+    return sorted(found)
 
 
 def _is_link(path: Path) -> bool:
@@ -164,12 +187,15 @@ def _globs(root: Path, problems: list[str]) -> tuple[list[str], list[str]]:
     return out[0], out[1]
 
 
-def _check_protected(local: list[str], exclude: list[str], problems: list[str]) -> None:
-    for rel in _NEEDED:
+def _check_protected(root: Path, local: list[str], exclude: list[str], problems: list[str]) -> None:
+    base = _load_json(root, BASE, [])  # an unreadable base is reported by _check_settings
+    needed = [(rel, "the drift gate needs managed") for rel in GATE_FILES]
+    needed += [(rel, f"a hook in {BASE} runs") for rel in hook_paths(base)]
+    for rel, why in needed:
         if _matches(local, rel):  # case-sensitive, as apply's is
-            problems.append(f"{CONFIG} makes {rel} local, which the drift gate needs managed")
+            problems.append(f"{CONFIG} makes {rel} local, which {why}")
         if _matches(exclude, rel):
-            problems.append(f"{CONFIG} excludes {rel}, which the drift gate needs managed")
+            problems.append(f"{CONFIG} excludes {rel}, which {why}")
 
 
 def _check_listed(root: Path, files: dict[str, str], problems: list[str]) -> None:
@@ -347,7 +373,7 @@ def check(root: Path, payload: Path | None = None, render_module: types.ModuleTy
     payload = Path(payload) if payload is not None else None
     problems: list[str] = []
     local, exclude = _globs(root, problems)
-    _check_protected(local, exclude, problems)
+    _check_protected(root, local, exclude, problems)
     files = _manifest_files(root, problems)
     if files is not None:
         _check_listed(root, files, problems)

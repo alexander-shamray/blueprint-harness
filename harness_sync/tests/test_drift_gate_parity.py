@@ -5,6 +5,7 @@ copies cannot be imported and a test is the only thing that stops them drifting.
 """
 
 import importlib.util
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,7 +13,9 @@ from pathlib import Path
 from harness_sync import apply as apply_mod
 from harness_sync.manifest import file_hash
 
-GATE = Path(__file__).resolve().parents[2] / "payload/.github/harness-drift/drift_gate.py"
+REPO = Path(__file__).resolve().parents[2]
+GATE = REPO / "payload/.github/harness-drift/drift_gate.py"
+REAL_BASE = json.loads((REPO / "payload/.harness/settings.base.json").read_text(encoding="utf-8"))
 
 HASH_CASES = [b"", b"a", b"a\nb\n", b"a\r\nb\r\n", b"a\rb", b"\r\n\r\n", b"x\r\r\n", "café\r\n".encode("utf-8")]
 GLOB_CASES = [
@@ -74,7 +77,7 @@ class DriftGateParity(unittest.TestCase):
             target = Path(tmp)
             (target / ".harness").mkdir()
             config = json.loads((repo / "targets/blueprint-backend.config.json").read_text(encoding="utf-8"))
-            config["exclude"] = [".github/workflows/*.yml"]
+            config["exclude"] = [".github/workflows/c*.yml"]
             (target / ".harness/config.json").write_text(json.dumps(config), encoding="utf-8")
             apply(repo / "payload", target, "a" * 40)
             self.assertEqual(self.gate.check(target, repo / "payload"), [])
@@ -92,19 +95,70 @@ class DriftGateParity(unittest.TestCase):
             config = json.loads((repo / "targets/blueprint-backend.config.json").read_text(encoding="utf-8"))
             (target / ".harness/config.json").write_text(json.dumps(config), encoding="utf-8")
             apply(repo / "payload", target, "a" * 40)
-            config["exclude"] = [".claude/hooks/*"]
+            config["exclude"] = [".claude/agents/*"]
             (target / ".harness/config.json").write_text(json.dumps(config), encoding="utf-8")
-            self.assertTrue(list((target / ".claude/hooks").glob("*")), "the payload ships hooks")
+            self.assertTrue(list((target / ".claude/agents").glob("*")), "the payload ships agents")
             problems = self.gate.check(target, repo / "payload")
             self.assertTrue(any("excluded but exists" in p for p in problems), problems)
-            # With no manifest the hooks are not on their way out as dropped files, so apply refuses, naming all.
-            names = sorted(p.name for p in (repo / "payload/.claude/hooks").glob("*") if p.is_file())
-            self.assertGreater(len(names), 1, "the test needs more than one hook to show the order does not matter")
+            # With no manifest the agents are not on their way out as dropped files, so apply refuses, naming all.
+            names = sorted(p.name for p in (repo / "payload/.claude/agents").glob("*") if p.is_file())
+            self.assertGreater(len(names), 1, "the test needs more than one agent to show the order does not matter")
             (target / ".harness/manifest.json").unlink()
             with self.assertRaises(ApplyError) as ctx:
                 apply(repo / "payload", target, "a" * 40)
             for name in names:
                 self.assertIn(name, str(ctx.exception))
+
+    def test_the_protected_paths_agree(self) -> None:
+        self.assertEqual(self.gate.GATE_FILES, apply_mod.GATE_FILES)
+        hook = {"type": "command", "command": """bash "$D/.claude/hooks/a.sh" x.py && py -c '/.claude/scripts/b.py'"""}
+        bases = [REAL_BASE, {}, [], "x", {"hooks": []}, {"hooks": {"E": "x"}}, {"hooks": {"E": [{"hooks": 3}]}},
+                 {"hooks": {"E": [{"hooks": [{"command": 3}, "x", hook]}]}}]
+        for base in bases:
+            with self.subTest(base=base):
+                self.assertEqual(self.gate.hook_paths(base), apply_mod.hook_paths(base))
+        self.assertEqual(apply_mod.hook_paths(bases[-1]), [".claude/hooks/a.sh", ".claude/scripts/b.py"])
+
+    def test_the_gate_files_are_the_payloads_gate(self) -> None:
+        """A file added to the gate's directory is protected only once GATE_FILES names it."""
+        payload = REPO / "payload"
+        shipped = {rel for rel in apply_mod._walk(payload) if rel.startswith(".github/harness-drift/")}
+        shipped |= {".github/workflows/harness-drift.yml", ".harness/settings.base.json", ".harness/render.py"}
+        self.assertEqual(set(apply_mod.GATE_FILES), shipped)
+        self.assertTrue(all((payload / rel).is_file() for rel in shipped))
+
+    def test_every_path_a_real_hook_names_is_a_payload_file(self) -> None:
+        paths = apply_mod.hook_paths(REAL_BASE)
+        self.assertIn(".claude/hooks/guard-git-argv.py", paths)
+        for rel in paths:
+            with self.subTest(rel=rel):
+                self.assertTrue((REPO / "payload" / rel).is_file())
+
+    def test_a_protected_glob_is_refused_by_both(self) -> None:
+        from harness_sync.apply import ApplyError, apply
+
+        globs = (".github/harness-drift/**", ".github/workflows/harness-drift.yml", ".claude/hooks/guard-git-argv.py")
+        for key in ("local", "exclude"):
+            for glob in globs:
+                with self.subTest(key=key, glob=glob), tempfile.TemporaryDirectory() as tmp:
+                    target = Path(tmp)
+                    (target / ".harness").mkdir()
+                    config = json.loads((REPO / "targets/blueprint-backend.config.json").read_text(encoding="utf-8"))
+                    (target / ".harness/config.json").write_text(json.dumps(config), encoding="utf-8")
+                    apply(REPO / "payload", target, "a" * 40)
+                    config[key] = [*config[key], glob]
+                    (target / ".harness/config.json").write_text(json.dumps(config), encoding="utf-8")
+                    with self.assertRaises(ApplyError):
+                        apply(REPO / "payload", target, "a" * 40)
+                    problems = self.gate.check(target, REPO / "payload")
+                    self.assertTrue(any(glob.rstrip("*") in p and "which" in p for p in problems), problems)
+
+    def test_the_real_configs_protect_nothing(self) -> None:
+        for path in (REPO / ".harness/config.json", REPO / "targets/blueprint-backend.config.json"):
+            config = json.loads(path.read_text(encoding="utf-8"))
+            for rel in [*apply_mod.GATE_FILES, *apply_mod.hook_paths(REAL_BASE)]:
+                with self.subTest(config=path.name, rel=rel):
+                    self.assertFalse(any(apply_mod.glob_match(g, rel) for g in config["local"] + config["exclude"]))
 
     def test_walk_skips_what_apply_skips(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

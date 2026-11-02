@@ -29,18 +29,18 @@ def sha(data: bytes) -> str:
 class Tree:
     """A throwaway target: the real renderer, a small base, and files recorded in a manifest."""
 
-    def __init__(self, tmp: str, local: tuple[str, ...] = ()) -> None:
+    def __init__(self, tmp: str, local: tuple[str, ...] = (), base: dict = BASE) -> None:
         self.root = Path(tmp)
         self.files: dict[str, str] = {}
         (self.root / ".harness").mkdir()
         shutil.copy(HERE.parents[1] / ".harness/render.py", self.root / ".harness/render.py")
         self.write_json(".harness/config.json", {"repo": "o/r", "task_list": "t", "local": list(local)})
-        self.write_json(".harness/settings.base.json", BASE)
+        self.write_json(".harness/settings.base.json", base)
         spec = importlib.util.spec_from_file_location("_r", self.root / ".harness/render.py")
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         self.render = mod
-        rendered = mod.dump_settings(mod.render_settings(BASE, SimpleNamespace(settings={})))
+        rendered = mod.dump_settings(mod.render_settings(base, SimpleNamespace(settings={})))
         self.add(".claude/settings.json", rendered.encode("utf-8"))
         for rel in (".harness/settings.base.json", ".harness/render.py"):
             self.files[rel] = sha((self.root / rel).read_bytes())
@@ -212,6 +212,29 @@ class DriftGate(unittest.TestCase):
                     tree = Tree(tmp)
                     tree.write_json(".harness/config.json", {key: [rel]})
                     self.assertTrue(any("needs managed" in p for p in check(tree.root)))
+
+    def test_the_gate_files_cannot_be_local_or_excluded(self) -> None:
+        # Without its gate or the workflow that runs it, a target stays green and is never checked again.
+        for key in ("local", "exclude"):
+            for glob in (".github/harness-drift/**", ".github/harness-drift/drift_gate.py",
+                         ".github/workflows/harness-drift.yml", ".github/workflows/*.yml", ".github/**"):
+                with self.subTest(key=key, glob=glob), tempfile.TemporaryDirectory() as tmp:
+                    tree = Tree(tmp)
+                    tree.write_json(".harness/config.json", {key: [glob]})
+                    self.assertTrue(any("needs managed" in p for p in check(tree.root)))
+
+    def test_a_file_a_hook_runs_cannot_be_local_or_excluded(self) -> None:
+        command = 'py -3.12 "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard.py"'
+        hooks = {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": command}]}]}
+        base = {**BASE, "hooks": hooks}
+        for key in ("local", "exclude"):
+            with self.subTest(key=key), tempfile.TemporaryDirectory() as tmp:
+                tree = Tree(tmp, base=base)
+                tree.write_json(".harness/config.json", {key: [".claude/hooks/*"]})
+                problems = check(tree.root)
+                self.assertTrue(any(".claude/hooks/guard.py" in p and "which a hook" in p for p in problems), problems)
+                tree.write_json(".harness/config.json", {key: [".claude/hooks/other.py"]})
+                self.assertFalse(any("which a hook" in p for p in check(tree.root)))
 
     def test_a_tampered_renderer_is_not_executed_without_a_payload(self) -> None:
         tree = Tree(self.tmp)
