@@ -17,8 +17,8 @@ class ManifestTests(unittest.TestCase):
     def test_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / ".harness" / "manifest.json"
-            Manifest("a" * 40, {"z": "1", "a": "2"}).write(path)
-            self.assertEqual(Manifest.read(path), Manifest("a" * 40, {"a": "2", "z": "1"}))
+            Manifest("a" * 40, {"z": "1" * 64, "a": "2" * 64}).write(path)
+            self.assertEqual(Manifest.read(path), Manifest("a" * 40, {"a": "2" * 64, "z": "1" * 64}))
 
     def test_read_missing_is_none(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

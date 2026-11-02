@@ -7,11 +7,12 @@ from pathlib import Path
 from typing import Callable
 
 from harness_sync.config import load_config
-from harness_sync.manifest import Manifest, file_hash
+from harness_sync.manifest import Manifest, ManifestError, file_hash
 from harness_sync.render import dump_settings, render_settings
 
 SETTINGS = ".claude/settings.json"
 BASE = ".harness/settings.base.json"
+RENDER = ".harness/render.py"
 MANIFEST = ".harness/manifest.json"
 CONFIG = ".harness/config.json"
 # The target owns its config and apply owns the manifest; a payload copy of either would fork them silently.
@@ -55,7 +56,9 @@ def glob_match(glob: str, path: str) -> bool:
     return _glob_regex(glob).fullmatch(path) is not None
 
 
-def _first_match(globs: tuple[str, ...], path: str) -> str | None:
+def _first_match(globs: tuple[str, ...], path: str, *, ignore_case: bool = False) -> str | None:
+    if ignore_case:
+        return next((g for g in globs if glob_match(g.lower(), path.lower())), None)
     return next((g for g in globs if glob_match(g, path)), None)
 
 
@@ -80,12 +83,48 @@ def _is_current(path: Path, data: bytes) -> bool:
 
 def _prune_empty_parents(path: Path, root: Path) -> None:
     for parent in path.parents:
-        if parent == root:
+        if parent == root or not parent.is_relative_to(root):
             return
         try:
             parent.rmdir()
         except OSError:
             return
+
+
+def _check_manifest_path(target: Path, rel: str) -> None:
+    """A manifest is editable by any target PR, so each entry must be a canonical path inside the target."""
+    parts = rel.split("/")
+    if "\\" in rel or ":" in rel or any(part in ("", ".", "..") for part in parts):
+        raise ApplyError(f"{MANIFEST} lists {rel!r}, which is not a canonical relative POSIX path")
+    if rel.lower() in (CONFIG, MANIFEST) or parts[0].lower() == ".git":
+        raise ApplyError(f"{MANIFEST} lists {rel!r}, which apply never manages")
+    _check_inside(target, rel)
+
+
+def _check_inside(target: Path, rel: str) -> None:
+    """Refuse a path that is, or sits under, a symlink or junction, or that resolves outside the target."""
+    current = target
+    for part in rel.split("/"):
+        current = current / part
+        if current.is_symlink() or current.is_junction():
+            raise ApplyError(f"{rel} passes through a link at {current.relative_to(target).as_posix()}")
+    if not (target / rel).resolve().is_relative_to(target.resolve()):
+        raise ApplyError(f"{rel} resolves outside the target")
+
+
+def _check_no_conflicts(target: Path, writes: list[str], dropped: set[str]) -> None:
+    """A directory where a file will land, or a file where a directory is needed, would fail mid-apply."""
+    for rel in writes:
+        path = target / rel
+        if path.is_dir():
+            inside = {f.relative_to(target).as_posix() for f in path.rglob("*") if f.is_file()}
+            if not inside <= dropped:
+                raise ApplyError(f"{rel} is a directory in the target but apply writes a file there")
+        parts = rel.split("/")
+        for n in range(1, len(parts)):
+            prefix = "/".join(parts[:n])
+            if (target / prefix).exists() and not (target / prefix).is_dir() and prefix not in dropped:
+                raise ApplyError(f"{prefix} is a file in the target but {rel} needs it to be a directory")
 
 
 def apply(
@@ -100,6 +139,12 @@ def apply(
     if not re.fullmatch(r"[0-9a-f]{40}", harness_commit):
         raise ApplyError(f"harness commit must be 40 hex characters, got {harness_commit!r}")
     cfg = load_config(target / CONFIG)
+
+    for rel in (BASE, RENDER):
+        for kind, globs in (("exclude", cfg.exclude), ("local", cfg.local)):
+            glob = _first_match(globs, rel)
+            if glob is not None:
+                raise ApplyError(f"{kind} glob {glob!r} matches {rel}, which the drift gate needs managed")
 
     contents: dict[str, bytes] = {}
     for rel in _walk(payload):
@@ -132,10 +177,32 @@ def apply(
     new_files[SETTINGS] = file_hash(rendered)
     manifest = Manifest(harness_commit, new_files)
 
-    old = Manifest.read(target / MANIFEST)
+    _check_inside(target, MANIFEST)
+    try:
+        old = Manifest.read(target / MANIFEST)
+    except ManifestError as exc:
+        raise ApplyError(f"{MANIFEST} is malformed: {exc}") from exc
+    old_files = old.files if old else {}
+    for rel in old_files:
+        _check_manifest_path(target, rel)
+    # Case-insensitive: on Windows `Notes/A.md` is the local file `notes/a.md`, and a glob must not be dodged by case.
     dropped = sorted(
-        rel for rel in (old.files if old else {}) if rel not in new_files and _first_match(cfg.local, rel) is None
+        rel for rel in old_files if rel not in new_files and _first_match(cfg.local, rel, ignore_case=True) is None
     )
+
+    writes = [*managed, MANIFEST, SETTINGS]
+    for rel in [*writes, *dropped]:
+        _check_inside(target, rel)
+    _check_no_conflicts(target, writes, set(dropped))
+
+    # Deletions come first: a case-only rename or a file/directory swap needs the old path gone before the new write.
+    deleted = []
+    for rel in dropped:
+        path = target / rel
+        if path.is_file():
+            path.unlink()
+            _prune_empty_parents(path, target)
+            deleted.append(rel)
 
     written, unchanged = [], []
     for rel, data in sorted(managed.items()):
@@ -144,13 +211,6 @@ def apply(
         else:
             write(target / rel, data)
             written.append(rel)
-    deleted = []
-    for rel in dropped:
-        path = target / rel
-        if path.is_file():
-            path.unlink()
-            _prune_empty_parents(path, target)
-            deleted.append(rel)
 
     manifest_path = target / MANIFEST
     manifest_bytes = manifest.dumps().encode("utf-8")
