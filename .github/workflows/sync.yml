@@ -49,19 +49,21 @@ jobs:
     needs: targets
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # A pull request from a branch here gets repository secrets and runs that
+    # branch's workflows, so the token is a secret of this environment alone,
+    # which deploys from main only: no branch's edit to a workflow reaches it
+    # (README, The sync workflow).
+    environment: harness-sync
     strategy:
       # One target's failure must not leave the others without their sync.
       fail-fast: false
       matrix:
         target: ${{ fromJSON(needs.targets.outputs.matrix) }}
-    # One run at a time per target, queued rather than cancelled, so a second
-    # merge never interrupts the first between its push and its trailer push.
-    # The queue alone does not order runs: a run joins it only after its own
-    # targets job, GitHub keeps one waiting job per group and cancels it for a
-    # newer one, and a rerun reuses its old event. So every run syncs main's
-    # tip as it stands when the job starts, never the commit that triggered it,
-    # and open-pr refuses a commit older than the target's manifest or an
-    # open sync.
+    # One run per target at a time, queued, not cancelled, so no merge cuts in
+    # between another's push and its trailer push. The queue does not order
+    # runs (GitHub keeps one waiting job per group, and a rerun reuses its old
+    # event), so each run syncs main's tip as the job starts, and open-pr
+    # refuses a commit older than the target's manifest or an open sync.
     concurrency:
       group: harness-sync-${{ matrix.target.repo }}
       cancel-in-progress: false
@@ -82,15 +84,17 @@ jobs:
           fi
 
       # Main's tip, with history: the tip is what is synced, and the history
-      # is what open-pr orders commits by.
+      # is what open-pr orders commits by. Every git call on it is local.
       - if: steps.token.outputs.present == 'true'
         uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
+          persist-credentials: false
 
-      # Full history and the token's credentials, which the sync's own pushes
-      # (the branch, then the trailer under a lease) use.
+      # Full history. The token clones and is not kept, so it is never in
+      # target/.git/config while setup-python and later steps run; open-pr's
+      # git calls get it from their own step's environment below.
       - if: steps.token.outputs.present == 'true'
         uses: actions/checkout@v7
         with:
@@ -98,6 +102,7 @@ jobs:
           token: ${{ secrets.HARNESS_SYNC_TOKEN }}
           path: target
           fetch-depth: 0
+          persist-credentials: false
 
       - if: steps.token.outputs.present == 'true'
         uses: actions/setup-python@v7
@@ -116,6 +121,13 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+          # The header checkout would have persisted, set in this step's
+          # environment only: git sends it on the target's ls-remote, fetch and
+          # pushes, and no file holds it. Its base64 form is masked by hand.
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
           commit="$(git rev-parse HEAD)"
           python -E -s -m harness_sync open-pr --payload payload --harness . --target target \
             --commit "$commit" --repo "$TARGET" --run-url "$RUN_URL"
