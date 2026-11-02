@@ -131,11 +131,12 @@ def _check_inside(target: Path, rel: str) -> None:
 def _check_clearable(target: Path, path: Path, rel: str, dropped: set[str]) -> None:
     """Only dropped files and empty directories may sit where a file lands; a link would defeat the removal."""
     for directory, dirnames, filenames in os.walk(path):
+        dirnames.sort()  # the first offender named must not depend on filesystem order
         for name in dirnames:
             child = Path(directory) / name
             if child.is_symlink() or child.is_junction():
                 raise ApplyError(f"{rel} is a directory in the target holding a link at {name}")
-        for name in filenames:
+        for name in sorted(filenames):
             if (Path(directory) / name).relative_to(target).as_posix() not in dropped:
                 raise ApplyError(f"{rel} is a directory in the target but apply writes a file there")
 
@@ -213,7 +214,7 @@ def apply(
     except ManifestError as exc:
         raise ApplyError(f"{MANIFEST} is malformed: {exc}") from exc
     old_files = old.files if old else {}
-    for rel in old_files:
+    for rel in sorted(old_files):
         _check_manifest_path(target, rel)
     # Always case-insensitive, on every OS: any filesystem may fold case (NTFS, CIFS and casefold mounts on Linux),
     # and failing safe means keeping a file that may be local; a missed deletion is an orphan, a wrong one is loss.
@@ -225,16 +226,20 @@ def apply(
 
     # Exclude means "not delivered", never "replaced" (spec 5.2): a target keeping its own copy of a managed file
     # would fork the harness. A file this apply is about to delete as no longer managed is on its way out.
-    for rel in excluded:
+    # Every offender is named, sorted, so the message does not depend on filesystem order.
+    forks = []
+    for rel in sorted(excluded):
         path = target / rel
         if not (path.exists() or path.is_symlink()):
             continue
         # The deletion loop below unlinks regular files only, so anything else would survive and stay a fork.
         if rel not in dropped or path.is_symlink() or not path.is_file():
-            raise ApplyError(
-                f"{rel} is excluded but exists in the target; remove it. `local` allows only an absent or identical "
-                "copy; a target that needs different behaviour adds a new local path, never a replacement"
-            )
+            forks.append(rel)
+    if forks:
+        raise ApplyError(
+            f"{', '.join(forks)} excluded but present in the target; remove them. `local` allows only an absent or "
+            "identical copy; a target that needs different behaviour adds a new local path, never a replacement"
+        )
 
     writes = [*managed, MANIFEST, SETTINGS]
     for rel in [*writes, *dropped]:

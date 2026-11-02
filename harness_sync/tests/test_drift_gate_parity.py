@@ -97,12 +97,14 @@ class DriftGateParity(unittest.TestCase):
             self.assertTrue(list((target / ".claude/hooks").glob("*")), "the payload ships hooks")
             problems = self.gate.check(target, repo / "payload")
             self.assertTrue(any("excluded but exists" in p for p in problems), problems)
-            # With no manifest the hooks are not on their way out as dropped files, so apply refuses, naming one.
-            name = next(p.name for p in (repo / "payload/.claude/hooks").glob("*") if p.is_file())
+            # With no manifest the hooks are not on their way out as dropped files, so apply refuses, naming all.
+            names = sorted(p.name for p in (repo / "payload/.claude/hooks").glob("*") if p.is_file())
+            self.assertGreater(len(names), 1, "the test needs more than one hook to show the order does not matter")
             (target / ".harness/manifest.json").unlink()
             with self.assertRaises(ApplyError) as ctx:
                 apply(repo / "payload", target, "a" * 40)
-            self.assertIn(name, str(ctx.exception))
+            for name in names:
+                self.assertIn(name, str(ctx.exception))
 
     def test_walk_skips_what_apply_skips(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
