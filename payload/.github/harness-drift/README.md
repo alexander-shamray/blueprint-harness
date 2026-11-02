@@ -76,10 +76,6 @@ delete the line. Three things guard against that, each a different part:
   request can edit the workflow itself, and only the ruleset requiring this
   check, with review of workflow changes, stops that.
 
-The base gate judges the head workflow that calls it, so the gate's command
-line flags must stay backward compatible: renaming one makes the sync that
-carries the rename red.
-
 Exclude means "not delivered", never "replaced". A payload path the config
 excludes that still exists in the tree is refused here and by apply, because
 a target keeping its own copy of a managed file, a guard hook for example,
@@ -122,5 +118,49 @@ Do not edit the managed file in this repository, or the next sync reverts it.
 - To keep it different here, declare its path `local` in
   `.harness/config.json`. A new local file under a managed directory needs
   the same line.
-- A settings difference is fixed in `.harness/config.json`'s `settings`, then
-  by running the sync, which rewrites `.claude/settings.json` whole.
+- A settings difference is fixed in `.harness/config.json`'s `settings`, and
+  the same pull request re-renders `.claude/settings.json` whole (*Changing
+  this repository's config*).
+
+## Changing this repository's config
+
+A pull request that changes `.harness/config.json`, whether its `settings`,
+`local` or `exclude`, changes what a sync renders. So it carries the
+re-rendered `.claude/settings.json` and `.harness/manifest.json` with it.
+They are rendered at the commit the manifest already names, never a newer
+one. The gate fetches that commit's payload and judges the tree against it,
+and moving to a newer commit is a sync's job. From a harness checkout:
+
+```bash
+commit="$(py -3.12 -I -c 'import json, sys; print(json.load(sys.stdin)["harness_commit"])' < <target>/.harness/manifest.json)"
+git worktree add --detach ../harness-at "$commit"
+cd ../harness-at
+py -3.12 -m harness_sync apply --payload payload --target <target> --commit "$commit"
+```
+
+Run the tool from that worktree, not from a newer checkout, so the renderer
+that writes the settings is the one the manifest records. Then commit what
+apply changed beside the config.
+
+## Changing a gate rule
+
+The base commit's gate judges every pull request, the sync that changes the
+gate included. So a sync that loosens a rule is judged by the old rule, and
+is red if anything in it relies on the looser one. Change a rule in two
+steps:
+
+1. Ship the new rule on its own: a harness change to `drift_gate.py` that
+   every target already passes under the old and the new rule, synced and
+   merged into each target.
+2. Only then ship what relies on it. That pull request's base carries the
+   new gate, which judges it.
+
+A rule that tightens is in force from the pull request after the sync that
+carries it, so check that every target passes it before step 1, with
+`py -3.12 -m harness_sync check --target <dir> --payload <payload>` from a
+harness checkout that holds the new gate.
+
+The command line flags follow the same rule, because the base gate judges
+the head workflow that calls it. A new flag is added in one sync and used in
+a later one, and a flag a workflow still passes is never renamed or removed:
+either makes the sync that carries it red.

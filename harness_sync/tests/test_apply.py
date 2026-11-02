@@ -326,7 +326,8 @@ class ApplyTests(unittest.TestCase):
         except (OSError, NotImplementedError):
             # Windows without the symlink privilege can still make a junction, which is the same escape.
             if os.name != "nt" or subprocess.run(
-                ["cmd", "/c", "mklink", "/J", str(self.target / "docs"), str(outside)], capture_output=True
+                ["cmd", "/c", "mklink", "/J", str(self.target / "docs"), str(outside)],
+                capture_output=True, encoding="utf-8",
             ).returncode:
                 self.skipTest("this OS refuses to create links")
         self.put(self.payload, "docs/a.md", b"a\n")
@@ -449,7 +450,8 @@ class ApplyTests(unittest.TestCase):
             os.symlink(outside, self.target / ".harness", target_is_directory=True)
         except (OSError, NotImplementedError):
             if os.name != "nt" or subprocess.run(
-                ["cmd", "/c", "mklink", "/J", str(self.target / ".harness"), str(outside)], capture_output=True
+                ["cmd", "/c", "mklink", "/J", str(self.target / ".harness"), str(outside)],
+                capture_output=True, encoding="utf-8",
             ).returncode:
                 self.skipTest("this OS refuses to create links")
         with self.assertRaises(ApplyError) as ctx:
@@ -471,7 +473,8 @@ class ApplyTests(unittest.TestCase):
             os.symlink(outside, link, target_is_directory=True)
         except (OSError, NotImplementedError):
             if os.name != "nt" or subprocess.run(
-                ["cmd", "/c", "mklink", "/J", str(link), str(outside)], capture_output=True
+                ["cmd", "/c", "mklink", "/J", str(link), str(outside)],
+                capture_output=True, encoding="utf-8",
             ).returncode:
                 self.skipTest("this OS refuses to create links")
         with self.assertRaises(ApplyError) as ctx:
