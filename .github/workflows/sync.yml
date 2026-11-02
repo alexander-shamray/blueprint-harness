@@ -28,7 +28,10 @@ jobs:
     outputs:
       matrix: ${{ steps.read.outputs.matrix }}
     steps:
+      # The list as main holds it now, as the sync job below reads main's tip.
       - uses: actions/checkout@v7
+        with:
+          ref: main
 
       # Every slug is checked before it reaches a matrix, a checkout and a
       # concurrency group, so a malformed line fails here and names itself.
@@ -53,6 +56,12 @@ jobs:
         target: ${{ fromJSON(needs.targets.outputs.matrix) }}
     # One run at a time per target, queued rather than cancelled, so a second
     # merge never interrupts the first between its push and its trailer push.
+    # The queue alone does not order runs: a run joins it only after its own
+    # targets job, GitHub keeps one waiting job per group and cancels it for a
+    # newer one, and a rerun reuses its old event. So every run syncs main's
+    # tip as it stands when the job starts, never the commit that triggered it,
+    # and open-pr refuses a commit older than the target's manifest or an
+    # open sync.
     concurrency:
       group: harness-sync-${{ matrix.target.repo }}
       cancel-in-progress: false
@@ -72,8 +81,13 @@ jobs:
             echo "present=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Main's tip, with history: the tip is what is synced, and the history
+      # is what open-pr orders commits by.
       - if: steps.token.outputs.present == 'true'
         uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
 
       # Full history and the token's credentials, which the sync's own pushes
       # (the branch, then the trailer under a lease) use.
@@ -92,14 +106,16 @@ jobs:
 
       # Not `-I`: it drops the working directory from sys.path, and the
       # package is found there. The working directory is this repository at
-      # the pushed commit, not the target, which sits in target/ and is never
-      # on the path; `-E -s` still ignore PYTHON* variables and user site.
+      # main's tip, not the target, which sits in target/ and is never on the
+      # path; `-E -s` still ignore PYTHON* variables and user site (R33).
       - name: Open the sync pull request
         if: steps.token.outputs.present == 'true'
         env:
           GH_TOKEN: ${{ secrets.HARNESS_SYNC_TOKEN }}
           TARGET: ${{ matrix.target.repo }}
-          COMMIT: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          python -E -s -m harness_sync open-pr --payload payload --target target \
-            --commit "$COMMIT" --repo "$TARGET"
+          set -euo pipefail
+          commit="$(git rev-parse HEAD)"
+          python -E -s -m harness_sync open-pr --payload payload --harness . --target target \
+            --commit "$commit" --repo "$TARGET" --run-url "$RUN_URL"
