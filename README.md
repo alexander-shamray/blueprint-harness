@@ -35,6 +35,12 @@ py -3.12 -m unittest discover -s measure -t .
 
 Use `py -3.12`, not `python`: CI pins 3.12 and a local default may be newer.
 
+To run the drift gate against a target, from this repository:
+
+```bash
+py -3.12 -m harness_sync check --target <dir>
+```
+
 The payload's suites run in a worktree with the payload applied; the
 `payload-suites` job in `.github/workflows/ci.yml` is the reference, gate
 suites included. Its first steps, locally (Git Bash; `bash`, `grep`, `git`
