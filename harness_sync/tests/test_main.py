@@ -62,6 +62,29 @@ class MainTests(unittest.TestCase):
             self.assertNotEqual(code, 0)
             self.assertIn("config.json", err)
 
+    def test_check_reports_each_problem_and_exits_1(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            payload, target = self.tree(tmp)
+            self.run_main(*self.argv(payload, target, COMMIT))
+            (target / ".claude/hooks").mkdir(parents=True)
+            (target / ".claude/hooks/stray.sh").write_text("x\n", encoding="utf-8")
+            code, out, _ = self.run_main("check", "--target", str(target))
+            self.assertEqual(code, 1)
+            self.assertIn(".claude/hooks/stray.sh", out)
+
+    def test_check_is_clean_on_a_target_the_real_payload_was_applied_to(self) -> None:
+        repo = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "t"
+            (target / ".harness").mkdir(parents=True)
+            config = (repo / "targets/blueprint-backend.config.json").read_text(encoding="utf-8")
+            (target / ".harness/config.json").write_text(config, encoding="utf-8")
+            code, _, err = self.run_main(*self.argv(repo / "payload", target, COMMIT))
+            self.assertEqual(code, 0, err)
+            code, out, _ = self.run_main("check", "--target", str(target))
+            self.assertEqual(code, 0, out)
+            self.assertIn("clean", out)
+
 
 if __name__ == "__main__":
     unittest.main()
