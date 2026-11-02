@@ -1,6 +1,7 @@
 """Apply the harness payload to a target tree and record its manifest (spec 5.3, 5.4, 6)."""
 
 import json
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,6 +11,8 @@ from harness_sync.config import load_config
 from harness_sync.manifest import Manifest, ManifestError, file_hash
 from harness_sync.render import dump_settings, render_settings
 
+# Fold case only where the filesystem does; on Linux `Docs/x.md` and `docs/x.md` are different files.
+_FOLD_CASE = os.name == "nt"
 SETTINGS = ".claude/settings.json"
 BASE = ".harness/settings.base.json"
 RENDER = ".harness/render.py"
@@ -91,12 +94,27 @@ def _prune_empty_parents(path: Path, root: Path) -> None:
             return
 
 
-def _check_manifest_path(target: Path, rel: str) -> None:
-    """A manifest is editable by any target PR, so each entry must be a canonical path inside the target."""
+def _remove_empty_tree(path: Path) -> None:
+    if not path.is_dir():
+        return
+    for directory, _, _ in os.walk(path, topdown=False):
+        Path(directory).rmdir()
+
+
+def _check_canonical(rel: str, where: str) -> None:
+    """Payload and manifest must both name canonical relative POSIX paths, so one apply can read the last."""
     parts = rel.split("/")
     if "\\" in rel or ":" in rel or any(part in ("", ".", "..") for part in parts):
-        raise ApplyError(f"{MANIFEST} lists {rel!r}, which is not a canonical relative POSIX path")
-    if rel.lower() in (CONFIG, MANIFEST) or parts[0].lower() == ".git":
+        raise ApplyError(f"{where} lists {rel!r}, which is not a canonical relative POSIX path")
+    # A .git segment at any depth is a repository or a submodule gitlink, never a managed file.
+    if any(part.lower() == ".git" for part in parts):
+        raise ApplyError(f"{where} lists {rel!r}, which has a .git segment")
+
+
+def _check_manifest_path(target: Path, rel: str) -> None:
+    """A manifest is editable by any target PR, so each entry must be a canonical path inside the target."""
+    _check_canonical(rel, MANIFEST)
+    if rel.lower() in (CONFIG, MANIFEST):
         raise ApplyError(f"{MANIFEST} lists {rel!r}, which apply never manages")
     _check_inside(target, rel)
 
@@ -138,6 +156,7 @@ def apply(
     write = write or _write_bytes
     if not re.fullmatch(r"[0-9a-f]{40}", harness_commit):
         raise ApplyError(f"harness commit must be 40 hex characters, got {harness_commit!r}")
+    _check_inside(target, CONFIG)  # a linked .harness/ or config would make load_config read outside the target
     cfg = load_config(target / CONFIG)
 
     for rel in (BASE, RENDER):
@@ -152,6 +171,7 @@ def apply(
             raise ApplyError(f"payload contains {SETTINGS}; it is rendered, never copied")
         if rel in _RESERVED:
             raise ApplyError(f"payload contains {rel}; the target owns it")
+        _check_canonical(rel, "payload")
         if _first_match(cfg.exclude, rel) is not None:
             continue
         contents[rel] = (payload / rel).read_bytes()
@@ -187,7 +207,9 @@ def apply(
         _check_manifest_path(target, rel)
     # Case-insensitive: on Windows `Notes/A.md` is the local file `notes/a.md`, and a glob must not be dodged by case.
     dropped = sorted(
-        rel for rel in old_files if rel not in new_files and _first_match(cfg.local, rel, ignore_case=True) is None
+        rel
+        for rel in old_files
+        if rel not in new_files and _first_match(cfg.local, rel, ignore_case=_FOLD_CASE) is None
     )
 
     writes = [*managed, MANIFEST, SETTINGS]
@@ -203,6 +225,9 @@ def apply(
             path.unlink()
             _prune_empty_parents(path, target)
             deleted.append(rel)
+
+    for rel in writes:  # directories left empty by the deletions (or empty to begin with) make way for a file
+        _remove_empty_tree(target / rel)
 
     written, unchanged = [], []
     for rel, data in sorted(managed.items()):
