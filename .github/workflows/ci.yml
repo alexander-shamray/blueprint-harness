@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+
+# Read-only: the job tests the tree and writes nothing back.
+permissions:
+  contents: read
+
+concurrency:
+  # On main each commit has a group of its own, so a later push cannot cancel
+  # the run of an earlier one. A rerun has one too, so rerunning a stale head
+  # cannot cancel the required check of a newer head on the same ref.
+  group: >-
+    ci-${{ github.ref }}-${{ github.ref == 'refs/heads/main' && github.sha || '' }}${{
+    github.run_attempt != '1' && format('-{0}', github.run_id) || '' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  # The job id is the required-check context in the `main` ruleset; renaming it
+  # makes every pull request wait for a check that never reports.
+  sync-tool:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - run: python -m unittest discover -s harness_sync/tests -t .
