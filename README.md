@@ -89,21 +89,28 @@ git worktree remove --force ../rendered
 `.github/workflows/sync.yml` runs on every push to `main` that touches
 `payload/**` or `harness_sync/**`, and on dispatch from `main`. For each
 repository in `targets.json`, this one included, it checks the target out and
-runs `python -m harness_sync open-pr`, which applies the payload at the pushed
-commit and opens one pull request, `chore/harness-sync-<short sha>`, in the
-house form with a `PR: #<n>` trailer on its commit. Any older sync pull
-request still open there is closed with a comment naming the new one. A rerun
-for the same commit finds its own pull request and opens no second one.
+runs `python -m harness_sync open-pr`. That applies the payload at `main`'s
+tip as the run starts, not the commit that triggered it, so a queued or rerun
+old run cannot sync an older payload. It opens one pull request,
+`chore/harness-sync-<short sha>`, in the house form with a `PR: #<n>` trailer
+on its commit. Any older sync pull request still open there is closed with a
+comment naming the new one, and its branch deleted. A rerun for the same
+commit finds its own pull request and opens no second one. A commit older than
+the target's manifest, or than a sync already open, is refused.
 
-It needs the secret `HARNESS_SYNC_TOKEN`: a fine-grained token with Contents
-and Pull requests read-write on every target. The workflow's own
+It needs the secret `HARNESS_SYNC_TOKEN`: a fine-grained token with Contents,
+Pull requests and Workflows read-write on every repository in `targets.json`,
+this one included (four once frontend and admin are listed). Workflows,
+because the payload ships `.github/workflows/` files and GitHub refuses a push
+that changes one without it. The workflow's own
 `GITHUB_TOKEN` cannot stand in, because a pull request it opens starts none of
 the target's required checks. Until the secret is set, each target is skipped
 with a notice and the run stays green.
 
 A target is **current** when applying the payload writes and deletes no
 managed path: only the manifest's commit would move, so no pull request is
-opened and the target keeps the commit its manifest names. A target with no
+opened, the target keeps the commit its manifest names, and any sync pull
+request still open there is closed as stale. A target with no
 `.harness/config.json` is not onboarded yet and is skipped the same way.
 
 ## Changes
