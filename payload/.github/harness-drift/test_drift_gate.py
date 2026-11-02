@@ -230,7 +230,7 @@ class DriftGate(unittest.TestCase):
             (tree.root / ".harness/config.json").symlink_to(outside)
         except OSError:
             self.skipTest("symlinks need privileges here")
-        self.assertTrue(any("link" in p for p in check(tree.root)))
+        self.assertTrue(any(".harness/config.json passes through a link" in p for p in check(tree.root)))
 
     def test_a_linked_managed_directory_is_a_problem_and_not_walked(self) -> None:
         tree = Tree(self.tmp)
@@ -387,7 +387,8 @@ class AgainstThePayload(unittest.TestCase):
             (self.tree.root / rel).symlink_to(outside)
         except OSError:
             self.skipTest("symlinks need privileges here")
-        self.assertTrue(any("link" in p for p in check(self.tree.root, self.payload)))
+        problems = check(self.tree.root, self.payload)
+        self.assertTrue(any(f"{rel} is local but unreadable" in p and "link" in p for p in problems), problems)
 
     def test_an_unreadable_local_copy_is_a_problem_not_a_traceback(self) -> None:
         rel = ".claude/skills/a/SKILL.md"
