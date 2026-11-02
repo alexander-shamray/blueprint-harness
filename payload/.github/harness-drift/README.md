@@ -29,6 +29,11 @@ caught where it is made and not at the next sync.
   guard hook that fails unseen; apply refuses the same globs. The list is
   `GATE_FILES` in `drift_gate.py`, and the harness repository tests that
   it names every file the payload ships here;
+- a `.harness/config.json` that apply would refuse: an unknown key, a
+  `repo` or `task_list` that is missing or not a string, a `local` or
+  `exclude` that is not a list of strings, or a glob with a backslash or a
+  leading slash. Its `settings` are refused by the renderer, as apply's
+  are;
 - a manifest, config, base or renderer that cannot be read, a renderer that
   refuses the config, a manifest path that is not a canonical relative POSIX
   path, and any fixed path or managed directory that is a link. Each is a
