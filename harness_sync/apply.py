@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from harness_sync.config import load_config
+from harness_sync.config import Config, load_config
 from harness_sync.manifest import Manifest, ManifestError, file_hash
 from harness_sync.render import dump_settings, render_settings
 
@@ -18,6 +18,19 @@ MANIFEST = ".harness/manifest.json"
 CONFIG = ".harness/config.json"
 # The target owns its config and apply owns the manifest; a payload copy of either would fork them silently.
 _RESERVED = (MANIFEST, CONFIG)
+# What the drift gate needs delivered to judge a target. Excluded or local, the target stays green and is never checked
+# again, so apply refuses either (spec 5.4); drift_gate.py keeps a copy, and the parity test holds it to the payload.
+GATE_FILES = (
+    BASE,
+    RENDER,
+    ".github/harness-drift/README.md",
+    ".github/harness-drift/drift_gate.py",
+    ".github/harness-drift/test_drift_gate.py",
+    ".github/workflows/harness-drift.yml",
+)
+# A relative path in a hook's command, never starting inside a variable's name: `$D/.claude/x.py` and
+# `${CLAUDE_PROJECT_DIR}/.claude/x.py` both yield `.claude/x.py`.
+_PATH_TOKEN = re.compile(r"(?<![\w$.-])[\w.-]+(?:/[\w.-]+)+")
 
 
 class ApplyError(Exception):
@@ -61,6 +74,28 @@ def _first_match(globs: tuple[str, ...], path: str, *, ignore_case: bool = False
     if ignore_case:
         return next((g for g in globs if glob_match(g.lower(), path.lower())), None)
     return next((g for g in globs if glob_match(g, path)), None)
+
+
+def hook_paths(base: object) -> list[str]:
+    """The paths the settings base's hook commands name; a target without one runs a hook that fails, unseen."""
+    found: set[str] = set()
+    hooks = base.get("hooks") if isinstance(base, dict) else None
+    for groups in hooks.values() if isinstance(hooks, dict) else ():
+        for group in groups if isinstance(groups, list) else ():
+            inner = group.get("hooks") if isinstance(group, dict) else None
+            for hook in inner if isinstance(inner, list) else ():
+                command = hook.get("command") if isinstance(hook, dict) else None
+                if isinstance(command, str):
+                    found.update(_PATH_TOKEN.findall(command))
+    return sorted(found)
+
+
+def _refuse_protected(cfg: Config, paths: list[str] | tuple[str, ...], why: str) -> None:
+    for rel in paths:
+        for kind, globs in (("exclude", cfg.exclude), ("local", cfg.local)):
+            glob = _first_match(globs, rel)
+            if glob is not None:
+                raise ApplyError(f"{kind} glob {glob!r} matches {rel}, which {why}")
 
 
 def _walk(payload: Path) -> list[str]:
@@ -168,11 +203,7 @@ def apply(
     _check_inside(target, CONFIG)  # a linked .harness/ or config would make load_config read outside the target
     cfg = load_config(target / CONFIG)
 
-    for rel in (BASE, RENDER):
-        for kind, globs in (("exclude", cfg.exclude), ("local", cfg.local)):
-            glob = _first_match(globs, rel)
-            if glob is not None:
-                raise ApplyError(f"{kind} glob {glob!r} matches {rel}, which the drift gate needs managed")
+    _refuse_protected(cfg, GATE_FILES, "the drift gate needs managed")
 
     contents: dict[str, bytes] = {}
     excluded: list[str] = []
@@ -202,6 +233,7 @@ def apply(
         base = json.loads(contents[BASE].decode("utf-8"))
     except ValueError as exc:
         raise ApplyError(f"{BASE} is not valid JSON: {exc}") from exc
+    _refuse_protected(cfg, hook_paths(base), f"a hook in {BASE} runs")
     rendered = dump_settings(render_settings(base, cfg)).encode("utf-8")
 
     new_files = {rel: file_hash(data) for rel, data in managed.items()}

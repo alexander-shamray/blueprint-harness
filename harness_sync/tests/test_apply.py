@@ -357,6 +357,33 @@ class ApplyTests(unittest.TestCase):
                         apply(self.payload, self.target, COMMIT)
                     self.assertIn(rel, str(ctx.exception))
 
+    def test_the_drift_gate_files_must_stay_managed(self) -> None:
+        # Without its gate or the workflow that runs it, a target stays green and is never checked again.
+        for key in ("exclude", "local"):
+            for glob in (".github/harness-drift/**", ".github/harness-drift/drift_gate.py",
+                         ".github/workflows/harness-drift.yml", ".github/workflows/*.yml", ".github/**"):
+                with self.subTest(key=key, glob=glob):
+                    self.config({**CONFIG, key: [glob]})
+                    with self.assertRaises(ApplyError) as ctx:
+                        apply(self.payload, self.target, COMMIT)
+                    self.assertIn("drift gate needs managed", str(ctx.exception))
+
+    def test_a_file_a_hook_runs_must_stay_managed(self) -> None:
+        command = 'py -3.12 "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard.py"'
+        hooks = {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": command}]}]}
+        base = {**BASE, "hooks": hooks}
+        self.put(self.payload, ".harness/settings.base.json", json.dumps(base).encode())
+        self.put(self.payload, ".claude/hooks/guard.py", b"x\n")
+        self.put(self.payload, ".claude/hooks/other.py", b"x\n")
+        for key in ("exclude", "local"):
+            with self.subTest(key=key):
+                self.config({**CONFIG, key: [".claude/hooks/*"]})
+                with self.assertRaises(ApplyError) as ctx:
+                    apply(self.payload, self.target, COMMIT)
+                self.assertIn(".claude/hooks/guard.py, which a hook", str(ctx.exception))
+        self.config({**CONFIG, "exclude": [".claude/hooks/other.py"]})
+        self.assertIn(".claude/hooks/guard.py", apply(self.payload, self.target, COMMIT).written)
+
     def test_bad_globs_rejected_at_config_load(self) -> None:
         for key in ("local", "exclude"):
             for glob in ("a\\b", "/a"):

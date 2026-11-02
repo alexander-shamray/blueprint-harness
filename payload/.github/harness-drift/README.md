@@ -21,8 +21,14 @@ caught where it is made and not at the next sync.
   `.harness/config.json`. The renderer runs only if its bytes match the
   manifest and, with a payload, the payload; otherwise the gate reports that
   and does not execute it;
-- a `local` or `exclude` glob that matches `.harness/settings.base.json` or
-  `.harness/render.py`;
+- a `local` or `exclude` glob that matches a file the gate needs delivered:
+  `.harness/settings.base.json`, `.harness/render.py`, this directory's
+  files, `.github/workflows/harness-drift.yml`, or a path a hook command in
+  the settings base names (`.claude/hooks/guard-git-argv.py`, for one).
+  Without them a target stays green and is never checked again, or runs a
+  guard hook that fails unseen; apply refuses the same globs. The list is
+  `GATE_FILES` in `drift_gate.py`, and the harness repository tests that
+  it names every file the payload ships here;
 - a manifest, config, base or renderer that cannot be read, a renderer that
   refuses the config, a manifest path that is not a canonical relative POSIX
   path, and any fixed path or managed directory that is a link. Each is a
