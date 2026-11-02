@@ -13,8 +13,8 @@ tool renders them into each target through an ordinary pull request.
 - `measure/` — the stop counter (`stops.py`) and its tests; `docs/` holds the
   November baseline it produced.
 - `payload/` — the managed files, laid out as a target repository is
-  (`payload/.claude/…`, `payload/docs/commands/…`, `payload/.github/…`), plus
-  `payload/.harness/settings.base.json`, which every target's
+  (`payload/.claude/…`, `payload/docs/commands/…`, `payload/.github/…`),
+  plus `payload/.harness/settings.base.json`, which every target's
   `.claude/settings.json` is rendered from, and `payload/.harness/render.py`,
   a copy of `harness_sync/render.py` kept identical by a test. Not live here:
   this repository's own sessions do not run under it.
@@ -35,15 +35,19 @@ py -3.12 -m unittest discover -s measure -t .
 
 Use `py -3.12`, not `python`: CI pins 3.12 and a local default may be newer.
 
-The payload's suites run as the `payload-suites` job runs them, in a worktree
-with the payload applied (Git Bash; `bash`, `grep`, `git` and `jq` on PATH):
+The payload's suites run in a worktree with the payload applied; the
+`payload-suites` job in `.github/workflows/ci.yml` is the reference, gate
+suites included. Its first steps, locally (Git Bash; `bash`, `grep`, `git`
+and `jq` on PATH):
 
 ```bash
+git worktree remove --force ../rendered 2>/dev/null || true
 git worktree add --detach ../rendered HEAD
 mkdir -p ../rendered/.harness
 cp targets/blueprint-backend.config.json ../rendered/.harness/config.json
 py -3.12 -m harness_sync apply --payload payload --target ../rendered --commit "$(git rev-parse HEAD)"
 (cd ../rendered && py -3.12 -m unittest discover -s .claude/scripts)
+git worktree remove --force ../rendered
 ```
 
 ## Changes
