@@ -9,3 +9,7 @@
 *.md text
 *.json text
 *.yml text
+# The codebase-index launcher has no `.sh` suffix, so the glob above misses it;
+# backend pins it by path for the same shebang reason. `**/` covers the payload
+# copy and the copy a sync renders at the root.
+**/.claude/skills/codebase-index/scripts/cbx text eol=lf
