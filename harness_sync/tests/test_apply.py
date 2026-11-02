@@ -1,11 +1,14 @@
 """Tests for apply, over throwaway payload and target trees."""
 
+import importlib
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from harness_sync.apply import ApplyError, apply, glob_match
 from harness_sync.config import ConfigError
@@ -294,8 +297,9 @@ class ApplyTests(unittest.TestCase):
             ).returncode:
                 self.skipTest("this OS refuses to create links")
         self.put(self.payload, "docs/a.md", b"a\n")
-        with self.assertRaises(ApplyError):
+        with self.assertRaises(ApplyError) as ctx:
             apply(self.payload, self.target, COMMIT)
+        self.assertIn("passes through a link", str(ctx.exception))
         self.assertEqual(os.listdir(outside), [])
 
     def test_symlinked_file_refused(self) -> None:
@@ -306,8 +310,9 @@ class ApplyTests(unittest.TestCase):
         except (OSError, NotImplementedError):
             self.skipTest("this OS refuses to create symlinks")
         self.put(self.payload, "a.md", b"a\n")
-        with self.assertRaises(ApplyError):
+        with self.assertRaises(ApplyError) as ctx:
             apply(self.payload, self.target, COMMIT)
+        self.assertIn("passes through a link", str(ctx.exception))
         self.assertEqual(outside.read_bytes(), b"keep")
 
     def test_base_and_render_must_stay_managed(self) -> None:
@@ -327,6 +332,71 @@ class ApplyTests(unittest.TestCase):
                     with self.assertRaises(ConfigError) as ctx:
                         apply(self.payload, self.target, COMMIT)
                     self.assertIn(f"{key!r} glob", str(ctx.exception))
+
+    # Fix round 2.
+    def test_case_folding_follows_the_filesystem(self) -> None:
+        apply_module = importlib.import_module("harness_sync.apply")
+        self.config({**CONFIG, "local": ["notes/**"]})
+        for fold, expect_deleted in ((False, ["Notes/A.md"]), (True, [])):
+            with self.subTest(fold=fold), mock.patch.object(apply_module, "_FOLD_CASE", fold):
+                self.put(self.target, "Notes/A.md", b"x")
+                self.old_manifest({"Notes/A.md": "0" * 64})
+                result = apply(self.payload, self.target, COMMIT)
+                self.assertEqual(result.deleted, expect_deleted)
+                self.assertNotIn("Notes/A.md", self.manifest().files)
+                (self.target / "Notes/A.md").unlink(missing_ok=True)
+
+    def test_directory_of_empty_subdirectories_makes_way_for_a_file(self) -> None:
+        self.put(self.payload, "z.md", b"z\n")
+        (self.target / "z.md/sub/deeper").mkdir(parents=True)
+        apply(self.payload, self.target, COMMIT)
+        self.assertEqual((self.target / "z.md").read_bytes(), b"z\n")
+
+    def test_dropped_files_plus_empty_subdirectory_make_way_for_a_file(self) -> None:
+        self.put(self.payload, "x/y.md", b"y\n")
+        apply(self.payload, self.target, COMMIT)
+        (self.payload / "x/y.md").unlink()
+        (self.payload / "x").rmdir()
+        self.put(self.payload, "x", b"file\n")
+        (self.target / "x/empty").mkdir()
+        apply(self.payload, self.target, COMMIT)
+        self.assertEqual((self.target / "x").read_bytes(), b"file\n")
+
+    def test_non_canonical_payload_path_refused_up_front(self) -> None:
+        for name in ("a:b.md", "sub/.git/x", "a\\b.md"):
+            with self.subTest(name=name):
+                try:
+                    self.put(self.payload, name, b"x")
+                except OSError:
+                    self.skipTest("this OS cannot create such a file")
+                if not (self.payload / name).exists() or "\\" in name and os.name == "nt":
+                    self.skipTest("this OS cannot create such a file")
+                with self.assertRaises(ApplyError) as ctx:
+                    apply(self.payload, self.target, COMMIT)
+                self.assertIn("payload", str(ctx.exception))
+                self.assertFalse((self.target / ".harness/manifest.json").exists())
+
+    def test_nested_git_manifest_entry_refused(self) -> None:
+        self.old_manifest({"sub/.git": "0" * 64})
+        with self.assertRaises(ApplyError) as ctx:
+            apply(self.payload, self.target, COMMIT)
+        self.assertIn(".git", str(ctx.exception))
+
+    def test_linked_harness_directory_refused_before_config_is_read(self) -> None:
+        outside = self.target.parent / "elsewhere"
+        outside.mkdir()
+        self.put(outside, "config.json", json.dumps(CONFIG).encode())
+        shutil.rmtree(self.target / ".harness")
+        try:
+            os.symlink(outside, self.target / ".harness", target_is_directory=True)
+        except (OSError, NotImplementedError):
+            if os.name != "nt" or subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(self.target / ".harness"), str(outside)], capture_output=True
+            ).returncode:
+                self.skipTest("this OS refuses to create links")
+        with self.assertRaises(ApplyError) as ctx:
+            apply(self.payload, self.target, COMMIT)
+        self.assertIn("passes through a link", str(ctx.exception))
 
 
 if __name__ == "__main__":
