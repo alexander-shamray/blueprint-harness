@@ -1,6 +1,5 @@
 """Tests for apply, over throwaway payload and target trees."""
 
-import importlib
 import json
 import os
 import shutil
@@ -8,7 +7,6 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 from harness_sync.apply import ApplyError, apply, glob_match
 from harness_sync.config import ConfigError
@@ -334,17 +332,15 @@ class ApplyTests(unittest.TestCase):
                     self.assertIn(f"{key!r} glob", str(ctx.exception))
 
     # Fix round 2.
-    def test_case_folding_follows_the_filesystem(self) -> None:
-        apply_module = importlib.import_module("harness_sync.apply")
+    def test_local_protection_is_case_insensitive_on_every_os(self) -> None:
+        # Fail safe: a case variant may name the local file on a case-folding mount, so it is kept, never deleted.
         self.config({**CONFIG, "local": ["notes/**"]})
-        for fold, expect_deleted in ((False, ["Notes/A.md"]), (True, [])):
-            with self.subTest(fold=fold), mock.patch.object(apply_module, "_FOLD_CASE", fold):
-                self.put(self.target, "Notes/A.md", b"x")
-                self.old_manifest({"Notes/A.md": "0" * 64})
-                result = apply(self.payload, self.target, COMMIT)
-                self.assertEqual(result.deleted, expect_deleted)
-                self.assertNotIn("Notes/A.md", self.manifest().files)
-                (self.target / "Notes/A.md").unlink(missing_ok=True)
+        self.put(self.target, "Notes/A.md", b"x")
+        self.old_manifest({"Notes/A.md": "0" * 64})
+        result = apply(self.payload, self.target, COMMIT)
+        self.assertEqual(result.deleted, [])
+        self.assertTrue((self.target / "Notes/A.md").exists())
+        self.assertNotIn("Notes/A.md", self.manifest().files)
 
     def test_directory_of_empty_subdirectories_makes_way_for_a_file(self) -> None:
         self.put(self.payload, "z.md", b"z\n")

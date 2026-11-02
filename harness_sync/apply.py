@@ -3,7 +3,6 @@
 import json
 import os
 import re
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -12,8 +11,6 @@ from harness_sync.config import load_config
 from harness_sync.manifest import Manifest, ManifestError, file_hash
 from harness_sync.render import dump_settings, render_settings
 
-# Fold case only where the filesystem does; on Linux `Docs/x.md` and `docs/x.md` are different files.
-_FOLD_CASE = os.name == "nt" or sys.platform == "darwin"
 SETTINGS = ".claude/settings.json"
 BASE = ".harness/settings.base.json"
 RENDER = ".harness/render.py"
@@ -216,11 +213,12 @@ def apply(
     old_files = old.files if old else {}
     for rel in old_files:
         _check_manifest_path(target, rel)
-    # Case-insensitive: on Windows `Notes/A.md` is the local file `notes/a.md`, and a glob must not be dodged by case.
+    # Always case-insensitive, on every OS: any filesystem may fold case (NTFS, CIFS and casefold mounts on Linux),
+    # and failing safe means keeping a file that may be local; a missed deletion is an orphan, a wrong one is loss.
     dropped = sorted(
         rel
         for rel in old_files
-        if rel not in new_files and _first_match(cfg.local, rel, ignore_case=_FOLD_CASE) is None
+        if rel not in new_files and _first_match(cfg.local, rel, ignore_case=True) is None
     )
 
     writes = [*managed, MANIFEST, SETTINGS]
