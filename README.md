@@ -44,7 +44,7 @@ its sessions run under the harness it develops.
   `.harness/config.json` is the one input written by hand.
 - **Its own**: `payload/**`, `harness_sync/**`, `measure/**`, `targets/`,
   the rest of `docs/`, `IMPORT.md`, `README.md`, `.github/workflows/ci.yml`,
-  `.github/workflows/sync.yml` and `.gitattributes`.
+  `.github/workflows/sync.yml`, `.gitattributes` and `.gitignore`.
 - **Change a harness file under `payload/`**, never at the root. The root copy
   reaches `main` only through a sync pull request (`py -3.12 -m harness_sync
   apply --payload payload --target . --commit <main sha>`), never as a direct
@@ -133,6 +133,11 @@ managed path: only the manifest's commit would move, so no pull request is
 opened, the target keeps the commit its manifest names, and any sync pull
 request still open there is closed as stale. A target with no
 `.harness/config.json` is not onboarded yet and is skipped the same way.
+
+A target's own `.gitignore` must ignore `.claude/worktrees/`: `/branch` and
+`/dispatch` fork worktrees there, and `git-worktree-fork.sh` refuses a path
+git would see as untracked. This repository carries the line; a sibling adds
+it before its first sync.
 
 ## Changes
 
