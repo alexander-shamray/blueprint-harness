@@ -89,19 +89,22 @@ def _matches(globs: list[str], path: str) -> bool:
 
 
 def _command_paths(command: str) -> set[str]:
-    """Paths one hook command names. A leading `./` is dropped. A bare `x.py` or `x.sh` is a path only after a
-    script path, and then it is that script's sibling: `hint-bound.sh <event> index-search-hint.py` loads it from
-    `hint-bound.sh`'s own directory. A module a hook loads by path itself, or a hook a target adds, is not derived."""
+    """Paths one hook command names. A leading `./` is dropped. A bare `x.py` or `x.sh` is a path only after the
+    first script path of its simple command (split at `&&`, `||`, `;` and `|`), and is then that script's sibling:
+    `hint-bound.sh <event> index-search-hint.py` loads it from `hint-bound.sh`'s own directory. A module a hook
+    loads by path itself, or a hook a target adds through its config, is not derived."""
     found: set[str] = set()
-    receiver: str | None = None
-    for match in _HOOK_TOKEN.finditer(command):
-        if (path := match.group("path")) is not None:
-            while path.startswith("./"):
-                path = path[2:]
-            found.add(path)
-            receiver = path.rpartition("/")[0]
-        elif receiver is not None:
-            found.add(f"{receiver}/{match.group('bare')}" if receiver else match.group("bare"))
+    for part in re.split(r"&&|\|\||;|\|", command):
+        receiver: str | None = None
+        for match in _HOOK_TOKEN.finditer(part):
+            if (path := match.group("path")) is not None:
+                while path.startswith("./"):
+                    path = path[2:]
+                found.add(path)
+                if receiver is None and path.endswith((".py", ".sh")):
+                    receiver = path.rpartition("/")[0]
+            elif receiver is not None:
+                found.add(f"{receiver}/{match.group('bare')}" if receiver else match.group("bare"))
     return found
 
 
