@@ -171,6 +171,15 @@ class DriftGate(unittest.TestCase):
         self.assertTrue(all(".claude/skills/theirs/" in p for p in problems), problems)
         self.assertIn(".claude/skills/theirs/SKILL.md is under a managed directory", "\n".join(problems))
 
+    def test_a_submodule_checked_out_empty_is_still_judged(self) -> None:
+        tree = Tree(self.tmp)
+        self._git(tree.root, "init", "-q")
+        (tree.root / ".claude/skills/sub").mkdir(parents=True)
+        self._git(tree.root, "update-index", "--add", "--cacheinfo", f"160000,{'a' * 40},.claude/skills/sub")
+        problems = check(tree.root)
+        self.assertEqual(len(problems), 1)
+        self.assertIn(".claude/skills/sub is under a managed directory", problems[0])
+
     def test_a_tracked_file_deleted_from_a_checkout_is_not_an_unlisted_file(self) -> None:
         tree = Tree(self.tmp)
         self._git(tree.root, "init", "-q")
