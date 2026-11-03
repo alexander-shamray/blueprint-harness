@@ -128,7 +128,7 @@ Changed, so the file reads the value from `.harness/config.json`:
 | File | Was | Now |
 |---|---|---|
 | `.claude/commands/branch.md` | `.todo/blueprint-backend.md` | the task list named by `.harness/config.json` `task_list` |
-| `.claude/commands/dispatch.md` | `` `<list>` is `../.todo/blueprint-backend.md` `` | `` `<list>` is `../` followed by the path in `.harness/config.json` `task_list` `` |
+| `.claude/commands/dispatch.md` | `` `<list>` is `../.todo/blueprint-backend.md` `` | `` `<list>` is `../<task_list>` (`.harness/config.json`) `` |
 | `.claude/commands/ship.md` | `.todo/blueprint-backend.md` | the task list named by `.harness/config.json` `task_list` |
 
 No script or hook carries the slug or the task list: the scripts resolve the
