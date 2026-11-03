@@ -154,19 +154,41 @@ def _skipped(rel: str) -> bool:
     return "__pycache__" in rel.split("/") or rel.endswith(".pyc")
 
 
+def _git_executable(root: Path) -> str | None:
+    """An absolute git from PATH, never one in the working directory or the judged tree.
+
+    Windows runs a bare `git` from the current directory before PATH, and the gate is run from a target's root, so
+    a branch that commits a `git.exe` would otherwise run it."""
+    name = "git.exe" if os.name == "nt" else "git"
+    here, tree = Path.cwd().resolve(), root.resolve()
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        if not entry or not os.path.isabs(entry):
+            continue
+        directory = Path(entry).resolve()
+        if directory == here or directory.is_relative_to(tree):
+            continue
+        candidate = directory / name
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return None
+
+
 def _git_listed(root: Path, directory: str) -> list[str] | None:
     """What git would commit under `root/directory`, tracked or untracked but not ignored, relative to it.
 
     An ignored file never reaches a pull request, so judging it fails a developer checkout CI passes. None when
-    `root` is not the top of a git work tree, or git cannot answer: the caller then walks the file system."""
+    `root` is not the top of a git work tree, or no safe git can answer: the caller then walks the file system."""
+    git = _git_executable(root)
+    if git is None:
+        return None
     try:
         top = subprocess.run(
-            ["git", "-C", str(root), "rev-parse", "--show-toplevel"], capture_output=True, check=True
+            [git, "-C", str(root), "rev-parse", "--show-toplevel"], capture_output=True, check=True
         ).stdout.decode("utf-8").strip()
         if not top or not os.path.samefile(top, root):
             return None
         out = subprocess.run(
-            ["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", directory],
+            [git, "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", directory],
             capture_output=True,
             check=True,
         ).stdout.decode("utf-8")

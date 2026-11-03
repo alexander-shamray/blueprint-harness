@@ -8,6 +8,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -17,6 +18,7 @@ from unittest import mock
 from pathlib import Path
 from types import SimpleNamespace
 
+import drift_gate
 from drift_gate import check, main
 
 HERE = Path(__file__).resolve().parent
@@ -187,6 +189,25 @@ class DriftGate(unittest.TestCase):
         self._git(tree.root, "add", "-A")
         (tree.root / ".claude/hooks/extra.sh").unlink()
         self.assertEqual(check(tree.root), [])
+
+    def test_a_git_in_the_tree_or_the_working_directory_is_never_run(self) -> None:
+        real = shutil.which("git")
+        if real is None:
+            self.skipTest("git is not on PATH")
+        name = "git.exe" if os.name == "nt" else "git"
+        tree = Tree(self.tmp)
+        cwd = Path(self.tmp).parent / f"{Path(self.tmp).name}-cwd"
+        cwd.mkdir()
+        self.addCleanup(shutil.rmtree, cwd)
+        for where in (tree.root / "bin", cwd):
+            where.mkdir(exist_ok=True)
+            (where / name).write_bytes(b"#!/bin/sh\nexit 0\n")
+            (where / name).chmod(0o755)
+        path = os.pathsep.join([".", str(cwd), str(tree.root / "bin"), str(Path(real).parent)])
+        with mock.patch.dict(os.environ, {"PATH": path}), contextlib.chdir(cwd):
+            chosen = drift_gate._git_executable(tree.root)
+        self.assertIsNotNone(chosen)
+        self.assertEqual(Path(chosen).parent.resolve(), Path(real).parent.resolve())
 
     def test_a_root_below_the_top_of_a_checkout_is_walked(self) -> None:
         (Path(self.tmp) / "sub").mkdir()
