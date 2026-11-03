@@ -128,7 +128,7 @@ right in every target, and `dispatch_board.py` takes the task list as
 
 - `.claude/commands/branch.md`, the worktree listing — example output of
   `git worktree list` from backend's checkout.
-- `.claude/scripts/test_dispatch_run.py:1379` — a path fixture for
+- `.claude/scripts/test_dispatch_run.py:1576-1577` — a path fixture for
   `project_slug`.
 - `.github/closure-gate/test_closure_gate.py:17` — the repository fixture the
   gate's parser is called with.
