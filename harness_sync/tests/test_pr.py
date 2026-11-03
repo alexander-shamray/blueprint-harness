@@ -385,6 +385,24 @@ class OpenedTests(SyncTestCase):
         self.assertEqual(self.remote_branches(), ["chore/harness-sync-" + self.new[:7], "main"])
         self.assert_clean()
 
+    def test_newer_sync_is_read_against_the_remote_main_ref(self) -> None:
+        # CI's checkout has refs/remotes/origin/main and may have no local main to speak of: the primary ref. Here the
+        # local main stays behind, so a newer sync is on main only by the remote ref, and the older run must refuse.
+        ahead = self.side_commit("side")
+        remote = self.harness.parent / "harness-origin.git"
+        git(self.harness.parent, "init", "-q", "--bare", "-b", "main", str(remote))
+        git(self.harness, "remote", "add", "origin", str(remote))
+        git(self.harness, "push", "-q", "origin", "side:refs/heads/main")
+        git(self.harness, "fetch", "-q", "origin")
+        self.assertEqual(git(self.harness, "rev-parse", "refs/remotes/origin/main").strip(), ahead)
+        self.assertEqual(git(self.harness, "rev-parse", "refs/heads/main").strip(), self.new)
+        gh = FakeGh(self.origin, open_prs=[
+            {"number": 16, "headRefName": self.branch(ahead), "isCrossRepository": False},
+        ])
+        with self.assertRaisesRegex(SyncError, "#16 already syncs"):
+            self.sync(gh)
+        self.assert_clean()
+
     def test_look_alike_heads_are_neither_closed_nor_compared(self) -> None:
         # A person's branch under the prefix is not a sync: never closed, its suffix never read as a revision, even
         # where that suffix names a harness branch ahead of the tip and would otherwise wedge every run.
