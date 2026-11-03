@@ -129,10 +129,10 @@ already on `main` gets the token, and only the `sync` job names it.
 
 Inside that job the token is not kept after the checkout that uses it.
 Both checkouts set `persist-credentials: false`, so `target/.git/config` holds
-no credential while `setup-python` and later steps run. The step that runs open-pr hands
-git the authorisation header through `GIT_CONFIG_*` variables in its own
-environment, for the target's `ls-remote`, fetch and pushes, and masks the
-header's base64 form.
+no credential while `setup-python` and later steps run. The step that runs
+open-pr hands git the authorisation header through `GIT_CONFIG_*` variables in
+its own environment, for the target's `ls-remote`, fetch and pushes, and masks
+the header's base64 form.
 
 A target is **current** when applying the payload writes and deletes no
 managed path: only the manifest's commit would move, so no pull request is
