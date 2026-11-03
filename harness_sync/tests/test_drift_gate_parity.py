@@ -131,7 +131,8 @@ class DriftGateParity(unittest.TestCase):
             "python ./scripts/run.py": ["scripts/run.py"],
             "python lone.py": [],  # no script path received it, so there is no directory to resolve against
             'bash "$D/.claude/hooks/a.sh" .claude/scripts/b.py c.sh': [
-                ".claude/hooks/a.sh", ".claude/scripts/b.py", ".claude/scripts/c.sh"],
+                ".claude/hooks/a.sh", ".claude/hooks/c.sh", ".claude/scripts/b.py"],
+            "bash a/b.sh && python lone.py; python x/y.txt | cat z.py": ["a/b.sh", "x/y.txt"],
             "echo done.txt && bash a/b.sh": ["a/b.sh"],
         }
         for command, expected in cases.items():
