@@ -174,11 +174,10 @@ class DriftGate(unittest.TestCase):
     def test_a_tracked_file_deleted_from_a_checkout_is_not_an_unlisted_file(self) -> None:
         tree = Tree(self.tmp)
         self._git(tree.root, "init", "-q")
+        tree.put(".claude/hooks/extra.sh", b"x\n")  # tracked, but no manifest line, so only the unlisted check sees it
         self._git(tree.root, "add", "-A")
-        (tree.root / ".claude/skills/a/SKILL.md").unlink()
-        problems = check(tree.root)
-        self.assertEqual(len(problems), 1)
-        self.assertIn("missing", problems[0])
+        (tree.root / ".claude/hooks/extra.sh").unlink()
+        self.assertEqual(check(tree.root), [])
 
     def test_a_root_below_the_top_of_a_checkout_is_walked(self) -> None:
         (Path(self.tmp) / "sub").mkdir()
