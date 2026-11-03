@@ -79,7 +79,11 @@ once `verify` has passed.
 
 `tasks place` adds a filed issue's row, its missing cells set to the
 cautious value, `OWNER` among them, and records the issue in the run's
-state for the report's *Filed overnight*.
+state for the report's *Filed overnight*. What the interview files or
+closes reaches no `tasks place`, since its row comes from step 0.5's
+rebuild or leaves with the closed issue, so `filed` records it in the
+same list: a close comment is a comment on an issue, which the spec's
+*Filed overnight* counts.
 
 `--dry-run` is the builder's flag the spec's §3 allows: it runs step 0's
 checks and `board`, says what the rebuild would change and what would
@@ -190,12 +194,33 @@ in place of a session record, never a write to `state.json`, which is the
 dispatcher's alone, and `result` records the group `crashed-before-launch`,
 which frees the slot and goes back like a hand-back: whatever refused one
 launch would refuse the next. A relaunch removes the session record it
-follows, already read, before anything can refuse, so a refused relaunch
-leaves the marker alone. The marker sends a group back unread, so it
-counts only when no session record sits beside it and it is no older than
-the launch, and an earlier launch's marker never ends a later one; a marker
-beside a session record is refused, since either could be the one that
-does not describe this launch.
+follows, already read, before its launch checks; where that removal is
+itself refused, the record stays, and one already read is treated as
+absent, since it ended an earlier session rather than this launch. A group
+sent back and launched again in the same run starts afresh, so `launch`
+removes the earlier launch's marker, result copy, session record and pid
+file, and is refused where it cannot: nothing then names that record as
+read, and a later marker beside it would be refused as unread. The
+marker sends a group back unread, so it counts only when no unread session
+record sits beside it and it is no older than the launch, and an earlier
+launch's marker never ends a later one; a marker beside an unread record is
+refused, since either could be the one that does not describe this launch.
+
+A run directory that refuses the marker leaves neither file, and `result`
+alone cannot tell that from an executor still running, so it refuses, and
+the group would again hold its slot all night. `run` names both refusals
+on its exit line, which the runbook hands to `result` as `--refused` after
+every exit 2; `result` reads it only when it finds no marker from this
+launch and no session record it has not already read. `run` removes an
+earlier pid file before its launch checks: with none, `result` records
+`crashed-before-launch`; with one whose process has ended,
+`crash-hand-back`, since the executor ran and may have merged and only its
+worktree says so; with one still alive, it refuses. A refusal before that
+removal, or of it, leaves the earlier pid file, which reads as an executor
+that ran: a hand-back, the cautious side. Recording either writes
+`state.json` in the same directory, so a directory refusing every write
+still holds the slot; what this separates is a marker that only another
+process holds.
 
 ## When the night ends
 
