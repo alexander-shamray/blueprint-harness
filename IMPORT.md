@@ -30,6 +30,33 @@ rule, for `cbx`, which has no suffix.
 The payload differs from backend's blobs only where *Repository slug and task
 list* below says, plus `payload/.harness/`, which backend does not have yet.
 
+## Ported after the pin
+
+Task 9 Step 1 brought the payload to backend `main` at
+`ed28e30a1f92587ed6cdffb3ca8f83131bc93407` (2026-11-02 23:01 +0500), whose
+newest change under a payload path is `fa7650984`. Fourteen backend commits
+touched a payload path after the pin, all of them `/dispatch` and `/ship`
+work:
+
+| Commit | Payload paths |
+|---|---|
+| `004482b2a`, `745ceab48`, `d44f664dc`, `a7ccddf4e`, `f989606af`, `f05d0997a` | `docs/commands/dispatch.md` |
+| `73b5ac52f` | `docs/commands/ship.md` |
+| `561c9f812`, `131636564` | `.claude/commands/dispatch.md`, `.claude/scripts/dispatch_run.py` |
+| `0dd6d2a36` | `.claude/commands/ship.md`, `.claude/scripts/dispatch_run.py` |
+| `874fb0695`, `bd94ea3e7`, `7d3584bfa`, `fa7650984` | `.claude/scripts/dispatch_run.py` |
+
+`git diff --name-status` over the payload's trees from the pin to that commit
+adds no file and deletes none; the one other path it lists,
+`.claude/scripts/test_dispatch_run.py`, is backend-local. The three files the
+payload holds as backend's bytes were taken whole, and their blob ids match
+backend's at that commit. `.claude/commands/dispatch.md` and
+`.claude/commands/ship.md` were merged three ways (`git merge-file`, the pin's
+blob as base), with no conflict, so each still differs from backend's only in
+the task-list line *Repository slug and task list* names. Backend's
+`.claude/settings.json` is still blob `aeb89a9`, so the settings base and the
+Task 3 fixture needed no change.
+
 ## How a file was classified
 
 - **Spec 8 and the brief name it backend-local**: the .NET and blueprint
