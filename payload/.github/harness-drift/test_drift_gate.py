@@ -159,6 +159,18 @@ class DriftGate(unittest.TestCase):
         self.assertIn(".claude/hooks/extra.sh", problems[0])
         self.assertIn(".claude/hooks/forced.lock", problems[1])
 
+    def test_a_nested_repository_in_a_checkout_is_judged_by_its_files(self) -> None:
+        tree = Tree(self.tmp, local=(".claude/skills/mine/**",))
+        self._git(tree.root, "init", "-q")
+        tree.put(".claude/skills/mine/SKILL.md", b"x\n")
+        self._git(tree.root / ".claude/skills/mine", "init", "-q")
+        tree.put(".claude/skills/theirs/SKILL.md", b"x\n")
+        self._git(tree.root / ".claude/skills/theirs", "init", "-q")
+        problems = check(tree.root)
+        self.assertTrue(problems)
+        self.assertTrue(all(".claude/skills/theirs/" in p for p in problems), problems)
+        self.assertIn(".claude/skills/theirs/SKILL.md is under a managed directory", "\n".join(problems))
+
     def test_a_tracked_file_deleted_from_a_checkout_is_not_an_unlisted_file(self) -> None:
         tree = Tree(self.tmp)
         self._git(tree.root, "init", "-q")

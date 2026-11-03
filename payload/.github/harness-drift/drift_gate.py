@@ -175,10 +175,17 @@ def _git_listed(root: Path, directory: str) -> list[str] | None:
     prefix = f"{directory}/"
     paths = set()
     for rel in out.split("\0"):
-        rel = rel.rstrip("/")  # an untracked nested repository is listed as its directory
+        rel = rel.rstrip("/")
         # A tracked file deleted from the work tree is the manifest check's to report, not an unlisted one.
-        if rel.startswith(prefix) and os.path.lexists(root / rel) and not _skipped(rel):
-            paths.add(rel[len(prefix):])
+        if not rel.startswith(prefix) or not os.path.lexists(root / rel) or _skipped(rel):
+            continue
+        sub = rel[len(prefix):]
+        if (root / rel).is_dir() and not _is_link(root / rel):
+            # A nested repository or a submodule is one entry to git; its files are judged as the walk judged them,
+            # so a `local` glob such as `skill/**` still covers them.
+            paths.update(f"{sub}/{inner}" for inner in walk_files(root / rel))
+        else:
+            paths.add(sub)
     return sorted(paths)
 
 
