@@ -8,3 +8,6 @@ __pycache__/
 
 # Scratch output of local runs.
 artifacts/
+
+# Worktrees /branch and /dispatch fork inside the checkout.
+.claude/worktrees/
