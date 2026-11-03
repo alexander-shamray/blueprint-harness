@@ -94,9 +94,9 @@ Two things the jobs do not cover or cannot promise:
   the drift gate only keeps the root copies equal to the payload's. A suite
   added to the payload under one of those names is not rendered into the
   `payload-suites` tree until this repository's own sync writes it to the root;
-  from then a payload change to it makes `payload-suites` refuse until the
-  root sync catches up, and a sync to backend refuses while backend's copy
-  differs. Use another name, or drop the config entry first. Any other
+  from then a pull request that changes it is red on `payload-suites`, as the
+  root copy cannot change in the same pull request, and only the owner can
+  merge it; a sync to backend also refuses while backend's copy differs. Use another name, or drop the config entry first. Any other
   `test_*.py` under a payload gate directory runs from its first pull request,
   as the *Test the gates* step reads the rendered tree.
 - **`payload-suites (macos-latest)` can sit in the runner queue.** Its
