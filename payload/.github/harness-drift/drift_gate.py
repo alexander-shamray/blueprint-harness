@@ -42,7 +42,10 @@ GATE_FILES = (
 )
 # The config's keys, as harness_sync.config takes them.
 _TOP_KEYS = ("repo", "task_list", "settings", "local", "exclude")
-_PATH_TOKEN = re.compile(r"(?<![\w$.-])[\w.-]+(?:/[\w.-]+)+")
+_HOOK_TOKEN = re.compile(
+    r"(?<![\w$.-])(?P<path>[\w.-]+(?:/[\w.-]+)+)"
+    r"|(?<![\w$./-])(?P<bare>[\w-][\w.-]*\.(?:py|sh))(?![\w/.-])"
+)
 
 
 def file_hash(data: bytes) -> str:
@@ -85,6 +88,23 @@ def _matches(globs: list[str], path: str) -> bool:
     return any(glob_match(g, path) for g in globs)
 
 
+def _command_paths(command: str) -> set[str]:
+    """Paths one hook command names. A leading `./` is dropped. A bare `x.py` or `x.sh` is a path only after a
+    script path, and then it is that script's sibling: `hint-bound.sh <event> index-search-hint.py` loads it from
+    `hint-bound.sh`'s own directory. A module a hook loads by path itself, or a hook a target adds, is not derived."""
+    found: set[str] = set()
+    receiver: str | None = None
+    for match in _HOOK_TOKEN.finditer(command):
+        if (path := match.group("path")) is not None:
+            while path.startswith("./"):
+                path = path[2:]
+            found.add(path)
+            receiver = path.rpartition("/")[0]
+        elif receiver is not None:
+            found.add(f"{receiver}/{match.group('bare')}" if receiver else match.group("bare"))
+    return found
+
+
 def hook_paths(base: object) -> list[str]:
     """The paths the settings base's hook commands name; a target without one runs a hook that fails, unseen."""
     found: set[str] = set()
@@ -95,7 +115,7 @@ def hook_paths(base: object) -> list[str]:
             for hook in inner if isinstance(inner, list) else ():
                 command = hook.get("command") if isinstance(hook, dict) else None
                 if isinstance(command, str):
-                    found.update(_PATH_TOKEN.findall(command))
+                    found.update(_command_paths(command))
     return sorted(found)
 
 

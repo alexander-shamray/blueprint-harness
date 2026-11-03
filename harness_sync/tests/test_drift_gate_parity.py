@@ -117,7 +117,28 @@ class DriftGateParity(unittest.TestCase):
         for base in bases:
             with self.subTest(base=base):
                 self.assertEqual(self.gate.hook_paths(base), apply_mod.hook_paths(base))
-        self.assertEqual(apply_mod.hook_paths(bases[-1]), [".claude/hooks/a.sh", ".claude/scripts/b.py"])
+        # `x.py` is passed to `a.sh` by bare name, which `a.sh` loads from its own directory.
+        self.assertEqual(
+            apply_mod.hook_paths(bases[-1]), [".claude/hooks/a.sh", ".claude/hooks/x.py", ".claude/scripts/b.py"]
+        )
+
+    def test_hook_paths_resolve_bare_names_and_strip_dot_slash(self) -> None:
+        cases = {
+            'bash "${D}/.claude/hooks/hint-bound.sh" PreToolUse index-search-hint.py':
+                [".claude/hooks/hint-bound.sh", ".claude/hooks/index-search-hint.py"],
+            "bash ./.claude/hooks/a.sh ./b.py": [".claude/hooks/a.sh", "b.py"],
+            "bash ./tool.sh run.py": ["run.py", "tool.sh"],
+            "python ./scripts/run.py": ["scripts/run.py"],
+            "python lone.py": [],  # no script path received it, so there is no directory to resolve against
+            'bash "$D/.claude/hooks/a.sh" .claude/scripts/b.py c.sh': [
+                ".claude/hooks/a.sh", ".claude/scripts/b.py", ".claude/scripts/c.sh"],
+            "echo done.txt && bash a/b.sh": ["a/b.sh"],
+        }
+        for command, expected in cases.items():
+            base = {"hooks": {"E": [{"hooks": [{"type": "command", "command": command}]}]}}
+            with self.subTest(command=command):
+                self.assertEqual(apply_mod.hook_paths(base), expected)
+                self.assertEqual(self.gate.hook_paths(base), expected)
 
     def test_the_gate_files_are_the_payloads_gate(self) -> None:
         """A file added to the gate's directory is protected only once GATE_FILES names it."""
