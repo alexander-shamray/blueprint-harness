@@ -92,9 +92,10 @@ Two things the jobs do not cover or cannot promise:
   blueprint-backend in `targets/blueprint-backend.config.json`, so neither this
   repository's root workflows nor `payload-suites` runs a test for them, and
   the drift gate only keeps the root copies equal to the payload's. A suite
-  added to the payload under one of those four names is never rendered, and
-  would make a sync to backend refuse; use another name, or drop the config
-  entry first. Any other `test_*.py` under a payload gate directory runs from
+  added to the payload under one of those four names is not rendered into
+  the `payload-suites` tree until this repository's own sync writes it to the
+  root, and a sync to backend refuses while backend's copy differs; use
+  another name, or drop the config entry first. Any other `test_*.py` under a payload gate directory runs from
   its first pull request, as the *Test the gates* step reads the rendered tree.
 - **`payload-suites (macos-latest)` can sit in the runner queue.** Its
   `timeout-minutes` bounds the run, not the wait for a runner, so a leg that
