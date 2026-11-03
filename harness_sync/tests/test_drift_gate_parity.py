@@ -135,6 +135,7 @@ class DriftGateParity(unittest.TestCase):
             "bash a/b.sh && python lone.py; python x/y.txt | cat z.py": ["a/b.sh", "x/y.txt"],
             "bash a/b.sh\npython lone.py & python q.py": ["a/b.sh"],
             "bash a/b.sh 2>&1 c.py &> d.log d.py": ["a/b.sh", "a/c.py", "a/d.py"],
+            "bash a/b.sh 0<&3 e.py": ["a/b.sh", "a/e.py"],
             "echo done.txt && bash a/b.sh": ["a/b.sh"],
         }
         for command, expected in cases.items():

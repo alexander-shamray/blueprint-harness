@@ -85,7 +85,7 @@ def _command_paths(command: str) -> set[str]:
     `hint-bound.sh <event> index-search-hint.py` loads it from `hint-bound.sh`'s own directory. A module a hook
     loads by path itself, or a hook a target adds through its config, is not derived."""
     found: set[str] = set()
-    for part in re.split(r"[;|\n]|(?<![>&])&(?!>)", command):
+    for part in re.split(r"[;|\n]|(?<![<>&])&(?!>)", command):
         receiver: str | None = None
         for match in _HOOK_TOKEN.finditer(part):
             if (path := match.group("path")) is not None:
