@@ -90,9 +90,10 @@ def _matches(globs: list[str], path: str) -> bool:
 
 def _command_paths(command: str) -> set[str]:
     """Paths one hook command names. A leading `./` is dropped. A bare `x.py` or `x.sh` is a path only after the
-    first script path of its simple command (split at `&`, `|`, `;` and a newline, but not at a redirection's `&`), and is then that script's sibling:
-    `hint-bound.sh <event> index-search-hint.py` loads it from `hint-bound.sh`'s own directory. A module a hook
-    loads by path itself, or a hook a target adds through its config, is not derived."""
+    first script path of its simple command, and is then that script's sibling: `hint-bound.sh <event>
+    index-search-hint.py` loads it from `hint-bound.sh`'s own directory. A command is split at `&`, `|`, `;` and a
+    newline, but not at a redirection's `&`. A module a hook loads by path itself, or a hook a target adds through
+    its config, is not derived."""
     found: set[str] = set()
     for part in re.split(r"[;|\n]|(?<![<>&])&(?!>)", command):
         receiver: str | None = None
