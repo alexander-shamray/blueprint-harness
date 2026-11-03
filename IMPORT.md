@@ -57,7 +57,8 @@ the task-list line *Repository slug and task list* names. Backend's
 `.claude/settings.json` is still blob `aeb89a9`, so the settings base and the
 Task 3 fixture needed no change.
 
-Task 9 Step 2's second backend pull request, #1732 (squashed as
+Task 9 Step 2's second backend pull request, #1732 (rebased onto backend
+`main`, its last commit landing as
 `73b385d670aff6ab9e9d121aa0b2b33dabf00e20`), added *Managed files* and its
 index row to `docs/harness-boundaries.md`, a payload path; the payload takes
 that blob whole, and its blob id matches backend's there. The pull request's
@@ -176,7 +177,7 @@ every line number was read back from the file.
   description names `src/`, `tests/`, `tools/`, `deploy/`;
   `.claude/scripts/dispatch_run.py:27` — cites
   `tools/quality-sets/quality_sets.py` as the owner of four counts.
-- `docs/harness-boundaries.md:24,1123,1163-1179,1394,1443-1444` — `dotnet`
+- `docs/harness-boundaries.md:24,1124,1164-1180,1395,1444-1445` — `dotnet`
   and `Platform.slnx`; spec 5.2 splits this document into common boundaries
   and backend's residuals.
 - Test fixtures that use a `dotnet` command line as a sample string
@@ -204,7 +205,7 @@ Backend-local commands:
   `/validate-blueprint` and its runbook `docs/commands/validate-blueprint.md`.
 - `.claude/scripts/git-worktree-drop.sh:50` — a comment naming
   `mutation-run.sh`'s reports.
-- `docs/harness-boundaries.md:24,78-80,900,1163-1184,1433-1446` —
+- `docs/harness-boundaries.md:24,79-81,901,1164-1185,1434-1447` —
   `/review-branch`, `/check-links`, `/validate-blueprint`, `/mutation-sweep`,
   `dotnet-test.sh`, `mutation-run.sh`.
 
@@ -221,7 +222,7 @@ Backend-only documents:
   `.claude/skills/codebase-index/SKILL.md:12`;
   `.github/closure-gate/closure_gate.py:4`, `closure-gate/README.md:59`,
   `comment-gate/README.md:162`, `commit-gate/README.md:32`,
-  `output-gate/README.md:38`; `docs/harness-boundaries.md:808`.
+  `output-gate/README.md:38`; `docs/harness-boundaries.md:809`.
 - `docs/roadmap.md` — `.claude/commands/ship.md:259`.
 - `docs/style-guide.md` — `.claude/agents/branch-reviewer.md:46`;
   `.claude/commands/style-pass.md:2,23,73,86,122`;
@@ -230,17 +231,17 @@ Backend-only documents:
 - `docs/backend-architecture/` — `.claude/commands/ship.md:261`,
   `style-pass.md:30`; `.claude/skills/codebase-index/SKILL.md:53`;
   `.github/output-gate/README.md:5`, `workflow-lint/README.md:41`;
-  `docs/commands/ship.md:427`; `docs/harness-boundaries.md:78`.
+  `docs/commands/ship.md:427`; `docs/harness-boundaries.md:79`.
 - `docs/token-plan.md` — `.claude/commands/team.md:33`;
   `docs/commands/ship.md:729`, `team.md:28,90`;
-  `docs/harness-boundaries.md:497`.
+  `docs/harness-boundaries.md:498`.
 - `docs/superpowers/` (backend's plans and specs) —
   `.claude/agents/branch-reviewer.md:37`; `.claude/commands/ship.md:110`;
   `.claude/scripts/sweep-slices.sh:116`; `.github/comment-gate/README.md:97`,
   `comment_gate.py:26,29`; `.github/plan-size-gate/README.md:3` (and
   `plan_size_gate.py`'s default directory); `docs/commands/bug-sweep.md:616`,
   `dispatch.md:6`, `security-sweep.md:435`, `ship.md:108,939`;
-  `docs/harness-boundaries.md:1452,1471,1501`.
+  `docs/harness-boundaries.md:1453,1472,1502`.
 - Sections of backend's `CLAUDE.md` (spec 5.2 splits it) —
   `.claude/agents/branch-reviewer.md:3`; `.claude/commands/branch.md:71,83`,
   `bug-sweep.md:190`, `commit.md:27`, `style-pass.md:24,81,123`;
@@ -249,7 +250,7 @@ Backend-only documents:
   `.github/comment-gate/comment_gate.py:27`;
   `.github/plan-size-gate/README.md:4,25`, `plan_size_gate.py:2,20,24`;
   `docs/commands/branch.md:39-40,141`, `dispatch.md:175`,
-  `ship.md:729,990`; `docs/harness-boundaries.md:10,34,45,50,52,68,82,304,807`.
+  `ship.md:729,990`; `docs/harness-boundaries.md:10,35,46,51,53,69,83,305,808`.
 
 ## Decided after review
 
