@@ -30,8 +30,8 @@ OUTCOMES = ("merged", "handed-back", "stopped")
 REVIEW_ENDS = ("clean", "comments-rule", "plan", "ceiling")
 ROUND_KEYS = ("kind", "raised", "fixed", "refused")
 ROUND_KINDS = ("full", "recheck")
-RESULT_KEYS = ("group", "issues", "outcome", "pr", "merge_oid", "rounds", "review_end", "filed", "reason",
-               "workspace", "decisions")
+RESULT_KEYS = ("group", "issues", "outcome", "pr", "title", "merge_oid", "rounds", "review_end", "filed",
+               "reason", "workspace", "decisions")
 RESULT_CAP = 1 << 20
 OID = re.compile(r"[0-9a-f]{40}")
 SESSION_ID = re.compile(r"[A-Za-z0-9-]{1,80}")
@@ -300,11 +300,13 @@ def launch(root, run, gid, tasks_path, branch, worktree):
     listed = _worktree_branches(git(root, "worktree", "list", "--porcelain"))
     if listed.get(_same_path(os.path.join(root, worktree))) != f"refs/heads/{branch}":
         raise Refusal(f"{worktree} is not a worktree on {branch}")
-    # A group sent back after a refused run and launched again must not read that old refusal as this launch's.
-    try:
-        (directory / f"{gid}.refused.json").unlink(missing_ok=True)
-    except OSError as error:
-        raise Refusal(f"could not remove {gid}'s earlier refusal: {error}") from None
+    # Only a fresh move leaves no status; a launch over a later one would remove its executor's pid and record.
+    if entry.get("status") is not None:
+        raise Refusal(f"{gid} is {entry['status']}, not moved and unlaunched")
+    # A group sent back and launched again starts afresh, as its move did: its state no longer names the earlier
+    # launch's session as read, so that launch's marker, result copy, record and pid go now, or this launch is
+    # refused, rather than a later run meeting them beside its own and _refused holding the slot all night.
+    _remove_stale(*(directory / f"{gid}{suffix}" for suffix in (".refused.json", ".json", ".session.json", ".pid")))
     entry.update(status="running", model=group.model, issues=[r.number for r in group.rows], branch=branch,
                  worktree=worktree, launched=now().isoformat(), crashes=0)
     save_state(directory, state)
@@ -344,9 +346,10 @@ def run_session(root, run, gid, description):
 
 def _launch(root, directory, run, gid, entry, description):
     """Everything up to a started executor, which is returned with its prompt and start time; a refusal starts none."""
-    # A relaunch's earlier session was read, so it goes before any check can refuse: a refusal left beside its
-    # record would make `result` refuse the pair, and the group would hold its slot all night.
-    _remove_stale(directory / f"{gid}.json", directory / f"{gid}.session.json")
+    # A relaunch's earlier session was read, so it goes before the launch checks; a record this removal missed is
+    # read as absent beside a marker or a refusal line. Its pid goes too: `result --refused` reads a pid file as an
+    # executor started, and one this removal missed as the cautious side. An earlier launch's went at `launch`.
+    _remove_stale(directory / f"{gid}.json", directory / f"{gid}.session.json", directory / f"{gid}.pid")
     # The owner's stop file ends relaunches too, not only the next wake's launches.
     if (directory / "STOP").exists():
         raise Refusal("stop file: the owner ended the night, so nothing more launches")
@@ -392,6 +395,7 @@ class Result:
     issues: tuple[int, ...]
     outcome: str
     pr: int | None
+    title: str | None
     merge_oid: str | None
     rounds: tuple[dict, ...]
     review_end: str | None
@@ -438,6 +442,9 @@ def _result_problem(data, group, issues):
         return "a merged result needs its pr number and the whole 40-character merge_oid"
     if (pr is not None and not _number(pr)) or (oid is not None and not _oid(oid)):
         return "pr or merge_oid is neither null nor a pr number and a whole oid"
+    # The PR's title as /pr opened it; null where this session did not open the PR, as a relaunch onto a merge.
+    if data["title"] is not None and not (isinstance(data["title"], str) and data["title"].strip()):
+        return "title is neither null nor text"
     if outcome != "merged" and not (isinstance(reason, str) and reason.strip()):
         return f"a {outcome} result needs a reason"
     if reason is not None and not isinstance(reason, str):
@@ -465,7 +472,8 @@ def validate_result(data, group, issues):
     why = _result_problem(data, group, issues)
     if why:
         return Invalid(why)
-    return Result(data["group"], tuple(data["issues"]), data["outcome"], data["pr"], data["merge_oid"],
+    return Result(data["group"], tuple(data["issues"]), data["outcome"], data["pr"], data["title"],
+                  data["merge_oid"],
                   tuple(data["rounds"]), data["review_end"], tuple(data["filed"]), data["reason"],
                   data["workspace"], tuple(data["decisions"]))
 
@@ -707,11 +715,20 @@ def _pid(directory, gid):
         return None
 
 
+def _read_already(directory, gid, entry):
+    """Whether the session record on disk is one `result` already read, a relaunch's earlier session's."""
+    try:
+        started = json.loads(_read(Path(directory) / f"{gid}.session.json")).get("started")
+    except (OSError, ValueError, AttributeError):
+        return False
+    return started is not None and started == entry.get("absorbed")
+
+
 def _refused(directory, gid, entry):
     """Why this launch's last `run` launched nothing, on one line, or None when it launched or has not run.
 
-    The marker sends the group back unread, so it counts only when no session record exists and it is no older
-    than the launch; one beside a session record is refused rather than either being picked.
+    The marker sends the group back unread, so it counts only when no unread session record exists and it is no
+    older than the launch; one beside an unread record is refused rather than either being picked.
     """
     path = Path(directory) / f"{gid}.refused.json"
     try:
@@ -720,7 +737,8 @@ def _refused(directory, gid, entry):
         return None
     except (OSError, ValueError):
         data = None
-    if (Path(directory) / f"{gid}.session.json").exists():
+    # A relaunch refused before _launch removed the earlier record left one already read: it ended no launch.
+    if (Path(directory) / f"{gid}.session.json").exists() and not _read_already(directory, gid, entry):
         raise Refusal(f"{gid} has both {path.name} and a session record, so which ended its launch is unknown")
     data = data if isinstance(data, dict) else {}
     at, launched = _parse_stamp(data.get("at")), _parse_stamp(entry.get("launched"))
@@ -766,8 +784,33 @@ def _unreviewed(entry, result, crashes):
     return not (earlier and (crashes >= 1 or entry.get("status") in RELAUNCHED))
 
 
-def absorb(root, run, gid):
-    """Copy, validate and classify one executor's result and session, record them, and say what happened."""
+def _unrecorded(directory, state, gid, entry, line):
+    """A `run` that exited refused and left neither a marker from this launch nor a session record not yet read.
+
+    With no pid file it launched nothing and could not write its marker; with one, an executor ran and its record
+    was not written. _launch removes an earlier pid file first, and one a refusal left is read as the latter.
+    """
+    why = one_line(line, 200) if isinstance(line, str) and line.strip() else "no reason given"
+    path = Path(directory) / f"{gid}.pid"
+    pid = _pid(directory, gid)
+    if pid is not None and alive(pid):
+        raise Refusal(f"{gid} has no session record and its executor is still running")
+    if path.exists():
+        # It ran and may have merged, but nothing records how it ended, so a human reads its worktree.
+        status, reason = "crash-hand-back", f"its executor ran and left no session record: {why}"
+    else:
+        status, reason = PRE_LAUNCH, f"run refused before launch, its marker unwritten: {why}"
+    entry.update(status=status, reason=reason)
+    save_state(directory, state)
+    return [f"{gid}: {status} - {reason}", "transcript: not found"]
+
+
+def absorb(root, run, gid, run_refused=None):
+    """Copy, validate and classify one executor's result and session, record them, and say what happened.
+
+    `run_refused` is `run`'s refusal line, given after its exit 2; it is read only when there is no marker from this
+    launch and no session record not yet read.
+    """
     directory = run_dir(root, run)
     state = load_state(directory)
     entry = _entry(state, gid)
@@ -784,12 +827,17 @@ def absorb(root, run, gid):
     try:
         raw = json.loads(_read(record))
     except FileNotFoundError:
-        raise Refusal(f"{gid} has no session record; its executor has not exited") from None
+        if run_refused is None:
+            raise Refusal(f"{gid} has no session record; its executor has not exited") from None
+        return _unrecorded(directory, state, gid, entry, run_refused)
     except ValueError:
         raise Refusal(f"{record} is not JSON") from None
     if not isinstance(raw, dict):
         raise Refusal(f"{record} is not a session record")
     if raw.get("started") is not None and raw.get("started") == entry.get("absorbed"):
+        if run_refused is not None:
+            # A relaunch refused before _launch removed the earlier, already read record: run's line is the evidence.
+            return _unrecorded(directory, state, gid, entry, run_refused)
         raise Refusal(f"{gid}'s session record was already read")
     worktree = _field(entry, gid, "worktree", _path_text)
     source = Path(root) / worktree / "artifacts" / "dispatch" / run / f"{gid}.json"
@@ -826,7 +874,7 @@ def absorb(root, run, gid):
     if end.resets_at is not None:
         entry["resets_at"] = end.resets_at.isoformat()
     if isinstance(result, Result):
-        entry.update(pr=result.pr, merge_oid=result.merge_oid, filed=list(result.filed),
+        entry.update(pr=result.pr, title=result.title, merge_oid=result.merge_oid, filed=list(result.filed),
                      review_end=result.review_end, rounds=list(result.rounds), decisions=list(result.decisions))
     entry["transcript"] = transcript
     save_state(directory, state)
@@ -1103,6 +1151,13 @@ def _issues_text(numbers):
     return ", ".join(f"#{n}" for n in numbers if _number(n)) if isinstance(numbers, list) and numbers else "none"
 
 
+def _pr_text(entry):
+    # The executor's title: one_line keeps a line break in it from forging a report line of its own.
+    title = entry.get("title")
+    shown = f' "{one_line(title, 200)}"' if isinstance(title, str) and title.strip() else ""
+    return f"#{entry.get('pr')}{shown}"
+
+
 def _rounds_text(rounds):
     if not isinstance(rounds, list) or not rounds:
         return "no review rounds in this session"
@@ -1149,7 +1204,7 @@ def report(root, run, tasks_path, today, body_source, open_source):
         ended = entry.get("closed_from") if status in ("done", "returned") else status
         if ended == "verified" and status == "done" and entry.get("unreviewed"):
             # It landed, but nobody reviewed it: the one kind of merge that is not a merge needing nothing.
-            needs.append(f"{gid} #{entry.get('pr')} {UNREVIEWED}, as {entry.get('merge_oid')}: "
+            needs.append(f"{gid} {_pr_text(entry)} {UNREVIEWED}, as {entry.get('merge_oid')}: "
                          f"{_issues_text(entry.get('issues'))}; filed {_issues_text(entry.get('filed'))}"
                          + _decisions_text(entry.get("decisions")))
         elif ended == "verified" and status == "done":
@@ -1157,13 +1212,13 @@ def report(root, run, tasks_path, today, body_source, open_source):
             review = ("no rounds reported; a branch-reviewer round in its transcript"
                       if entry.get("review_seen") == "transcript"
                       else f"{_rounds_text(entry.get('rounds'))}; review {entry.get('review_end') or 'not run'}")
-            merged.append(f"{gid} #{entry.get('pr')} merged as {entry.get('merge_oid')}: "
+            merged.append(f"{gid} {_pr_text(entry)} merged as {entry.get('merge_oid')}: "
                           f"{_issues_text(entry.get('issues'))}; {review}; filed {_issues_text(entry.get('filed'))}"
                           + _decisions_text(entry.get("decisions")))
         elif status == "verified":
             # GitHub showed the merge, but the pull or the containment read after it failed, so `done` never ran.
             unreviewed = f", {UNREVIEWED}" if entry.get("unreviewed") else ""
-            needs.append(f"{gid} #{entry.get('pr')} merged as {entry.get('merge_oid')}{unreviewed}, "
+            needs.append(f"{gid} {_pr_text(entry)} merged as {entry.get('merge_oid')}{unreviewed}, "
                          "not confirmed in main: "
                          f"its rows are still In progress and worktree {entry.get('worktree')} is left in place"
                          + _decisions_text(entry.get("decisions")))
@@ -1223,11 +1278,16 @@ def add_commands(sub):
                 s.add_argument(f"--{option}", required=True)
         if name == "run":
             s.add_argument("--description", required=True)
+        if name == "result":
+            s.add_argument("--refused")
     w = sub.add_parser("wake")
     w.add_argument("run")
     w.add_argument("--tasks", required=True)
     w.add_argument("--today")
     sub.add_parser("resume").add_argument("run")
+    f = sub.add_parser("filed")
+    f.add_argument("run")
+    f.add_argument("issue")
     sub.add_parser("usage").add_argument("run")
     r = sub.add_parser("report")
     r.add_argument("run")
@@ -1252,7 +1312,7 @@ def command(args: argparse.Namespace, today, bodies_from, open_from, branch_from
     elif args.command == "run":
         run_session(root, args.run, args.group, args.description)
     elif args.command == "result":
-        print("\n".join(absorb(root, args.run, args.group)))
+        print("\n".join(absorb(root, args.run, args.group, args.refused)))
     elif args.command == "verify":
         code, line = verify(root, args.run, args.group)
         print(line)
@@ -1261,6 +1321,12 @@ def command(args: argparse.Namespace, today, bodies_from, open_from, branch_from
         print(wait(root, args.run, args.group))
     elif args.command == "wake":
         print("\n".join(wake(root, args.run, args.tasks, today, bodies_from, open_from, branch_from, weekly_from)))
+    elif args.command == "filed":
+        # The interview's filings and closes reach no `tasks place`, so Filed overnight learns of them here.
+        issue = int(args.issue) if args.issue.isdecimal() and args.issue.isascii() else 0
+        if not _number(issue):
+            raise Refusal(f"{args.issue!r} is not an issue number")
+        _note_placed(run_dir(root, args.run), issue)
     elif args.command == "usage":
         print(usage_line(*take_reading(run_dir(root, args.run), weekly_from)))
     elif args.command == "report":
