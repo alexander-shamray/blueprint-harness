@@ -9,6 +9,7 @@ import importlib.util
 import io
 import json
 import shutil
+import subprocess
 import tempfile
 import types
 import unittest
@@ -133,6 +134,49 @@ class DriftGate(unittest.TestCase):
         tree.put(".claude/scripts/__pycache__/x.cpython-312.pyc", b"\0")
         tree.put(".claude/scripts/y.pyc", b"\0")
         self.assertEqual(check(tree.root), [])
+
+    def _git(self, root: Path, *args: str) -> None:
+        if shutil.which("git") is None:
+            self.skipTest("git is not on PATH")
+        subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+
+    def test_an_ignored_file_under_a_managed_directory_passes_in_a_checkout(self) -> None:
+        tree = Tree(self.tmp)
+        self._git(tree.root, "init", "-q")
+        tree.put(".gitignore", b".claude/skills/a/.skill_version\n")
+        tree.put(".claude/skills/a/.skill_version", b"1\n")
+        self.assertEqual(check(tree.root), [])
+
+    def test_a_checkout_still_judges_untracked_and_force_added_files(self) -> None:
+        tree = Tree(self.tmp)
+        self._git(tree.root, "init", "-q")
+        tree.put(".gitignore", b"*.lock\n")
+        tree.put(".claude/hooks/extra.sh", b"x\n")
+        tree.put(".claude/hooks/forced.lock", b"x\n")
+        self._git(tree.root, "add", "-f", ".claude/hooks/forced.lock")
+        problems = check(tree.root)
+        self.assertEqual(len(problems), 2)
+        self.assertIn(".claude/hooks/extra.sh", problems[0])
+        self.assertIn(".claude/hooks/forced.lock", problems[1])
+
+    def test_a_tracked_file_deleted_from_a_checkout_is_not_an_unlisted_file(self) -> None:
+        tree = Tree(self.tmp)
+        self._git(tree.root, "init", "-q")
+        self._git(tree.root, "add", "-A")
+        (tree.root / ".claude/skills/a/SKILL.md").unlink()
+        problems = check(tree.root)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("missing", problems[0])
+
+    def test_a_root_below_the_top_of_a_checkout_is_walked(self) -> None:
+        (Path(self.tmp) / "sub").mkdir()
+        tree = Tree(str(Path(self.tmp) / "sub"))
+        self._git(Path(self.tmp), "init", "-q")
+        (Path(self.tmp) / ".gitignore").write_bytes(b".skill_version\n")
+        tree.put(".claude/skills/a/.skill_version", b"1\n")
+        problems = check(tree.root)
+        self.assertEqual(len(problems), 1)
+        self.assertIn(".skill_version", problems[0])
 
     def test_file_outside_managed_dirs_is_not_judged(self) -> None:
         tree = Tree(self.tmp)
