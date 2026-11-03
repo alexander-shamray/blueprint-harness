@@ -113,8 +113,10 @@ with no branch rule, so the owner creates it first, restricted to `main`, and
 only then stores the secret:
 
 ```bash
-gh api -X PUT repos/alexander-shamray/blueprint-harness/environments/harness-sync   --input - <<< '{"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}'
-gh api -X POST repos/alexander-shamray/blueprint-harness/environments/harness-sync/deployment-branch-policies   -f name=main -f type=branch
+gh api -X PUT repos/alexander-shamray/blueprint-harness/environments/harness-sync \
+  --input - <<< '{"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}'
+gh api -X POST repos/alexander-shamray/blueprint-harness/environments/harness-sync/deployment-branch-policies \
+  -f name=main -f type=branch
 gh secret set HARNESS_SYNC_TOKEN --env harness-sync --repo alexander-shamray/blueprint-harness
 ```
 
@@ -125,9 +127,9 @@ secret, or print it. An environment secret reaches only a job that names the
 environment. `harness-sync` deploys from `main` alone, so only workflow code
 already on `main` gets the token, and only the `sync` job names it.
 
-Inside that job the token is not kept after the checkout that uses it. Both checkouts set
-`persist-credentials: false`, so `target/.git/config` holds no credential
-while `setup-python` and later steps run. The step that runs open-pr hands
+Inside that job the token is not kept after the checkout that uses it.
+Both checkouts set `persist-credentials: false`, so `target/.git/config` holds
+no credential while `setup-python` and later steps run. The step that runs open-pr hands
 git the authorisation header through `GIT_CONFIG_*` variables in its own
 environment, for the target's `ls-remote`, fetch and pushes, and masks the
 header's base64 form.
