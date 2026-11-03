@@ -97,9 +97,9 @@ Two things the jobs do not cover or cannot promise:
   from then a pull request that changes it is red on `payload-suites`, as the
   root copy cannot change in the same pull request, and a sync to backend also
   refuses while backend's copy differs. Use another name, or drop the config
-  entry first. Any other
-  `test_*.py` under a payload gate directory runs from its first pull request,
-  as the *Test the gates* step reads the rendered tree.
+  entry first. Any other `test_*.py` under a payload gate directory runs from
+  its first pull request, as the *Test the gates* step reads the rendered
+  tree.
 - **`payload-suites (macos-latest)` can sit in the runner queue.** Its
   `timeout-minutes` bounds the run, not the wait for a runner, so a leg that
   GitHub cancels from the queue with no step run (seen on #11 and #15) is a
