@@ -57,6 +57,15 @@ the task-list line *Repository slug and task list* names. Backend's
 `.claude/settings.json` is still blob `aeb89a9`, so the settings base and the
 Task 3 fixture needed no change.
 
+Task 9 Step 2's second backend pull request, #1732 (squashed as
+`73b385d670aff6ab9e9d121aa0b2b33dabf00e20`), added *Managed files* and its
+index row to `docs/harness-boundaries.md`, a payload path; the payload takes
+that blob whole, and its blob id matches backend's there. The pull request's
+other payload paths, the `tooling` row naming `.harness/` in
+`.claude/scripts/sweep-slices.sh`, `.claude/commands/bug-sweep.md` and
+`.claude/commands/security-sweep.md`, were written to the payload's bytes, so
+their blob ids already match and nothing else moves.
+
 ## How a file was classified
 
 - **Spec 8 and the brief name it backend-local**: the .NET and blueprint
