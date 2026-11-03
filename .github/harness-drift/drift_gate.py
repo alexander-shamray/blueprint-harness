@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
 """The harness drift gate: a target's managed files are what its manifest says (shared-harness spec 5.4).
 
-Stdlib only and standalone: a target has no harness_sync package, so the hash and the glob matcher below are
-copies, and harness_sync/tests/test_drift_gate_parity.py (in the harness repository) keeps them equal to apply's.
-
-The manifest and config live in the tree a pull request controls, so on their own they prove only that the tree is
-consistent with itself. `--payload` names the harness repository's payload/ at the commit the manifest records, and
-then the manifest is compared with that instead of being trusted (owner: the harness-drift README, Trust model).
-"""
+Stdlib only, so its hash and glob matcher are copies harness_sync's parity test keeps equal to apply's. A pull
+request edits the manifest freely, so `--payload` compares it with the payload (owner: the README, Trust model)."""
 
 from __future__ import annotations
 
@@ -35,8 +30,19 @@ MANAGED_DIRS = (
     "docs/commands",
     ".github/harness-drift",
 )
-# Apply refuses to exclude or localise these, because the gate cannot judge settings without them.
-_NEEDED = (BASE, RENDER)
+# What the gate needs delivered to judge a target; excluded or local, the target is never checked again (copy of
+# harness_sync.apply, as is the hook-path rule below).
+GATE_FILES = (
+    BASE,
+    RENDER,
+    ".github/harness-drift/README.md",
+    ".github/harness-drift/drift_gate.py",
+    ".github/harness-drift/test_drift_gate.py",
+    ".github/workflows/harness-drift.yml",
+)
+# The config's keys, as harness_sync.config takes them.
+_TOP_KEYS = ("repo", "task_list", "settings", "local", "exclude")
+_PATH_TOKEN = re.compile(r"(?<![\w$.-])[\w.-]+(?:/[\w.-]+)+")
 
 
 def file_hash(data: bytes) -> str:
@@ -77,6 +83,20 @@ def is_local(globs: list[str] | tuple[str, ...], path: str) -> bool:
 
 def _matches(globs: list[str], path: str) -> bool:
     return any(glob_match(g, path) for g in globs)
+
+
+def hook_paths(base: object) -> list[str]:
+    """The paths the settings base's hook commands name; a target without one runs a hook that fails, unseen."""
+    found: set[str] = set()
+    hooks = base.get("hooks") if isinstance(base, dict) else None
+    for groups in hooks.values() if isinstance(hooks, dict) else ():
+        for group in groups if isinstance(groups, list) else ():
+            inner = group.get("hooks") if isinstance(group, dict) else None
+            for hook in inner if isinstance(inner, list) else ():
+                command = hook.get("command") if isinstance(hook, dict) else None
+                if isinstance(command, str):
+                    found.update(_PATH_TOKEN.findall(command))
+    return sorted(found)
 
 
 def _is_link(path: Path) -> bool:
@@ -151,30 +171,50 @@ def _manifest_files(root: Path, problems: list[str]) -> dict[str, str] | None:
     return files
 
 
+def config_problems(raw: object) -> list[str]:
+    """What harness_sync.config refuses, as lines (a copy of its rules); `settings` is the renderer's to refuse."""
+    if not isinstance(raw, dict):
+        return [f"{CONFIG} must be a JSON object"]
+    problems = [f"{CONFIG} has unknown key {key!r}" for key in raw if key not in _TOP_KEYS]
+    for key in ("repo", "task_list"):
+        if not isinstance(raw.get(key), str):
+            problems.append(f"{CONFIG} {key!r} must be present and a string")
+    for key in ("local", "exclude"):
+        value = raw.get(key, [])
+        if not isinstance(value, list) or not all(isinstance(g, str) for g in value):
+            problems.append(f"{CONFIG} {key!r} must be a list of strings")
+            continue
+        for glob in value:
+            # A backslash or leading slash would silently match nothing.
+            if "\\" in glob or glob.startswith("/"):
+                problems.append(f"{CONFIG} {key!r} glob {glob!r} must be relative POSIX: no backslash or leading slash")
+    return problems
+
+
 def _globs(root: Path, problems: list[str]) -> tuple[list[str], list[str]]:
     """The config's local and exclude globs; a config that cannot be read yields none and a problem."""
     raw = _load_json(root, CONFIG, problems)
     if raw is None:
         return [], []
+    problems.extend(config_problems(raw))
     if not isinstance(raw, dict):
-        problems.append(f"{CONFIG} must be a JSON object")
         return [], []
     out = []
     for key in ("local", "exclude"):
         value = raw.get(key, [])
-        if not isinstance(value, list) or not all(isinstance(g, str) for g in value):
-            problems.append(f"{CONFIG} {key!r} must be a list of strings")
-            value = []
-        out.append(value)
+        out.append(value if isinstance(value, list) and all(isinstance(g, str) for g in value) else [])
     return out[0], out[1]
 
 
-def _check_protected(local: list[str], exclude: list[str], problems: list[str]) -> None:
-    for rel in _NEEDED:
+def _check_protected(root: Path, local: list[str], exclude: list[str], problems: list[str]) -> None:
+    base = _load_json(root, BASE, [])  # an unreadable base is reported by _check_settings
+    needed = [(rel, "the drift gate needs managed") for rel in GATE_FILES]
+    needed += [(rel, f"a hook in {BASE} runs") for rel in hook_paths(base)]
+    for rel, why in needed:
         if _matches(local, rel):  # case-sensitive, as apply's is
-            problems.append(f"{CONFIG} makes {rel} local, which the drift gate needs managed")
+            problems.append(f"{CONFIG} makes {rel} local, which {why}")
         if _matches(exclude, rel):
-            problems.append(f"{CONFIG} excludes {rel}, which the drift gate needs managed")
+            problems.append(f"{CONFIG} excludes {rel}, which {why}")
 
 
 def _check_listed(root: Path, files: dict[str, str], problems: list[str]) -> None:
@@ -345,15 +385,14 @@ def _check_settings(
 def check(root: Path, payload: Path | None = None, render_module: types.ModuleType | None = None) -> list[str]:
     """Problems with the tree at `root`, empty when it is exactly what its manifest records.
 
-    `payload` is the harness payload/ at the manifest's commit; given, the manifest is compared with it. Without
-    it the tree is judged against itself. `render_module` is for a caller that must not execute the tree's own
-    renderer (harness_sync check): it renders with that module instead.
-    """
+    `payload`, the harness payload/ at the manifest's commit, is what the manifest is compared with; without it the
+    tree is judged against itself. `render_module` renders in place of the tree's own renderer, for a caller that
+    must not execute that (harness_sync check)."""
     root = Path(root)
     payload = Path(payload) if payload is not None else None
     problems: list[str] = []
     local, exclude = _globs(root, problems)
-    _check_protected(local, exclude, problems)
+    _check_protected(root, local, exclude, problems)
     files = _manifest_files(root, problems)
     if files is not None:
         _check_listed(root, files, problems)

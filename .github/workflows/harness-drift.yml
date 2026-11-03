@@ -70,23 +70,20 @@ jobs:
             exit 1
           fi
 
-      # The commit the head manifest records, and only if it is on the harness
-      # repository's main: GitHub serves fork-network commits by SHA, so a SHA
-      # alone could name a doctored payload and renderer. It must also not be
-      # older than the base manifest's commit, or a pull request could roll a
-      # target back to a weaker real release. Any failure fails the step, with
-      # no fallback to a payload the pull request could have supplied.
-      #
-      # `python -I` ignores the working directory, which a pull request
-      # controls: a `json.py` it adds at the root would otherwise replace the
-      # standard library and run before the gate. The manifest is piped in so
-      # no relative path is opened either.
+      # The commit the head manifest records, only if it is on harness main
+      # (GitHub serves fork-network commits by SHA, so a SHA alone could name a
+      # doctored payload) and not older than the base manifest's, so a pull
+      # request cannot roll a target back. Any failure fails the step, with no
+      # fallback to a payload the pull request could have supplied.
       - name: Fetch the payload the manifest names
         shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
+          # `python -I` ignores the working directory, where a pull request's
+          # `json.py` would replace the standard library before the gate runs;
+          # the manifest is piped in, so no relative path is opened either.
           commit_of() { python -I -c 'import json, sys; print(json.load(sys.stdin)["harness_commit"])'; }
           sha="$(commit_of < .harness/manifest.json)"
           if [[ ! $sha =~ ^[0-9a-f]{40}$ ]]; then
