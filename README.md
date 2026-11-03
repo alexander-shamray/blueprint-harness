@@ -108,9 +108,13 @@ Until the secret is set, each target is skipped with a notice and the run
 stays green.
 
 The token is a secret of the `harness-sync` environment, never of the
-repository. The owner stores it with:
+repository. The first `sync.yml` run on `main` creates a missing environment
+with no branch rule, so the owner creates it first, restricted to `main`, and
+only then stores the secret:
 
 ```bash
+gh api -X PUT repos/alexander-shamray/blueprint-harness/environments/harness-sync   --input - <<< '{"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}'
+gh api -X POST repos/alexander-shamray/blueprint-harness/environments/harness-sync/deployment-branch-policies   -f name=main -f type=branch
 gh secret set HARNESS_SYNC_TOKEN --env harness-sync --repo alexander-shamray/blueprint-harness
 ```
 
@@ -121,7 +125,7 @@ secret, or print it. An environment secret reaches only a job that names the
 environment. `harness-sync` deploys from `main` alone, so only workflow code
 already on `main` gets the token, and only the `sync` job names it.
 
-Inside that job the token is never written to disk. Both checkouts set
+Inside that job the token is not kept after the checkout that uses it. Both checkouts set
 `persist-credentials: false`, so `target/.git/config` holds no credential
 while `setup-python` and later steps run. The step that runs open-pr hands
 git the authorisation header through `GIT_CONFIG_*` variables in its own
@@ -138,6 +142,15 @@ A target's own `.gitignore` must ignore `.claude/worktrees/`: `/branch` and
 `/dispatch` fork worktrees there, and `git-worktree-fork.sh` refuses a path
 git would see as untracked. This repository carries the line; a sibling adds
 it before its first sync.
+
+A sibling also lands its closure gate before its first sync. The payload's
+`closure-gate.yml` takes the enforcing gate from the pull request's *base*
+commit and refuses a fallback to the head copy, so the pull request that first
+brings `.github/closure-gate/closure_gate.py` into a repository whose `main`
+lacks it is red. Confirm the sibling's `main` already has that file, or land it
+there in a pull request of its own, before making `closure-gate` required; the
+alternative is the owner merging that first sync with the check red, as #11 was
+for this repository's first target.
 
 ## Changes
 
