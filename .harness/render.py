@@ -1,8 +1,7 @@
 """Render a target's .claude/settings.json from the harness base plus its config.
 
-Stdlib only and no package-relative import, by design: Task 5 vendors this file
-byte-identical into each target as .harness/render.py, where no harness_sync
-package exists and the drift gate imports it (owner: shared-harness spec 5.2).
+Stdlib only, with no package-relative import: each target holds a byte-identical copy as .harness/render.py,
+where no harness_sync package exists and the drift gate runs it (owner: shared-harness spec 5.2).
 """
 
 import copy

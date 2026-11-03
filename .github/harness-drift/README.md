@@ -21,8 +21,19 @@ caught where it is made and not at the next sync.
   `.harness/config.json`. The renderer runs only if its bytes match the
   manifest and, with a payload, the payload; otherwise the gate reports that
   and does not execute it;
-- a `local` or `exclude` glob that matches `.harness/settings.base.json` or
-  `.harness/render.py`;
+- a `local` or `exclude` glob that matches a file the gate needs delivered:
+  `.harness/settings.base.json`, `.harness/render.py`, this directory's
+  files, `.github/workflows/harness-drift.yml`, or a path a hook command in
+  the settings base names (`.claude/hooks/guard-git-argv.py`, for one).
+  Without them a target stays green and is never checked again, or runs a
+  guard hook that fails unseen; apply refuses the same globs. The list is
+  `GATE_FILES` in `drift_gate.py`, and the harness repository tests that
+  it names every file the payload ships here;
+- a `.harness/config.json` that apply would refuse: an unknown key, a
+  `repo` or `task_list` that is missing or not a string, a `local` or
+  `exclude` that is not a list of strings, or a glob with a backslash or a
+  leading slash. Its `settings` are refused by the renderer, as apply's
+  are;
 - a manifest, config, base or renderer that cannot be read, a renderer that
   refuses the config, a manifest path that is not a canonical relative POSIX
   path, and any fixed path or managed directory that is a link. Each is a
@@ -64,10 +75,6 @@ delete the line. Three things guard against that, each a different part:
   `pull_request` runs the head's copy of `harness-drift.yml`, so a pull
   request can edit the workflow itself, and only the ruleset requiring this
   check, with review of workflow changes, stops that.
-
-The base gate judges the head workflow that calls it, so the gate's command
-line flags must stay backward compatible: renaming one makes the sync that
-carries the rename red.
 
 Exclude means "not delivered", never "replaced". A payload path the config
 excludes that still exists in the tree is refused here and by apply, because
@@ -111,5 +118,49 @@ Do not edit the managed file in this repository, or the next sync reverts it.
 - To keep it different here, declare its path `local` in
   `.harness/config.json`. A new local file under a managed directory needs
   the same line.
-- A settings difference is fixed in `.harness/config.json`'s `settings`, then
-  by running the sync, which rewrites `.claude/settings.json` whole.
+- A settings difference is fixed in `.harness/config.json`'s `settings`, and
+  the same pull request re-renders `.claude/settings.json` whole (*Changing
+  this repository's config*).
+
+## Changing this repository's config
+
+A pull request that changes `.harness/config.json`, whether its `settings`,
+`local` or `exclude`, changes what a sync renders. So it carries the
+re-rendered `.claude/settings.json` and `.harness/manifest.json` with it.
+They are rendered at the commit the manifest already names, never a newer
+one. The gate fetches that commit's payload and judges the tree against it,
+and moving to a newer commit is a sync's job. From a harness checkout:
+
+```bash
+commit="$(py -3.12 -I -c 'import json, sys; print(json.load(sys.stdin)["harness_commit"])' < <target>/.harness/manifest.json)"
+git worktree add --detach ../harness-at "$commit"
+cd ../harness-at
+py -3.12 -m harness_sync apply --payload payload --target <target> --commit "$commit"
+```
+
+Run the tool from that worktree, not from a newer checkout, so the renderer
+that writes the settings is the one the manifest records. Then commit what
+apply changed beside the config.
+
+## Changing a gate rule
+
+The base commit's gate judges every pull request, the sync that changes the
+gate included. So a sync that loosens a rule is judged by the old rule, and
+is red if anything in it relies on the looser one. Change a rule in two
+steps:
+
+1. Ship the new rule on its own: a harness change to `drift_gate.py` that
+   every target already passes under the old and the new rule, synced and
+   merged into each target.
+2. Only then ship what relies on it. That pull request's base carries the
+   new gate, which judges it.
+
+A rule that tightens is in force from the pull request after the sync that
+carries it, so check that every target passes it before step 1, with
+`py -3.12 -m harness_sync check --target <dir> --payload <payload>` from a
+harness checkout that holds the new gate.
+
+The command line flags follow the same rule, because the base gate judges
+the head workflow that calls it. A new flag is added in one sync and used in
+a later one, and a flag a workflow still passes is never renamed or removed:
+either makes the sync that carries it red.
