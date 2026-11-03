@@ -95,8 +95,9 @@ Two things the jobs do not cover or cannot promise:
   added to the payload under one of those names is not rendered into the
   `payload-suites` tree until this repository's own sync writes it to the root;
   from then a pull request that changes it is red on `payload-suites`, as the
-  root copy cannot change in the same pull request, and only the owner can
-  merge it; a sync to backend also refuses while backend's copy differs. Use another name, or drop the config entry first. Any other
+  root copy cannot change in the same pull request, and a sync to backend also
+  refuses while backend's copy differs. Use another name, or drop the config
+  entry first. Any other
   `test_*.py` under a payload gate directory runs from its first pull request,
   as the *Test the gates* step reads the rendered tree.
 - **`payload-suites (macos-latest)` can sit in the runner queue.** Its
