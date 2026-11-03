@@ -386,8 +386,8 @@ class OpenedTests(SyncTestCase):
         self.assert_clean()
 
     def test_newer_sync_is_read_against_the_remote_main_ref(self) -> None:
-        # CI's checkout has refs/remotes/origin/main and may have no local main to speak of: the primary ref. Here the
-        # local main stays behind, so a newer sync is on main only by the remote ref, and the older run must refuse.
+        # The local main can lag origin's, and refs/remotes/origin/main is read first (MAIN_REFS). Here it lags, so
+        # a newer sync is on main only by the remote ref, and the older run must refuse.
         ahead = self.side_commit("side")
         remote = self.harness.parent / "harness-origin.git"
         git(self.harness.parent, "init", "-q", "--bare", "-b", "main", str(remote))
