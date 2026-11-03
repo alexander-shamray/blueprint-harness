@@ -169,9 +169,17 @@ class DriftGate(unittest.TestCase):
         tree.put(".claude/skills/theirs/SKILL.md", b"x\n")
         self._git(tree.root / ".claude/skills/theirs", "init", "-q")
         problems = check(tree.root)
-        self.assertTrue(problems)
-        self.assertTrue(all(".claude/skills/theirs/" in p for p in problems), problems)
-        self.assertIn(".claude/skills/theirs/SKILL.md is under a managed directory", "\n".join(problems))
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn(".claude/skills/theirs/SKILL.md is under a managed directory", problems[0])
+
+    def test_an_empty_nested_repository_is_judged_as_itself(self) -> None:
+        tree = Tree(self.tmp)
+        self._git(tree.root, "init", "-q")
+        (tree.root / ".claude/skills/bare").mkdir(parents=True)
+        self._git(tree.root / ".claude/skills/bare", "init", "-q")
+        problems = check(tree.root)
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn(".claude/skills/bare is under a managed directory", problems[0])
 
     def test_a_submodule_checked_out_empty_is_still_judged(self) -> None:
         tree = Tree(self.tmp)
