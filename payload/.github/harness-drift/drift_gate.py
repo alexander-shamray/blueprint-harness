@@ -180,11 +180,13 @@ def _git_listed(root: Path, directory: str) -> list[str] | None:
         if not rel.startswith(prefix) or not os.path.lexists(root / rel) or _skipped(rel):
             continue
         sub = rel[len(prefix):]
-        if (root / rel).is_dir() and not _is_link(root / rel):
+        inner = walk_files(root / rel) if (root / rel).is_dir() and not _is_link(root / rel) else []
+        if inner:
             # A nested repository or a submodule is one entry to git; its files are judged as the walk judged them,
             # so a `local` glob such as `skill/**` still covers them.
-            paths.update(f"{sub}/{inner}" for inner in walk_files(root / rel))
+            paths.update(f"{sub}/{name}" for name in inner)
         else:
+            # A file, a link, or a submodule CI checked out empty: still a path the pull request delivers.
             paths.add(sub)
     return sorted(paths)
 
