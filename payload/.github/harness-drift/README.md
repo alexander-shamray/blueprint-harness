@@ -15,7 +15,12 @@ caught where it is made and not at the next sync.
   `local` globs in `.harness/config.json` do not cover. The managed
   directories are `.claude/agents`, `.claude/commands`, `.claude/hooks`,
   `.claude/scripts`, `.claude/skills`, `docs/commands` and
-  `.github/harness-drift`; `__pycache__/` and `*.pyc` are skipped;
+  `.github/harness-drift`; `__pycache__/` and `*.pyc` are skipped. When
+  the root is the top of a git checkout, the candidates are what git would
+  commit there (`git ls-files --cached --others --exclude-standard`), so a
+  file the checkout ignores, such as an installer's `.skill_version`, is
+  never judged: it cannot reach a pull request. Elsewhere the gate walks the
+  file system;
 - a `.claude/settings.json` that is not what `.harness/render.py` renders
   from `.harness/settings.base.json` plus the `settings` in
   `.harness/config.json`. The renderer runs only if its bytes match the

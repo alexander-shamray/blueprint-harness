@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -149,6 +150,38 @@ def walk_files(directory: Path) -> list[str]:
     return sorted(paths)
 
 
+def _skipped(rel: str) -> bool:
+    return "__pycache__" in rel.split("/") or rel.endswith(".pyc")
+
+
+def _git_listed(root: Path, directory: str) -> list[str] | None:
+    """What git would commit under `root/directory`, tracked or untracked but not ignored, relative to it.
+
+    An ignored file never reaches a pull request, so judging it fails a developer checkout CI passes. None when
+    `root` is not the top of a git work tree, or git cannot answer: the caller then walks the file system."""
+    try:
+        top = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--show-toplevel"], capture_output=True, check=True
+        ).stdout.decode("utf-8").strip()
+        if not top or not os.path.samefile(top, root):
+            return None
+        out = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", directory],
+            capture_output=True,
+            check=True,
+        ).stdout.decode("utf-8")
+    except (OSError, ValueError, subprocess.CalledProcessError):
+        return None
+    prefix = f"{directory}/"
+    paths = set()
+    for rel in out.split("\0"):
+        rel = rel.rstrip("/")  # an untracked nested repository is listed as its directory
+        # A tracked file deleted from the work tree is the manifest check's to report, not an unlisted one.
+        if rel.startswith(prefix) and os.path.lexists(root / rel) and not _skipped(rel):
+            paths.add(rel[len(prefix):])
+    return sorted(paths)
+
+
 def _canonical_problem(rel: str) -> str | None:
     """Same rule as apply: a manifest is editable by any target PR, so no entry may reach outside the root."""
     parts = rel.split("/")
@@ -269,7 +302,8 @@ def _check_unlisted(root: Path, files: dict[str, str], local: list[str], problem
         base = root / directory
         if not base.is_dir():
             continue
-        for sub in walk_files(base):
+        listed = _git_listed(root, directory)
+        for sub in walk_files(base) if listed is None else listed:
             rel = f"{directory}/{sub}"
             if rel not in files and not is_local(local, rel):
                 problems.append(f"{rel} is under a managed directory but neither in the manifest nor local")
