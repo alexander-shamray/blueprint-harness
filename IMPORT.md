@@ -239,8 +239,8 @@ Backend-only documents:
   `.claude/scripts/sweep-slices.sh:113`;
   `.github/comment-gate/comment_gate.py:27`;
   `.github/plan-size-gate/README.md:4,25`, `plan_size_gate.py:2,20,24`;
-  `docs/commands/branch.md:39-40,141`, `dispatch.md:171`,
-  `ship.md:729,981`; `docs/harness-boundaries.md:10,34,45,50,52,68,82,304,807`.
+  `docs/commands/branch.md:39-40,141`, `dispatch.md:175`,
+  `ship.md:729,990`; `docs/harness-boundaries.md:10,34,45,50,52,68,82,304,807`.
 
 ## Decided after review
 
