@@ -86,17 +86,21 @@ git worktree remove --force ../rendered
 
 Two things the jobs do not cover or cannot promise:
 
-- **Four gates have no suite to run.** `comment-gate`, `issue-form-gate`,
-  `output-gate` and `plan-size-gate` ship only their script and README, so
-  neither this repository's root workflows nor `payload-suites` runs a test for
-  them; the drift gate keeps the root copies equal to the payload's. The
-  *Test the gates* step reads the rendered tree, so a `test_*.py` added to one
-  of them runs from its first pull request with no workflow edit.
+- **Four gates have no suite to run here.** `comment-gate`, `issue-form-gate`,
+  `output-gate` and `plan-size-gate` ship only their script and README: their
+  suites (`test_comment_gate.py` and its three siblings) are `local` to
+  blueprint-backend in `targets/blueprint-backend.config.json`, so neither this
+  repository's root workflows nor `payload-suites` runs a test for them, and
+  the drift gate only keeps the root copies equal to the payload's. A suite
+  added to the payload under one of those four names is never rendered, and
+  would make a sync to backend refuse; use another name, or drop the config
+  entry first. Any other `test_*.py` under a payload gate directory runs from
+  its first pull request, as the *Test the gates* step reads the rendered tree.
 - **`payload-suites (macos-latest)` can sit in the runner queue.** Its
   `timeout-minutes` bounds the run, not the wait for a runner, so a leg that
   GitHub cancels from the queue with no step run (seen on #11 and #15) is a
-  runner shortage, not a failure of the change. Rerun that job
-  (`gh run rerun <run id> --failed`); the check is required, so the pull
+  runner shortage, not a failure of the change. Rerun the run's failed
+  jobs (`gh run rerun <run id> --failed`); the check is required, so the pull
   request waits for it.
 
 ## The sync workflow
