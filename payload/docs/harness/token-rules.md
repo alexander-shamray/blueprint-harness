@@ -17,10 +17,10 @@ consequences follow.
 
 - **What loads before the first prompt is a budget, not free.** The
   managed always-loaded part — `.harness/agent-rules.md` and what it
-  imports — is held to the size of the one `CLAUDE.md` it replaced, by
-  the harness's own test, so moving rules out of a target never costs a
-  session more than it did. A target's `CLAUDE.md` keeps only the
-  product, its commands and its own hard rules.
+  imports — is held by the harness's own test under the size backend's
+  `CLAUDE.md` had before the rules moved out of it. That bounds the
+  managed part alone; a target's own `CLAUDE.md` loads beside it, so it
+  keeps only the product, its commands and its own hard rules.
 - **Only a person empties a context.** No tool compacts; `/compact`,
   `/clear` and auto-compaction do, and auto-compaction fires late in a
   large window. So *one task per session*, with `/clear` between tasks,
