@@ -123,8 +123,8 @@ class IssueHelperHasNoFreeParameter(unittest.TestCase):
     def test_a_kind_outside_the_vocabulary_is_refused(self):
         # `documentation` is a real label on this tracker and is refused on
         # purpose: no sweep files one and a wrong statement filed by hand is a
-        # `bug`, so the contract's §6 says the issue vocabulary is wider than the
-        # helper. A near spelling of `enhancement` is refused like any other word.
+        # `bug`, so docs/harness/working-rules.md, *Issues and the task list*,
+        # says the issue vocabulary is wider than the helper. A near spelling of `enhancement` is refused like any other word.
         for kind in ("documentation", "feature", "Enhancement", "enhancements", "Security", "security --force",
                      "-R other/repo", ""):
             with self.subTest(kind=kind):
