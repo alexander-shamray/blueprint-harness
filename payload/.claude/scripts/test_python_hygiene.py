@@ -12,7 +12,7 @@ payload's to fix.
 """
 
 import ast
-import fnmatch
+import importlib.util
 import json
 import tempfile
 import unittest
@@ -23,6 +23,12 @@ TREES = (".claude", ".github")
 SUBPROCESS_CALLS = {"run", "Popen", "check_output", "check_call", "call"}
 SKIPPED_PARTS = {"__pycache__", "worktrees"}
 
+# `local` is matched as the drift gate matches it, which every target is shipped: `**` crosses `/`, `*` does not,
+# and case folds.
+_spec = importlib.util.spec_from_file_location("drift_gate", ROOT / ".github" / "harness-drift" / "drift_gate.py")
+_drift_gate = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_drift_gate)
+
 
 def _local_globs(root: Path) -> tuple[str, ...]:
     config = root / ".harness" / "config.json"
@@ -32,7 +38,7 @@ def _local_globs(root: Path) -> tuple[str, ...]:
 
 
 def _is_local(rel: str, globs: tuple[str, ...]) -> bool:
-    return any(fnmatch.fnmatchcase(rel, glob) for glob in globs)
+    return _drift_gate.is_local(globs, rel)
 
 
 def python_files(root: Path) -> list[Path]:
@@ -133,6 +139,19 @@ class PythonHygiene(unittest.TestCase):
                                                            encoding="utf-8")
             self.assertEqual(offences(root, text_without_encoding), [])
             self.assertEqual(offences(root, bare_bash_argv), [])
+
+    def test_local_matches_as_the_drift_gate_does(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for rel in (".github/mine/deeper/planted.py", ".github/Other/planted.py"):
+                planted = root / rel
+                planted.parent.mkdir(parents=True)
+                planted.write_text("import subprocess\nsubprocess.run(['git'], text=True)\n", encoding="utf-8")
+            (root / ".harness").mkdir()
+            (root / ".harness" / "config.json").write_text(
+                json.dumps({"local": [".github/mine/*", ".github/other/*"]}), encoding="utf-8")
+            # `*` stays inside one segment, so the nested file is still judged; case folds, so `Other` is local.
+            self.assertEqual(offences(root, text_without_encoding), [".github/mine/deeper/planted.py:2"])
 
     def test_a_linked_worktree_is_not_walked(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
