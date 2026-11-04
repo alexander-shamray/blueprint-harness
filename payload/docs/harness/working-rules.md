@@ -123,8 +123,8 @@ keeping the guide's *Comments* rules be reworded, completed or expanded.
 - **A check state is read after the current head's run settles.**
   `gh pr checks <n>` answers for the instant it ran, so a summary built on
   a pending listing claims a state nobody has seen. Wait on it as one
-  background task (`.harness/agent-rules.md`, *A wait wakes once*) and
-  report what it settled to, naming the failing check.
+  background task (`.harness/agent-rules.md`, *Subagents, review rounds
+  and plans*) and report what it settled to, naming the failing check.
 - **A red check is fixed at once**, in its own commit, before anything
   else resumes — waiting on a review included. Fix the gate to match the
   failure only when the gate is what is wrong, and say which direction was
