@@ -175,6 +175,8 @@ class BudgetTests(unittest.TestCase):
         self.assertEqual(loaded_bytes(crlf, self.tmp), loaded_bytes(lf, self.tmp))
 
     def test_agent_rules_is_managed(self) -> None:
+        """The configs this repository holds, the drafts under `targets/` and its own; a config a target already
+        keeps in its own tree is not read here."""
         configs = sorted((ROOT / "targets").glob("*.config.json")) + [ROOT / ".harness" / "config.json"]
         for config in configs:
             data = json.loads(config.read_text(encoding="utf-8"))
