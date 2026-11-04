@@ -129,8 +129,9 @@ reworded, completed or expanded.
 - **A red `main` is reverted first and fixed forward second.** The next
   pull request to land reverts the one that turned `main` red, by
   `git-revert-pr.sh <n>`; the fix forward is a pull request of its own
-  after it. A red run that a rerun turns green is a flake: a comment on
-  the flaky tests tracker, which closes on that green run.
+  after it. A red run that a rerun turns green is a flake: it is a comment
+  on the flaky tests tracker, and an issue filed for the red `main`
+  closes on that green run.
 
 ## Tests and gates
 
