@@ -16,7 +16,7 @@ specification. And a declared pattern needs a test whose subject is where it
 is applied, so the pattern cases are paired with structural cases over the
 call sites, which read the scripts' text and may use `re` to do it.
 
-What the suite needs to run is `docs/testing.md`'s.
+What the suite needs to run is in the testing document `docs/harness-local.md` names.
 """
 
 import os

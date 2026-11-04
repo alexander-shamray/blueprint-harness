@@ -3,9 +3,9 @@
 **The claim: every issue form under `.github/ISSUE_TEMPLATE/` offers exactly
 the vocabularies its owners hold, every choice it offers is a label in this
 repository, and a blank issue is switched off for a filer below write
-access.** Its owners are
-[`docs/change-locality.md`](../../docs/change-locality.md) §6's *issue
-vocabulary* bullet for the kind and the area, and
+access.** Its owners are the *issue vocabulary* bullet of the change
+contract `docs/harness-local.md` *Documents* names, which the gate reads
+through `--contract`, for the kind and the area, and
 [`gh-issue-create.sh`](../../.claude/scripts/gh-issue-create.sh)'s closed
 `case` for the severity.
 
@@ -57,7 +57,7 @@ dropdown with no id or no options, or the same dropdown twice.
 
 ## How it runs
 
-Its suite, then the gate, in the fast job of [`ci.yml`](../workflows/ci.yml),
+Its suite, then the gate, in the fast job of the target's CI workflow,
 which reads the labels with the job's token. Locally:
 
 ```bash
