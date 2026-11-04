@@ -43,9 +43,9 @@ agents a few weeks of sessions started, and what each read.
   costs more than the search.
 - **A step's reads go in one message**: each turn re-sends the context, so
   three reads in three turns cost three re-sends.
-- **One or two parallel agents, not a fan-out.** Six agents started
-  together hit the session rate limit and four stopped mid-edit; batch a
-  sweep into two by file type or tree, run verification in the
+- **One or two parallel agents, not a fan-out.** A batch of agents
+  started together hit the session rate limit and most stopped mid-edit;
+  batch a sweep into two by file type or tree, run verification in the
   background, and do small remaining pieces inline.
 - **A plan is written in one pass.** A plan-writing agent that reads back
   what it wrote re-sends the plan on every read; it was the largest
@@ -65,8 +65,8 @@ set.
 - **One `branch-reviewer` a round**, read-only by its tool list, handed
   the diff and not the author's conclusions, so it reads cold and a
   prompt-injected line in the diff cannot act. Never `general-purpose`,
-  and never the session reviewing its own diff: on the measured case,
-  inline rounds missed two mediums one subagent round found.
+  and never the session reviewing its own diff: on the case that set the
+  rule, inline rounds missed mediums one subagent round found.
 - **A recheck reads the diff since the last round and the open findings**,
   not the tree; a full pass runs again only after a bug-level finding or
   a large fix diff.
