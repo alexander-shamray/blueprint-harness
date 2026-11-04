@@ -195,9 +195,10 @@ only backend has: right in backend, pointing at nothing in a sibling. Plan
 `harness_sync/tests/test_payload_references.py` now holds the payload to
 it: every path a payload file cites, bare or as a link, resolves in the
 payload or is one a target holds itself; every section a citation names is
-a heading of the cited file; no payload file names a command a target
+a heading of the cited file, or for `docs/harness-local.md` one of the four
+the contract fixes; no payload file names a command or a script a target
 config lists under `local`; and none cites a section of `CLAUDE.md`, which
-is each target's own.
+is each target's own, or a change contract's section by number.
 
 What a citation was rewritten to:
 

@@ -52,6 +52,10 @@ _SECTION = re.compile(r"`?((?:\.claude|\.github|\.harness|docs)/[\w./-]+\.md|CLA
 _CLAUDE_SECTION = re.compile(r"`?CLAUDE\.md" + _LINKED + r"[^*]+\*")
 _HEADING = re.compile(r"^#{1,6} (.+?)\s*#*\s*$", re.MULTILINE)
 _STACK_TOKEN = re.compile(r"`([^`\s]+)`")
+# A change contract's section cited by number: backend's sections, which no other target's contract shares.
+_CONTRACT_SECTION = re.compile(r"(?:contract's|the contract) (?:§|section )\d|§\d+'s (?:bullet|kinds|areas)")
+# The headings `docs/harness-boundaries.md` *Managed files* fixes for `docs/harness-local.md`, one bullet each.
+_LOCAL_HEADING = re.compile(r"^- \*([^*]+)\*:", re.MULTILINE)
 # A Markdown link's target, inline or a reference definition, which resolves against the linking file's directory.
 _LINK = re.compile(r"\]\(([^)\s#]+)(?:#[^)\s]*)?\)|^\s*\[[^\]]+\]:\s*<?([^>\s#]+)")
 
@@ -78,7 +82,9 @@ def stack_sites(text: str) -> tuple[set[str], set[tuple[str, int]]]:
         if "/" not in path and last_dir:
             path = last_dir + path
         if path.endswith("/"):
-            dirs.add(path)
+            # A tree under one the payload is laid out in exempts its files; a bare `tools/` or `.claude/` is a name.
+            if path.startswith(("docs/", ".claude/", ".github/", ".harness/")) and path.count("/") > 1:
+                dirs.add(path)
             last_dir = path
             continue
         if "/" in path:
@@ -149,27 +155,66 @@ def _collapsed(path: Path) -> str:
     return " ".join(text.split())
 
 
+def harness_local_headings(payload: Path) -> set[str]:
+    """The four headings every target's `docs/harness-local.md` has, as the payload's contract fixes them."""
+    text = (payload / "docs" / "harness-boundaries.md").read_text(encoding="utf-8")
+    section = text.split("\n## Managed files", 1)[1].split("\n## ", 1)[0]
+    return set(_LOCAL_HEADING.findall(section))
+
+
 def missing_sections(payload: Path) -> list[str]:
     found = []
     for path in payload_files(payload):
         for cited, heading in _SECTION.findall(_collapsed(path)):
             target = payload / cited
-            if not target.is_file():
+            if cited == "docs/harness-local.md":
+                headings = harness_local_headings(payload)
+            elif not target.is_file():
                 continue
-            headings = {" ".join(h.split()) for h in _HEADING.findall(target.read_text(encoding="utf-8"))}
+            else:
+                headings = {" ".join(h.split()) for h in _HEADING.findall(target.read_text(encoding="utf-8"))}
             if heading not in headings:
                 found.append(f"{path.relative_to(payload).as_posix()}: {cited}, *{heading}*")
     return found
 
 
+def _local_globs() -> list[str]:
+    return [glob for config in sorted((ROOT / "targets").glob("*.config.json"))
+            for glob in json.loads(config.read_text(encoding="utf-8")).get("local", [])]
+
+
 def local_commands() -> set[str]:
     names = set()
-    for config in sorted((ROOT / "targets").glob("*.config.json")):
-        for glob in json.loads(config.read_text(encoding="utf-8")).get("local", []):
-            match = re.fullmatch(r"\.claude/commands/([\w-]+)\.md", glob)
-            if match:
-                names.add(match.group(1))
+    for glob in _local_globs():
+        match = re.fullmatch(r"\.claude/commands/([\w-]+)\.md", glob)
+        if match:
+            names.add(match.group(1))
     return names
+
+
+def local_scripts() -> set[str]:
+    """The file names of the scripts a target keeps local, its suites aside: a payload file naming one names nothing."""
+    return {glob.rsplit("/", 1)[1] for glob in _local_globs()
+            if glob.startswith(".claude/scripts/") and "*" not in glob and not glob.rsplit("/", 1)[1].startswith("test_")}
+
+
+def local_scripts_named(payload: Path, names: set[str], import_text: str) -> list[str]:
+    _, sites = stack_sites(import_text)
+    if not names:
+        return []
+    pattern = re.compile(r"(?<![\w.-])(" + "|".join(sorted(map(re.escape, names))) + r")(?![\w-])")
+    found = []
+    for path in payload_files(payload):
+        rel = path.relative_to(payload).as_posix()
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if (rel, number) not in sites:
+                found += [f"{rel}:{number}: {m.group(1)}" for m in pattern.finditer(line)]
+    return found
+
+
+def contract_sections_cited(payload: Path) -> list[str]:
+    return [f"{p.relative_to(payload).as_posix()}: {m.group(0)}"
+            for p in payload_files(payload) for m in _CONTRACT_SECTION.finditer(_collapsed(p))]
 
 
 def local_commands_named(payload: Path, names: set[str]) -> list[str]:
@@ -202,6 +247,20 @@ class PayloadReferences(unittest.TestCase):
 
     def test_claude_md_section_not_cited(self) -> None:
         self.assertEqual(claude_sections_cited(PAYLOAD), [])
+
+    def test_local_script_not_named(self) -> None:
+        names = local_scripts()
+        self.assertIn("mutation-run.sh", names, "the local-script list stopped reading the target configs")
+        self.assertEqual(local_scripts_named(PAYLOAD, names, IMPORT.read_text(encoding="utf-8")), [])
+
+    def test_contract_section_number_not_cited(self) -> None:
+        self.assertEqual(contract_sections_cited(PAYLOAD), [])
+
+    def test_harness_local_headings_are_the_contracts_four(self) -> None:
+        self.assertEqual(harness_local_headings(PAYLOAD), {"Documents", "Ship checks", "Residuals", "Review examples"})
+        own = (ROOT / "docs" / "harness-local.md").read_text(encoding="utf-8").splitlines()
+        held = {line.removeprefix("## ") for line in own if line.startswith("## ")}
+        self.assertEqual(held, harness_local_headings(PAYLOAD), "this repository's own copy has other headings")
 
 
 class PlantedCitations(unittest.TestCase):
@@ -249,6 +308,32 @@ class PlantedCitations(unittest.TestCase):
         ]))
         self.assertEqual(missing_sections(self.payload),
                          [".claude/hooks/guard.py: docs/harness/real.md, *Absent heading*"])
+
+    def test_harness_local_section_is_checked_against_the_contract(self) -> None:
+        self.plant("docs/harness-boundaries.md",
+                   "# Boundaries\n\n## Managed files\n\n- *Documents*: rows.\n- *Ship checks*: checks.\n")
+        self.plant(".claude/commands/ship.md",
+                   "The checks `docs/harness-local.md` *Ship checks* names, not `docs/harness-local.md` *Ship check*.\n")
+        self.assertEqual(missing_sections(self.payload),
+                         [".claude/commands/ship.md: docs/harness-local.md, *Ship check*"])
+
+    def test_stack_site_skips_its_line_and_no_other(self) -> None:
+        self.plant(".claude/commands/pr.md", "Cite `docs/gone.md`.\nCite `docs/gone.md`.\n")
+        self.plant("tools/x.md", "Cite `docs/gone.md`.\n")
+        stack = "## Stack mentions left verbatim\n\n- `.claude/commands/pr.md:2` and `tools/`, backend's.\n"
+        self.assertEqual(unresolved(self.payload, TARGET_HELD, stack),
+                         [".claude/commands/pr.md:1: docs/gone.md", "tools/x.md:1: docs/gone.md"])
+
+    def test_local_script_is_reported_off_a_stack_site(self) -> None:
+        self.plant(".claude/scripts/drop.sh", "# reports mutation-run.sh wrote\n# and dotnet-test.sh\n")
+        stack = "## Stack mentions left verbatim\n\n- `.claude/scripts/drop.sh:2`\n"
+        self.assertEqual(local_scripts_named(self.payload, {"mutation-run.sh", "dotnet-test.sh"}, stack),
+                         [".claude/scripts/drop.sh:1: mutation-run.sh"])
+
+    def test_contract_section_number_is_reported(self) -> None:
+        self.plant(".claude/commands/pr.md", "as the contract's\n\u00a76 asks, and \u00a76's bullet; the spec's \u00a73 is not.\n")
+        self.assertEqual(contract_sections_cited(self.payload),
+                         [".claude/commands/pr.md: contract's \u00a76", ".claude/commands/pr.md: \u00a76's bullet"])
 
     def test_local_command_is_reported_but_not_its_path(self) -> None:
         self.plant(".claude/commands/ship.md", "Run `/validate-blueprint` per docs/commands/validate-blueprint.md.\n")
