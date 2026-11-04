@@ -51,8 +51,8 @@ cited from here, never restated.
   publishes under a lease. Set `git config rerere.enabled true` once per
   clone. `/ship` step 6 merges after its own wait on the checks.
 - **A pull request that is ready merges in the turn that establishes it
-  is ready**: every check settled green, the review ended and no blocking
-  deny left open. Handing a ready pull request back with merge
+  is ready**, a Dependabot one aside, which the owner merges: every check
+  settled green, the review ended and no blocking deny left open. Handing a ready pull request back with merge
   instructions makes the owner a queue step for a decision already made.
 - **A Dependabot pull request is the one exception to the trailer and to
   the class row.** It declares no class and no touch set and carries no
