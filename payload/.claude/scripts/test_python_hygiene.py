@@ -1,7 +1,7 @@
 """Two Windows traps in the Python under `.claude/` and `.github/` of the root it runs in, its `local` paths skipped.
 
-`text=True` with no `encoding=` decodes a child's output as cp1252 here, so an em dash leaves `stdout` `None`, and
-`["bash", ...]` finds System32's WSL launcher before Git's bash; a test sees both shapes, so the test is the rule.
+`text=True` with no `encoding=` decodes a child's output with the locale codec, cp1252 on Windows, so a byte it cannot
+decode leaves `stdout` `None`; `["bash", ...]` finds System32's WSL launcher before Git's bash. The test is the rule.
 """
 
 import ast
