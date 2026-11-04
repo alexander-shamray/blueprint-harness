@@ -58,10 +58,11 @@ when a step behaves unexpectedly.
   it cannot work. Safe: check `echo "$CLAUDE_PROJECT_DIR"` before proposing
   one; put the anchoring in a hook.
 - **Hunks of one file are hard to split across commits**: `git add -p` is
-  interactive, and a session where something refuses `git apply --cached`
-  (a target's own deny, or the auto-mode classifier) has no other route.
-  Safe: group commits by file, and say in the body which change rides
-  along.
+  interactive, and something may refuse `git apply --cached` (a target's
+  own deny, or the auto-mode classifier). Safe: group commits by file and
+  say in the body which change rides along, or write the file down to the
+  hunks the first commit wants, `git add` and commit it, then restore the
+  rest.
 - **A subagent cannot ship from a worktree.** Its working directory is
   pinned to its parent's, so its `EnterWorktree` is refused and the
   edit-target guard refuses its edits in a worktree it is not standing
