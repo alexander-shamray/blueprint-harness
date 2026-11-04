@@ -2839,6 +2839,11 @@ class TheGitArgvGuard(unittest.TestCase):
     def test_a_cacheinfo_mode_taken_from_the_index_is_admitted(self):
         self.assertAdmitted('git update-index --cacheinfo "$mode,$sha,$path"')
 
+    def test_a_literal_mode_for_a_path_the_index_lacks_is_admitted(self):
+        # `git ls-files -s` prints nothing for a new path, so the remedy has no
+        # mode to read; `--add` is what stages one.
+        self.assertAdmitted("git update-index --add --cacheinfo 100644,0123abc,new/path")
+
     def test_a_soft_reset_to_a_remote_tracking_ref_is_refused(self):
         for command in (
             "git reset --soft origin/main",
