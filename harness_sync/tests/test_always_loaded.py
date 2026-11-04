@@ -1,13 +1,14 @@
 """The always-loaded budget: `payload/.harness/agent-rules.md` and every file it imports.
 
-Every target's `CLAUDE.md` imports the rules file, so its bytes, and those of whatever it imports in turn, load
-into every session in every target before the first prompt. The budget is backend's `CLAUDE.md` at `b57b12d24`
-(spec 5.6): the rules may move out of it, but the managed part may not cost a session more than it did.
+Each target's `CLAUDE.md` is to import the rules file (plan 2 adds the line), so its bytes, and those of whatever
+it imports in turn, load into every session in every target before the first prompt. The budget is backend's
+`CLAUDE.md` at `b57b12d24` (spec 5.6): the rules may move out of it, but the managed part may not cost a session
+more than it did.
 
 The resolver follows Claude Code's import rules (code.claude.com/docs/en/memory, *Import additional files*): an
 `@path` resolves against the importing file, an `@` inside a code span or a fenced block is not an import, and a
-chain stops at four hops from `CLAUDE.md`. The rules file is itself `CLAUDE.md`'s import, hop 1, so a file it
-reaches through four more imports is hop 5: refused rather than counted, because no session loads it.
+chain stops at four hops from `CLAUDE.md`. The budget models the rules file as `CLAUDE.md`'s import, hop 1, so a
+file it reaches through four more imports is hop 5: refused rather than counted, because no session loads it.
 """
 
 import json
