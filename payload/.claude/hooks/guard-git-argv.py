@@ -2114,8 +2114,8 @@ UNCHECKED_PUSH = (
 )
 LITERAL_CACHEINFO = (
     "`git update-index --cacheinfo` with a literal mode stages that mode "
-    "whatever the file had, so a hard-coded 100644 drops an executable bit, "
-    "and a Windows checkout never shows it in `git status`. Read the mode with "
+    "whatever the file had, so a hard-coded one drops or adds an executable "
+    "bit, and a Windows checkout never shows it in `git status`. Read the mode with "
     "`git ls-files -s <path>` and pass it through, then expect no `mode change` "
     "line in `git diff --summary origin/main...HEAD`."
 )
@@ -2186,7 +2186,8 @@ def trap_offence(segment):
     if not stripped:
         return None
     subcommand, arguments = stripped[0], stripped[1:]
-    if subcommand == "update-index":
+    # `--add` stages a path the index lacks, which has no mode to read back.
+    if subcommand == "update-index" and "--add" not in arguments:
         for index, element in enumerate(arguments):
             value = None
             if element == "--cacheinfo" and index + 1 < len(arguments):
