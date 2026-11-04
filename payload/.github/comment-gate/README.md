@@ -151,11 +151,11 @@ that a tree is under the rule; CI does not run it.
 
 The `comment-gate` job in
 [`comment-gate.yml`](../workflows/comment-gate.yml), a workflow of its own
-because a label has to start a run of this gate, and in `ci.yml` it would
-start a build and every suite as well. The suite runs the head copy on
-every run; on a pull request, **the gate that judges is read out
-of the base commit**, on the closure gate's design, so a pull request cannot
-loosen the rule it is judged by. A base with no gate directory is judged by
-the head copy under a warning, as the locality gate's bootstrap is, because
-the pull request that lands the gate has no base copy. The testing document
-`docs/harness-local.md` *Documents* names has the local invocation.
+because a label has to start a run of this gate, and in the CI workflow it would
+start a build and every suite as well. The suite runs the head copy on every
+run; on a pull request, **the gate that judges is read out of the base commit**,
+on the closure gate's design, so a pull request cannot loosen the rule it is
+judged by. A base with no gate directory is judged by the head copy under a
+warning, as the locality gate's bootstrap is, because the pull request that
+lands the gate has no base copy. The testing document `docs/harness-local.md`
+*Documents* names has the local invocation.
