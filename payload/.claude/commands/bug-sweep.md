@@ -19,7 +19,7 @@ is not this command's finding.
 | | |
 |---|---|
 | `/security-sweep` | Exploitable weaknesses — injection, secrets, auth, exposure. A defect that is merely *also* noticeable by an attacker stays here; one whose whole significance is that someone hostile can reach it goes there |
-| The checks `docs/harness-local.md` *Ship checks* names | Code disagreeing with the specification, and the specification disagreeing with itself. Drift, not defect |
+| The drift audits `docs/harness-local.md` *Ship checks* names | Code disagreeing with the specification, and the specification disagreeing with itself. Drift, not defect |
 | `/ship`'s review | One branch against `main`. Bounded by a diff, where this is bounded by a commit |
 
 The boundary decides where a *new* finding is filed; overlap is the de-duplicate
