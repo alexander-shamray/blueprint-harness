@@ -18,7 +18,8 @@ tool renders them into each target through an ordinary pull request.
   `.claude/settings.json` is rendered from, and `payload/.harness/render.py`,
   a copy of `harness_sync/render.py` kept identical by a test, and
   `payload/.harness/agent-rules.md`, the working rules each target's
-  `CLAUDE.md` imports, whose always-loaded bytes
+  `CLAUDE.md` is to import (plan 2 adds the line, here and in backend),
+  whose always-loaded bytes
   `harness_sync/tests/test_always_loaded.py` holds to a budget. Not live
   here: the root is rendered from it (see *The rendered root*).
 - `targets/` — each target's draft `.harness/config.json`, kept here until
