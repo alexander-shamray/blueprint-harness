@@ -4,7 +4,8 @@ The working rules every repository on this harness shares. Each target's
 `CLAUDE.md` imports this file on a line of its own, so every session loads
 it before the first prompt; it is managed, and changed only in
 `blueprint-harness`'s `payload/`. This file owns the rules it states, but
-for the two whose owner it cites; the documents under *Where the detail
+for the Edit-not-Write rule and the settings self-lock, which
+`docs/harness-boundaries.md` owns; the documents under *Where the detail
 is* hold their reasons and detail and cite this file for the rule.
 
 ## Hard rules
@@ -34,8 +35,9 @@ is* hold their reasons and detail and cite this file for the rule.
   merges or closes a PR, or files, closes or reopens an issue — from a
   worktree as well.
 - **A managed file is changed in `blueprint-harness`'s `payload/`**, never
-  in the target, `blueprint-harness`'s own rendered root included. Managed means named in `.harness/manifest.json`; the drift gate
-  refuses a managed file that differs from the payload, and the next sync
+  in the target, `blueprint-harness`'s own rendered root included.
+  Managed means named in `.harness/manifest.json`; the drift gate refuses
+  a managed file that differs from the payload, and the next sync
   overwrites it.
 
 ## Subagents, review rounds and plans
