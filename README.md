@@ -13,7 +13,8 @@ tool renders them into each target through an ordinary pull request.
 - `measure/` — the stop counter (`stops.py`) and its tests; `docs/` holds the
   November baseline it produced.
 - `payload/` — the managed files, laid out as a target repository is
-  (`payload/.claude/…`, `payload/docs/commands/…`, `payload/.github/…`),
+  (`payload/.claude/…`, `payload/docs/commands/…`, `payload/docs/harness/…`,
+  `payload/.github/…`),
   plus `payload/.harness/settings.base.json`, which every target's
   `.claude/settings.json` is rendered from, and `payload/.harness/render.py`,
   a copy of `harness_sync/render.py` kept identical by a test, and
@@ -41,7 +42,7 @@ This repository is its own fourth sync target (spec 5.1, *Self-hosting*), and
 its sessions run under the harness it develops.
 
 - **Rendered from `payload/`**: `.claude/**`, `docs/commands/**`,
-  `docs/harness-boundaries.md`, the managed files under `.github/` (the gate
+  `docs/harness/**`, `docs/harness-boundaries.md`, the managed files under `.github/` (the gate
   directories, `ISSUE_TEMPLATE/`, and the `closure-gate`, `commit-gate` and
   `harness-drift` workflows), `.harness/render.py`,
   `.harness/settings.base.json`, `.harness/agent-rules.md` and
