@@ -16,8 +16,11 @@ tool renders them into each target through an ordinary pull request.
   (`payload/.claude/…`, `payload/docs/commands/…`, `payload/.github/…`),
   plus `payload/.harness/settings.base.json`, which every target's
   `.claude/settings.json` is rendered from, and `payload/.harness/render.py`,
-  a copy of `harness_sync/render.py` kept identical by a test. Not live here:
-  the root is rendered from it (see *The rendered root*).
+  a copy of `harness_sync/render.py` kept identical by a test, and
+  `payload/.harness/agent-rules.md`, the working rules each target's
+  `CLAUDE.md` imports, whose always-loaded bytes
+  `harness_sync/tests/test_always_loaded.py` holds to a budget. Not live
+  here: the root is rendered from it (see *The rendered root*).
 - `targets/` — each target's draft `.harness/config.json`, kept here until
   the target holds its own.
 - `.harness/config.json` — this repository's own sync config; the reason it
@@ -40,7 +43,8 @@ its sessions run under the harness it develops.
   `docs/harness-boundaries.md`, the managed files under `.github/` (the gate
   directories, `ISSUE_TEMPLATE/`, and the `closure-gate`, `commit-gate` and
   `harness-drift` workflows), `.harness/render.py`,
-  `.harness/settings.base.json` and `.harness/manifest.json`.
+  `.harness/settings.base.json`, `.harness/agent-rules.md` and
+  `.harness/manifest.json`.
   `.harness/config.json` is the one input written by hand.
 - **Its own**: `payload/**`, `harness_sync/**`, `measure/**`, `targets/`,
   the rest of `docs/`, `IMPORT.md`, `README.md`, `.github/workflows/ci.yml`,
