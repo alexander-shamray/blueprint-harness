@@ -735,8 +735,10 @@ threat model* above is scoped to, and its criterion 3 holds for them as for
 any check, so a false refusal by one is filed. A
 `git push` whose output is piped and whose pipeline is then chained by `&&`
 or `||` with no `set -o pipefail` first runs what follows on a failed push;
-`git update-index --cacheinfo` with a literal mode, on a path the index
-already holds, drops or adds an executable bit unseen on Windows; and
+`git update-index --cacheinfo` with a literal mode drops or adds an
+executable bit unseen on Windows, refused unless the command carries
+`--add`, which stages a path the index lacks and is admitted because the
+guard cannot see whether the index holds the path; and
 `git reset --soft` to a remote-tracking ref recommits over whatever another
 session's fetch moved in. Each is refused
 because the guard can see it from the command's text, and each message names
