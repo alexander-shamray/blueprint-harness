@@ -14,9 +14,11 @@ files*; this file is the repository's own and no sync writes it.
 | Product specification | none |
 | Roadmap | none |
 | Closed records | none |
+| Measurements | none |
 
 This repository's plans and specs live in `blueprint-backend`'s
-`docs/superpowers/`, so it keeps no roadmap of its own.
+`docs/superpowers/`, so it keeps no roadmap of its own, and the token
+figures behind `docs/harness/token-rules.md` are backend's measurements.
 
 ## Ship checks
 
