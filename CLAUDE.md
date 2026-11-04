@@ -6,10 +6,8 @@ once and rendered into each target by an ordinary sync pull request. This
 repository is its own sync target too, so its sessions run under the
 harness it develops.
 
-- **`payload/`** is the harness, laid out as a target is. Every change to a
-  managed file is made here, never at the root: the root copies under
-  `.claude/`, `docs/commands/`, `docs/harness/`, `.github/` and `.harness/`
-  are rendered from it and reach `main` only through a sync pull request.
+- **`payload/`** is the harness, laid out as a target is; `README.md`'s
+  *The rendered root* says which root files are rendered from it.
 - **`harness_sync/`** is the sync tool, Python 3.12 standard library only,
   and its suites; **`measure/`** the stop counter; **`targets/`** each
   target's draft config.
