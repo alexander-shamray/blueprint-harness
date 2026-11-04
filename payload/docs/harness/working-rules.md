@@ -52,8 +52,9 @@ cited from here, never restated.
   clone. `/ship` step 6 merges after its own wait on the checks.
 - **A pull request that is ready merges in the turn that establishes it
   is ready**, a Dependabot one aside, which the owner merges: every check
-  settled green, the review ended and no blocking deny left open. Handing a ready pull request back with merge
-  instructions makes the owner a queue step for a decision already made.
+  settled green, the review ended and no blocking deny left open.
+  Handing a ready pull request back with merge instructions makes the
+  owner a queue step for a decision already made.
 - **A Dependabot pull request is the one exception to the trailer and to
   the class row.** It declares no class and no touch set and carries no
   `PR:` trailer, so the gates that read them skip it, and a skipped job
