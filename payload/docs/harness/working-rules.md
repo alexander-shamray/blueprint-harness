@@ -85,10 +85,11 @@ cited from here, never restated.
   request's own commits before committing, not only the clause flagged:
   a rewrite that keeps a clause the last fix qualified is the next round's
   finding.
-- **The reviewer reads only what it is handed.** Its profile holds no
-  shell and may be refused paths under `.claude/`, so a criteria or method
-  file it needs is written out in full under `artifacts/review/`, never as
-  a pointer to the file; a round that tolerated a pointer was luck.
+- **A criteria or method file the reviewer must apply is written out in
+  full** under `artifacts/review/`, never as a pointer to the file: its
+  profile holds no shell and paths under `.claude/` may be refused it, so
+  it cannot be relied on to reach the original; a round that tolerated a
+  pointer was luck.
 - **A reply is not a resolution.** Resolve a review thread in the same act
   as the reply, and leave an `Ask` open on purpose.
 - **A CodeQL alert is a defect in the pull request that raised it, and it
