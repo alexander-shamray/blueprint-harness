@@ -438,7 +438,8 @@ holds to the end of the turn (`docs/harness-boundaries.md`). `/ship` runs the
 whole chain in one turn, so a run that invoked it could make no code fix in a
 later review round, and would have to stop or route round the deny. The step
 spawns the passes *Ship checks* names, as `general-purpose` agents told to
-edit nothing, and reads their JSON as step 5 reads a finding. That is the
+edit nothing and handed the scope and method it gives each, and reads their
+JSON as step 5 reads a finding. That is the
 brief's guarantee and not the tool list's; the denies stay on the command for
 a person who invokes it alone.
 
