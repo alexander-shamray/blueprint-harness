@@ -3,19 +3,21 @@
 The working rules every repository on this harness shares. Each target's
 `CLAUDE.md` imports this file on a line of its own, so every session loads
 it before the first prompt; it is managed, and changed only in
-`blueprint-harness`'s `payload/`. This file owns the rules it states; the
-documents under *Where the detail is* hold their reasons and detail and
-cite this file for the rule.
+`blueprint-harness`'s `payload/`. This file owns the rules it states, but
+for the two whose owner it cites; the documents under *Where the detail
+is* hold their reasons and detail and cite this file for the rule.
 
 ## Hard rules
 
 - **`py -3.12`, not `python`**: CI pins 3.12 and the local default is
   newer.
 - **File permission rules take `Edit(...)`, never `Write(...)`**: a
-  `Write(path)` rule matches nothing and stops Claude Code from starting.
+  `Write(path)` rule matches nothing and stops Claude Code from starting
+  (`docs/harness-boundaries.md`, *Edit denies and agent self-protection*).
 - **`.claude/settings.json` self-locks, not instantaneously**: a change to
   it lands complete and goes last, and a restore is verified by reading
-  the file.
+  the file (`docs/harness-boundaries.md`, *Settings self-lock and
+  permission root*).
 - **A gate with a suite is tested and then run**: a green build says
   nothing about a gate the build does not run.
 - **A gate that silently stops covering the newest surface is the
