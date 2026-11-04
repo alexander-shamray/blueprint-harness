@@ -49,16 +49,17 @@ loads*).
   question it needs and returns a short structured answer — findings as
   `file:line`, not prose. `Explore` before `general-purpose` for a search;
   nothing is delegated that one `Grep` answers; a step's reads go in one
-  message (*Briefing a subagent*).
+  message (`docs/harness/token-rules.md`, *Briefing a subagent*).
 - **Choose the model by who catches its error.** A subagent runs on a
   cheaper model where the parent, a gate, a build or a test catches its
   error, and on the parent's, or the stronger model its profile pins,
-  where an error is a silent miss (*Which model a subagent runs on*).
+  where an error is a silent miss (`docs/harness/token-rules.md`,
+  *Which model a subagent runs on*).
 - **The review loop** is `/ship` step 5's, and a PR reviewed outside
   `/ship` runs it too: rounds of one `branch-reviewer` each, read-only by
   its tool list, handed the diff under `artifacts/review/` and not the
   author's conclusions — never `general-purpose`, and never the session
-  reviewing its own diff (*Reviewers*).
+  reviewing its own diff (`docs/harness/token-rules.md`, *Reviewers*).
 - **Plans.** A change that fits one PR takes plan mode, not a plan file. A
   plan file cites code by path and symbol rather than pasting it and stays
   under 50 KB; research for it goes to `Explore` with a brief, and the
@@ -70,7 +71,8 @@ loads*).
 - **A wait wakes once.** A session about to wait on CI, a background agent
   or a scheduled check-in runs it as one background task whose exit is
   the only wake. Never hand a wait to a subagent: its Bash is cut at 180
-  seconds and its own background task wakes nobody (*Waits*).
+  seconds and its own background task wakes nobody
+  (`docs/harness/token-rules.md`, *Waits*).
 - **A comment sweep** hands each agent what `.github/comment-gate/` finds
   in its files with `--tree`, not whole suites to read.
 - **One task per session**: `/clear` between tasks.
