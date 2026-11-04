@@ -544,7 +544,7 @@ misses what the fix broke.
 - **The seventh round is the ceiling**, and what holds and stays open is
   filed rather than reviewed again. A prose finding is filed as `bug`,
   since the helper's vocabulary stops there (`docs/harness/working-rules.md`,
-*Issues and the task list*).
+  *Issues and the task list*).
   The report says the review ended on its ceiling rather than clean, and
   names the issues.
 
