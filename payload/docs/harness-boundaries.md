@@ -729,6 +729,19 @@ no crude check reads git's options or sees a name that case, a glob or an
 expansion builds. The cost is a rephrased command where bash would have run
 one `shlex` cannot read.
 
+**Three refusals are traps, not attacks**, and sit outside the threat model
+below: the command does what it says, and what it says loses work. A
+`git push` whose output is piped and whose pipeline is then chained by `&&`
+or `||` with no `set -o pipefail` first runs what follows on a failed push;
+`git update-index --cacheinfo` with a literal mode drops a file's executable
+bit unseen on Windows; and `git reset --soft` to a remote-tracking ref
+recommits over whatever another session's fetch moved in. Each is refused
+because the guard can see it from the command's text, and each message names
+the form that works, so the remedy arrives at the refusal rather than in a
+memory (`docs/harness/pitfalls.md` holds the traps no guard can see). The
+refusal of a heredoc handed to a shell names the same kind of remedy: a
+script's input goes through `< <path>`, written with `Write`.
+
 ## The ext transport and pinned grants
 
 **The `::` in a value collides with the `:*` suffix syntax, and the collision
