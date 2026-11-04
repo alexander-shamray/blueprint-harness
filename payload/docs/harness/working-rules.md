@@ -104,8 +104,10 @@ produces (`docs/harness-local.md` *Review examples*):
 1. **Incomplete reconciliation**: a rule or fix this change states that
    the corpus still violates in the same change set.
 2. **A file outside the declared touch set**, resolved as the change
-   contract `docs/harness-local.md` *Documents* names says — by a narrower
-   diff or a different class, never by a row widened silently. Where the
+   contract `docs/harness-local.md` *Documents* names says — a file
+   outside the class's own trees by a narrower diff or a different class,
+   any other by the contract's own route — never by a row widened
+   silently. Where the
    target has no contract, or its locality check prints nothing or cannot
    run, say so and skip; never infer a class.
 
