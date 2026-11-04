@@ -19,10 +19,10 @@ tool renders them into each target through an ordinary pull request.
   `.claude/settings.json` is rendered from, and `payload/.harness/render.py`,
   a copy of `harness_sync/render.py` kept identical by a test, and
   `payload/.harness/agent-rules.md`, the working rules each target's
-  `CLAUDE.md` is to import (plan 2 adds the line, here and in backend),
-  whose always-loaded bytes
-  `harness_sync/tests/test_always_loaded.py` holds to a budget. Not live
-  here: the root is rendered from it (see *The rendered root*).
+  `CLAUDE.md` is to import (this repository's root `CLAUDE.md` does; backend's
+  gains the line in plan 2), whose always-loaded bytes
+  `harness_sync/tests/test_always_loaded.py` holds to a budget. Not live here:
+  the root is rendered from it (see *The rendered root*).
 - `targets/` — each target's draft `.harness/config.json`, kept here until
   the target holds its own.
 - `.harness/config.json` — this repository's own sync config; the reason it
@@ -48,9 +48,10 @@ its sessions run under the harness it develops.
   `.harness/settings.base.json`, `.harness/agent-rules.md` and
   `.harness/manifest.json`.
   `.harness/config.json` is the one input written by hand.
-- **Its own**: `payload/**`, `harness_sync/**`, `measure/**`, `targets/`,
-  the rest of `docs/`, `IMPORT.md`, `README.md`, `.github/workflows/ci.yml`,
-  `.github/workflows/sync.yml`, `.gitattributes` and `.gitignore`.
+- **Its own**: `payload/**`, `harness_sync/**`, `measure/**`, `targets/`, the
+  rest of `docs/`, `CLAUDE.md`, `IMPORT.md`, `README.md`,
+  `.github/workflows/ci.yml`, `.github/workflows/sync.yml`, `.gitattributes` and
+  `.gitignore`.
 - **Change a harness file under `payload/`**, never at the root. The root copy
   reaches `main` only through a sync pull request (`py -3.12 -m harness_sync
   apply --payload payload --target . --commit <main sha>`), never as a direct
