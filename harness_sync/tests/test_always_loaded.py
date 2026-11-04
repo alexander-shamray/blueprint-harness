@@ -45,6 +45,8 @@ def imports(path: Path, root: Path) -> list[Path]:
     fence: str | None = None
     for line in _lf_text(path).split("\n"):
         opener = _FENCE.match(line)
+        if opener and opener.group(1)[0] == "`" and "`" in line[opener.end():]:
+            opener = None  # CommonMark: a backtick fence's info string holds no backtick
         if fence is not None:
             if opener and opener.group(1)[0] == fence[0] and len(opener.group(1)) >= len(fence):
                 fence = None
@@ -52,7 +54,7 @@ def imports(path: Path, root: Path) -> list[Path]:
         if opener:
             fence = opener.group(1)
             continue
-        for match in _IMPORT.finditer(_CODE_SPAN.sub("", line)):
+        for match in _IMPORT.finditer(_CODE_SPAN.sub(" ", line)):
             target = (path.parent / match.group(1)).resolve()
             if not target.is_relative_to(root.resolve()):
                 raise ImportError_(f"{path}: @{match.group(1)} resolves outside {root}")
@@ -111,6 +113,16 @@ class BudgetTests(unittest.TestCase):
         rules = self.write("rules.md", text)
         self.assertEqual(imports(rules, self.tmp), [])
         self.assertEqual(loaded_bytes(rules, self.tmp), len(text.encode("utf-8")))
+
+    def test_import_right_after_code_span_counted(self) -> None:
+        self.write("a.md", "a")
+        rules = self.write("rules.md", "see `x`@a.md\n")
+        self.assertEqual(imports(rules, self.tmp), [(self.tmp / "a.md").resolve()])
+
+    def test_backtick_run_with_backtick_info_is_not_a_fence(self) -> None:
+        self.write("a.md", "a")
+        rules = self.write("rules.md", "``` `x` ```\n@a.md\n")
+        self.assertEqual(imports(rules, self.tmp), [(self.tmp / "a.md").resolve()])
 
     def test_email_is_not_an_import(self) -> None:
         rules = self.write("rules.md", "noreply@anthropic.com\n")
