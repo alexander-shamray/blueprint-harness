@@ -6,7 +6,8 @@ into every session in every target before the first prompt. The budget is backen
 
 The resolver follows Claude Code's import rules (code.claude.com/docs/en/memory, *Import additional files*): an
 `@path` resolves against the importing file, an `@` inside a code span or a fenced block is not an import, and a
-chain stops at four hops. A fifth hop is refused rather than counted, because no session loads it.
+chain stops at four hops from `CLAUDE.md`. The rules file is itself `CLAUDE.md`'s import, hop 1, so a file it
+reaches through four more imports is hop 5: refused rather than counted, because no session loads it.
 """
 
 import json
@@ -62,12 +63,12 @@ def imports(path: Path, root: Path) -> list[Path]:
 
 
 def loaded_bytes(path: Path, root: Path) -> int:
-    """LF bytes of `path` and every file it imports, each counted once. A file reached only at a fifth hop
-    raises, naming it."""
+    """LF bytes of `path`, a file `CLAUDE.md` imports, and every file it imports, each counted once. `path` is
+    hop 1; a file reached only at hop 5 raises, naming it."""
     seen: set[Path] = set()
     total = 0
     frontier = [path.resolve()]
-    for hop in range(MAX_HOPS + 2):
+    for hop in range(1, MAX_HOPS + 2):
         following: list[Path] = []
         for current in frontier:
             if current in seen:
@@ -122,20 +123,21 @@ class BudgetTests(unittest.TestCase):
         self.assertEqual(loaded_bytes(rules, self.tmp), len("@a/c.md\n") + len("@b.md\n") + 1)
 
     def test_import_depth_over_four_refused(self) -> None:
-        names = [f"f{i}.md" for i in range(6)]
+        # f1.md is CLAUDE.md's import, hop 1, so f5.md is the fifth hop.
+        names = [f"f{i}.md" for i in range(1, 6)]
         for here, there in zip(names, names[1:]):
             self.write(here, f"@{there}\n")
         self.write(names[-1], "end\n")
         with self.assertRaises(ImportError_) as ctx:
             loaded_bytes(self.tmp / names[0], self.tmp)
-        self.assertIn(names[5], str(ctx.exception))
+        self.assertIn("f5.md", str(ctx.exception))
 
     def test_import_depth_of_four_counted(self) -> None:
-        names = [f"f{i}.md" for i in range(5)]
+        names = [f"f{i}.md" for i in range(1, 5)]
         for here, there in zip(names, names[1:]):
             self.write(here, f"@{there}\n")
         self.write(names[-1], "end\n")
-        self.assertEqual(loaded_bytes(self.tmp / names[0], self.tmp), 4 * len("@f1.md\n") + len("end\n"))
+        self.assertEqual(loaded_bytes(self.tmp / names[0], self.tmp), 3 * len("@f2.md\n") + len("end\n"))
 
     def test_import_outside_root_refused(self) -> None:
         inner = self.tmp / "inner"
