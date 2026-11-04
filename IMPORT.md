@@ -198,7 +198,8 @@ payload or is one a target holds itself; every section a citation names is
 a heading of the cited file, or for `docs/harness-local.md` one of the four
 the contract fixes; no payload file names a command or a script a target
 config lists under `local`; and none cites a section of `CLAUDE.md`, which
-is each target's own, or a change contract's section by number.
+is each target's own, or a change contract's section by number. The checks
+read the payload's files but its suites, whose paths are fixtures.
 
 What a citation was rewritten to:
 
@@ -226,8 +227,8 @@ in every repository; `.github/locality-gate/classes.yml`, the class map a
 target with a change contract holds as its own; the example paths the
 boundaries and the edit guard invent to show a case; and the sites
 *Stack mentions left verbatim* lists. `issue_form_gate.py` still defaults
-`--contract` to `docs/change-locality.md`, a code default and not a
-citation.
+`--contract` to `docs/change-locality.md` and prints its findings against
+that file's "section 6": the gate's code, left to #7 with its parser.
 
 ## Decided after review
 
