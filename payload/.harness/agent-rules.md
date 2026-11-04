@@ -33,8 +33,8 @@ is* hold their reasons and detail and cite this file for the rule.
   checkout. It is updated the moment a session starts a branch, opens,
   merges or closes a PR, or files, closes or reopens an issue — from a
   worktree as well.
-- **A managed file is changed in `blueprint-harness`**, never in the
-  target. Managed means named in `.harness/manifest.json`; the drift gate
+- **A managed file is changed in `blueprint-harness`'s `payload/`**, never
+  in the target, `blueprint-harness`'s own rendered root included. Managed means named in `.harness/manifest.json`; the drift gate
   refuses a managed file that differs from the payload, and the next sync
   overwrites it.
 
