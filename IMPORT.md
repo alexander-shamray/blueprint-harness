@@ -154,18 +154,18 @@ Payload files that name a backend stack value in prose or in a step, kept as
 backend has them because the config schema has no key for a stack command and
 backend's sync diff should be empty (spec 7, step 2). Each needs a config key
 or a rewording before the first sibling's sync (spec 7, step 3). This
-section and the next are an inventory only: the payload text stays as backend
-has it. Both were found by grepping `payload/` for `dotnet`, `Platform.slnx`,
-each backend-local command's name and each backend-only document's path, and
-every line number was read back from the file.
+section is an inventory only: the payload text stays as backend has it. It
+was found by grepping `payload/` for `dotnet`, `Platform.slnx`, each
+backend-local command's name and each backend-only document's path, and every
+line number was read back from the file.
 
 - `.claude/commands/bug-sweep.md:108`, `.claude/commands/security-sweep.md:52`
   — the readable-root proof globs `$work/Platform.slnx`; its argument in the
   runbooks, `docs/commands/bug-sweep.md:218,260,287-288,328` and
   `docs/commands/security-sweep.md:75,117,144-145,168`.
-- `.claude/commands/pr.md:149-150` — "once `Platform.slnx` exists, state the
+- `.claude/commands/pr.md:150-151` — "once `Platform.slnx` exists, state the
   `dotnet build` / `dotnet test` result".
-- `.claude/commands/style-pass.md:98` — `dotnet format` and Roslyn as the
+- `.claude/commands/style-pass.md:99` — `dotnet format` and Roslyn as the
   formatter.
 - `docs/commands/branch.md:239` — "`dotnet test` … runs there";
   `docs/commands/bug-sweep.md:90` — "`dotnet test`" as what a build runs.
@@ -177,7 +177,7 @@ every line number was read back from the file.
   description names `src/`, `tests/`, `tools/`, `deploy/`;
   `.claude/scripts/dispatch_run.py:27` — cites
   `tools/quality-sets/quality_sets.py` as the owner of four counts.
-- `docs/harness-boundaries.md:24,1124,1164-1180,1395,1444-1445` — `dotnet`
+- `docs/harness-boundaries.md:24,1126,1166-1182,1397` — `dotnet`
   and `Platform.slnx`; spec 5.2 splits this document into common boundaries
   and backend's residuals.
 - Test fixtures that use a `dotnet` command line as a sample string
@@ -187,70 +187,44 @@ every line number was read back from the file.
 
 ## References to backend-local commands and documents
 
-Payload files that name a command backend keeps local, or cite a document
-only backend has. Right in backend; in another target each points at nothing
-until that target has its own or the reference is reworded.
+The payload was taken naming commands backend keeps local and documents
+only backend has: right in backend, pointing at nothing in a sibling. Plan
+2 Task 4 rewrote each, and
+`harness_sync/tests/test_payload_references.py` now holds the payload to
+it: every path a payload file cites, bare or as a link, resolves in the
+payload or is one a target holds itself; every section a citation names is
+a heading of the cited file; no payload file names a command a target
+config lists under `local`; and none cites a section of `CLAUDE.md`, which
+is each target's own.
 
-Backend-local commands:
+What a citation was rewritten to:
 
-- `.claude/commands/ship.md:257-259,303` — `/validate-blueprint` after Class
-  C and `/check-links` (with `docs/change-locality.md` §5).
-- `.claude/commands/pr.md:102` — `/review-branch`; `pr.md:157` —
-  `/validate-blueprint` and `/check-links`.
-- `.claude/commands/bug-sweep.md:22-23` — `/validate-blueprint`,
-  `/review-branch` in the table of neighbouring commands.
-- `.claude/agents/branch-reviewer.md:42` — takes its bar from
-  `.claude/commands/review-branch.md`'s *What counts as a finding*.
-- `docs/commands/ship.md:427-428,442,468` — `/check-links`,
-  `/validate-blueprint` and its runbook `docs/commands/validate-blueprint.md`.
-- `.claude/scripts/git-worktree-drop.sh:50` — a comment naming
-  `mutation-run.sh`'s reports.
-- `docs/harness-boundaries.md:24,79-81,901,1164-1185,1434-1447` —
-  `/review-branch`, `/check-links`, `/validate-blueprint`, `/mutation-sweep`,
-  `dotnet-test.sh`, `mutation-run.sh`.
+| It cited | It cites now |
+|---|---|
+| A section of backend's `CLAUDE.md` | The `.harness/agent-rules.md` or `docs/harness/` section now holding the rule |
+| `docs/change-locality.md` §6 | `docs/harness/working-rules.md`'s section for the rule |
+| §5, the classes, the touch set | The change contract `docs/harness-local.md` *Documents* names |
+| `docs/token-plan.md` | `docs/harness/token-rules.md`'s section |
+| `/validate-blueprint`, `/check-links`, `docs/roadmap.md`, `docs/backend-architecture/` | The checks `docs/harness-local.md` *Ship checks* names, or the product specification *Documents* names |
+| `/review-branch` and its *What counts as a finding* | `/ship`'s review; working-rules' *What counts as a finding* and harness-local's *Review examples* |
+| `docs/style-guide.md`, `docs/testing.md` | The style guide or testing document *Documents* names |
+| `docs/pr-decision-log.md`, `docs/lessons.md` | The closed records *Documents* names; `sweep-slices.sh`'s `case` arm keeps the two paths, which match nothing where they are absent |
+| `ci.yml`, `docs/churn-plan*.md`, a backend ADR, `docs/token-usage.md` | The target's CI workflow, its own comment sweeps, the step described, backend's measurement by date |
 
-Backend-only documents:
+`docs/harness-boundaries.md` lost the two passages only backend's commands
+make true, the callout on what `/check-links` and `/validate-blueprint`
+read and the `/mutation-sweep` paragraph; backend's plan 2 Task 6 carries
+them to backend's own residuals. Its *Managed files* states the
+`docs/harness-local.md` contract, and this repository's own copy is
+`docs/harness-local.md`.
 
-- `docs/change-locality.md` — `.claude/commands/bug-sweep.md:249`,
-  `commit.md:77`, `dispatch.md:118`, `pr.md:86`, `security-sweep.md:199`,
-  `ship.md:257,272,388`, `team.md:90`; `.claude/scripts/gh-issue-create.sh:18`;
-  `.github/issue-form-gate/README.md:7` (and `issue_form_gate.py`'s default
-  contract); `docs/commands/bug-sweep.md:696`, `security-sweep.md:505`,
-  `ship.md:446,546`, `team.md:18,106`.
-- `docs/testing.md` — `.claude/commands/ship.md:259`;
-  `.claude/scripts/review_helpers.py:19`;
-  `.claude/skills/codebase-index/SKILL.md:12`;
-  `.github/closure-gate/closure_gate.py:4`, `closure-gate/README.md:59`,
-  `comment-gate/README.md:162`, `commit-gate/README.md:32`,
-  `output-gate/README.md:38`; `docs/harness-boundaries.md:809`.
-- `docs/roadmap.md` — `.claude/commands/ship.md:259`.
-- `docs/style-guide.md` — `.claude/agents/branch-reviewer.md:46`;
-  `.claude/commands/style-pass.md:2,23,73,86,122`;
-  `.github/comment-gate/README.md:10`. (Each target has a style guide of its
-  own by spec 3; the cited sections are backend's.)
-- `docs/backend-architecture/` — `.claude/commands/ship.md:261`,
-  `style-pass.md:30`; `.claude/skills/codebase-index/SKILL.md:53`;
-  `.github/output-gate/README.md:5`, `workflow-lint/README.md:41`;
-  `docs/commands/ship.md:427`; `docs/harness-boundaries.md:79`.
-- `docs/token-plan.md` — `.claude/commands/team.md:33`;
-  `docs/commands/ship.md:729`, `team.md:28,90`;
-  `docs/harness-boundaries.md:498`.
-- `docs/superpowers/` (backend's plans and specs) —
-  `.claude/agents/branch-reviewer.md:37`; `.claude/commands/ship.md:110`;
-  `.claude/scripts/sweep-slices.sh:116`; `.github/comment-gate/README.md:97`,
-  `comment_gate.py:26,29`; `.github/plan-size-gate/README.md:3` (and
-  `plan_size_gate.py`'s default directory); `docs/commands/bug-sweep.md:616`,
-  `dispatch.md:6`, `security-sweep.md:435`, `ship.md:108,939`;
-  `docs/harness-boundaries.md:1453,1472,1502`.
-- Sections of backend's `CLAUDE.md` (spec 5.2 splits it) —
-  `.claude/agents/branch-reviewer.md:3`; `.claude/commands/branch.md:71,83`,
-  `bug-sweep.md:190`, `commit.md:27`, `style-pass.md:24,81,123`;
-  `.claude/hooks/index-search-hint.py:438`;
-  `.claude/scripts/sweep-slices.sh:113`;
-  `.github/comment-gate/comment_gate.py:27`;
-  `.github/plan-size-gate/README.md:4,25`, `plan_size_gate.py:2,20,24`;
-  `docs/commands/branch.md:39-40,141`, `dispatch.md:175`,
-  `ship.md:729,990`; `docs/harness-boundaries.md:10,35,46,51,53,69,83,305,808`.
+Left as they were: `docs/superpowers/`, the superpowers plugin's directory
+in every repository; `.github/locality-gate/classes.yml`, the class map a
+target with a change contract holds as its own; the example paths the
+boundaries and the edit guard invent to show a case; and the sites
+*Stack mentions left verbatim* lists. `issue_form_gate.py` still defaults
+`--contract` to `docs/change-locality.md`, a code default and not a
+citation.
 
 ## Decided after review
 
