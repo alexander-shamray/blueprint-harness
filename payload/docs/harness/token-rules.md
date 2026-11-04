@@ -1,8 +1,9 @@
 # Token rules
 
 Why `.harness/agent-rules.md`, *Subagents, review rounds and plans*, says
-what it says. That section owns each rule; this file owns its reason and
-the measure it rests on, and which subagent task runs on which model. Every
+what it says. That section owns each rule it states; this file owns its
+reason and the measure it rests on, the one rule on parallel agents that
+section does not state, and which subagent task runs on which model. Every
 figure behind a reason is in the target's own measurements, named in its
 `docs/harness-local.md` *Documents*; none is copied here, so a remeasure
 changes one file.
@@ -43,10 +44,13 @@ agents a few weeks of sessions started, and what each read.
   costs more than the search.
 - **A step's reads go in one message**: each turn re-sends the context, so
   three reads in three turns cost three re-sends.
-- **One or two parallel agents, not a fan-out.** A batch of agents
-  started together hit the session rate limit and most stopped mid-edit;
-  batch a sweep into two by file type or tree, run verification in the
-  background, and do small remaining pieces inline.
+- **One or two parallel agents for work a session hands out itself, not
+  a fan-out.** A batch of agents started together hit the session rate
+  limit and most stopped mid-edit; batch such work into two by file type
+  or tree, run verification in the background, and do small remaining
+  pieces inline. A command that fans out by design — a sweep's areas,
+  `/team`'s peers — sets its own count. This rule has no line in
+  `agent-rules.md`; this file owns it.
 - **A plan is written in one pass.** A plan-writing agent that reads back
   what it wrote re-sends the plan on every read; it was the largest
   subagent cost the measure found. Hand it the spec and the symbols it
