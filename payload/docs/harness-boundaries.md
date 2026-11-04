@@ -7,7 +7,7 @@ the whole is about 20k. `Grep -n "^## <title>"` gives its first line.
 
 | Section | What it covers |
 |---|---|
-| Purpose and provenance of this file | Why the section left CLAUDE.md, the four edits made in the move, and the scope-drift callouts. |
+| Purpose and provenance of this file | Why the section left backend's CLAUDE.md, the four edits made in the move, and the two passages since moved to backend's residuals. |
 | Edit denies and agent self-protection | Edit-only file rules, the denied .claude trees, and why the skill and index-wrapper grants need guarding. |
 | Index refresh and worktree seeding | The PostToolUse refresh hook, seeding worktree indexes, carrying MCP approval into forks, and the SessionStart refresh. |
 | Index hint hooks and hook wiring | Query, search and MCP-root hooks, MCP_TIMEOUT, and why hook commands run without a shell. |
