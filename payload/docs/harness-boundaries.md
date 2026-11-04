@@ -1548,7 +1548,8 @@ headings, fixed so a citation of one lands in every target:
 - *Documents*: one row per role, each a path in the repository or `none` —
   the change contract (the classes, the touch set and their class map), the
   style guide, the testing document, the product specification, the
-  roadmap, and the closed records a reviewer greps rather than reads.
+  roadmap, the closed records a reviewer greps rather than reads, and the
+  measurements `docs/harness/token-rules.md`'s reasons rest on.
 - *Ship checks*: the checks `/ship` step 2 runs here, each with the change
   that selects it and the passes it dispatches, or `none`.
 - *Residuals*: what this file's arguments leave open only in this
