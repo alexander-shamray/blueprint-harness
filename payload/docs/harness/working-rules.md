@@ -76,9 +76,10 @@ cited from here, never restated.
   code; none reads a sentence for meaning, so a specification change can
   be green everywhere and contradict its peers. The review is what reads
   it.
-- **A round's prompt states the bar** from round 1: a statement the code
-  contradicts, or "all" where only some hold, is a finding; incomplete but
-  true is not (*What counts as a finding*). A reviewer not told so reports
+- **A round's prompt states the bar** from round 1, as *What counts as a
+  finding* words it: a statement untrue of the system — the code
+  contradicts it, or it says "all" where only some hold — is a finding;
+  one incomplete but true is not. A reviewer not told so reports
   every omission, and each fix adds text to review.
 - **A rule paragraph a fix rewrites is re-read whole** against the pull
   request's own commits before committing, not only the clause flagged:
@@ -111,10 +112,10 @@ produces (`docs/harness-local.md` *Review examples*):
    target has no contract, or its locality check prints nothing or cannot
    run, say so and skip; never infer a class.
 
-Never raise the style guide's tabulated house styles, a stale restatement
-this branch left untouched where the owner site is already correct, or a
-request that a true comment keeping the guide's *Comments* rules be
-reworded, completed or expanded.
+Never raise a statement that is incomplete but true, the style guide's
+tabulated house styles, a stale restatement this branch left untouched
+where the owner site is already correct, or a request that a true comment
+keeping the guide's *Comments* rules be reworded, completed or expanded.
 
 ## CI
 
