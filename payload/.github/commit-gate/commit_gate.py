@@ -34,7 +34,8 @@ def subject_problem(subject: str) -> str | None:
         return "is a fixup!/squash!/amend!/wip leftover"
     if not SUBJECT.match(inner):
         return ("is outside /commit's form (<type>(<scope>): <what changed>): the type is one of docs, "
-                "feat(<scope>), fix, chore, refactor or test, with chore(<scope>) for a workflow or CI edit. "
+                "feat(<scope>), fix, chore, refactor or test, so a workflow or CI edit is one of them with a scope, "
+                "chore(ci) or fix(ci), never ci(...). "
                 "No helper rewords a pushed commit, so a branch carrying one is replaced by a new branch")
     return None
 
