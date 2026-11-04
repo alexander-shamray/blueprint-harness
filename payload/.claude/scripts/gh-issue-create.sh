@@ -25,8 +25,9 @@ case "$severity" in
   critical|high|medium|low) ;;
   *) echo "not a severity this helper will file under: $severity" >&2; exit 2 ;;
 esac
-# The area is the tree the finding is in, as the contract's §6 maps it; `test`
-# goes beside `harness` or `code` alone, because a suite is one of the two.
+# The area is the tree the finding is in, as docs/harness/working-rules.md,
+# *Issues and the task list*, maps it; `test` goes beside `harness` or `code`
+# alone, because a suite is one of the two.
 case "$area" in
   harness|code|documentation|harness,test|code,test) ;;
   *) echo "not an area this helper will file under: $area" >&2; exit 2 ;;

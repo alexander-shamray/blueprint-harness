@@ -165,8 +165,10 @@ line number was read back from the file.
   `docs/commands/security-sweep.md:75,117,144-145,168`.
 - `.claude/commands/pr.md:150-151` — "once `Platform.slnx` exists, state the
   `dotnet build` / `dotnet test` result".
-- `.claude/commands/style-pass.md:99` — `dotnet format` and Roslyn as the
-  formatter.
+- `.claude/commands/style-pass.md:99,106-108` — `dotnet format` and Roslyn
+  as the formatter, and SQL in C# raw strings with backend's §7.4.
+- `.claude/commands/bug-sweep.md:187`, `docs/commands/bug-sweep.md:576` —
+  backend's §4.1 gateway, BFF and AppHost in the sweep's area rows.
 - `docs/commands/branch.md:239` — "`dotnet test` … runs there";
   `docs/commands/bug-sweep.md:90` — "`dotnet test`" as what a build runs.
 - `.github/output-gate/` — the gate itself checks .NET build output against
