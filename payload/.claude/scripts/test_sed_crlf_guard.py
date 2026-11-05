@@ -119,6 +119,28 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             with self.subTest(command=command):
                 self.assertRefused(command, "crlf.txt")
 
+    def test_a_continued_line_and_a_comment_are_read_as_bash_reads_them(self):
+        # Review R1: an indented continuation reached `shlex` as a newline token, read as a separator, and an
+        # apostrophe in a comment as an unbalanced quote, so both admitted the whole command.
+        for command in (
+            "sed -i \\\n  -e 's/one/uno/' \\\n  crlf.txt",
+            "# don't touch the build\nsed -i 's/one/uno/' crlf.txt",
+            "true # it's fine\nsed -i 's/one/uno/' crlf.txt",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command, "crlf.txt")
+
+    def test_what_only_looks_like_a_heredoc_leaves_the_lines_after_it_judged(self):
+        # Review R2: a here-string and an arithmetic shift matched the heredoc opener, and every later line went
+        # unjudged.
+        for command in (
+            "cat <<< 'one'\nsed -i 's/one/uno/' crlf.txt",
+            "echo $((1<<2))\nsed -i 's/one/uno/' crlf.txt",
+            "echo '<<EOF'\nsed -i 's/one/uno/' crlf.txt",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command, "crlf.txt")
+
     def test_a_cd_moves_the_files_after_it(self):
         self.assertRefused("cd sub && sed -i 's/one/uno/' inner.txt", "inner.txt")
 
@@ -170,7 +192,10 @@ class WhatSedLeavesAloneIsAdmitted(ACheckout):
                 self.assertAdmitted(command)
 
     def test_a_heredoc_body_is_data(self):
-        self.assertAdmitted("cat > fix.sh <<'EOF'\nsed -i 's/one/uno/' crlf.txt\nEOF\n")
+        for opener in ("<<'EOF'", "<<EOF", '<<"EOF"', "<<\\EOF", "<< EOF"):
+            with self.subTest(opener=opener):
+                self.assertAdmitted(f"cat > fix.sh {opener}\nsed -i 's/one/uno/' crlf.txt\nEOF\n")
+        self.assertAdmitted("cat > fix.sh <<-EOF\n\tsed -i 's/one/uno/' crlf.txt\n\tEOF\n")
 
     def test_a_platform_whose_sed_keeps_the_cr(self):
         # GNU sed on Linux and macOS treats the CR as an ordinary character, so a refusal there would block a
