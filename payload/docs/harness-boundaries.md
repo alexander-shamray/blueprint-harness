@@ -18,7 +18,7 @@ the whole is about 20k. `Grep -n "^## <title>"` gives its first line.
 | Destructive classes | One table of what the harness refuses, the layer that refuses each, and the test that holds the table to the deny list and the hooks. |
 | Git argv guard hook | How guard-git-argv.py resolves the executed argv, its successive bypasses, git -c and stated residuals. |
 | The ext transport and pinned grants | Why ext:: cannot be written as a rule, hook coverage, and fetch and pull grant pinning. |
-| Grant inventory and push helpers | Frontmatter grants, the numbered inventory, /ship's closed entries, sweep helpers and the force-push rebase helper. |
+| Grant inventory and push helpers | Frontmatter grants, the numbered inventory, /ship's closed entries, sweep helpers, the three lease-bound force-push helpers and the branch-drop helper. |
 | Pull request reads and the locality verdict | Fixed-field PR helpers, the gh allow-list gate, #150, and pr-locality.sh's contract. |
 | Sweep push denies and chained commands | Push denies in the sweeps, and why a command /ship runs before it pushes never denies push. |
 | Output deny and shell-expansion residuals | The --output entry closed by the hook, expansion readings, locale quotes, process substitution, crashes and pipes. |
@@ -624,21 +624,22 @@ blueprint-frontend cite it rather than restate it.
 test that holds the table to both.** Every class of operation here is
 destructive on the repositories or on the machine, and each is stopped by
 a layer that can be named: a permission deny in `.harness/settings.base.json`,
-`guard-git-argv.py` or `guard-edit-target.py`, or the `main` ruleset on the
-server. A reader asking whether `git push origin +HEAD:main` is stopped, and by
-what, finds the row; a base deny added without one is a failing test, not a
-paragraph that went stale. `.claude/scripts/test_destructive_classes.py` reads
-the table and checks it four ways: every `permissions.deny` entry of the
-rendered root's `settings.base.json` is matched by some `deny` row's example,
-every row's example is refused by the layer it names, every non-`ruleset` row's
-*Test* names a suite file that exists, and the table parses to at least fifteen
-rows.
+`guard-git-argv.py` or `guard-edit-target.py`, the `main` ruleset on the
+server, or a granted helper's own refusal of `main`. A reader asking whether
+`git push origin +HEAD:main` is stopped, and by what, finds the row; a base
+deny added without one is a failing test, not a paragraph that went stale.
+`.claude/scripts/test_destructive_classes.py` reads the table and checks it
+five ways: every `permissions.deny` entry of the rendered root's
+`settings.base.json` is matched by some `deny` row's example, every row's
+example is refused by the layer it names, every non-`ruleset` row's *Test*
+names a suite file that exists, the push and drop helpers each have a
+`helper` row, and the table parses to at least fifteen rows.
 
 **The columns.** *Class* is the operation, *Example* one spelling of it,
 *Refused by* the layer the example exercises, and *Test* the suite file that
 holds the row, which the suite checks exists (a `ruleset` row names
-`ruleset-check`, as below).
-*Refused by* takes four values, and the test accepts no other:
+`ruleset-check`, and a `helper` row a suite and a test, as below).
+*Refused by* takes five values, and the test accepts no other:
 
 - `deny` — the example matches an entry of the base deny list. A `Bash`
   entry follows Claude Code's prefix reading: `Bash(x:*)` matches `x` and
@@ -660,6 +661,14 @@ holds the row, which the suite checks exists (a `ruleset` row names
   blueprint-harness's `py -3.12 -m harness_sync ruleset-check`, which asks
   GitHub and is run by that repository's `rulesets` workflow against every
   target's `main` ruleset, so it is not in the target this file renders into.
+- `helper` — a granted helper's refusal of `main`, which is what bounds the
+  force push or the branch deletion it relaxes (*Grant inventory and push
+  helpers*). The example invokes the helper, `bash .claude/scripts/<helper>.sh
+  …`, and the *Test* is that helper's suite and test, spelled
+  `test_<helper>.py::test_main_is_refused_however_it_is_spelled` with the
+  helper's hyphens as underscores. The suite does not run it: it checks that
+  the helper and its suite exist and that the suite defines the test, which
+  is run where every other payload suite is.
 
 Where a class is refused by more than one layer, the row names the layer its
 example exercises, and the server-side backstop has rows of its own. A guard
@@ -690,6 +699,9 @@ row is therefore a spelling the deny list does not match.
 | Force push to `main` | `git push --force origin main` | `ruleset` | `ruleset-check` |
 | Deletion of `main` | `git push origin :main` | `ruleset` | `ruleset-check` |
 | Merge commit onto `main` | `git push origin HEAD:main` | `ruleset` | `ruleset-check` |
+| Rebase and force-push `main` through the rebase helper | `bash .claude/scripts/git-rebase-onto-main.sh main start` | `helper` | `test_git_rebase_onto_main.py::test_main_is_refused_however_it_is_spelled` |
+| Force-push `main` through the push helper, `main` checked out | `bash .claude/scripts/git-push-force.sh` | `helper` | `test_git_push_force.py::test_main_is_refused_however_it_is_spelled` |
+| Delete local `main` through the drop helper | `bash .claude/scripts/git-branch-drop.sh main` | `helper` | `test_git_branch_drop.py::test_main_is_refused_however_it_is_spelled` |
 | Discard the working tree and index | `git reset --hard origin/main` | `deny` | `test_destructive_classes.py` |
 | Delete untracked files | `git clean -fdx` | `deny` | `test_destructive_classes.py` |
 | Delete a branch | `git branch -d feature` | `deny` | `test_destructive_classes.py` |
@@ -959,18 +971,22 @@ the tool's own `--help` found something every time it was done. That they were
 inventoried in a command file and not here is the same drift this paragraph
 warns about, running the other way.
 
-**A fifth was opened deliberately rather than found**, and it is the only
-force push in the repository. Branch updates are rebases, so a branch's
-published commits are rewritten, and `.claude/settings.json` denies
-`git push --force` and `--force-with-lease` alike. **That deny is untouched.**
-`git-rebase-onto-main.sh` carries the flags itself, takes one branch name that
-has to equal the one checked out, refuses `main` by name before it reads the
-checkout at all, refuses a remote holding commits this checkout lacks, and
-leases the push against the commit the same run read. **A rule could have
-bought none of that**: a permission pattern matches the text of a command, and
-every guard in that list is a fact about the checkout. Which is the general
-form — where the safety is a property of the state rather than of the words,
-the grant has to be a helper.
+**A fifth was opened deliberately rather than found**: the force push, which
+three lease-bound helpers carry and nothing else does. Branch updates are
+rebases, so a branch's published commits are rewritten, and
+`.claude/settings.json` denies `git push --force` and `--force-with-lease`
+alike. **That deny is untouched**, for every raw spelling: the helpers relax
+the client's policy and the deny list does not move. What lets the client
+relax at all is the `main` ruleset on the server, read back green for every
+target, so a helper that got its guards wrong still cannot rewrite or delete
+`main` (*Destructive classes*). `git-rebase-onto-main.sh` carries the flags
+itself, takes one branch name that has to equal the one checked out, refuses
+`main` by name before it reads the checkout at all, refuses a remote holding
+commits this checkout lacks, and leases the push against the commit the same
+run read. **A rule could have bought none of that**: a permission pattern
+matches the text of a command, and every guard in that list is a fact about
+the checkout. Which is the general form — where the safety is a property of
+the state rather than of the words, the grant has to be a helper.
 
 **A second helper rewrites published commits, and is a second force push.**
 `git-trailer-pr.sh` adds `PR: #<n>` to the commits of the branch checked out,
@@ -984,6 +1000,40 @@ after the rewrite: the local branch then carries the trailers and origin's
 does not, and a rerun finishes it, because a commit that has the trailer is
 skipped. `git-revert-pr.sh` writes no remote; it reads trailers off
 `origin/main` and reverts on the current branch, so its grant is a plain one.
+
+**A third helper is the force push for every other rewrite.** A branch amended
+or reworded for a reason neither helper above covers had no route but the
+deny. `git-push-force.sh` publishes the branch checked out and takes no
+argument, so no name a caller passes can point it at another. It refuses
+`main` in any spelling, folded as the rebase helper folds it; a detached
+`HEAD`; and a branch origin lacks, asked of origin itself rather than of a
+tracking ref a deleted branch leaves behind. It fetches the branch fresh and
+leases the push against the tip it fetched, so a push landing in between is
+git's to refuse. And it refuses a remote tip the branch's own reflog does not
+hold, because a lease is not consent: once another session's commits have been
+fetched they satisfy it, and they would be discarded. That is the rebase
+helper's `require_remote_carries_nothing_new` for a rewrite with no fork point
+to measure from. Its residual is the reflog itself. An entry `git gc` has
+expired, or a branch made with no reflog, fails closed; and a branch that
+holds origin's tip only because it was rebased onto it is refused as well,
+where `git push origin <branch>` needs no force.
+
+**One more helper relaxes a deny, and it deletes rather than pushes.** `git
+branch -d`, `-D` and `--delete` stay denied. `git-branch-drop.sh <branch>`
+refuses `main` in any spelling, a name that could be read as a flag, and a
+branch checked out in any worktree, this one included. It deletes only when
+`pr-for-branch.sh` reports a pull request for the branch `MERGED` into `main`
+whose head is the branch's tip, which is `/ship` step 0's finished predicate:
+a commit added after the merge is work no merge holds, and keeps the branch,
+and the helper reads only this repository's rows, so a fork's same-named pull
+request lands nothing. The delete is `git update-ref -d` against the tip that
+was checked, a compare-and-swap, rather than `git branch -D`, which deletes
+whatever the branch holds when it runs: the read of the pull requests takes
+seconds, and a commit landing in that window would go with the branch. The
+worktree check runs last, because `update-ref` does not make it, and the
+branch's configuration section, which `update-ref` leaves, is removed after
+the delete. Its residual is a worktree that checks the branch out between that
+check and the delete.
 
 **Some of the rebase helper's edges are accepted rather than guarded.** A replay
 amended after a failed push no longer descends from the commit `publish`

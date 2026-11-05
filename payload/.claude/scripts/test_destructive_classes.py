@@ -10,15 +10,22 @@ stale where a gate would not, so this suite reads it:
 - every row's example is refused by the layer the row names: a `deny` row
   matches a base deny, and a guard row is fed to the real hook as the JSON a
   PreToolUse call carries and must come back `deny`;
+- `git-push-force.sh` and `git-branch-drop.sh` each have a `helper` row,
+  because each relaxes a deny and its refusal of `main` is what bounds it;
 - the table is parsed, at least fifteen rows, so a renamed heading cannot
-  leave the two checks above vacuous.
+  leave the checks above vacuous.
 
 A `ruleset` row is the server-side backstop. Its test is `ruleset-check`,
 which the table names and this suite does not run. It is blueprint-harness's
 `py -3.12 -m harness_sync ruleset-check`, which asks GitHub and is run by
 that repository's `rulesets` workflow against every target's `main` ruleset,
-so it is not in a target this suite is rendered into. Every other row's
-*Test* must name a suite file that exists beside this one.
+so it is not in a target this suite is rendered into. A `helper` row is a
+lease-bound helper's refusal of `main`, and its test is that helper's suite
+and test, spelled `test_<helper>.py::test_main_is_refused_however_it_is_spelled`,
+which this suite does not run either: it checks that the example invokes a
+helper beside this file, that the suite is that helper's, and that the suite
+defines the test. Every other row's *Test* must name a suite file that exists
+beside this one.
 
 The root is the directory two above this file: the rendered root in a
 target, `payload/` in this repository, which has the same layout.
@@ -28,6 +35,7 @@ returns `None` when the row is refused and the reason when it is not, and
 the column's value to the section's prose.
 """
 
+import ast
 import contextlib
 import json
 import os
@@ -214,11 +222,42 @@ def _backstop(row):
     return None
 
 
+HELPER_TEST = "test_main_is_refused_however_it_is_spelled"
+
+
+def suite_of(row):
+    """The suite file a row's *Test* names: a `helper` row's part before `::`."""
+    if row.refused_by == "helper":
+        return row.test.partition("::")[0]
+    return row.test
+
+
+def _refused_by_helper(row):
+    """A helper's refusal of `main` is held by its own suite, not run here."""
+    match = re.fullmatch(r"bash \.claude/scripts/([\w-]+\.sh)(?: .*)?", row.example)
+    if match is None:
+        return "a `helper` row's example is spelled `bash .claude/scripts/<helper>.sh …`"
+    script = match.group(1)
+    if not (SCRIPTS / script).is_file():
+        return f"no helper {script} beside this suite"
+    suite = "test_" + script[:-len(".sh")].replace("-", "_") + ".py"
+    if row.test != f"{suite}::{HELPER_TEST}":
+        return f"a `helper` row's test is `{suite}::{HELPER_TEST}`"
+    if not (SCRIPTS / suite).is_file():
+        return f"no suite {suite} beside this one"
+    tree = ast.parse((SCRIPTS / suite).read_text(encoding="utf-8"))
+    if not any(isinstance(node, ast.FunctionDef) and node.name == HELPER_TEST
+               for node in ast.walk(tree)):
+        return f"{suite} defines no {HELPER_TEST}"
+    return None
+
+
 REFUSERS = {
     "deny": _refused_by_deny,
     "guard-git-argv": _refused_by_git_argv,
     "guard-edit-target": _refused_by_edit_target,
     "ruleset": _backstop,
+    "helper": _refused_by_helper,
 }
 
 
@@ -264,8 +303,33 @@ class DestructiveClasses(unittest.TestCase):
     def test_every_row_names_a_suite_that_exists(self):
         missing = [f"{row.klass}: {row.test}" for row in table()
                    if row.refused_by != "ruleset"
-                   and not (SCRIPTS / row.test).is_file()]
+                   and not (SCRIPTS / suite_of(row)).is_file()]
         self.assertEqual([], missing)
+
+    def test_each_helper_has_its_row(self):
+        # The relaxation is bounded by these refusals, so a helper whose row
+        # went missing is a boundary nobody reads.
+        examples = {row.example for row in table() if row.refused_by == "helper"}
+        self.assertLessEqual(
+            {"bash .claude/scripts/git-push-force.sh",
+             "bash .claude/scripts/git-branch-drop.sh main"}, examples)
+
+    def test_a_helper_row_must_name_a_test_its_suite_defines(self):
+        helper = "bash .claude/scripts/git-branch-drop.sh main"
+        suite = "test_git_branch_drop.py"
+        self.assertIsNone(refusal_problem(
+            Row("control", helper, "helper", f"{suite}::{HELPER_TEST}")))
+        for test in (f"{suite}::test_no_such_test",
+                     f"test_git_push_force.py::{HELPER_TEST}",
+                     suite,
+                     f"test_no_such_suite.py::{HELPER_TEST}"):
+            with self.subTest(test=test):
+                self.assertIsNotNone(refusal_problem(Row("planted", helper, "helper", test)))
+        self.assertIsNotNone(refusal_problem(Row(
+            "planted", "bash .claude/scripts/no-such-helper.sh", "helper",
+            f"test_no_such_helper.py::{HELPER_TEST}")))
+        self.assertIsNotNone(refusal_problem(Row(
+            "planted", "git branch -D main", "helper", f"{suite}::{HELPER_TEST}")))
 
     def test_a_planted_unrefused_row_fails(self):
         for layer in ("guard-git-argv", "deny"):

@@ -18,6 +18,8 @@
       "Bash(git branch --show-current)",
       "Bash(git push -u origin:*)",
       "Bash(git push origin:*)",
+      "Bash(bash .claude/scripts/git-push-force.sh:*)",
+      "Bash(bash .claude/scripts/git-branch-drop.sh:*)",
       "Bash(git remote -v)",
       "Bash(ls:*)",
       "Bash(wc:*)",
