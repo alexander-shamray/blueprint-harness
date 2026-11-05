@@ -371,6 +371,15 @@ class RulesetCommandTests(unittest.TestCase):
         self.assertTrue(lines[1].startswith(f"{FRONTEND}: required check missing: web"))
         self.assertEqual(lines[2], f"{BACKEND}: matches")
 
+    def test_check_refuses_a_reading_without_bypass_actors(self) -> None:
+        body = live(self.data, BACKEND, "main", "~DEFAULT_BRANCH")
+        del body["bypass_actors"]
+        gh = FakeGh({BACKEND: {1: body}})
+        code, out, err = run(run_check, gh, self.data, [BACKEND], False)
+        self.assertEqual((code, out), (2, ""))
+        self.assertIn("admin token", err)
+        self.assertIn("--effective", err)
+
     def test_check_reports_a_repository_with_no_ruleset(self) -> None:
         code, out, _ = run(run_check, FakeGh(), self.data, [BACKEND], False)
         self.assertEqual(code, 1)

@@ -37,8 +37,8 @@ _FLOOR_TYPES = (
 
 class RulesetError(Exception):
     """A refusal or failure of the ruleset commands: the data file unreadable
-    or misshapen, two rulesets matching, or a `gh` call that failed or answered
-    something unreadable."""
+    or misshapen, two rulesets matching, a ruleset read without its bypass
+    actors, or a `gh` call that failed or answered something unreadable."""
 
 
 @dataclass(frozen=True)
@@ -312,7 +312,14 @@ def _read(gh, data: Rulesets, repo: str, effective: bool) -> dict | None:
         body["rules"] = _merge_effective(gh.call("GET", f"repos/{repo}/rules/branches/main?per_page=100", paginate=True))
         return body
     found = _find(gh, data, repo)
-    return None if found is None else gh.call("GET", f"repos/{repo}/rulesets/{found}")
+    if found is None:
+        return None
+    body = gh.call("GET", f"repos/{repo}/rulesets/{found}")
+    if "bypass_actors" not in body:
+        # GitHub leaves the key out for a token that is not an admin, and
+        # normal_form would read its absence as no bypass actors.
+        raise RulesetError(f"{repo}: ruleset {found} was read without bypass_actors; the check needs an admin token, or --effective")
+    return body
 
 
 def check(gh, data: Rulesets, repo: str, effective: bool = False) -> list[str]:
