@@ -335,6 +335,12 @@ class WhatTheHookCannotPlaceFailsOpen(ACheckout):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
 
+    def test_a_printf_into_a_shell_is_read_as_its_words(self):
+        # Review R3.5: the residual the section states, pinned both ways rather than claimed admitted. A format that
+        # holds the sed is refused; an argument that carries the whole line is admitted, though bash would run it.
+        self.assertRefused("printf \"sed -i 's/one/uno/' %s\" crlf.txt | bash", "crlf.txt")
+        self.assertAdmitted("printf '%s\\n' \"sed -i 's/one/uno/' crlf.txt\" | bash")
+
     def test_no_git_admits(self):
         original = GUARD.shutil.which
         GUARD.shutil.which = lambda name: None
