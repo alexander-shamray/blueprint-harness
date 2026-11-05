@@ -251,6 +251,11 @@ def console_script(root: Path) -> str | None:
     none of them the working directory, and no candidate inside this checkout
     or the main checkout it was forked from, a link's target included. The
     answer is a full path, so the operating system searches nothing.
+
+    On Windows only an `.exe` or a `.com` counts, never PATHEXT's `.bat` or
+    `.cmd`: those run through `cmd.exe` in the checkout, which looks there
+    first for every command the script names, so a shim found safely would
+    reopen the search this closes. pip writes the console script as an `.exe`.
     """
     fenced = [tree.resolve() for tree in (root, main_checkout(root)) if tree is not None]
     try:
@@ -258,8 +263,7 @@ def console_script(root: Path) -> str | None:
     except OSError:
         here = None
     if sys.platform == "win32":
-        extensions = [e for e in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(os.pathsep) if e]
-        names = ["codebase-index" + e for e in extensions]
+        names = ["codebase-index.exe", "codebase-index.com"]
     else:
         names = ["codebase-index"]
     for entry in os.environ.get("PATH", "").split(os.pathsep):
