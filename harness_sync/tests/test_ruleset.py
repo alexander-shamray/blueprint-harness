@@ -232,10 +232,6 @@ class RulesetTests(unittest.TestCase):
         self.assertEqual(len(lines), 6)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class FakeGh:
     """Answers the `gh api` calls the ruleset commands make, and records them.
 
@@ -396,3 +392,7 @@ class RulesetCommandTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("deletion", err)
         self.assertEqual((out, gh.calls), ("", []))
+
+
+if __name__ == "__main__":
+    unittest.main()
