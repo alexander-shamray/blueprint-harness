@@ -112,7 +112,10 @@ def normal_form(api: dict) -> dict:
             rules[kind] = {k: params[k] for k in _PR_KEYS if k in params}
         elif kind == "required_status_checks":
             found = params.get("required_status_checks", [])
-            rules[kind] = {"contexts": sorted((c["context"], c.get("integration_id")) for c in found)}
+            rules[kind] = {"contexts": sorted(
+                ((c["context"], c.get("integration_id")) for c in found),
+                key=lambda c: (c[0], c[1] is not None, c[1] or 0),
+            )}
         else:
             rules[kind] = {}
     ref = (api.get("conditions") or {}).get("ref_name") or {}
