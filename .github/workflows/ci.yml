@@ -42,11 +42,12 @@ jobs:
   # carries it into a target.
   #
   # Linux runs everything, as backend's `review-helpers` job does. Windows and
-  # macOS run only the edit-target guard and the index hook, mirroring
-  # backend's `edit-target-guard` job and on its argument: those two modules
-  # have branches no Linux runner reaches (junctions, `..` after a link, case
-  # folding, `msvcrt.locking`) and need nothing but Python, where the rest of
-  # the directory needs `bash`, `grep`, `git` and `jq` on PATH.
+  # macOS run only the edit-target guard, the index hook and the sed
+  # line-ending guard, mirroring backend's `edit-target-guard` job and on its
+  # argument: those modules have branches no Linux runner reaches (junctions,
+  # `..` after a link, case folding, `msvcrt.locking`, the guard judging on
+  # Windows alone) and need nothing but Python and `git`, where the rest of
+  # the directory needs `bash`, `grep` and `jq` on PATH as well.
   payload-suites:
     strategy:
       fail-fast: false
@@ -113,3 +114,8 @@ jobs:
         if: matrix.os != 'ubuntu-latest'
         working-directory: ${{ runner.temp }}/rendered
         run: python -m unittest discover -s .claude/scripts -p "test_refresh_index.py" -v
+
+      - name: Test the sed line-ending guard
+        if: matrix.os != 'ubuntu-latest'
+        working-directory: ${{ runner.temp }}/rendered
+        run: python -m unittest discover -s .claude/scripts -p "test_sed_crlf_guard.py" -v

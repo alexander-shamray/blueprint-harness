@@ -1,8 +1,9 @@
 """What `.claude/hooks/guard-sed-crlf.py` refuses, and what it must not.
 
 The verdict cases call the hook's `offence` with `strips_cr=True`, because only Git Bash's sed drops the CR and the
-cases have to run on the Linux and macOS jobs too; the process cases run the hook as the harness does and assert the
-host's own answer. The last class has the registration as its subject, since every case above passes against a hook
+cases run on every `payload-suites` leg, Linux and macOS as well as Windows; the process cases run the hook as the
+harness does and assert the host's own answer, and the Windows leg is the one that reaches the hook's refusal and its
+`/c/...` translation. The last class has the registration as its subject, since every case above passes against a hook
 the harness never calls.
 """
 
