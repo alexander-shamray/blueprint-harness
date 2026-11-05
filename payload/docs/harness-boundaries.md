@@ -1193,7 +1193,10 @@ harness's own "has been denied" text while a `Bash(wc:*)` in the same session
 ran, which separates the two exactly. Both sweeps deny `git push origin`,
 its `-u` form, the raw `gh issue create` by name and every `gh` command
 (`Bash(gh:*)`, for `gh issue new` and `gh api`), and the deny wins over
-the global allow because precedence is deny first.
+the global allow because precedence is deny first. The base settings also
+grant `git-push-force.sh` and `git-branch-drop.sh` globally, so both sweeps
+deny those two helpers by the same key: a terminal read-only command has no
+branch to force-push or drop.
 
 **A frontmatter deny holds for the rest of the user turn, not for the command
 that states it (blueprint-admin#17).** Measured there: `/ship` ran `/commit`,
