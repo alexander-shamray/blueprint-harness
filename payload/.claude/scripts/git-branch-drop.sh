@@ -17,11 +17,13 @@
 #   0  dropped
 #   2  usage, or a name this helper will not take, a symbolic ref among them
 #   3  the branch is `main`, however it is spelled
-#   4  the branch is checked out in a worktree, this one included
+#   4  the branch is checked out in a worktree, this one included, or is
+#      being rebased or bisected in one
 #   6  there is no local branch of that name: nothing to drop
 #   7  it has not landed: no MERGED row into `main` at its tip, or the tip
 #      moved after it was checked
-#   12 its pull requests could not be read, so whether it landed is unknown
+#   12 its pull requests or its worktrees could not be read, so whether it
+#      landed or is in use is unknown
 set -euo pipefail
 
 [ "$#" -eq 1 ] || { echo "usage: git-branch-drop.sh <branch>" >&2; exit 2; }
@@ -74,11 +76,37 @@ landed=${landed%$'\r'}
 # out, so this is the only check. Folded, so a worktree on `Feat/x` keeps
 # `feat/x` on a filesystem where the two are one ref.
 worktrees=$(git worktree list --porcelain) ||
-  { echo "cannot list the worktrees, so whether $branch is checked out is unknown" >&2; exit 4; }
+  { echo "cannot list the worktrees, so whether $branch is checked out is unknown; it is kept" >&2; exit 12; }
 held=$(printf '%s\n' "$worktrees" | tr -d '\r' | tr '[:upper:]' '[:lower:]' |
   grep -cxF -- "branch refs/heads/$lowered" || true)
 [ "$held" = 0 ] ||
   { echo "$branch is checked out in a worktree (git worktree list): it is in use, and kept" >&2; exit 4; }
+
+# A worktree mid-rebase or mid-bisect has HEAD detached, so the list above says
+# `detached` while the branch is still the one it works on, as a conflicted
+# `git-rebase-onto-main.sh start` leaves it. git keeps the name in each git
+# dir's rebase-merge/head-name, rebase-apply/head-name and BISECT_START, which
+# is where `git branch -D` looks too; read here from every git dir, folded.
+named() {
+  tr -d '\r' < "$1" | tr '[:upper:]' '[:lower:]'
+}
+common=$(git rev-parse --git-common-dir) ||
+  { echo "cannot find the git dirs, so whether $branch is being rebased or bisected is unknown; it is kept" >&2
+    exit 12; }
+for gitdir in "$common" "$common"/worktrees/*; do
+  [ -d "$gitdir" ] || continue
+  for state in rebase-merge rebase-apply; do
+    if [ -f "$gitdir/$state/head-name" ] && [ "$(named "$gitdir/$state/head-name")" = "refs/heads/$lowered" ]; then
+      echo "$branch is being rebased in a worktree ($gitdir/$state): it is in use, and kept" >&2; exit 4
+    fi
+  done
+  if [ -f "$gitdir/BISECT_START" ]; then
+    started=$(named "$gitdir/BISECT_START")
+    if [ "$started" = "$lowered" ] || [ "$started" = "refs/heads/$lowered" ]; then
+      echo "$branch is being bisected in a worktree ($gitdir): it is in use, and kept" >&2; exit 4
+    fi
+  fi
+done
 
 git update-ref --no-deref -d "refs/heads/$branch" "$tip" ||
   { echo "$branch moved from $tip after it was checked, or could not be deleted; it is kept" >&2; exit 7; }
