@@ -15,6 +15,7 @@ the whole is about 20k. `Grep -n "^## <title>"` gives its first line.
 | Grant semantics | allowed-tools as auto-approval rather than whitelist, and a deny as the only refusal; where the external reviewers' machinery went. |
 | Prefix grants and wildcard denies | Table of over-wide git grants, the reset-grant lesson, mid-pattern deny wildcards and the quoting bypass. |
 | The guards' threat model | What the guard hooks are written against, which guard findings are filed, and which are recorded as out of scope. |
+| Destructive classes | One table of what the harness refuses, the layer that refuses each, and the test that holds the table to the deny list and the hooks. |
 | Git argv guard hook | How guard-git-argv.py resolves the executed argv, its successive bypasses, git -c and stated residuals. |
 | The ext transport and pinned grants | Why ext:: cannot be written as a rule, hook coverage, and fetch and pull grant pinning. |
 | Grant inventory and push helpers | Frontmatter grants, the numbered inventory, /ship's closed entries, sweep helpers and the force-push rebase helper. |
@@ -616,6 +617,110 @@ summary as outside the guards' threat model and moves on; an issue already
 open for one is closed as not planned, with a link to this section. This
 section is the owner for all three repositories; blueprint-admin and
 blueprint-frontend cite it rather than restate it.
+
+## Destructive classes
+
+**One table of what the harness refuses, the layer that refuses it, and a
+test that holds the table to both.** Every class of operation here is
+destructive on the repositories or on the machine, and each is stopped by
+a layer that can be named: a permission deny in `.harness/settings.base.json`,
+`guard-git-argv.py` or `guard-edit-target.py`, or the `main` ruleset on the
+server. A reader asking whether `git push origin +HEAD:main` is stopped, and by
+what, finds the row; a base deny added without one is a failing test, not a
+paragraph that went stale. `.claude/scripts/test_destructive_classes.py` reads
+the table and checks it four ways: every `permissions.deny` entry of the
+rendered root's `settings.base.json` is matched by some `deny` row's example,
+every row's example is refused by the layer it names, every non-`ruleset` row's
+*Test* names a suite file that exists, and the table parses to at least fifteen
+rows.
+
+**The columns.** *Class* is the operation, *Example* one spelling of it,
+*Refused by* the layer the example exercises, and *Test* the suite file that
+holds the row, which the suite checks exists (a `ruleset` row names
+`ruleset-check`, as below).
+*Refused by* takes four values, and the test accepts no other:
+
+- `deny` — the example matches an entry of the base deny list. A `Bash`
+  entry follows Claude Code's prefix reading: `Bash(x:*)` matches `x` and
+  `x …`, and a `*` inside a rule matches any run. An `Edit` entry is
+  matched by an example spelled `Edit(<path>)`, with the `./` stripped from
+  both sides, so one row holds a rule and its `./`-prefixed twin.
+- `guard-git-argv` — the example is a command, fed to
+  `.claude/hooks/guard-git-argv.py` as the JSON a PreToolUse call carries.
+  The hook exits 0 and its stdout holds `permissionDecision` `deny`.
+- `guard-edit-target` — the example is spelled `Edit(<path>)`, and the test
+  feeds the hook an `Edit` of that path in a scratch checkout in which
+  `linked/<name>` is a link to each denied tree (`scripts`, `commands`,
+  `agents`, `hooks`, `skills`, `remember`, and `claude` for the
+  directory holding `settings.json`). The hook refuses a path whose spelling
+  is inside an allowed tree and whose resolution is not, so the example
+  spells its way in through a link.
+- `ruleset` — the server-side backstop on `main`, and its test is
+  `ruleset-check`, which the table names and the suite does not run. It is
+  blueprint-harness's `py -3.12 -m harness_sync ruleset-check`, which asks
+  GitHub and is run by that repository's `rulesets` workflow against every
+  target's `main` ruleset, so it is not in the target this file renders into.
+
+Where a class is refused by more than one layer, the row names the layer its
+example exercises, and the server-side backstop has rows of its own. A guard
+row is therefore a spelling the deny list does not match.
+
+| Class | Example | Refused by | Test |
+|---|---|---|---|
+| Push to `main`, bare | `git push origin main` | `deny` | `test_destructive_classes.py` |
+| Push to `main` with upstream | `git push -u origin main` | `deny` | `test_destructive_classes.py` |
+| Push to `main`, `HEAD` refspec | `git push origin HEAD:main` | `deny` | `test_destructive_classes.py` |
+| Push to `main`, `HEAD` refspec with upstream | `git push -u origin HEAD:main` | `deny` | `test_destructive_classes.py` |
+| Push to `main`, full ref name | `git push origin HEAD:refs/heads/main` | `guard-git-argv` | `test_destructive_classes.py` |
+| Push to `main`, from another branch | `git push origin feature:main` | `guard-git-argv` | `test_destructive_classes.py` |
+| Push to `main`, long upstream option | `git push --set-upstream origin HEAD:main` | `guard-git-argv` | `test_destructive_classes.py` |
+| Push to `main`, forced refspec | `git push origin +HEAD:main` | `guard-git-argv` | `test_destructive_classes.py` |
+| Force push, long option | `git push --force origin feature` | `deny` | `test_destructive_classes.py` |
+| Force push, lease | `git push --force-with-lease origin feature` | `deny` | `test_destructive_classes.py` |
+| Force push, short option | `git push -f origin feature` | `deny` | `test_destructive_classes.py` |
+| Force push, combined short options | `git push -fu origin feature` | `guard-git-argv` | `test_destructive_classes.py` |
+| Force push, lease with a value | `git push --force-with-lease=feature origin feature` | `guard-git-argv` | `test_destructive_classes.py` |
+| Force push, `+` refspec | `git push origin +feature` | `guard-git-argv` | `test_destructive_classes.py` |
+| Remote branch deletion, option first | `git push --delete origin feature` | `deny` | `test_destructive_classes.py` |
+| Remote branch deletion, option last | `git push origin --delete feature` | `guard-git-argv` | `test_destructive_classes.py` |
+| Remote branch deletion, `:branch` refspec | `git push origin :feature` | `guard-git-argv` | `test_destructive_classes.py` |
+| Soft reset to a remote-tracking ref | `git reset --soft origin/main` | `guard-git-argv` | `test_destructive_classes.py` |
+| Direct push to `main` | `git push origin HEAD:refs/heads/main` | `ruleset` | `ruleset-check` |
+| Direct commit to `main`, landing through a push | `git push origin main` | `ruleset` | `ruleset-check` |
+| Force push to `main` | `git push --force origin main` | `ruleset` | `ruleset-check` |
+| Deletion of `main` | `git push origin :main` | `ruleset` | `ruleset-check` |
+| Merge commit onto `main` | `git push origin HEAD:main` | `ruleset` | `ruleset-check` |
+| Discard the working tree and index | `git reset --hard origin/main` | `deny` | `test_destructive_classes.py` |
+| Delete untracked files | `git clean -fdx` | `deny` | `test_destructive_classes.py` |
+| Delete a branch | `git branch -d feature` | `deny` | `test_destructive_classes.py` |
+| Delete a branch, forced | `git branch -D feature` | `deny` | `test_destructive_classes.py` |
+| Delete a branch, long option | `git branch --delete feature` | `deny` | `test_destructive_classes.py` |
+| Rename a branch | `git branch -m feature other` | `deny` | `test_destructive_classes.py` |
+| Rename a branch, forced | `git branch -M feature other` | `deny` | `test_destructive_classes.py` |
+| Rename a branch, long option | `git branch --move feature other` | `deny` | `test_destructive_classes.py` |
+| Move a branch over another | `git branch --force feature HEAD~1` | `deny` | `test_destructive_classes.py` |
+| Write a file through a read-only command | `git log --output=out.txt` | `deny` | `test_destructive_classes.py` |
+| Run a program through `--upload-pack` | `git fetch --upload-pack=prog origin` | `deny` | `test_destructive_classes.py` |
+| Run a program through `--receive-pack` | `git push --receive-pack=prog origin feature` | `deny` | `test_destructive_classes.py` |
+| Run a program through `--exec` | `git fetch --exec=prog origin` | `deny` | `test_destructive_classes.py` |
+| Edit the agent notes | `Edit(.remember/notes.md)` | `deny` | `test_destructive_classes.py` |
+| Edit the helper scripts | `Edit(.claude/scripts/helper.sh)` | `deny` | `test_destructive_classes.py` |
+| Edit the commands | `Edit(.claude/commands/ship.md)` | `deny` | `test_destructive_classes.py` |
+| Edit the subagent profiles | `Edit(.claude/agents/branch-reviewer.md)` | `deny` | `test_destructive_classes.py` |
+| Edit the hooks | `Edit(.claude/hooks/guard-git-argv.py)` | `deny` | `test_destructive_classes.py` |
+| Edit the skills | `Edit(.claude/skills/codebase-index/SKILL.md)` | `deny` | `test_destructive_classes.py` |
+| Edit the settings | `Edit(.claude/settings.json)` | `deny` | `test_destructive_classes.py` |
+| Edit the local settings | `Edit(.claude/settings.local.json)` | `deny` | `test_destructive_classes.py` |
+| Edit a hook through a link | `Edit(linked/hooks/guard-git-argv.py)` | `guard-edit-target` | `test_destructive_classes.py` |
+| Edit the settings through a link | `Edit(linked/claude/settings.json)` | `guard-edit-target` | `test_destructive_classes.py` |
+| Edit the agent notes through a link | `Edit(linked/remember/notes.md)` | `guard-edit-target` | `test_destructive_classes.py` |
+
+**Adding a row.** A deny entry added to `settings.base.json` needs a `deny`
+row in the same pull request, or the suite names it. A new *Refused by* value
+is one more entry in the suite's `REFUSERS` table and one more bullet above.
+A row whose example the layer admits fails the suite, which is the point: a
+refusal that quietly stopped covering its class is the harness's most
+repeated failure.
 
 ## Git argv guard hook
 

@@ -1,5 +1,5 @@
 {
-  "harness_commit": "d182d7c743290a919457bcb0e913855d07087eeb",
+  "harness_commit": "88107e0eb36b746a0e5f01ca7dde8088551bf403",
   "files": {
     ".claude/agents/branch-reviewer.md": "cbdcb74b32ca6d000b697d98396c86339c5feb271190d34be42f9eb98c1c8388",
     ".claude/agents/bug-auditor.md": "6219201313c10252798ff249570298f4de6ad6a66690f3dc40510fd76859b4d7",
@@ -53,6 +53,7 @@
     ".claude/scripts/system-sleep.sh": "ea9ab6184d3eacca6276575e62de05934e853bdae9db7dfb13e6c66f71fcb605",
     ".claude/scripts/team_board.py": "fca58bf74b32b4aed30ab79ce98cbdf6732a07ec0acdc3af141a397ee2a950c8",
     ".claude/scripts/test_cbx.py": "f7dd504cb5de3b9f12184cb6680bd89cff63eacb41b08a7058a5d157597dd644",
+    ".claude/scripts/test_destructive_classes.py": "f23952d7eef6c261e956fa42e6ae76791ba4d9d5c23faf8d300a58d2e8cc7697",
     ".claude/scripts/test_edit_target_guard.py": "048df1d0d520a1410ee668ebaa7aae22e5f116d6539c5fbccb6e2c6e848452b4",
     ".claude/scripts/test_gh_issue_create.py": "e8304bc7f502dab70da833e2a9fd21bf6c3679ae7de64343e8650f60a7c23df3",
     ".claude/scripts/test_gh_label_ensure.py": "22ab7d6e67971e32e2bd7ecf4d620a6b3ca7f34fc6042523262b4c9a14d35dce",
@@ -99,8 +100,8 @@
     ".github/commit-gate/commit_gate.py": "4a7d8b14dc702e48b0931872af0153a725c01c79bb0324888109ac979a060fbc",
     ".github/commit-gate/test_commit_gate.py": "192efc00abd96555d9a6e34723852d6b0227dd270426f42dda0353bf7a4c98c4",
     ".github/harness-drift/README.md": "e1aa95bfef83f5cfed1fd22a2f1e3d2b17c8aced67d136c388b9aa45d531a8fe",
-    ".github/harness-drift/drift_gate.py": "8ac9a43f65a2452e55d054495091f6f14090be4593244e1ef0c1346bff63e060",
-    ".github/harness-drift/test_drift_gate.py": "da001ace04d3ff294fec3bd63a8a9fa10ba9cd599934c870daa04d1dcfad8420",
+    ".github/harness-drift/drift_gate.py": "8a3390c6a975dad142ff02f157ded958c233e09ba5f06b72c8bf765051416363",
+    ".github/harness-drift/test_drift_gate.py": "9b98638afd28b09a6edad9df04488cf839e6f72dfa20b6feebfcbe09fc858ed8",
     ".github/issue-form-gate/README.md": "276a455b219f0a64f3b56a0d6d3ed25f939293c69b061b9fb6a48feb6a9034a6",
     ".github/issue-form-gate/issue_form_gate.py": "bf0007d71b67e4027b3791c638be7a28d0ce26f43edf93399fce77a0dcdcf81d",
     ".github/output-gate/README.md": "266fe4beaadefbbf956680c369cf7acc6ef7842c88eec9695a17fd83f8d93537",
@@ -121,7 +122,7 @@
     "docs/commands/security-sweep.md": "0b49385aa21ce1e65b09b75236854d67f90843b4751357cc23854e77a827f4d7",
     "docs/commands/ship.md": "f9dbc0e625d8f6c8d6d136f4f46dd8d519f6d431148f4ad92e3f48821eaae25c",
     "docs/commands/team.md": "1cdc4bcab8a82727ec98ab1a56d0420d115fc37e6f4b8075dad8c7cfdd8311b2",
-    "docs/harness-boundaries.md": "11ea7ab9eb631487d465156e47fc36cf169fd16cd81c3ed48dcbffa6e7911aa6",
+    "docs/harness-boundaries.md": "3170dc9e7f962709c3cd09a0fac3a311b26380d6c29f672d28884e06c36c017b",
     "docs/harness/pitfalls.md": "20a90ff61f6a0c8d99b4db03d9c3bcc211bb3124f6f7d695aec6c0828594dd38",
     "docs/harness/token-rules.md": "cd83a078de693e468130242357b1eb6994df7e5beb0fad5c5dff510c6e4c7300",
     "docs/harness/working-rules.md": "d76201ad307ead8b7aed010bab5fbcf39d53f20b9c05e02a17e6749a760cb96d"
