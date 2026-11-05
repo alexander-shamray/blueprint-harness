@@ -9,6 +9,8 @@ timestamps and the name.
 """
 
 import json
+import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -205,3 +207,163 @@ def floor_breaches(body: dict) -> list[str]:
     if have["ref_name"] != {"include": [DEFAULT_BRANCH], "exclude": []}:
         lines.append(f"condition ref_name is {have['ref_name']}, want include [{DEFAULT_BRANCH!r}] and no exclude")
     return lines
+
+
+# ---------------------------------------------------------------------------
+# Reading and applying the rulesets over `gh api`.
+#
+# Exit codes of `ruleset-check` and `ruleset-apply`: 0 the live ruleset
+# matches the data; 1 it differs, one line per difference, each prefixed with
+# the repository; 2 a refusal or an error: a repository outside the data,
+# data below the floor, two rulesets that match one repository, or a `gh`
+# call that failed.
+# ---------------------------------------------------------------------------
+
+DATA_PATH = Path(__file__).resolve().parent.parent / "rulesets" / "main.json"
+
+
+class GhApi:
+    """`gh api`, the only place a `gh` argv is built, so tests swap in a fake
+    with the same `call`."""
+
+    @staticmethod
+    def argv(method: str, path: str, has_body: bool, paginate: bool = False) -> list[str]:
+        argv = ["gh", "api", "--method", method]
+        if paginate:
+            argv += ["--paginate", "--slurp"]
+        if has_body:
+            argv += ["--input", "-"]
+        return [*argv, path]
+
+    def call(self, method: str, path: str, body: dict | None = None, paginate: bool = False):
+        """The parsed JSON `gh api` returns; a paginated list comes back flat."""
+        has_body = body is not None
+        done = subprocess.run(
+            self.argv(method, path, has_body, paginate),
+            input=json.dumps(body) if has_body else None,
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
+        )
+        if done.returncode != 0:
+            raise RulesetError(f"gh api {method} {path} failed: {done.stderr.strip()}")
+        parsed = json.loads(done.stdout) if done.stdout.strip() else None
+        if paginate:
+            # --slurp wraps every page in a list.
+            return [x for page in parsed for x in page]
+        return parsed
+
+
+def _find(gh, data: Rulesets, repo: str) -> int | None:
+    """The id of the one branch ruleset of `repo` whose name is in the data,
+    or None; two matches raise."""
+    listing = gh.call("GET", f"repos/{repo}/rulesets?per_page=100", paginate=True)
+    ids = [r["id"] for r in listing if r.get("target") == "branch" and r.get("name") in data.names]
+    if len(ids) > 1:
+        raise RulesetError(f"{repo}: rulesets {ids[0]} and {ids[1]} both match the names {list(data.names)}")
+    return ids[0] if ids else None
+
+
+def _merge_effective(rules: list[dict]) -> list[dict]:
+    """One rule per type from the flat list of rules in force on a branch.
+
+    Rulesets stack, so the strictest reading of each type is the one that
+    holds: the most approvals, the merge methods every pull_request rule
+    allows, and the checks of every required_status_checks rule together.
+    """
+    merged: dict[str, dict] = {}
+    for rule in rules:
+        kind, params = rule["type"], rule.get("parameters") or {}
+        if kind not in merged:
+            merged[kind] = {"type": kind, "parameters": json.loads(json.dumps(params))}
+            continue
+        have = merged[kind]["parameters"]
+        if kind == "required_status_checks":
+            have["required_status_checks"] = have.get("required_status_checks", []) + params.get(
+                "required_status_checks", []
+            )
+        elif kind == "pull_request":
+            count = max(have.get("required_approving_review_count", 0), params.get("required_approving_review_count", 0))
+            have["required_approving_review_count"] = count
+            if "allowed_merge_methods" in params:
+                methods = have.get("allowed_merge_methods", params["allowed_merge_methods"])
+                have["allowed_merge_methods"] = [m for m in methods if m in params["allowed_merge_methods"]]
+    return list(merged.values())
+
+
+def _read(gh, data: Rulesets, repo: str, effective: bool) -> dict | None:
+    """The live ruleset as a body `normal_form` takes, or None when it does
+    not exist.
+
+    The effective reading carries rules only, so the fields it cannot know
+    (target, enforcement, condition, bypass) are taken from the data and
+    `compare` judges rules and checks alone.
+    """
+    if effective:
+        body = desired(data, repo)
+        body["rules"] = _merge_effective(gh.call("GET", f"repos/{repo}/rules/branches/main?per_page=100", paginate=True))
+        return body
+    found = _find(gh, data, repo)
+    return None if found is None else gh.call("GET", f"repos/{repo}/rulesets/{found}")
+
+
+def check(gh, data: Rulesets, repo: str, effective: bool = False) -> list[str]:
+    """One line per difference between the data and the live rules of `repo`,
+    each prefixed with the repository; empty when they match."""
+    have = _read(gh, data, repo, effective)
+    if have is None:
+        return [f"{repo}: no branch ruleset named any of {list(data.names)}"]
+    return [f"{repo}: {line}" for line in compare(normal_form(desired(data, repo)), normal_form(have))]
+
+
+def _outside(data: Rulesets, repos: list[str]) -> str | None:
+    for repo in repos:
+        if repo not in data.checks:
+            return f"{repo} is not a repository in rulesets/main.json: {sorted(data.checks)}"
+    return None
+
+
+def run_check(gh, data: Rulesets, repos: list[str] | None, effective: bool) -> int:
+    """`ruleset-check`: exit 0 when every repository matches, 1 on a
+    difference, 2 on a refusal."""
+    repos = list(repos or data.checks)
+    refusal = _outside(data, repos)
+    if refusal:
+        print(f"ruleset-check: {refusal}", file=sys.stderr)
+        return 2
+    code = 0
+    try:
+        for repo in repos:
+            lines = check(gh, data, repo, effective)
+            for line in lines or [f"{repo}: matches"]:
+                print(line)
+            code = 1 if lines else code
+    except RulesetError as exc:
+        print(f"ruleset-check: {exc}", file=sys.stderr)
+        return 2
+    return code
+
+
+def run_apply(gh, data: Rulesets, repo: str) -> int:
+    """`ruleset-apply`: PUT the data's body to the repository's ruleset, or
+    POST it when there is none, then run the check and exit with its code."""
+    refusal = _outside(data, [repo])
+    if refusal:
+        print(f"ruleset-apply: {refusal}", file=sys.stderr)
+        return 2
+    try:
+        body = desired(data, repo)
+        breaches = floor_breaches(body)
+        if breaches:
+            print(f"ruleset-apply: the data for {repo} is below the floor: {'; '.join(breaches)}", file=sys.stderr)
+            return 2
+        found = _find(gh, data, repo)
+        if found is None:
+            gh.call("POST", f"repos/{repo}/rulesets", body)
+        else:
+            gh.call("GET", f"repos/{repo}/rulesets/{found}")
+            gh.call("PUT", f"repos/{repo}/rulesets/{found}", body)
+    except RulesetError as exc:
+        print(f"ruleset-apply: {exc}", file=sys.stderr)
+        return 2
+    return run_check(gh, data, [repo], False)

@@ -50,7 +50,19 @@
       "payload-suites (windows-latest)",
       "payload-suites (macos-latest)"
     ],
-    "alexander-shamray/blueprint-frontend": [],
+    "alexander-shamray/blueprint-frontend": [
+      "android",
+      "audit",
+      "commit-gate",
+      "commits",
+      "e2e",
+      "harness (macos-latest)",
+      "harness (ubuntu-latest)",
+      "harness (windows-latest)",
+      "ios-build",
+      "ios-config",
+      "web"
+    ],
     "alexander-shamray/blueprint-admin": [
       "host (ubuntu-latest)",
       "host (windows-latest)",
