@@ -141,6 +141,16 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             with self.subTest(command=command):
                 self.assertRefused(command, "crlf.txt")
 
+    def test_a_shell_s_command_line_is_judged(self):
+        # Review R3: a `bash -c` line is an ordinary launcher, and its text is all there to read.
+        for command in (
+            "bash -c \"sed -i 's/one/uno/' crlf.txt\"",
+            "sh -lc \"cd sub && sed -i 's/one/uno/' inner.txt\"",
+            "bash -c 'bash -c \"sed -i s/one/uno/ crlf.txt\"'",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command, ".txt")
+
     def test_a_cd_moves_the_files_after_it(self):
         self.assertRefused("cd sub && sed -i 's/one/uno/' inner.txt", "inner.txt")
         self.assertRefused("(cd sub && sed -i 's/one/uno/' inner.txt)", "inner.txt")
@@ -276,6 +286,16 @@ class WhatTheHookCannotPlaceFailsOpen(ACheckout):
         self.addCleanup(setattr, GUARD.glob, "iglob", original)
         self.assertAdmitted("sed -i 's/one/uno/' *.cs")
         self.assertLessEqual(len(walked), GUARD.MAX_FILES + 1)
+
+    def test_a_file_list_another_program_computes_is_the_stated_residual(self):
+        # Pinned as admitted, because a residual nobody can run is one the next reader assumes was closed: the files
+        # come from the other program's output, which no text reader is given.
+        for command in (
+            "git ls-files '*.txt' | xargs sed -i 's/one/uno/'",
+            "find . -name '*.txt' -exec sed -i 's/one/uno/' {} +",
+        ):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
 
     def test_no_git_admits(self):
         original = GUARD.shutil.which
