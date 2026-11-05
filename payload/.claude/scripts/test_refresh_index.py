@@ -849,7 +849,10 @@ class FindingTheCli(Base):
         except (OSError, NotImplementedError) as error:
             self.skipTest(f"no symlinks here: {error}")
 
-        self.assertIsNone(self.search(outside, root=root))
+        # Run from outside the checkout, so that only the fence on the link's
+        # target can refuse it: from the root, the working-directory check
+        # would refuse it alone.
+        self.assertIsNone(self.search(outside, cwd=self.tmp, root=root))
 
     @unittest.skipUnless(sys.platform == "win32", "PATHEXT is Windows' alone")
     def test_a_batch_shim_on_path_is_not_taken(self):
