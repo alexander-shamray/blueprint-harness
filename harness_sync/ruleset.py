@@ -240,19 +240,25 @@ class GhApi:
     def call(self, method: str, path: str, body: dict | None = None, paginate: bool = False):
         """The parsed JSON `gh api` returns; a paginated list comes back flat."""
         has_body = body is not None
-        done = subprocess.run(
-            self.argv(method, path, has_body, paginate),
-            input=json.dumps(body) if has_body else None,
-            capture_output=True,
-            encoding="utf-8",
-            check=False,
-        )
+        try:
+            done = subprocess.run(
+                self.argv(method, path, has_body, paginate),
+                input=json.dumps(body) if has_body else None,
+                capture_output=True,
+                encoding="utf-8",
+                check=False,
+            )
+        except OSError as exc:
+            raise RulesetError(f"gh api {method} {path} could not run: {exc}") from exc
         if done.returncode != 0:
             raise RulesetError(f"gh api {method} {path} failed: {done.stderr.strip()}")
-        parsed = json.loads(done.stdout) if done.stdout.strip() else None
-        if paginate:
-            # --slurp wraps every page in a list.
-            return [x for page in parsed for x in page]
+        try:
+            parsed = json.loads(done.stdout) if done.stdout.strip() else None
+            if paginate:
+                # --slurp wraps every page in a list; no output is no pages.
+                return [x for page in parsed or [] for x in page]
+        except (ValueError, TypeError) as exc:
+            raise RulesetError(f"gh api {method} {path} answered something unreadable: {exc}") from exc
         return parsed
 
 
