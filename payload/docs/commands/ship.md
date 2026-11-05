@@ -524,7 +524,8 @@ told what the author thinks is a second copy of the author.
 `pr-locality.sh` judges the class against `.github/locality-gate/classes.yml`
 and refuses a run without that map, as the CI gate does, so in a target whose
 `docs/harness-local.md` *Documents* names no change contract it exits 3 on
-every pull request, and step 5 stopped at its first round there (#51). The
+every pull request whose body carries the Class and Touch set rows `/pr`
+writes, and step 5 stopped at its first round there (#51). The
 helper keeps its refusal, because in a target that has the map an absent one
 is a broken map; the caller asks the contract first, and the reviewer, handed
 no verdict file, skips the check and names it, as
