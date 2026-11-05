@@ -50,13 +50,23 @@ def load(path: Path) -> Rulesets:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
         name, names, floor = raw["name"], raw["names"], raw["floor"]
-        checks = {repo: list(entry) for repo, entry in raw["checks"].items()}
+        checks = dict(raw["checks"])
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
         raise RulesetError(f"{path}: {exc!r}") from exc
-    if not names or not all(isinstance(n, str) for n in names):
-        raise RulesetError(f"{path}: 'names' must be a non-empty list of strings")
     if not isinstance(name, str):
         raise RulesetError(f"{path}: 'name' must be a string")
+    if not isinstance(names, list) or not names or not all(isinstance(n, str) for n in names):
+        raise RulesetError(f"{path}: 'names' must be a non-empty list of strings")
+    if not isinstance(floor, dict):
+        raise RulesetError(f"{path}: 'floor' must be an object")
+    for key in ("enforcement", "target", "conditions", "bypass_actors", "rules"):
+        if key not in floor:
+            raise RulesetError(f"{path}: floor has no {key!r}")
+    if not isinstance(floor["rules"], list):
+        raise RulesetError(f"{path}: floor 'rules' must be a list")
+    for repo, entry in checks.items():
+        if not isinstance(entry, list) or not all(isinstance(c, str) for c in entry):
+            raise RulesetError(f"{path}: checks for {repo} must be a list of strings")
     return Rulesets(name, tuple(names), floor, checks)
 
 
