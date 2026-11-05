@@ -192,6 +192,30 @@ class TheHelperKeepsWhatHasNotLanded(Fixture):
         self.assertIn("rebase", result.stderr)
         self.assertTrue(self.exists())
 
+    def test_a_branch_a_stacked_rebase_elsewhere_will_update_is_kept(self):
+        # `rebase --update-refs` on a branch stacked over feat/x names feat/x
+        # only in rebase-merge/update-refs, and `git branch -D` (2.38 and
+        # later) refuses it there too. The conflict is in the top commit, so
+        # the replay stops after feat/x's commit with feat/x not yet moved.
+        version = self.at("git version").split()[2]
+        major, minor = (int(part) for part in version.split(".")[:2])
+        if (major, minor) < (2, 38):
+            self.skipTest(f"git {version} predates `rebase --update-refs` (2.38)")
+        self.at('echo mine > a.txt && git commit -qam "main edits a.txt" '
+                '&& git worktree add -q -b feat/top "$R/elsewhere" feat/x && cd "$R/elsewhere" '
+                '&& echo theirs > a.txt && git commit -qam "the top edits a.txt" '
+                '&& { git rebase -q --update-refs main > /dev/null 2>&1 || true; }')
+        self.assertEqual("detached", self.at(
+            'cd "$R/elsewhere" && { git symbolic-ref -q HEAD || echo detached; }'),
+            "the rebase did not stop, so this test proves nothing")
+        self.assertIn("refs/heads/feat/x", self.at(
+            'cat "$(git rev-parse --git-common-dir)"/worktrees/elsewhere/rebase-merge/update-refs'),
+            "feat/x is not among the refs the replay will update")
+        result = self.helper()
+        self.assertEqual(4, result.returncode, result.stderr)
+        self.assertIn("update", result.stderr)
+        self.assertTrue(self.exists())
+
     def test_a_branch_under_a_bisect_elsewhere_is_kept(self):
         self.at('git worktree add -q "$R/elsewhere" feat/x && cd "$R/elsewhere" '
                 '&& for n in 1 2 3; do echo "$n" > "n$n.txt" && git add -A && git commit -qm "step $n"; done '
@@ -231,6 +255,9 @@ class TheHelperKeepsWhatHasNotLanded(Fixture):
         result = self.helper("feat/gone", rows=[])
         self.assertEqual(6, result.returncode, result.stderr)
         self.assertIn("no local branch feat/gone", result.stderr)
+        # The symbolic-ref probe before it has nothing to say about a ref
+        # that is not there.
+        self.assertNotIn("fatal", result.stderr)
 
     def test_a_name_that_could_be_a_flag_is_refused(self):
         for name in ("-D", "--force", "-rfoo"):
