@@ -278,7 +278,9 @@ def tracked(path, git):
     directory, name = os.path.split(os.path.abspath(path))
     try:
         result = subprocess.run(
-            [git, "-c", "core.fsmonitor=false", "-C", directory, "ls-files", "--error-unmatch", "--", name],
+            # `--literal-pathspecs`, or an untracked `x[ab].txt` would match a tracked `xa.txt`.
+            [git, "--literal-pathspecs", "-c", "core.fsmonitor=false", "-C", directory,
+             "ls-files", "--error-unmatch", "--", name],
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"}, timeout=GIT_TIMEOUT,
         )
@@ -343,8 +345,11 @@ def offence(event, strips_cr=os.name == "nt"):
                 if checked > MAX_FILES:
                     return None
                 if holds_crlf(path) and git is not None and tracked(path, git):
+                    # A glob's refusal names the file it matched, since the pattern is not what is tracked.
+                    spelled = path == os.path.join(cwd or "", native(operand))
+                    named = operand if spelled else f"{path}, which {operand} matches,"
                     return (
-                        f"guard-sed-crlf: `sed -i` would rewrite {operand} with LF endings. It is tracked and holds "
+                        f"guard-sed-crlf: `sed -i` would rewrite {named} with LF endings. It is tracked and holds "
                         "CRLF line endings, and Git Bash's sed drops the CR from every line it writes in place, so "
                         "the diff touches lines nobody edited and a build's whitespace check fails on them. "
                         f"{SAFE_FORMS}"

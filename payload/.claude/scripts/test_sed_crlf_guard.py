@@ -170,7 +170,17 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
         self.assertRefused(f"sed -i 's/one/uno/' '{absolute}'", absolute)
 
     def test_a_glob_is_expanded_as_bash_would(self):
-        self.assertRefused("sed -i 's/one/uno/' *.txt", "*.txt")
+        # Review R7: the refusal names the file the glob matched, since the pattern is not what is tracked.
+        reason = self.assertRefused("sed -i 's/one/uno/' *.txt", os.path.join(self.root, "crlf.txt"))
+        self.assertIn("which *.txt matches", reason)
+
+    def test_a_pathspec_character_in_a_name_is_literal(self):
+        # Review R7: as a pathspec, an untracked `crlf[x].txt` would match the tracked `crlfx.txt`.
+        self.put("crlfx.txt", b"one\r\n")
+        self.git("-c", "core.autocrlf=false", "add", "crlfx.txt")
+        self.put("crlf[x].txt", b"one\r\n")
+        self.assertTrue(GUARD.tracked(os.path.join(self.root, "crlfx.txt"), GIT))
+        self.assertFalse(GUARD.tracked(os.path.join(self.root, "crlf[x].txt"), GIT))
 
 
 class WhatSedLeavesAloneIsAdmitted(ACheckout):
