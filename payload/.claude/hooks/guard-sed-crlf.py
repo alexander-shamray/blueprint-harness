@@ -1,0 +1,282 @@
+#!/usr/bin/env python3
+"""Refuse a `sed -i` that would rewrite a tracked CRLF file with LF endings.
+
+Git Bash's sed drops the CR from every line it writes in place, so a file the checkout holds with CRLF endings comes
+back LF; the argument, what this hook reads and where it fails open are `docs/harness-boundaries.md`'s (*The sed
+line-ending guard*)."""
+
+import glob
+import json
+import os
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+
+# What a refusal names as the forms that keep the file's endings. `--binary` is admitted: measured under Git Bash's
+# GNU sed 4.9, `sed --binary -i` writes the CR back where a plain `-i` drops it.
+SAFE_FORMS = (
+    "Edit it with the Edit tool, or with a Python script that opens it with newline=\"\" and writes its own line "
+    "ending back; `sed --binary -i` keeps the CR and is admitted."
+)
+
+# `shlex` returns a run of these as one token, `;\n` or `>&` alike, so a token is a redirection when it holds `<` or
+# `>` and a separator between commands otherwise. A newline is one of them, so `shlex` is told it is not whitespace.
+PUNCTUATION = ";&|()<>\n"
+
+# Words that run the command after them, so `sed` behind one is still the command.
+PREFIXES = {"command", "exec", "time", "builtin", "nohup"}
+
+ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+HEREDOC = re.compile(r"<<(-?)\s*(['\"]?)([A-Za-z0-9_.-]+)\2")
+MSYS_DRIVE = re.compile(r"^/([A-Za-z])(?=/|$)")
+
+# GNU sed's long options, matched as `getopt_long` matches them: an exact name, or a prefix only one name has.
+LONG_OPTIONS = (
+    "binary", "debug", "expression", "file", "follow-symlinks", "help", "in-place", "line-length", "null-data",
+    "posix", "quiet", "regexp-extended", "sandbox", "separate", "silent", "unbuffered", "version",
+    "zero-terminated",
+)
+LONG_WITH_ARGUMENT = {"expression", "file", "line-length"}
+SHORT_FLAGS = set("nrsuzEb")
+SHORT_WITH_ARGUMENT = set("efl")
+
+# Bounds on the work one call does, so a glob over a large tree cannot outrun the hook.
+MAX_FILES = 200
+MAX_READ = 4 << 20
+GIT_TIMEOUT = 5
+
+
+def without_heredoc_bodies(command):
+    """The command with every heredoc body removed, since a body is data and not a command line."""
+    kept = []
+    pending = []
+    for line in command.split("\n"):
+        if pending:
+            strip_tabs, delimiter = pending[0]
+            if (line.lstrip("\t") if strip_tabs else line) == delimiter:
+                pending.pop(0)
+            continue
+        kept.append(line)
+        pending.extend((match.group(1) == "-", match.group(3)) for match in HEREDOC.finditer(line))
+    return "\n".join(kept)
+
+
+def segments(command):
+    """The command's simple commands as word lists, or `None` where `shlex` cannot read it."""
+    lexer = shlex.shlex(without_heredoc_bodies(command), posix=True, punctuation_chars=PUNCTUATION)
+    lexer.whitespace = " \t\r"
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    try:
+        tokens = list(lexer)
+    except ValueError:
+        return None
+    found = [[]]
+    skip = False
+    for token in tokens:
+        if skip:
+            skip = False
+            continue
+        if not token or not set(token) <= set(PUNCTUATION):
+            found[-1].append(token)
+        elif "<" in token or ">" in token:
+            # The word after a redirection is its file, and a bare number before it is its descriptor.
+            skip = True
+            if found[-1] and found[-1][-1].isdigit():
+                found[-1].pop()
+        else:
+            found.append([])
+    return [words for words in found if words]
+
+
+def command_word(words):
+    """The index of the word this simple command runs, past assignments and prefix words."""
+    index = 0
+    while index < len(words) and (ASSIGNMENT.match(words[index]) or words[index] in PREFIXES):
+        index += 1
+    return index
+
+
+def long_option(name):
+    """The long option `name` spells, or `None` for one GNU sed would reject."""
+    if name in LONG_OPTIONS:
+        return name
+    matches = [option for option in LONG_OPTIONS if option.startswith(name)]
+    return matches[0] if len(matches) == 1 else None
+
+
+def in_place_files(arguments):
+    """The files a `sed` with these arguments rewrites in place without `--binary`; empty where it rewrites none."""
+    in_place = binary = script_given = only_operands = False
+    operands = []
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        index += 1
+        if only_operands or argument == "-" or not argument.startswith("-"):
+            operands.append(argument)
+            continue
+        if argument == "--":
+            only_operands = True
+            continue
+        if argument.startswith("--"):
+            name, equals, _ = argument[2:].partition("=")
+            option = long_option(name)
+            if option is None or option in ("help", "version"):
+                return []
+            in_place = in_place or option == "in-place"
+            binary = binary or option == "binary"
+            script_given = script_given or option in ("expression", "file")
+            if option in LONG_WITH_ARGUMENT and not equals:
+                index += 1
+            continue
+        for position, letter in enumerate(argument[1:], start=1):
+            if letter == "i":
+                in_place = True
+                break
+            if letter in SHORT_WITH_ARGUMENT:
+                script_given = script_given or letter != "l"
+                if position == len(argument) - 1:
+                    index += 1
+                break
+            if letter not in SHORT_FLAGS:
+                return []
+            binary = binary or letter == "b"
+    if not in_place or binary:
+        return []
+    return operands if script_given else operands[1:]
+
+
+def native(path):
+    """`path` as this platform's Python opens it: Git Bash's `/c/...` is `C:/...` on Windows."""
+    if os.name == "nt":
+        path = MSYS_DRIVE.sub(lambda match: match.group(1) + ":", path)
+    return os.path.expanduser(path)
+
+
+def candidates(operand, cwd):
+    """The regular files `operand` names from `cwd`, globbed as bash would; empty for one this hook cannot place."""
+    if "$" in operand or "`" in operand:
+        return []
+    path = native(operand)
+    if not os.path.isabs(path):
+        if cwd is None:
+            return []
+        path = os.path.join(cwd, path)
+    if any(character in operand for character in "*?["):
+        matches = sorted(glob.glob(path))
+        if matches:
+            return [match for match in matches if os.path.isfile(match)]
+    return [path] if os.path.isfile(path) else []
+
+
+def holds_crlf(path):
+    """Whether the file's first `MAX_READ` bytes hold a CRLF; `False` for one that cannot be read."""
+    try:
+        with open(path, "rb") as handle:
+            return b"\r\n" in handle.read(MAX_READ)
+    except OSError:
+        return False
+
+
+def tracked(path, git):
+    """Whether `path` is in its checkout's index; `False` wherever git cannot say.
+
+    `core.fsmonitor` is switched off because `ls-files` would otherwise run the command a foreign checkout's config
+    names, and the path is the session's to choose; `GIT_OPTIONAL_LOCKS=0` keeps the read from refreshing the index.
+    """
+    directory, name = os.path.split(os.path.abspath(path))
+    try:
+        result = subprocess.run(
+            [git, "-c", "core.fsmonitor=false", "-C", directory, "ls-files", "--error-unmatch", "--", name],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"}, timeout=GIT_TIMEOUT,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
+def offence(event, strips_cr=os.name == "nt"):
+    """The reason to refuse this call, or `None` to let it through.
+
+    `strips_cr` is whether this platform's sed drops the CR, which only Git Bash's does: GNU sed on Linux and macOS
+    keeps it as an ordinary character, so refusing there would block an edit that is harmless.
+    """
+    if not strips_cr or event.get("tool_name") != "Bash":
+        return None
+    tool_input = event.get("tool_input")
+    command = tool_input.get("command") if isinstance(tool_input, dict) else None
+    if not isinstance(command, str) or "sed" not in command:
+        return None
+    cwd = event.get("cwd")
+    cwd = cwd if isinstance(cwd, str) and cwd else os.getcwd()
+
+    words_list = segments(command)
+    if words_list is None:
+        return None
+    git = shutil.which("git")
+    checked = 0
+    for words in words_list:
+        start = command_word(words)
+        if start >= len(words):
+            continue
+        name = words[start]
+        arguments = words[start + 1:]
+        if name == "cd":
+            # Only a plain `cd <dir>` moves the files after it; any other form leaves them unplaceable.
+            if len(arguments) != 1 or "$" in arguments[0] or arguments[0] == "-":
+                cwd = None
+            else:
+                target = native(arguments[0])
+                cwd = target if os.path.isabs(target) else (os.path.join(cwd, target) if cwd else None)
+            continue
+        if os.path.basename(native(name)).lower() not in ("sed", "sed.exe"):
+            continue
+        for operand in in_place_files(arguments):
+            for path in candidates(operand, cwd):
+                checked += 1
+                if checked > MAX_FILES:
+                    return None
+                if holds_crlf(path) and git is not None and tracked(path, git):
+                    return (
+                        f"guard-sed-crlf: `sed -i` would rewrite {operand} with LF endings. It is tracked and holds "
+                        "CRLF line endings, and Git Bash's sed drops the CR from every line it writes in place, so "
+                        "the diff touches lines nobody edited and a build's whitespace check fails on them. "
+                        f"{SAFE_FORMS}"
+                    )
+    return None
+
+
+def main():
+    try:
+        event = json.loads(sys.stdin.buffer.read().decode("utf-8"))
+    except (json.JSONDecodeError, ValueError, UnicodeDecodeError):
+        # As in guard-edit-target.py: a hook that cannot read its own input has established nothing, and refusing
+        # every command on a malformed event would turn a defect here into a dead session.
+        print("guard-sed-crlf: unreadable hook event; not judging", file=sys.stderr)
+        return 0
+    if not isinstance(event, dict):
+        print("guard-sed-crlf: hook event is not an object; not judging", file=sys.stderr)
+        return 0
+
+    reason = offence(event)
+    if reason is None:
+        return 0
+    json.dump(
+        {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": reason,
+            }
+        },
+        sys.stdout,
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
