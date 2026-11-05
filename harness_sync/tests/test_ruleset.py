@@ -174,6 +174,13 @@ class RulesetTests(unittest.TestCase):
             self.assertEqual(len(lines), 1, lines)
             self.assertIn(check["context"], lines[0])
 
+    def test_normal_form_sorts_a_context_with_and_without_an_id(self) -> None:
+        """One context bound and unbound must not sort by comparing None."""
+        found = [{"context": "a", "integration_id": 15368}, {"context": "a"}]
+        api = {"rules": [{"type": "required_status_checks", "parameters": {"required_status_checks": found}}]}
+        contexts = normal_form(api)["rules"]["required_status_checks"]["contexts"]
+        self.assertEqual(contexts, [("a", None), ("a", 15368)])
+
     def test_floor_breaches_names_each_breach(self) -> None:
         """Every desired body is clean, so the data cannot weaken the floor;
         each weakening of a clean body is named once."""
