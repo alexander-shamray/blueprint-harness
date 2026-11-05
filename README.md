@@ -203,13 +203,14 @@ bypass actors included, which needs admin. Both exit 2 when they refuse: a
 repository outside the data, data below the floor, or two rulesets with a name
 in the data.
 
-`rulesets.yml` runs `ruleset-check --effective` on every pull request, on
-pushes to `main` and daily. A branch that changes `rulesets/main.json` is red
-until the change is live, so its order is: the `/ship` loop ends with no open
-finding, `ruleset-apply <repo>` runs from the branch, the `rulesets` job is
-rerun, and the pull request merges. The floor refusal is what stops an unmerged
-branch from taking `main` below the floor: data without a floor rule or with no
-required check is refused before anything is applied. A dropped or renamed
-required check is caught only by the review loop that precedes the apply. A scheduled run that is red, a difference such as a ruleset changed by hand or
-a failed read-back, files a `harness`, `high` issue whose body says which, or
-comments on the open one.
+`rulesets.yml` runs `ruleset-check --effective` on every pull request, on pushes
+to `main` and daily. A branch that changes `rulesets/main.json` is red until the
+change is live, so its order is: the `/ship` loop ends with no open finding,
+`ruleset-apply <repo>` runs from the branch, the `rulesets` job is rerun, and
+the pull request merges. The floor refusal is what stops an unmerged branch from
+taking `main` below the floor: data without a floor rule or with no required
+check is refused before anything is applied. A dropped or renamed required check
+is caught only by the review loop that precedes the apply. A scheduled run that
+is red, a difference such as a ruleset changed by hand or a failed read-back,
+files a `harness`, `high` issue whose body says which, or comments on the open
+one.
