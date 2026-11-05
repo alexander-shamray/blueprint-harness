@@ -4,8 +4,8 @@ name: Rulesets
 # `rulesets/main.json` (`README.md`, *Changes*). On a pull request it proves the
 # data the branch carries is what is live; on main and daily it catches a
 # ruleset changed by hand, and a red scheduled run files an issue.
-# No path filter: this is to become a required check, and a required check that
-# skips some pull requests leaves them waiting forever.
+# No path filter: this is a required check, and a required check that skips
+# some pull requests leaves them waiting forever.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -21,8 +21,8 @@ permissions:
   contents: read
 
 jobs:
-  # The job id is to become a required-check context in the `main` ruleset;
-  # renaming it makes every pull request wait for a check that never reports.
+  # The job id is a required-check context in the `main` ruleset; renaming it
+  # makes every pull request wait for a check that never reports.
   rulesets:
     runs-on: ubuntu-latest
     timeout-minutes: 10
