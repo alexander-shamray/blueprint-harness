@@ -193,6 +193,9 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             "(cd sub && true); sed -i 's/one/uno/' crlf.txt",
             "(cd sub; (cd ..)); sed -i 's/one/uno/' crlf.txt",
             "cd sub | true; sed -i 's/one/uno/' crlf.txt",
+            # Review R3.3: `shlex` returns `)>` as one token, which read as a redirection never closed the group.
+            "(cd sub && true)>out.log; sed -i 's/one/uno/' crlf.txt",
+            "(cd sub && true)2>&1; sed -i 's/one/uno/' crlf.txt",
         ):
             with self.subTest(command=command):
                 self.assertRefused(command, "crlf.txt")

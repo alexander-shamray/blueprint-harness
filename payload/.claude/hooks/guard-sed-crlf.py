@@ -198,20 +198,26 @@ def segments(command):
             continue
         if not token or not set(token) <= set(PUNCTUATION):
             current.words.append(token)
-        elif "<" in token or ">" in token:
+            continue
+        # A run can join a group's paren to a redirection, as `)>` does, so the parens are taken out of it first:
+        # each opens or closes a subshell and ends the command before it.
+        rest = token.replace("(", "").replace(")", "")
+        for character in token:
+            if character == "(":
+                opened += 1
+                scope = scope + (opened,)
+            elif character == ")":
+                scope = scope[:-1]
+        if rest != token:
+            found.append(Segment(scope))
+        if "<" in rest or ">" in rest:
             # A bare number before a redirection is its descriptor.
-            redirection = token
+            redirection = rest
             if current.words and current.words[-1].isdigit():
                 current.words.pop()
-        else:
-            for character in token:
-                if character == "(":
-                    opened += 1
-                    scope = scope + (opened,)
-                elif character == ")":
-                    scope = scope[:-1]
+        elif rest:
             following = Segment(scope)
-            if "|" in token.replace("||", ""):
+            if "|" in rest.replace("||", ""):
                 current.piped = following.piped = True
             found.append(following)
     return [segment for segment in found if segment.words]
