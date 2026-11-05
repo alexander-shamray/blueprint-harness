@@ -3,10 +3,7 @@
   "task_list": ".todo/blueprint-harness.md",
   "settings": {
     "env": {},
-    "allow": [
-      "Bash(py -3.12 -m harness_sync ruleset-check:*)",
-      "Bash(py -3.12 -m harness_sync ruleset-apply:*)"
-    ],
+    "allow": [],
     "deny": [],
     "hooks": {}
   },
