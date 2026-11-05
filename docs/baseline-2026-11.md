@@ -76,8 +76,8 @@ compare like with like: the same command, the same repository.
 
 ## After plan 2
 
-Measured on 2026-11-05, after blueprint-backend's #1750, whose `CLAUDE.md`
-imports `.harness/agent-rules.md`, and plan 2's memory triage. The figures
+Measured on 2026-11-05, after blueprint-backend's #1750, which made its
+`CLAUDE.md` import `.harness/agent-rules.md`, and plan 2's memory triage. The figures
 are LF bytes of what every backend session loads before its first prompt.
 
 | What a backend session loads | Before | After |
@@ -92,9 +92,12 @@ After, `CLAUDE.md` is 5,968 bytes and its import 6,186. The triage archived
 the owner-preference memories of frontend (2) and admin (3), whose rules
 `~/.claude/CLAUDE.md` *Owner preferences* now states. Eight backend memories
 stay because their destination states their rule only in part. Frontend's
-and admin's other memories wait for their first sync.
+and admin's memories other than their repository facts wait for their first
+sync.
 
-The stop count belongs to the next backend `ship` session, run after this
-measure: the first command line above with `--since 2026-11-06`. It is added
-here once that session has ended; a rise against the tables above is a
-harness defect, filed in this repository.
+The stop count after plan 2 is read from the backend `ship` sessions run
+after this measure: the first command line above with `--since 2026-11-06`,
+the day after it, so a session run later on 2026-11-05 falls outside it, and
+two or more sessions give a median as the tables above do. It is added here
+once one has ended; a rise against those tables is a harness defect, filed
+in this repository.
