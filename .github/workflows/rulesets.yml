@@ -97,7 +97,7 @@ jobs:
           if [ -n "$EXISTING" ]; then
             gh issue comment "$EXISTING" --body "$BODY"
           else
-            gh issue create --title "$TITLE" --label harness --label high --body "$BODY
+            gh issue create --title "$TITLE" --label bug --label harness --label high --body "$BODY
 
           Filed by \`.github/workflows/rulesets.yml\`. Each further red scheduled run comments here rather than filing again; close this issue once \`ruleset-check --effective\` exits 0."
           fi
