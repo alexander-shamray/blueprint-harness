@@ -73,3 +73,28 @@ print for `--command ship`, so the table is reproducible from them.
 Most `ship` sessions run without a stop; a few long ones carry most of the
 handovers. A comparison after the move should read both tables, and should
 compare like with like: the same command, the same repository.
+
+## After plan 2
+
+Measured on 2026-11-05, after blueprint-backend's #1750, whose `CLAUDE.md`
+imports `.harness/agent-rules.md`, and plan 2's memory triage. The figures
+are LF bytes of what every backend session loads before its first prompt.
+
+| What a backend session loads | Before | After |
+| --- | ---: | ---: |
+| `CLAUDE.md` with its imports | 8,597 | 12,154 |
+| The auto-memory index, `MEMORY.md` | 16,254 | 5,688 |
+| `~/.claude/CLAUDE.md` | 2,457 | 4,186 |
+| Total | 27,308 | 22,028 |
+
+After, `CLAUDE.md` is 5,968 bytes and its import 6,186. The triage archived
+50 of backend's 79 memories, rewrote one to its backend half, and archived
+the owner-preference memories of frontend (2) and admin (3), whose rules
+`~/.claude/CLAUDE.md` *Owner preferences* now states. Eight backend memories
+stay because their destination states their rule only in part. Frontend's
+and admin's other memories wait for their first sync.
+
+The stop count belongs to the next backend `ship` session, run after this
+measure: the first command line above with `--since 2026-11-06`. It is added
+here once that session has ended; a rise against the tables above is a
+harness defect, filed in this repository.
