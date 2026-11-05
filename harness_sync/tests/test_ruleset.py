@@ -5,9 +5,11 @@ import copy
 import io
 import json
 import re
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from harness_sync.__main__ import main
 from harness_sync.ruleset import (
@@ -16,6 +18,7 @@ from harness_sync.ruleset import (
     desired,
     floor_breaches,
     load,
+    GhApi,
     normal_form,
     run_apply,
     run_check,
@@ -392,6 +395,31 @@ class RulesetCommandTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("deletion", err)
         self.assertEqual((out, gh.calls), ("", []))
+
+
+class GhApiTests(unittest.TestCase):
+    def call(self, run_result=None, error=None, paginate=False):
+        with mock.patch("harness_sync.ruleset.subprocess.run", return_value=run_result, side_effect=error):
+            return GhApi().call("GET", "repos/o/r/rulesets", paginate=paginate)
+
+    def done(self, out: str, code: int = 0):
+        return subprocess.CompletedProcess([], code, out, "boom")
+
+    def test_missing_gh_is_a_ruleset_error(self) -> None:
+        with self.assertRaisesRegex(RulesetError, "could not run"):
+            self.call(error=FileNotFoundError("gh"))
+
+    def test_non_json_output_is_a_ruleset_error(self) -> None:
+        with self.assertRaisesRegex(RulesetError, "unreadable"):
+            self.call(self.done("<html>"))
+
+    def test_empty_paginated_output_is_an_empty_list(self) -> None:
+        self.assertEqual(self.call(self.done(""), paginate=True), [])
+
+    def test_pages_are_flattened_and_failure_is_named(self) -> None:
+        self.assertEqual(self.call(self.done("[[1],[2,3]]"), paginate=True), [1, 2, 3])
+        with self.assertRaisesRegex(RulesetError, "boom"):
+            self.call(self.done("", 1))
 
 
 if __name__ == "__main__":
