@@ -191,3 +191,14 @@ direct pushes are refused, and nobody bypasses it. Seven checks must pass:
 `sync-tool` and `payload-suites` on its three runners (`ubuntu-latest`,
 `windows-latest`, `macos-latest`) from `ci.yml`, and `commit-gate`,
 `closure-gate` and `harness-drift` from the workflows the root renders.
+
+`rulesets/main.json` owns the seven required checks, and the floor every
+repository's `main` ruleset meets: the rules, no bypass and no approval
+required. `py -3.12 -m harness_sync ruleset-check [--effective] [<repo>...]`
+reads each live ruleset and exits 1 with a line per difference, and
+`ruleset-apply <repo>` applies the data to one repository and then runs the
+check. `--effective` reads the rules in force on `main`, which any token can
+read, and compares rules and checks only; without it the ruleset is read whole,
+bypass actors included, which needs admin. Both exit 2 when they refuse: a
+repository outside the data, data below the floor, or two rulesets with a name
+in the data.
