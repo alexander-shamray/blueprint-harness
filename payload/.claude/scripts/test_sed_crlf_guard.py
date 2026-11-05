@@ -86,6 +86,8 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
         self.assertIn("Edit tool", reason)
         self.assertIn('newline=""', reason)
         self.assertIn("--binary", reason)
+        # Review R4.7: the diff shows every line only where the index holds CRLF, as the section says.
+        self.assertIn("where the index holds CRLF", reason)
 
     def test_every_spelling_of_in_place_is_refused(self):
         for command in (

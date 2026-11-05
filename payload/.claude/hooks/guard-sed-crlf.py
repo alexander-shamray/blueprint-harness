@@ -462,7 +462,8 @@ def judge(command, cwd, git, checked, depth):
                     return (
                         f"guard-sed-crlf: `sed -i` would rewrite {named} with LF endings. It is tracked and holds "
                         "CRLF line endings, and Git Bash's sed drops the CR from every line it writes in place, so "
-                        "the diff touches lines nobody edited and a build's whitespace check fails on them. "
+                        "the file comes back LF: a whitespace or editorconfig check fails on lines nobody edited, "
+                        "and where the index holds CRLF the diff shows every line. "
                         f"{SAFE_FORMS}"
                     )
     return None
