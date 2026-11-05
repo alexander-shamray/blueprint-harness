@@ -9,6 +9,7 @@ from harness_sync.apply import ApplyError, apply
 from harness_sync.config import ConfigError
 from harness_sync.pr import GhCli, SyncError, open_sync_pr
 from harness_sync import render
+from harness_sync.ruleset import DATA_PATH, GhApi, RulesetError, load as load_rulesets, run_apply, run_check
 from harness_sync.render import RenderError
 
 
@@ -30,7 +31,24 @@ def _build_parser() -> argparse.ArgumentParser:
     opr.add_argument("--harness", type=Path, help="the harness checkout whose history orders commits; default: "
                      "the directory holding --payload")
     opr.add_argument("--run-url", help="the workflow run that opens the pull request, linked from its body")
+    exits = "exit 0: matches; 1: differs, one line per difference; 2: refused (repository outside the data, data below the floor, two matching rulesets) or a gh call failed"
+    rck = sub.add_parser("ruleset-check", help="compare the live main ruleset of each repository with rulesets/main.json", epilog=exits)
+    rck.add_argument("--effective", action="store_true", help="read the rules in force on main (any token; no bypass list) and compare rules and checks only")
+    rck.add_argument("repos", nargs="*", metavar="repo", help="owner/name keys of the data's checks; all when omitted")
+    rap = sub.add_parser("ruleset-apply", help="PUT rulesets/main.json to a repository's main ruleset, or POST it when there is none, then check it", epilog=exits)
+    rap.add_argument("repo", help="owner/name, a key of the data's checks")
     return parser
+
+
+def _rulesets(args: argparse.Namespace) -> int:
+    try:
+        data = load_rulesets(DATA_PATH)
+    except RulesetError as exc:
+        print(f"harness_sync: {exc}", file=sys.stderr)
+        return 2
+    if args.command == "ruleset-check":
+        return run_check(GhApi(), data, args.repos, args.effective)
+    return run_apply(GhApi(), data, args.repo)
 
 
 def _open_pr(args: argparse.Namespace) -> int:
@@ -60,6 +78,8 @@ def main(argv: list[str] | None = None) -> int:
         # The harness's own renderer, never the target's: check must not execute code a target controls.
         argv = ["--root", str(args.target)] + (["--payload", str(args.payload)] if args.payload else [])
         return _load_gate().main(argv, render_module=render)
+    if args.command in ("ruleset-check", "ruleset-apply"):
+        return _rulesets(args)
     try:
         if args.command == "open-pr":
             return _open_pr(args)
