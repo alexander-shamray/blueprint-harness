@@ -26,6 +26,12 @@ None. CI runs every check the repository has: `sync-tool` over
 `harness_sync/`, `payload-suites` over the payload applied to a worktree,
 and the gates the sync renders.
 
+The required checks, which `/ship` step 6's wait holds the list to:
+`sync-tool`, `payload-suites (ubuntu-latest)`,
+`payload-suites (windows-latest)`, `payload-suites (macos-latest)`,
+`harness-drift`, `closure-gate` and `commit-gate`. There is no change
+contract, so no `locality-gate`, and step 5 runs no locality read.
+
 ## Residuals
 
 None beyond `docs/harness-boundaries.md`'s own.
