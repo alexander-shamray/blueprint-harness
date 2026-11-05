@@ -263,7 +263,7 @@ renders the split suites here, and #5 stays open until it is.
 Backend takes its half in one pull request, since its `.harness/config.json`
 still lists the twelve modules as `local` and apply refuses a payload file
 that is `local` and differs: the config this repository's draft carries, the
-twelve siblings and the sync's apply together (blueprint-backend#1773). Until
+eleven siblings and the sync's apply together (blueprint-backend#1773). Until
 it lands, `sync.yml`'s backend leg is refused.
 
 ## Test counts
