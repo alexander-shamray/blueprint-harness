@@ -169,6 +169,9 @@ def floor_breaches(body: dict) -> list[str]:
     """
     have = normal_form(body)
     lines = [f"rule missing: {kind}" for kind in _FLOOR_TYPES if kind not in have["rules"]]
+    contexts = have["rules"].get("required_status_checks", {}).get("contexts")
+    if contexts == []:
+        lines.append("required_status_checks names no check")
     pull = have["rules"].get("pull_request")
     if pull is not None:
         count = pull.get("required_approving_review_count")
