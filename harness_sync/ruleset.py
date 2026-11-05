@@ -331,6 +331,11 @@ def run_check(gh, data: Rulesets, repos: list[str] | None, effective: bool) -> i
     if refusal:
         print(f"ruleset-check: {refusal}", file=sys.stderr)
         return 2
+    for repo in repos:
+        breaches = floor_breaches(desired(data, repo))
+        if breaches:
+            print(f"ruleset-check: the data for {repo} is below the floor: {'; '.join(breaches)}", file=sys.stderr)
+            return 2
     code = 0
     try:
         for repo in repos:

@@ -387,3 +387,12 @@ class RulesetCommandTests(unittest.TestCase):
         code, _, err = run(main, ["ruleset-apply", "o/other"])
         self.assertEqual(code, 2)
         self.assertIn("o/other", err)
+
+    def test_check_refuses_data_below_the_floor_before_any_call(self) -> None:
+        weak = copy.deepcopy(self.data)
+        weak.floor["rules"].remove("deletion")
+        gh = FakeGh()
+        code, out, err = run(run_check, gh, weak, [BACKEND], False)
+        self.assertEqual(code, 2)
+        self.assertIn("deletion", err)
+        self.assertEqual((out, gh.calls), ("", []))
