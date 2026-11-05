@@ -1,14 +1,7 @@
-"""Two Windows traps in the harness's Python, held for every file under `.claude/` and `.github/`.
+"""Two Windows traps in the Python under `.claude/` and `.github/` of the root it runs in, its `local` paths skipped.
 
-`text=True` with no `encoding=` decodes a child's output with the locale codec, cp1252 on the owner's machine,
-not UTF-8: a `gh api` reply holding an em dash raised in the reader thread, `stdout` came back `None`, and a poller
-read that as no results. And `["bash", ...]` handed to a subprocess is looked up by CreateProcess, which searches
-System32 before `PATH` and finds the WSL launcher rather than Git's bash. `docs/harness/pitfalls.md` owns neither:
-a test can see both shapes, so the test is the rule.
-
-The walk covers the root this file runs in, so it judges a target's tree after a sync as well as the harness's
-own, and skips what that root's `.harness/config.json` lists under `local`: a target's own files are not the
-payload's to fix.
+`text=True` with no `encoding=` decodes a child's output with the locale codec, cp1252 on Windows, so a byte it cannot
+decode leaves `stdout` `None`; `["bash", ...]` finds System32's WSL launcher before Git's bash. The test is the rule.
 """
 
 import ast
