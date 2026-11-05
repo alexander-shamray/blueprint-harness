@@ -147,7 +147,7 @@ class RulesetTests(unittest.TestCase):
 
     def test_normal_form_reads_the_api_shape(self) -> None:
         """Recorded from the live backend ruleset: the API's extra fields (ids,
-        timestamps, integration ids, the name) are dropped, so the data's body
+        timestamps, the name) are dropped, so the data's body
         and the live one compare equal."""
         fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
         self.assertEqual(compare(self.want(), normal_form(fixture)), [])
