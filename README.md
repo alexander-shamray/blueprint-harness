@@ -208,6 +208,7 @@ pushes to `main` and daily. A branch that changes `rulesets/main.json` is red
 until the change is live, so its order is: the `/ship` loop ends with no open
 finding, `ruleset-apply <repo>` runs from the branch, the `rulesets` job is
 rerun, and the pull request merges. The floor refusal is what stops an unmerged
-branch from weakening `main`: data below the floor is refused before anything
-is applied. A scheduled run that is red, a ruleset changed by hand, files a
+branch from taking `main` below the floor: data without a floor rule or with no
+required check is refused before anything is applied. A dropped or renamed
+required check is caught only by the review loop that precedes the apply. A scheduled run that is red, a ruleset changed by hand, files a
 `harness`, `high` issue with the differences, or comments on the open one.
