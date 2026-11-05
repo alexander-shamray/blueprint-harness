@@ -175,6 +175,9 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             "bash -s <<EOF\ncd sub\nsed -i 's/one/uno/' inner.txt\nEOF\n",
             "bash <<< \"sed -i 's/one/uno/' crlf.txt\"",
             "echo \"sed -i 's/one/uno/' crlf.txt\" | bash",
+            # Review R3.2: a `cat` passes its heredoc or here-string down the pipe.
+            "cat <<'EOF' | bash\nsed -i 's/one/uno/' crlf.txt\nEOF\n",
+            "cat <<< \"sed -i 's/one/uno/' crlf.txt\" | sh",
             "bash -o pipefail -c \"sed -i 's/one/uno/' crlf.txt\"",
         ):
             with self.subTest(command=command):

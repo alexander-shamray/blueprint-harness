@@ -238,10 +238,18 @@ def command_word(words):
     return index
 
 
-def echoed(words):
-    """What an `echo` or `printf` stage writes into the pipe after it, as far as its words say; `None` otherwise."""
+def echoed(segment):
+    """What a stage writes into the pipe after it, as far as its text says; `None` where the text does not say.
+
+    An `echo` or `printf` writes its words, and a `cat` with no file writes the heredoc or here-string it reads.
+    """
+    words = segment.words
     start = command_word(words)
-    if start >= len(words) or words[start] not in ("echo", "printf"):
+    if start >= len(words):
+        return None
+    if words[start] == "cat" and all(word.startswith("-") and word != "-" for word in words[start + 1:]):
+        return segment.stdin
+    if words[start] not in ("echo", "printf"):
         return None
     rest = words[start + 1:]
     while words[start] == "echo" and rest and re.fullmatch(r"-[neE]+", rest[0]):
@@ -427,7 +435,7 @@ def judge(command, cwd, git, checked, depth):
             # The line runs from here: a `-c` line, whose `-c` may share a cluster as in `-lc`, or the shell's input.
             stdin = segment.stdin
             if stdin is None and segment.piped and previous is not None and previous.piped:
-                stdin = echoed(previous.words)
+                stdin = echoed(previous)
             line = shell_line(arguments, stdin)
             if line and depth < MAX_DEPTH:
                 reason = judge(line, cwd, git, checked, depth + 1)
