@@ -578,9 +578,13 @@ against a session that sets out to defeat them.** `guard-git-argv.py`,
 `guard-edit-target.py`, `guard-index-argv.py` and `guard-sed-crlf.py` are
 written against a session that types a dangerous command by accident or by
 a plausible shortcut — a forced push, a write into a denied tree, a removal
-of a parent of the checkout, a `sed -i` over a CRLF file — in any spelling a shell user writes in ordinary work:
-quoting, `-C` and `--work-tree`, environment prefixes, `cd` chains, the
-launchers and wrappers, heredocs, pipes into a shell.
+of a parent of the checkout, a `sed -i` over a CRLF file — in any spelling
+a shell user writes in ordinary work: quoting, `-C` and `--work-tree`,
+environment prefixes, `cd` chains, the launchers and wrappers, heredocs,
+pipes into a shell. A guard that judges a file the command names, as
+`guard-sed-crlf.py` does, is held to that list where the command's text
+holds the name; a file list another program computes is its stated
+residual (*The sed line-ending guard*).
 
 They are not written against a session that builds a command so the hook
 cannot read it. A reader that runs before expansion can always be
@@ -1452,9 +1456,11 @@ since MSYS grep strips the CR before matching (#37).
 
 `.claude/hooks/guard-sed-crlf.py` is a `PreToolUse` hook on `Bash` that
 reads the file a `sed -i` names, because nothing in the command's text says
-what line endings that file holds. It splits the command into simple
-commands as `shlex` reads them, heredoc bodies dropped, follows a plain
-`cd <dir>` between them, and reads sed's options as `getopt_long` does:
+what line endings that file holds. It reads the command's lines as bash
+does, continuations joined and comments and heredoc bodies dropped, splits
+them into simple commands with `shlex`, follows a plain `cd <dir>` within
+its subshell, judges a `bash -c` or `sh -c` line as a command of its own,
+and reads sed's options as `getopt_long` does:
 clusters, `-i<suffix>`, `--in-place=`, unique prefixes of long names, and
 the first operand as the script when no `-e` or `-f` names one. It refuses
 when an operand, globbed as bash would, is a regular file whose first 4 MiB
@@ -1483,11 +1489,15 @@ git on `PATH`, or a git that cannot answer: each is admitted, because a
 guard that refuses what it cannot resolve blocks ordinary work for want of
 a resolution. An unreadable event is admitted, as in the other guards.
 
-**Its residuals, stated rather than left to be found:** a `sed` run through
-another program — `xargs sed -i`, `find -exec sed -i`, `bash -c "sed -i …"`
-— or through the PowerShell tool is not judged, and neither is an untracked
-CRLF file, whose endings are not yet the checkout's. A quoted glob is
-expanded although bash would pass it literally, which can only refuse more.
+**Its residuals, stated rather than left to be found, and pinned as
+admitted in its suite.** The launchers and wrappers *The guards' threat
+model* names reach this guard only where the command's text holds the file
+list: a `sed` behind `xargs` or `find -exec` takes its files from another
+program's output, which no hook is given, so neither is judged, however
+routine the idiom; nor is a `sed` through the PowerShell tool, or an
+untracked CRLF file, whose endings are not yet the checkout's. A quoted
+glob is expanded although bash would pass it literally, which can only
+refuse more.
 
 ## Headless dispatched sessions
 

@@ -33,6 +33,11 @@ PREFIXES = {
     "{", "!", "if", "then", "elif", "else", "while", "until", "do",
 }
 
+# The shells whose `-c` line is judged as a command of its own, to `MAX_DEPTH` nested lines.
+SHELLS = {"bash", "sh", "bash.exe", "sh.exe"}
+SHELL_COMMAND = re.compile(r"-[A-Za-z]*c[A-Za-z]*")
+MAX_DEPTH = 3
+
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 # What follows a `<<`: the `-` that strips tabs, then the delimiter word, which quotes or a backslash may spell.
 HEREDOC = re.compile(r"(-?)[ \t]*((?:[A-Za-z0-9_.\-]|\\.|'[^'\n]*'|\"[^\"\n]*\")+)")
@@ -303,12 +308,14 @@ def offence(event, strips_cr=os.name == "nt"):
         return None
     cwd = event.get("cwd")
     cwd = cwd if isinstance(cwd, str) and cwd else os.getcwd()
+    return judge(command, cwd, shutil.which("git"), [0], 0)
 
+
+def judge(command, cwd, git, checked, depth):
+    """The refusal for one command line run from `cwd`, or `None`; `checked` counts the files read across calls."""
     found = segments(command)
     if found is None:
         return None
-    git = shutil.which("git")
-    checked = 0
     # The directory each subshell stands in. One opened here starts where its parent stands when it is first seen,
     # which is where bash forks it, since the commands are read in order.
     directories = {(): cwd}
@@ -337,12 +344,23 @@ def offence(event, strips_cr=os.name == "nt"):
                 directories[scope] = (target if os.path.isabs(target)
                                       else (os.path.join(cwd, target) if cwd else None))
             continue
-        if os.path.basename(native(name)).lower() not in ("sed", "sed.exe"):
+        program = os.path.basename(native(name)).lower()
+        if program in SHELLS:
+            # `bash -c '<line>'` runs its line from here; `-c` may share a cluster, as in `-lc`.
+            for position, argument in enumerate(arguments[:-1]):
+                if SHELL_COMMAND.fullmatch(argument):
+                    if depth < MAX_DEPTH:
+                        reason = judge(arguments[position + 1], cwd, git, checked, depth + 1)
+                        if reason:
+                            return reason
+                    break
+            continue
+        if program not in ("sed", "sed.exe"):
             continue
         for operand in in_place_files(arguments):
             for path in candidates(operand, cwd):
-                checked += 1
-                if checked > MAX_FILES:
+                checked[0] += 1
+                if checked[0] > MAX_FILES:
                     return None
                 if holds_crlf(path) and git is not None and tracked(path, git):
                     # A glob's refusal names the file it matched, since the pattern is not what is tracked.
