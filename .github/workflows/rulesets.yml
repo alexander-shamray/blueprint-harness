@@ -28,6 +28,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       differences: ${{ steps.check.outputs.differences }}
+      status: ${{ steps.check.outputs.status }}
     steps:
       - uses: actions/checkout@v7
 
@@ -48,6 +49,7 @@ jobs:
           printf '%s\n' "$out"
           delim="EOF_$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
           {
+            printf 'status=%s\n' "$status"
             printf 'differences<<%s\n' "$delim"
             printf '%s\n' "$out" | head -c 60000
             printf '\n%s\n' "$delim"
@@ -75,17 +77,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           DIFFERENCES: ${{ needs.rulesets.outputs.differences }}
+          STATUS: ${{ needs.rulesets.outputs.status }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          TITLE="A repository's main ruleset differs from rulesets/main.json"
+          TITLE="A repository's main ruleset differs from rulesets/main.json, or its read-back failed"
           # A list as long as its limit may be cut, and a listing that cannot see
           # the open issue files a second one, so it is refused.
           LIST=$(gh issue list --state open --label harness --limit 1000 --json number,title)
           [ "$(jq length <<<"$LIST")" -lt 1000 ] || { echo "::error::the issue list reached its limit and may be cut"; exit 1; }
           EXISTING=$(jq -r --arg t "$TITLE" 'map(select(.title == $t)) | .[0].number // empty' <<<"$LIST")
+          # Exit 1 is a difference; anything else (a refusal, a gh failure, a
+          # step that never ran) is a read-back that failed.
+          if [ "${STATUS:-}" = 1 ]; then WHAT="found differences"; else WHAT="failed (exit status ${STATUS:-unknown})"; fi
           BODY=$(printf '%s\n\n```\n%s\n```\n\n%s\n' \
-            "The scheduled read-back ($RUN_URL) found:" \
+            "The scheduled read-back ($RUN_URL) $WHAT:" \
             "${DIFFERENCES:-no output reached this job; see the run}" \
             "Severity: high")
           if [ -n "$EXISTING" ]; then

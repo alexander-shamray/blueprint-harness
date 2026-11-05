@@ -210,5 +210,6 @@ finding, `ruleset-apply <repo>` runs from the branch, the `rulesets` job is
 rerun, and the pull request merges. The floor refusal is what stops an unmerged
 branch from taking `main` below the floor: data without a floor rule or with no
 required check is refused before anything is applied. A dropped or renamed
-required check is caught only by the review loop that precedes the apply. A scheduled run that is red, a ruleset changed by hand, files a
-`harness`, `high` issue with the differences, or comments on the open one.
+required check is caught only by the review loop that precedes the apply. A scheduled run that is red, a difference such as a ruleset changed by hand or
+a failed read-back, files a `harness`, `high` issue whose body says which, or
+comments on the open one.
