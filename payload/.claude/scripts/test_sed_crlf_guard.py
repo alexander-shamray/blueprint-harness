@@ -136,6 +136,9 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
         for command in (
             "cat <<< 'one'\nsed -i 's/one/uno/' crlf.txt",
             "echo $((1<<2))\nsed -i 's/one/uno/' crlf.txt",
+            # Review R8: a digit-only rule left a named shift opening a heredoc.
+            "echo $((x<<n))\nsed -i 's/one/uno/' crlf.txt",
+            "(( y = x << n ))\nsed -i 's/one/uno/' crlf.txt",
             "echo '<<EOF'\nsed -i 's/one/uno/' crlf.txt",
         ):
             with self.subTest(command=command):

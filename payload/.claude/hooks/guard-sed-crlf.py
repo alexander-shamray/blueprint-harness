@@ -72,6 +72,7 @@ def prepared(command):
     pending = []
     quote = None
     word_start = True
+    arithmetic = 0
     index = 0
     while index < len(command):
         character = command[index]
@@ -98,12 +99,18 @@ def prepared(command):
             while index < len(command) and command[index] != "\n":
                 index += 1
             continue
-        elif (command.startswith("<<", index) and not command.startswith("<<<", index)
+        elif command.startswith("((", index) or (arithmetic and command.startswith("))", index)):
+            # A `<<` inside `$(( ))` or `(( ))` is a shift, whatever word follows it.
+            arithmetic += 1 if character == "(" else -1
+            out.append(command[index:index + 2])
+            index += 2
+            word_start = False
+            continue
+        elif (not arithmetic and command.startswith("<<", index) and not command.startswith("<<<", index)
               and command[index - 1:index] != "<"):
             opener = HEREDOC.match(command, index + 2)
             delimiter = re.sub(r"[\\'\"]", "", opener.group(2)) if opener else ""
-            # A digit-only word is the shift in `$((1<<2))`, not a delimiter.
-            if delimiter and not delimiter.isdigit():
+            if delimiter:
                 pending.append((opener.group(1) == "-", delimiter))
                 out.append(command[index:opener.end()])
                 index = opener.end()
