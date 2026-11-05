@@ -241,6 +241,21 @@ class WhatTheHookCannotPlaceFailsOpen(ACheckout):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
 
+    def test_a_glob_walk_stops_at_the_bound(self):
+        # Review R5: the bound was checked after the whole glob had been walked.
+        walked = []
+
+        def endless(pattern, *args, **kwargs):
+            for number in range(10 * GUARD.MAX_FILES):
+                walked.append(number)
+                yield os.path.join(self.root, f"absent-{number}.txt")
+
+        original = GUARD.glob.iglob
+        GUARD.glob.iglob = endless
+        self.addCleanup(setattr, GUARD.glob, "iglob", original)
+        self.assertAdmitted("sed -i 's/one/uno/' *.cs")
+        self.assertLessEqual(len(walked), GUARD.MAX_FILES + 1)
+
     def test_no_git_admits(self):
         original = GUARD.shutil.which
         GUARD.shutil.which = lambda name: None
