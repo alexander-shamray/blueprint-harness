@@ -1,4 +1,4 @@
-"""The commands split into a runbook and its argument (blueprint-backend's token plan, step 6).
+"""The commands split into a runbook and its argument (`docs/harness/token-rules.md`, *What every session loads*).
 
 A runbook is resident in every turn its command runs and its argument is read only when a rule is disputed;
 these cases hold the two halves to each other, and the rest of what a run keeps resident under a ceiling.

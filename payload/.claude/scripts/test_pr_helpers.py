@@ -169,7 +169,8 @@ class NoCommandReadsAPullRequestFeedUnfiltered(unittest.TestCase):
         self.assertNotIn("$2", helper)
 
     def test_the_locality_rows_go_through_the_fixed_helper(self):
-        # `docs/change-locality.md` asks a PR body for `| Class |` and `| Touch set |`, and no command may hold
+        # The change contract `docs/harness-local.md` *Documents* names asks a PR body for `| Class |` and
+        # `| Touch set |`, and no command may hold
         # `gh pr view`, so the rows arrive through a helper that reads `body` and the changed names and nothing
         # else, since a caller that chooses fields can choose `reviews`. The two `gh` lines are compared whole,
         # because a substring check passes one that chains `--json reviews` after a semicolon; names arrive as
@@ -441,7 +442,7 @@ class NoCommandReadsAPullRequestFeedUnfiltered(unittest.TestCase):
                 self.assertNotIn("ignore", r.stderr)
 
     def test_one_row_without_the_other_is_refused(self):
-        # A class alone gives /review-branch no set, and a set alone gives it
+        # A class alone gives /ship's review no set, and a set alone gives it
         # no class to judge the set by, so the pair is required, or neither.
         for body in ("| Class | D |\n", "| Touch set | docs/x.md |\n"):
             with self.subTest(body=body):

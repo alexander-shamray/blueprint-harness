@@ -75,7 +75,8 @@ class AnAgentIsGrantedByExactType(unittest.TestCase):
         self.assertNotRegex(profile, r"(?m)^skills:")
 
     def test_the_reviewer_and_the_auditors_run_on_opus(self):
-        # An error from any of them is a silent miss, so none takes the session's model (token-plan step 7d).
+        # An error from any of them is a silent miss, so none takes the session's model
+        # (`docs/harness/token-rules.md`, *Which model a subagent runs on*).
         for name in ("branch-reviewer", "bug-auditor", "security-auditor", "team-peer"):
             with self.subTest(profile=name):
                 profile = (AGENTS / f"{name}.md").read_text(encoding="utf-8")
