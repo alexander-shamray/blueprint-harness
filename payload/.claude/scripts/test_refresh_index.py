@@ -841,6 +841,18 @@ class FindingTheCli(Base):
 
         self.assertIsNone(self.search(outside, root=root))
 
+    @unittest.skipUnless(sys.platform == "win32", "PATHEXT is Windows' alone")
+    def test_a_batch_shim_on_path_is_not_taken(self):
+        """A `.bat` or `.cmd` runs through `cmd.exe` in the checkout, which
+        looks there first for every command the script names."""
+        root = self.checkout("main")
+        shims = self.tmp / "bin"
+        shims.mkdir()
+        for name in ("codebase-index.bat", "codebase-index.cmd"):
+            (shims / name).write_text("@exit /b 0\r\n", encoding="utf-8")
+
+        self.assertIsNone(self.search(shims, root=root))
+
     def test_neither_form_running_is_silent(self):
         """An index that cannot refresh is not a reason to fail the edit."""
         self.patch(mock.patch.object(
