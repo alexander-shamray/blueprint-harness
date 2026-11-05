@@ -25,8 +25,12 @@ SAFE_FORMS = (
 # `>` and a separator between commands otherwise. A newline is one of them, so `shlex` is told it is not whitespace.
 PUNCTUATION = ";&|()<>\n"
 
-# Words that run the command after them, so `sed` behind one is still the command.
-PREFIXES = {"command", "exec", "time", "builtin", "nohup"}
+# Words that run the command after them, so `sed` behind one is still the command: the prefix commands, and the
+# reserved words that open a group or a clause, as in `if …; then sed -i …; fi`.
+PREFIXES = {
+    "command", "exec", "time", "builtin", "nohup",
+    "{", "!", "if", "then", "elif", "else", "while", "until", "do",
+}
 
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 # What follows a `<<`: the `-` that strips tabs, then the delimiter word, which quotes or a backslash may spell.
@@ -119,8 +123,21 @@ def prepared(command):
     return "".join(out)
 
 
+class Segment:
+    """One simple command: its words, the subshells it runs in, and whether it is a stage of a pipeline.
+
+    The last two say whether a `cd` in it moves the commands after it: bash runs a `( … )` group and every stage of
+    a pipeline in a subshell of its own, so a `cd` there is gone once the group or the pipeline ends.
+    """
+
+    def __init__(self, scope):
+        self.words = []
+        self.scope = scope
+        self.piped = False
+
+
 def segments(command):
-    """The command's simple commands as word lists, or `None` where `shlex` cannot read it."""
+    """The command's simple commands as `Segment`s, or `None` where `shlex` cannot read it."""
     lexer = shlex.shlex(prepared(command), posix=True, punctuation_chars=PUNCTUATION)
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
@@ -129,22 +146,34 @@ def segments(command):
         tokens = list(lexer)
     except ValueError:
         return None
-    found = [[]]
+    opened = 0
+    scope = ()
+    found = [Segment(scope)]
     skip = False
     for token in tokens:
         if skip:
             skip = False
             continue
+        current = found[-1]
         if not token or not set(token) <= set(PUNCTUATION):
-            found[-1].append(token)
+            current.words.append(token)
         elif "<" in token or ">" in token:
             # The word after a redirection is its file, and a bare number before it is its descriptor.
             skip = True
-            if found[-1] and found[-1][-1].isdigit():
-                found[-1].pop()
+            if current.words and current.words[-1].isdigit():
+                current.words.pop()
         else:
-            found.append([])
-    return [words for words in found if words]
+            for character in token:
+                if character == "(":
+                    opened += 1
+                    scope = scope + (opened,)
+                elif character == ")":
+                    scope = scope[:-1]
+            following = Segment(scope)
+            if "|" in token.replace("||", ""):
+                current.piped = following.piped = True
+            found.append(following)
+    return [segment for segment in found if segment.words]
 
 
 def command_word(words):
@@ -270,24 +299,38 @@ def offence(event, strips_cr=os.name == "nt"):
     cwd = event.get("cwd")
     cwd = cwd if isinstance(cwd, str) and cwd else os.getcwd()
 
-    words_list = segments(command)
-    if words_list is None:
+    found = segments(command)
+    if found is None:
         return None
     git = shutil.which("git")
     checked = 0
-    for words in words_list:
+    # The directory each subshell stands in. One opened here starts where its parent stands when it is first seen,
+    # which is where bash forks it, since the commands are read in order.
+    directories = {(): cwd}
+    for segment in found:
+        scope = segment.scope
+        if scope not in directories:
+            parent = next(scope[:length] for length in range(len(scope) - 1, -1, -1)
+                          if scope[:length] in directories)
+            directories[scope] = directories[parent]
+        cwd = directories[scope]
+        words = segment.words
         start = command_word(words)
         if start >= len(words):
             continue
         name = words[start]
         arguments = words[start + 1:]
         if name == "cd":
-            # Only a plain `cd <dir>` moves the files after it; any other form leaves them unplaceable.
+            # A pipeline stage's `cd` moves nothing after it. Only a plain `cd <dir>` can be followed; any other form
+            # leaves the files after it unplaceable.
+            if segment.piped:
+                continue
             if len(arguments) != 1 or "$" in arguments[0] or arguments[0] == "-":
-                cwd = None
+                directories[scope] = None
             else:
                 target = native(arguments[0])
-                cwd = target if os.path.isabs(target) else (os.path.join(cwd, target) if cwd else None)
+                directories[scope] = (target if os.path.isabs(target)
+                                      else (os.path.join(cwd, target) if cwd else None))
             continue
         if os.path.basename(native(name)).lower() not in ("sed", "sed.exe"):
             continue

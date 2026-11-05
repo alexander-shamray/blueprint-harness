@@ -143,6 +143,26 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
 
     def test_a_cd_moves_the_files_after_it(self):
         self.assertRefused("cd sub && sed -i 's/one/uno/' inner.txt", "inner.txt")
+        self.assertRefused("(cd sub && sed -i 's/one/uno/' inner.txt)", "inner.txt")
+
+    def test_a_cd_in_a_subshell_or_a_pipeline_stays_there(self):
+        # Review R4: bash runs a `( … )` group and each pipeline stage in a subshell, so the `cd` is gone after it.
+        for command in (
+            "(cd sub && true); sed -i 's/one/uno/' crlf.txt",
+            "(cd sub; (cd ..)); sed -i 's/one/uno/' crlf.txt",
+            "cd sub | true; sed -i 's/one/uno/' crlf.txt",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command, "crlf.txt")
+
+    def test_a_sed_inside_a_clause_or_a_group_is_judged(self):
+        for command in (
+            "if true; then sed -i 's/one/uno/' crlf.txt; fi",
+            "{ sed -i 's/one/uno/' crlf.txt; }",
+            "! sed -i 's/one/uno/' crlf.txt",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command, "crlf.txt")
 
     def test_a_path_spelled_from_elsewhere_is_judged(self):
         self.assertRefused("sed -i 's/one/uno/' sub/inner.txt", "sub/inner.txt")
