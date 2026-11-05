@@ -1448,10 +1448,12 @@ end, with `$pinned`.
 **Under Git Bash, `sed -i` drops the CR from every line it writes**, so a
 file the checkout holds with CRLF endings comes back LF: a C# file that
 `.gitattributes` forces to `eol=crlf` then fails a whitespace analyser at
-lines nobody edited, and a Markdown chapter checked out with autocrlf
-changes every line of its diff. Measured with GNU sed 4.9 under Git Bash:
-`one\r\ntwo\r\n` through `sed -i 's/one/uno/'` comes back `uno\ntwo\n`, and
-through `sed --binary -i` keeps both CRs. `grep -c` cannot confirm it,
+lines nobody edited, and a file whose index holds CRLF changes every line
+of its diff; under `core.autocrlf`, whose index holds LF, the diff shows
+only the edited lines, and the cost is a working copy left LF for an
+analyser or an editorconfig check to find. Measured with GNU sed 4.9
+under Git Bash: `one\r\ntwo\r\n` through `sed -i 's/one/uno/'` comes back
+`uno\ntwo\n`, and through `sed --binary -i` keeps both CRs. `grep -c` cannot confirm it,
 since MSYS grep strips the CR before matching (#37).
 
 `.claude/hooks/guard-sed-crlf.py` is a `PreToolUse` hook on `Bash` that
@@ -1461,7 +1463,8 @@ does, continuations joined and comments and heredoc bodies dropped, splits
 them into simple commands with `shlex`, follows a plain `cd <dir>` within
 its subshell, finds `sed` behind the prefix words and the `env`, `nice`,
 `timeout` and `stdbuf` wrappers, judges what a shell runs — its `-c` line,
-or a heredoc, a here-string or an `echo` piped into one reading its input —
+or a heredoc, a here-string, or an `echo` or a `cat` piped into one reading
+its input —
 as a command of its own, and reads sed's options as `getopt_long` does:
 clusters, `-i<suffix>`, `--in-place=`, unique prefixes of long names, and
 the first operand as the script when no `-e` or `-f` names one. It refuses
@@ -1475,8 +1478,9 @@ there would block a harmless edit, the false refusal *The guards' threat
 model* files.
 
 **What it reads, and what a crafted path makes it run.** Only a regular
-file is opened, read-only, and nothing read leaves the hook but the path the
-command already spelled, so a device, a FIFO or a directory is never opened,
+file is opened, read-only, and nothing read leaves the hook but a path: the
+one the command spelled, or the file in its directory that a glob of it
+matched. So a device, a FIFO or a directory is never opened,
 and a path outside the checkout costs a read the session could `cat`
 anyway. The one thing a path can make it run is git in that path's
 directory, whose checkout may be foreign: the call switches
@@ -1491,14 +1495,17 @@ git on `PATH`, or a git that cannot answer: each is admitted, because a
 guard that refuses what it cannot resolve blocks ordinary work for want of
 a resolution. An unreadable event is admitted, as in the other guards.
 
-**Its residuals, stated rather than left to be found, and pinned as
-admitted in its suite.** The launchers and wrappers *The guards' threat
-model* names reach this guard only where the command's text holds the file
-list: a `sed` behind `xargs` or `find -exec` takes its files from another
-program's output, which no hook is given, so neither is judged, however
-routine the idiom; nor is a `printf` format's expansion piped into a
-shell, which is read as its words, a `sed` through the PowerShell tool, or
-an untracked CRLF file, whose endings are not yet the checkout's. A quoted
+**Its residuals, stated rather than left to be found, and pinned in its
+suite as what the hook returns.** The launchers and wrappers *The guards'
+threat model* names reach this guard only where the command's text holds
+the file list: a `sed` behind `xargs` or `find -exec` takes its files from
+another program's output, which no hook is given, so neither is judged,
+however routine the idiom; nor is a `sed` through the PowerShell tool, or
+an untracked CRLF file, whose endings are not yet the checkout's. A
+`printf` piped into a shell is read as its words rather than its format's
+expansion, so it is refused where the format holds the `sed` and its
+arguments carry the file, and admitted where an argument carries the whole
+line. A quoted
 glob is expanded although bash would pass it literally, which can only
 refuse more.
 
