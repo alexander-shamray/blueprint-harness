@@ -246,9 +246,10 @@ def console_script(root: Path) -> str | None:
 
     Windows hands a bare program name to a search that tries the starting
     process's own directory before PATH — not the `cwd=` the child is given
-    — and the worker started in a checkout's parent, or for a worktree a
-    directory of the main checkout, which holds whatever its last merge put
-    there. A PATH entry naming a checkout is the same hole by another route.
+    — so a worker started in a checkout's parent, or for a worktree in a
+    directory of the main checkout, would run whatever a merge put there;
+    `main` starts it in the temp directory for that reason. A PATH entry
+    naming a checkout is the same hole by another route.
     The search is done here instead: absolute PATH entries only, none of them
     the working directory, and no candidate inside this checkout or the main
     checkout it was forked from, a link's target included. The answer is a

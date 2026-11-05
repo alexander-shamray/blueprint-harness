@@ -768,9 +768,9 @@ class FindingTheCli(Base):
     """`codebase-index` is looked for on PATH alone, and never in a checkout.
 
     On Windows a bare name is searched for in the starting process's own
-    directory before PATH, and the worker started in a checkout's parent, or
-    for a worktree a directory of the main checkout, so a stub a pull request
-    committed there would run on the next hook fire (#6). The full path the
+    directory before PATH, so a worker started in a checkout's parent, or for
+    a worktree in a directory of the main checkout, would run a stub a pull
+    request committed there on the next hook fire (#6). The full path the
     lookup answers with is what makes no directory searched at all.
     """
 
