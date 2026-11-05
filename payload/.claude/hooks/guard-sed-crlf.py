@@ -29,7 +29,8 @@ PUNCTUATION = ";&|()<>\n"
 PREFIXES = {"command", "exec", "time", "builtin", "nohup"}
 
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
-HEREDOC = re.compile(r"<<(-?)\s*(['\"]?)([A-Za-z0-9_.-]+)\2")
+# What follows a `<<`: the `-` that strips tabs, then the delimiter word, which quotes or a backslash may spell.
+HEREDOC = re.compile(r"(-?)[ \t]*((?:[A-Za-z0-9_.\-]|\\.|'[^'\n]*'|\"[^\"\n]*\")+)")
 MSYS_DRIVE = re.compile(r"^/([A-Za-z])(?=/|$)")
 
 # GNU sed's long options, matched as `getopt_long` matches them: an exact name, or a prefix only one name has.
@@ -48,24 +49,79 @@ MAX_READ = 4 << 20
 GIT_TIMEOUT = 5
 
 
-def without_heredoc_bodies(command):
-    """The command with every heredoc body removed, since a body is data and not a command line."""
-    kept = []
+def prepared(command):
+    """The command as bash reads its lines: continuations joined, comments and heredoc bodies dropped.
+
+    One scan that tracks quotes, because each of the three is decided by whether the character sits inside one: a
+    backslash-newline inside single quotes is kept, a `#` starts a comment only where it begins a word, and a `<<`
+    opens a heredoc only outside quotes. `shlex` knows none of this, so an indented continuation reached it as a
+    newline token, read as a separator, and an apostrophe in a comment as an unbalanced quote.
+    """
+    out = []
     pending = []
-    for line in command.split("\n"):
-        if pending:
-            strip_tabs, delimiter = pending[0]
-            if (line.lstrip("\t") if strip_tabs else line) == delimiter:
-                pending.pop(0)
+    quote = None
+    word_start = True
+    index = 0
+    while index < len(command):
+        character = command[index]
+        if quote == "'":
+            out.append(character)
+            index += 1
+            quote = None if character == "'" else quote
             continue
-        kept.append(line)
-        pending.extend((match.group(1) == "-", match.group(3)) for match in HEREDOC.finditer(line))
-    return "\n".join(kept)
+        if character == "\\" and index + 1 < len(command):
+            if command[index + 1] != "\n":
+                out.append(command[index:index + 2])
+                word_start = False
+            index += 2
+            continue
+        if quote == '"':
+            out.append(character)
+            index += 1
+            quote = None if character == '"' else quote
+            continue
+        if character in "'\"":
+            quote = character
+            word_start = False
+        elif character == "#" and word_start:
+            while index < len(command) and command[index] != "\n":
+                index += 1
+            continue
+        elif (command.startswith("<<", index) and not command.startswith("<<<", index)
+              and command[index - 1:index] != "<"):
+            opener = HEREDOC.match(command, index + 2)
+            delimiter = re.sub(r"[\\'\"]", "", opener.group(2)) if opener else ""
+            # A digit-only word is the shift in `$((1<<2))`, not a delimiter.
+            if delimiter and not delimiter.isdigit():
+                pending.append((opener.group(1) == "-", delimiter))
+                out.append(command[index:opener.end()])
+                index = opener.end()
+                word_start = False
+                continue
+        elif character == "\n":
+            out.append(character)
+            index += 1
+            word_start = True
+            while pending:
+                strip_tabs, delimiter = pending.pop(0)
+                while index < len(command):
+                    end = command.find("\n", index)
+                    end = len(command) if end < 0 else end
+                    line = command[index:end]
+                    index = end + 1
+                    if (line.lstrip("\t") if strip_tabs else line) == delimiter:
+                        break
+            continue
+        out.append(character)
+        index += 1
+        if quote is None and character not in "'\"":
+            word_start = character in " \t" or character in PUNCTUATION
+    return "".join(out)
 
 
 def segments(command):
     """The command's simple commands as word lists, or `None` where `shlex` cannot read it."""
-    lexer = shlex.shlex(without_heredoc_bodies(command), posix=True, punctuation_chars=PUNCTUATION)
+    lexer = shlex.shlex(prepared(command), posix=True, punctuation_chars=PUNCTUATION)
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
     lexer.commenters = ""
