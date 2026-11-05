@@ -21,9 +21,9 @@ ACTIONS_INTEGRATION_ID = 15368
 # The pull_request fields the floor names; the API's others are not compared.
 _PR_KEYS = ("required_approving_review_count", "allowed_merge_methods")
 
-# The rule types the floor requires of every repository, besides the one built
-# from its checks. Kept here as well as in the data: the data says what to
-# apply, this says what no data may fall below.
+# The rule types the floor requires of every repository, including the
+# required_status_checks rule built from its checks. Kept here as well as in
+# the data: the data says what to apply, this says what no data may fall below.
 _FLOOR_TYPES = (
     "deletion",
     "non_fast_forward",
