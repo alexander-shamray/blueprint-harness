@@ -169,6 +169,17 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
         absolute = os.path.join(self.root, "crlf.txt")
         self.assertRefused(f"sed -i 's/one/uno/' '{absolute}'", absolute)
 
+    def test_a_git_bash_drive_path_is_the_windows_one(self):
+        # Review R6: Git Bash spells an absolute path `/c/...`, which Python on Windows reads as `C:\c\...`. On
+        # another platform that spelling is an ordinary path, and the translation must leave it alone.
+        if os.name != "nt":
+            self.assertEqual("/c/dev/x.txt", GUARD.native("/c/dev/x.txt"))
+            return
+        drive, rest = os.path.splitdrive(self.root)
+        msys = "/" + drive[0].lower() + rest.replace("\\", "/")
+        self.assertRefused(f"sed -i 's/one/uno/' '{msys}/crlf.txt'", f"{msys}/crlf.txt")
+        self.assertRefused(f"cd '{msys}/sub' && sed -i 's/one/uno/' inner.txt", "inner.txt")
+
     def test_a_glob_is_expanded_as_bash_would(self):
         # Review R7: the refusal names the file the glob matched, since the pattern is not what is tracked.
         reason = self.assertRefused("sed -i 's/one/uno/' *.txt", os.path.join(self.root, "crlf.txt"))
