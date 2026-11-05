@@ -6,6 +6,7 @@ back LF; the argument, what this hook reads and where it fails open are `docs/ha
 line-ending guard*)."""
 
 import glob
+import itertools
 import json
 import os
 import re
@@ -47,7 +48,8 @@ LONG_WITH_ARGUMENT = {"expression", "file", "line-length"}
 SHORT_FLAGS = set("nrsuzEb")
 SHORT_WITH_ARGUMENT = set("efl")
 
-# Bounds on the work one call does, so a glob over a large tree cannot outrun the hook.
+# Bounds on the work one call does, so a glob over a large tree cannot outrun the hook: the files a glob walks to
+# and the files read, the bytes read of each, and each git call.
 MAX_FILES = 200
 MAX_READ = 4 << 20
 GIT_TIMEOUT = 5
@@ -251,7 +253,8 @@ def candidates(operand, cwd):
             return []
         path = os.path.join(cwd, path)
     if any(character in operand for character in "*?["):
-        matches = sorted(glob.glob(path))
+        # `iglob` walks lazily, so the bound stops the walk itself and not only the reads after it.
+        matches = list(itertools.islice(glob.iglob(path), MAX_FILES + 1))
         if matches:
             return [match for match in matches if os.path.isfile(match)]
     return [path] if os.path.isfile(path) else []
