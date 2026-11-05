@@ -209,9 +209,13 @@ class PathTests(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         for directory in self.CHECKOUT:
             (Path(tmp.name) / directory).mkdir(parents=True)
+        # The walk is cached for the process, so it is emptied on the way in, or a walk of the real checkout made
+        # earlier would answer instead, and on the way out, after the patch is gone, so this tree's names do not stay.
+        self.addCleanup(db._directory_names.cache_clear)
         patcher = mock.patch.object(db, "ROOT", Path(tmp.name))
         patcher.start()
         self.addCleanup(patcher.stop)
+        db._directory_names.cache_clear()
 
     def test_paths_are_taken_from_backticks_and_bare_file_names(self):
         self.in_checkout()
