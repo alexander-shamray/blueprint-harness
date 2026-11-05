@@ -231,6 +231,25 @@ class DriftGate(unittest.TestCase):
         self.assertIsNotNone(chosen)
         self.assertEqual(Path(chosen).parent.resolve(), Path(real).parent.resolve())
 
+    def test_a_path_entry_that_raises_oserror_is_skipped(self) -> None:
+        real = shutil.which("git")
+        if real is None:
+            self.skipTest("git is not on PATH")
+        tree = Tree(self.tmp)
+        bad = str(Path(self.tmp).parent / f"{Path(self.tmp).name}-unreadable")
+        path = os.pathsep.join([bad, str(Path(real).parent)])
+        original = Path.resolve
+
+        def resolve(self_: Path, *args: object, **kwargs: object) -> Path:
+            if str(self_) == bad:
+                raise PermissionError("unreadable PATH entry")
+            return original(self_, *args, **kwargs)
+
+        with mock.patch.dict(os.environ, {"PATH": path}), mock.patch.object(Path, "resolve", resolve):
+            chosen = drift_gate._git_executable(tree.root)
+        self.assertIsNotNone(chosen)
+        self.assertEqual(Path(chosen).parent.resolve(), Path(real).parent.resolve())
+
     def test_a_root_below_the_top_of_a_checkout_is_walked(self) -> None:
         (Path(self.tmp) / "sub").mkdir()
         tree = Tree(str(Path(self.tmp) / "sub"))
