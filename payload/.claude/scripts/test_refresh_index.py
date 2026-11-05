@@ -801,8 +801,7 @@ class FindingTheCli(Base):
 
         found = self.search(root, installed.parent, root=root)
 
-        # A Path, because the name carries PATHEXT's case and Windows' is not
-        # a difference.
+        # As a Path, which compares as the platform's file names do.
         self.assertEqual(installed, Path(found))
         self.mod.refresh(root)
         self.assertEqual([found, "update"], self.ran[0][0][0])
