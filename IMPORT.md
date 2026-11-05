@@ -82,11 +82,13 @@ their blob ids already match and nothing else moves.
   `deploy/`, `docs/change-locality.md`, `docs/superpowers/plans/`,
   `.github/locality-gate/classes.yml`, or a backend-local command. None of
   those values is in `.harness/config.json`, so no such module could be made
-  to read it from there; each stays backend-local, whole, so that its bytes
-  stay backend's and backend's CI keeps running every case. The row names
-  the cases that read backend's tree. They were found by running the suites
-  in a rendered worktree (the `payload-suites` job's procedure), not by
-  reading.
+  to read it from there. At the pin each such module stayed backend-local,
+  whole; #5 then split the twelve that mixed both kinds of case (*Decided
+  after review*): the payload module keeps every case a target without
+  backend's tree runs, and a backend-local sibling named
+  `test_<module>_backend.py` keeps the rest. The row names the cases that
+  read backend's tree. They were found by running the suites in a rendered
+  worktree (the `payload-suites` job's procedure), not by reading.
 - **Everything else in the brief's list is payload**, the gates' own
   workflows included (`commit-gate.yml`, `closure-gate.yml`,
   `comment-gate.yml`). The issue-form, plan-size, output and workflow-lint
@@ -138,7 +140,7 @@ right in every target, and `dispatch_board.py` takes the task list as
 
 - `.claude/commands/branch.md`, the worktree listing — example output of
   `git worktree list` from backend's checkout.
-- `.claude/scripts/test_dispatch_run.py:1576-1577` — a path fixture for
+- `.claude/scripts/test_dispatch_run.py:1565-1566` — a path fixture for
   `project_slug`.
 - `.github/closure-gate/test_closure_gate.py:17` — the repository fixture the
   gate's parser is called with.
@@ -243,6 +245,27 @@ config for this repository excludes
 has no comments, so this is where the reason is recorded. Remove the exclusion
 when #5 lands.
 
+#5 split them, taken from backend `main` at `332e369`: each mixed module is a
+payload module now, and its backend-tree cases are a backend-local sibling
+beside it, `test_<module>_backend.py`, listed under `local` in
+`targets/blueprint-backend.config.json`. Most failing cases did not move:
+where a case read backend's tree only as a fixture, it now builds its own
+(`PathTests`' checkout, `test_pr_helpers.py`'s class map), and where it held a
+list of commands, the list names the payload's and the sibling subclasses the
+case, or reuses it, for backend's. What moved reads a file only backend has.
+The exclusion stays in this pull request: the drift gate judges the root
+against the payload at the manifest's commit, which ships no comment-gate
+suite, so dropping it before this repository's own sync renders that suite
+would fail `harness-drift`. `sync.yml`'s sync never edits a target's config,
+so the exclusion is dropped by hand in the sync pull request that first
+renders the split suites here, and #5 stays open until it is.
+
+Backend takes its half in one pull request, since its `.harness/config.json`
+still lists the twelve modules as `local` and apply refuses a payload file
+that is `local` and differs: the config this repository's draft carries, the
+twelve siblings and the sync's apply together (blueprint-backend#1773). Until
+it lands, `sync.yml`'s backend leg is refused.
+
 ## Test counts
 
 Backend's `review-helpers` job ran `python -m unittest discover -s
@@ -272,6 +295,30 @@ file (the rows below name the classes); the module's other cases stay with
 them. Backend's CI still runs
 all of them: its `review-helpers` job discovers the local modules beside the
 synced ones.
+
+After #5, at backend `main` `332e369`, the twelve modules' tests (methods, so
+a case a sibling subclasses for one more command counts once on each side):
+
+| Module | Backend's whole module | Payload | Backend's sibling |
+|---|---|---|---|
+| `test_command_grants.py` | 17 | 17 | 3 |
+| `test_command_runbooks.py` | 9 | 9 | 3 |
+| `test_dispatch_board.py` | 67 | 67 | none |
+| `test_dispatch_run.py` | 103 | 102 | 1 |
+| `test_gh_issue_suppresses.py` | 28 | 28 | 7 |
+| `test_harness_denies.py` | 21 | 6 | 15 |
+| `test_pr_helpers.py` | 28 | 27 | 2 |
+| `test_sweep_slices.py` | 13 | 12 | 1 |
+| `test_comment_gate.py` | 115 | 114 | 1 |
+| `test_issue_form_gate.py` | 38 | 36 | 2 |
+| `test_output_gate.py` | 28 | 24 | 4 |
+| `test_plan_size_gate.py` | 12 | 11 | 1 |
+
+So `payload-suites` runs 268 more of `.claude/scripts`' tests and 185 gate
+tests it ran none of, and 40 stay backend's. The payload's
+`test_python_hygiene.py` skips a `local` file, so the payload modules are the
+first time these were held to it: eight `text=True` calls gained
+`encoding="utf-8"`.
 
 `workflow-lint` has no Python suite: its check is actionlint run over
 `broken-reference.yml` in backend's own `ci.yml` job, so `payload-suites`
@@ -344,13 +391,13 @@ One row per candidate file at the pin.
 | `.claude/scripts/system-sleep.sh` | payload | harness helper; resolves the repository from the checkout (`gh repo view`), names no stack |
 | `.claude/scripts/team_board.py` | payload | harness helper; resolves the repository from the checkout (`gh repo view`), names no stack |
 | `.claude/scripts/test_cbx.py` | payload | suite of payload code; passes in payload-suites |
-| `.claude/scripts/test_command_grants.py` | backend-local | `NothingShipChainsDeniesPush` and `TheSweepsDenyEveryGhCommand` read the local `validate-blueprint.md` and `mutation-sweep.md` |
-| `.claude/scripts/test_command_runbooks.py` | backend-local | reads `CLAUDE.md` and expects the runbooks of the local `validate-blueprint`, `review-branch` and `mutation-sweep` |
-| `.claude/scripts/test_dispatch_board.py` | backend-local | `PathTests` judges paths against the checkout's own directories (`src/Services/Ordering`, `tools/quality-sets`, `deploy/rabbitmq`) |
-| `.claude/scripts/test_dispatch_run.py` | backend-local | `test_token_keys_are_quality_sets_own` reads `tools/quality-sets/quality_sets.py` |
+| `.claude/scripts/test_command_grants.py` | payload, split by #5 | the sweep and chain cases name the payload's commands; backend's `test_command_grants_backend.py` holds the local `mutation-sweep.md`, `validate-blueprint.md` and `check-links.md` to them |
+| `.claude/scripts/test_command_runbooks.py` | payload, split by #5 | ceilings for the payload's runbooks; backend's `test_command_runbooks_backend.py` holds the local `mutation-sweep`, `validate-blueprint` and `review-branch` runbooks and backend's `CLAUDE.md` |
+| `.claude/scripts/test_dispatch_board.py` | payload, split by #5 | `PathTests` judges dotless tokens against a checkout it builds, so no case reads backend's directories and none is left local |
+| `.claude/scripts/test_dispatch_run.py` | payload, split by #5 | backend's `test_dispatch_run_backend.py` holds `test_token_keys_are_quality_sets_own`, which reads `tools/quality-sets/quality_sets.py` |
 | `.claude/scripts/test_edit_target_guard.py` | payload | suite of payload code; passes in payload-suites |
 | `.claude/scripts/test_gh_issue_create.py` | payload | suite of payload code; passes in payload-suites |
-| `.claude/scripts/test_gh_issue_suppresses.py` | backend-local | `WhatSuppressesIsDecidedByCodeNow` reads the local `mutation-sweep.md` |
+| `.claude/scripts/test_gh_issue_suppresses.py` | payload, split by #5 | `TheSweepsReachIssuesOnlyThroughTheHelpers` names the payload's sweeps; backend's `test_gh_issue_suppresses_backend.py` subclasses it for the local `mutation-sweep.md` |
 | `.claude/scripts/test_gh_label_ensure.py` | payload | suite of payload code; passes in payload-suites |
 | `.claude/scripts/test_git_argv_guard.py` | payload | suite of payload code; passes in payload-suites |
 | `.claude/scripts/test_git_pr_trailer_helpers.py` | payload | suite of payload code; passes in payload-suites |
@@ -358,7 +405,7 @@ One row per candidate file at the pin.
 | `.claude/scripts/test_git_worktree_detach.py` | payload | suite of payload code; passes in payload-suites |
 | `.claude/scripts/test_git_worktree_fork.py` | payload | suite of payload code; passes in payload-suites |
 | `.claude/scripts/test_git_worktree_remove.py` | payload | suite of payload code; passes in payload-suites |
-| `.claude/scripts/test_harness_denies.py` | backend-local | asserts backend's tree: `git ls-files` must hold `src`, `tests`, `CLAUDE.md`, `Platform.slnx`; reads `dotnet-test.sh` and the local `validate-blueprint.md` and `review-branch.md` |
+| `.claude/scripts/test_harness_denies.py` | payload, split by #5 | settings.json's deny list and the no-symbolic-link case; backend's `test_harness_denies_backend.py` holds `CommandsEnforceTheEditingBoundariesTheyState`, which asserts backend's tree (`src`, `tests`, `CLAUDE.md`, `Platform.slnx`), `dotnet-test.sh` and the local `validate-blueprint.md` and `review-branch.md` |
 | `.claude/scripts/test_hint_bound.py` | payload | suite of payload code; passes in payload-suites |
 | `.claude/scripts/test_hook_timeouts.py` | payload | suite of payload code; passes in payload-suites |
 | `.claude/scripts/test_index_argv_guard.py` | payload | suite of payload code; passes in payload-suites |
@@ -368,12 +415,12 @@ One row per candidate file at the pin.
 | `.claude/scripts/test_issue_decisions.py` | payload | suite of payload code; passes in payload-suites |
 | `.claude/scripts/test_mutation_survivors.py` | backend-local | tests a backend-local script |
 | `.claude/scripts/test_pr_for_branch.py` | payload | suite of payload code; passes in payload-suites |
-| `.claude/scripts/test_pr_helpers.py` | backend-local | `NoCommandReadsAPullRequestFeedUnfiltered` reads the local `review-branch.md` and `.github/locality-gate/classes.yml` |
+| `.claude/scripts/test_pr_helpers.py` | payload, split by #5 | the locality cases read a class map the suite holds; backend's `test_pr_helpers_backend.py` holds the shipped `.github/locality-gate/classes.yml` to `locality_gate.py`, and the local `review-branch.md`'s grants |
 | `.claude/scripts/test_refresh_index.py` | payload | suite of payload code; passes in payload-suites |
 | `.claude/scripts/test_root_ignore_covers_nested.py` | payload | suite of payload code; passes in payload-suites |
 | `.claude/scripts/test_ship_dispatched.py` | payload | suite of payload code; passes in payload-suites |
 | `.claude/scripts/test_ship_landing_method.py` | payload | suite of payload code; passes in payload-suites |
-| `.claude/scripts/test_sweep_slices.py` | backend-local | `TheRealTree` slices backend's tracked tree and fails on a path no row owns (`harness_sync/__init__.py` here) |
+| `.claude/scripts/test_sweep_slices.py` | payload, split by #5 | partitions repositories it builds; backend's `test_sweep_slices_backend.py` holds `TheRealTree`, since the rows partition backend's tree and fail on a path no row owns here (`harness_sync/__init__.py`, #73) |
 | `.claude/scripts/test_system_sleep.py` | payload | suite of payload code; passes in payload-suites |
 | `.claude/scripts/test_team_board.py` | payload | suite of payload code; passes in payload-suites |
 | `.claude/scripts/test_watch_session.py` | payload | suite of payload code; passes in payload-suites |
@@ -393,19 +440,19 @@ One row per candidate file at the pin.
 | `.github/closure-gate/test_closure_gate.py` | payload | gate suite; passes in payload-suites |
 | `.github/comment-gate/README.md` | payload | gate README |
 | `.github/comment-gate/comment_gate.py` | payload | gate code; its invocation stays in each target's `ci.yml` or comes with its workflow (brief) |
-| `.github/comment-gate/test_comment_gate.py` | backend-local | `TheShippedTree` asserts backend's tracked tree (over 100 files it reads, over 1000 C# lines); the payload does not carry it |
+| `.github/comment-gate/test_comment_gate.py` | payload, split by #5 | `TheShippedTree` reads any target's tracked files; backend's `test_comment_gate_backend.py` holds the budget over backend's thousand-odd C# files |
 | `.github/commit-gate/README.md` | payload | gate README |
 | `.github/commit-gate/commit_gate.py` | payload | gate code; its invocation stays in each target's `ci.yml` or comes with its workflow (brief) |
 | `.github/commit-gate/test_commit_gate.py` | payload | gate suite; passes in payload-suites |
 | `.github/issue-form-gate/README.md` | payload | gate README |
 | `.github/issue-form-gate/issue_form_gate.py` | payload | gate code; its invocation stays in each target's `ci.yml` or comes with its workflow (brief) |
-| `.github/issue-form-gate/test_issue_form_gate.py` | backend-local | `ThisRepositoryTests` reads `docs/change-locality.md`, backend's document, which the payload does not carry |
+| `.github/issue-form-gate/test_issue_form_gate.py` | payload, split by #5 | `ThisRepositoryTests` reads the shipped form; backend's `test_issue_form_gate_backend.py` holds the two cases that read `docs/change-locality.md`, the gate's default contract (#7) |
 | `.github/output-gate/README.md` | payload | gate README |
 | `.github/output-gate/output_gate.py` | payload | gate code; its invocation stays in each target's `ci.yml` or comes with its workflow (brief) |
-| `.github/output-gate/test_output_gate.py` | backend-local | `ThisRepository` reads `Platform.slnx` and backend's `src/` ignore rules, which the payload does not carry |
+| `.github/output-gate/test_output_gate.py` | payload, split by #5 | builds every tree it walks; backend's `test_output_gate_backend.py` holds `ThisRepository`, which reads `Platform.slnx` and backend's `src/` ignore rules |
 | `.github/plan-size-gate/README.md` | payload | gate README |
 | `.github/plan-size-gate/plan_size_gate.py` | payload | gate code; its invocation stays in each target's `ci.yml` or comes with its workflow (brief) |
-| `.github/plan-size-gate/test_plan_size_gate.py` | backend-local | `test_this_repository_s_plans_pass` reads `docs/superpowers/plans/`, which the payload does not carry |
+| `.github/plan-size-gate/test_plan_size_gate.py` | payload, split by #5 | backend's `test_plan_size_gate_backend.py` holds `test_this_repository_s_plans_pass`, which reads `docs/superpowers/plans/` |
 | `.github/workflow-lint/README.md` | payload | actionlint fixture; its job stays in backend's `ci.yml` (brief) |
 | `.github/workflow-lint/broken-reference.yml` | payload | actionlint fixture; its job stays in backend's `ci.yml` (brief) |
 | `.github/workflows/closure-gate.yml` | payload | the gate's own workflow (brief) |

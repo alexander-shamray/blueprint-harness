@@ -93,18 +93,14 @@ git worktree remove --force ../rendered
 
 Two things the jobs do not cover or cannot promise:
 
-- **Four gates have no suite to run here.** `comment-gate`, `issue-form-gate`,
-  `output-gate` and `plan-size-gate` ship only their script and README: their
-  suites (`test_comment_gate.py` and its three siblings) are `local` to
-  blueprint-backend in `targets/blueprint-backend.config.json`, so neither this
-  repository's root workflows nor `payload-suites` runs a test for them, and
-  the drift gate only keeps the root copies equal to the payload's. A suite
-  added to the payload under one of those names is not rendered into the
-  `payload-suites` tree until this repository's own sync writes it to the root;
-  from then a pull request that changes it is red on `payload-suites`, as the
-  root copy cannot change in the same pull request, and a sync to backend also
-  refuses while backend's copy differs. Use another name, or drop the config
-  entry first. Any other `test_*.py` under a payload gate directory runs from
+- **A case that reads one target's own tree is that target's.** The payload's
+  suites hold what any target runs; a case that reads a file only backend has
+  (its solution, its class map, a backend-local command) is in a
+  backend-local sibling, `test_<module>_backend.py`, listed under `local` in
+  `targets/blueprint-backend.config.json`, so `payload-suites` never renders
+  it. A payload suite that read such a file would be red here, or pass
+  vacuously; build the fixture in the case instead (`IMPORT.md`, *Decided
+  after review*). Every `test_*.py` under a payload gate directory runs from
   its first pull request, as the *Test the gates* step reads the rendered
   tree.
 - **`payload-suites (macos-latest)` can sit in the runner queue.** Its
