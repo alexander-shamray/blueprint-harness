@@ -176,6 +176,34 @@ class TheHelperKeepsWhatHasNotLanded(Fixture):
         self.assertIn("checked out", result.stderr)
         self.assertTrue(self.exists())
 
+    def test_a_branch_under_a_conflicted_rebase_elsewhere_is_kept(self):
+        # What git-rebase-onto-main.sh start leaves: HEAD detached mid-replay,
+        # so `git worktree list` says `detached`, and the branch's name is
+        # only in the rebase state, where `git branch -D` would look.
+        self.at('echo mine > a.txt && git commit -qam "main edits a.txt" '
+                '&& git worktree add -q "$R/elsewhere" feat/x && cd "$R/elsewhere" '
+                '&& echo theirs > a.txt && git commit -qam "the branch edits a.txt" '
+                '&& { git rebase -q main > /dev/null 2>&1 || true; }')
+        self.assertEqual("detached", self.at(
+            'cd "$R/elsewhere" && { git symbolic-ref -q HEAD || echo detached; }'),
+            "the rebase did not stop, so this test proves nothing")
+        result = self.helper()
+        self.assertEqual(4, result.returncode, result.stderr)
+        self.assertIn("rebase", result.stderr)
+        self.assertTrue(self.exists())
+
+    def test_a_branch_under_a_bisect_elsewhere_is_kept(self):
+        self.at('git worktree add -q "$R/elsewhere" feat/x && cd "$R/elsewhere" '
+                '&& for n in 1 2 3; do echo "$n" > "n$n.txt" && git add -A && git commit -qm "step $n"; done '
+                '&& git bisect start feat/x main > /dev/null 2>&1')
+        self.assertEqual("detached", self.at(
+            'cd "$R/elsewhere" && { git symbolic-ref -q HEAD || echo detached; }'),
+            "the bisect checked nothing out, so this test proves nothing")
+        result = self.helper()
+        self.assertEqual(4, result.returncode, result.stderr)
+        self.assertIn("bisect", result.stderr)
+        self.assertTrue(self.exists())
+
     def test_a_branch_checked_out_here_is_kept(self):
         self.at("git checkout -q feat/x")
         result = self.helper()
