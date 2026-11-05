@@ -51,7 +51,7 @@ jobs:
           {
             printf 'status=%s\n' "$status"
             printf 'differences<<%s\n' "$delim"
-            printf '%s\n' "$out" | head -c 60000
+            printf '%s\n' "${out:0:60000}"
             printf '\n%s\n' "$delim"
           } >> "$GITHUB_OUTPUT"
           exit "$status"
