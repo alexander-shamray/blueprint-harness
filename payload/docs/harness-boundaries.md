@@ -25,6 +25,7 @@ the whole is about 20k. `Grep -n "^## <title>"` gives its first line.
 | The edit-target guard | The symbolic-link premise and guard-edit-target.py refusing spelling mismatches. |
 | Edit guard path resolution | Link anchors, case folding, checkout-root anchors, UNC and device prefixes, and short-name aliases. |
 | Normalisation, residuals and the sweeps | Unicode and per-directory traits, the .. admission, out-of-tree residual, how the sweeps share worktrees, and their slice lists and ref. |
+| The sed line-ending guard | guard-sed-crlf.py refusing `sed -i` on a tracked CRLF file: what it reads, what a crafted path makes it run, where it fails open, and its residuals. |
 | Headless dispatched sessions | Unattended `claude -p` executors, what holds them, why no grant was added, and the night's residuals: a refusal read in the morning, and the weekly stop; the quality sets' runs, which load only user settings. |
 | Managed files | Which paths blueprint-harness owns and where they are changed, the `local` paths a repository keeps, and the drift gate that holds them. |
 
@@ -574,10 +575,10 @@ defeatable rather than theoretically so.
 
 **The guard hooks catch an agent's honest mistakes; they are not a sandbox
 against a session that sets out to defeat them.** `guard-git-argv.py`,
-`guard-edit-target.py` and `guard-index-argv.py` are written against a
-session that types a dangerous command by accident or by a plausible
-shortcut — a forced push, a write into a denied tree, a removal of a parent
-of the checkout — in any spelling a shell user writes in ordinary work:
+`guard-edit-target.py`, `guard-index-argv.py` and `guard-sed-crlf.py` are
+written against a session that types a dangerous command by accident or by
+a plausible shortcut — a forced push, a write into a denied tree, a removal
+of a parent of the checkout, a `sed -i` over a CRLF file — in any spelling a shell user writes in ordinary work:
 quoting, `-C` and `--work-tree`, environment prefixes, `cd` chains, the
 launchers and wrappers, heredocs, pipes into a shell.
 
@@ -1437,6 +1438,56 @@ and a missing one means a full sweep, so the write can make a later sweep
 read less only by pointing at a commit that really was swept clean; a
 poisoned tree cannot reach it, because the parent runs it once, on a clean
 end, with `$pinned`.
+
+## The sed line-ending guard
+
+**Under Git Bash, `sed -i` drops the CR from every line it writes**, so a
+file the checkout holds with CRLF endings comes back LF: a C# file that
+`.gitattributes` forces to `eol=crlf` then fails a whitespace analyser at
+lines nobody edited, and a Markdown chapter checked out with autocrlf
+changes every line of its diff. Measured with GNU sed 4.9 under Git Bash:
+`one\r\ntwo\r\n` through `sed -i 's/one/uno/'` comes back `uno\ntwo\n`, and
+through `sed --binary -i` keeps both CRs. `grep -c` cannot confirm it,
+since MSYS grep strips the CR before matching (#37).
+
+`.claude/hooks/guard-sed-crlf.py` is a `PreToolUse` hook on `Bash` that
+reads the file a `sed -i` names, because nothing in the command's text says
+what line endings that file holds. It splits the command into simple
+commands as `shlex` reads them, heredoc bodies dropped, follows a plain
+`cd <dir>` between them, and reads sed's options as `getopt_long` does:
+clusters, `-i<suffix>`, `--in-place=`, unique prefixes of long names, and
+the first operand as the script when no `-e` or `-f` names one. It refuses
+when an operand, globbed as bash would, is a regular file whose first 4 MiB
+hold a CRLF and which `git ls-files --error-unmatch` finds in its
+checkout's index. The refusal names the forms that keep the endings: the
+Edit tool, a Python script that opens the file with `newline=""`, or
+`sed --binary -i`, which is admitted. **It judges on Windows alone**: GNU
+sed on Linux and macOS keeps the CR as an ordinary character, so a refusal
+there would block a harmless edit, the false refusal *The guards' threat
+model* files.
+
+**What it reads, and what a crafted path makes it run.** Only a regular
+file is opened, read-only, and nothing read leaves the hook but the path the
+command already spelled, so a device, a FIFO or a directory is never opened,
+and a path outside the checkout costs a read the session could `cat`
+anyway. The one thing a path can make it run is git in that path's
+directory, whose checkout may be foreign: the call switches
+`core.fsmonitor` off, since `ls-files` would otherwise run the command a
+hostile config names, and sets `GIT_OPTIONAL_LOCKS=0` so the read writes no
+index. Each git call is bounded at 5 seconds, and a command at 200 files.
+
+**Where it fails open, by design rather than by crash.** An operand holding
+an expansion (`"$FILE"`, `$(git ls-files)`), a `cd` it cannot follow, a file
+that does not exist or cannot be read, a command `shlex` cannot tokenise, no
+git on `PATH`, or a git that cannot answer: each is admitted, because a
+guard that refuses what it cannot resolve blocks ordinary work for want of
+a resolution. An unreadable event is admitted, as in the other guards.
+
+**Its residuals, stated rather than left to be found:** a `sed` run through
+another program — `xargs sed -i`, `find -exec sed -i`, `bash -c "sed -i …"`
+— or through the PowerShell tool is not judged, and neither is an untracked
+CRLF file, whose endings are not yet the checkout's. A quoted glob is
+expanded although bash would pass it literally, which can only refuse more.
 
 ## Headless dispatched sessions
 
