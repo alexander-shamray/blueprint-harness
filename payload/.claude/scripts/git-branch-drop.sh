@@ -15,7 +15,7 @@
 #
 # Exit codes, in git-rebase-onto-main.sh's meanings where one fits:
 #   0  dropped
-#   2  usage, or a name this helper will not take
+#   2  usage, or a name this helper will not take, a symbolic ref among them
 #   3  the branch is `main`, however it is spelled
 #   4  the branch is checked out in a worktree, this one included
 #   6  there is no local branch of that name: nothing to drop
@@ -42,6 +42,14 @@ case "$lowered" in
   main|heads/main|refs/heads/main|origin/main|refs/remotes/origin/main)
     echo "refusing to delete main, spelled $branch" >&2; exit 3 ;;
 esac
+
+# A symbolic ref is not a branch, and is refused before its tip is read:
+# `rev-parse` follows it, so a refs/heads/<name> pointing at `main` reads
+# main's tip, and `update-ref -d` without `--no-deref` would delete main
+# through it. `branch -D` would have deleted the link; nothing here does.
+if git symbolic-ref -q "refs/heads/$branch" > /dev/null; then
+  echo "$branch is a symbolic ref, not a branch: this helper will not take it" >&2; exit 2
+fi
 
 tip=$(git rev-parse -q --verify "refs/heads/$branch^{commit}") ||
   { echo "no local branch $branch: nothing to drop" >&2; exit 6; }
@@ -72,7 +80,7 @@ held=$(printf '%s\n' "$worktrees" | tr -d '\r' | tr '[:upper:]' '[:lower:]' |
 [ "$held" = 0 ] ||
   { echo "$branch is checked out in a worktree (git worktree list): it is in use, and kept" >&2; exit 4; }
 
-git update-ref -d "refs/heads/$branch" "$tip" ||
+git update-ref --no-deref -d "refs/heads/$branch" "$tip" ||
   { echo "$branch moved from $tip after it was checked, or could not be deleted; it is kept" >&2; exit 7; }
 git config --remove-section "branch.$branch" 2>/dev/null || true
 echo "dropped $branch, merged into main at $tip"
