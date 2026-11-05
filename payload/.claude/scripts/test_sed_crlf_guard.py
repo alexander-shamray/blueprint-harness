@@ -154,6 +154,31 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             with self.subTest(command=command):
                 self.assertRefused(command, ".txt")
 
+    def test_a_sed_behind_a_wrapper_is_judged(self):
+        # Review R3, round 2: the wrappers the threat model names run the command after their own options.
+        for command in (
+            "env LC_ALL=C sed -i 's/one/uno/' crlf.txt",
+            "env -u LANG sed -i 's/one/uno/' crlf.txt",
+            "nice -n 5 sed -i 's/one/uno/' crlf.txt",
+            "timeout 10 sed -i 's/one/uno/' crlf.txt",
+            "timeout -s KILL 10 sed -i 's/one/uno/' crlf.txt",
+            "stdbuf -oL sed -i 's/one/uno/' crlf.txt",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command, "crlf.txt")
+
+    def test_a_line_fed_to_a_shell_is_judged(self):
+        # Review R3, round 2: a heredoc, a here-string or an echo piped into a shell is a command line it runs.
+        for command in (
+            "bash <<'EOF'\nsed -i 's/one/uno/' crlf.txt\nEOF\n",
+            "bash -s <<EOF\ncd sub\nsed -i 's/one/uno/' inner.txt\nEOF\n",
+            "bash <<< \"sed -i 's/one/uno/' crlf.txt\"",
+            "echo \"sed -i 's/one/uno/' crlf.txt\" | bash",
+            "bash -o pipefail -c \"sed -i 's/one/uno/' crlf.txt\"",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command, ".txt")
+
     def test_a_cd_moves_the_files_after_it(self):
         self.assertRefused("cd sub && sed -i 's/one/uno/' inner.txt", "inner.txt")
         self.assertRefused("(cd sub && sed -i 's/one/uno/' inner.txt)", "inner.txt")
@@ -250,6 +275,9 @@ class WhatSedLeavesAloneIsAdmitted(ACheckout):
             with self.subTest(opener=opener):
                 self.assertAdmitted(f"cat > fix.sh {opener}\nsed -i 's/one/uno/' crlf.txt\nEOF\n")
         self.assertAdmitted("cat > fix.sh <<-EOF\n\tsed -i 's/one/uno/' crlf.txt\n\tEOF\n")
+        # A script reads its input as data, so a body handed to one is not its command line.
+        self.assertAdmitted("bash run.sh <<EOF\nsed -i 's/one/uno/' crlf.txt\nEOF\n")
+        self.assertAdmitted("echo \"sed -i 's/one/uno/' crlf.txt\" | cat")
 
     def test_a_platform_whose_sed_keeps_the_cr(self):
         # GNU sed on Linux and macOS treats the CR as an ordinary character, so a refusal there would block a

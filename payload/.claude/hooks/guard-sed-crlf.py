@@ -33,8 +33,19 @@ PREFIXES = {
     "{", "!", "if", "then", "elif", "else", "while", "until", "do",
 }
 
-# The shells whose `-c` line is judged as a command of its own, to `MAX_DEPTH` nested lines.
+# Programs that run the command after their own options, each with the options that take a separate argument.
+WRAPPERS = {
+    "env": {"-u", "--unset", "-C", "--chdir"},
+    "nice": {"-n", "--adjustment"},
+    "timeout": {"-s", "--signal", "-k", "--kill-after"},
+    "stdbuf": {"-i", "-o", "-e", "--input", "--output", "--error"},
+}
+
+# The shells whose command line is judged as a command of its own, to `MAX_DEPTH` nested lines: a `-c` line, or a
+# heredoc, a here-string or an `echo`'s words piped into one reading its input.
 SHELLS = {"bash", "sh", "bash.exe", "sh.exe"}
+# Stands for a heredoc body in the line `prepared` returns: a NUL, which no bash command line can carry.
+BODY = "\x00"
 SHELL_COMMAND = re.compile(r"-[A-Za-z]*c[A-Za-z]*")
 MAX_DEPTH = 3
 
@@ -61,7 +72,10 @@ GIT_TIMEOUT = 5
 
 
 def prepared(command):
-    """The command as bash reads its lines: continuations joined, comments and heredoc bodies dropped.
+    """The command as bash reads its lines, continuations joined and comments dropped, and its heredoc bodies.
+
+    Each body is lifted out of the line and its opener replaced by `<< <BODY><n>`, so the body is never read as
+    commands and a shell reading it can still be handed it.
 
     One scan that tracks quotes, because each of the three is decided by whether the character sits inside one: a
     backslash-newline inside single quotes is kept, a `#` starts a comment only where it begins a word, and a `<<`
@@ -69,6 +83,7 @@ def prepared(command):
     newline token, read as a separator, and an apostrophe in a comment as an unbalanced quote.
     """
     out = []
+    bodies = []
     pending = []
     quote = None
     word_start = True
@@ -111,8 +126,10 @@ def prepared(command):
             opener = HEREDOC.match(command, index + 2)
             delimiter = re.sub(r"[\\'\"]", "", opener.group(2)) if opener else ""
             if delimiter:
-                pending.append((opener.group(1) == "-", delimiter))
-                out.append(command[index:opener.end()])
+                # The opener is replaced by a word naming its body, which `segments` hands to a shell reading it.
+                pending.append((opener.group(1) == "-", delimiter, len(bodies)))
+                bodies.append([])
+                out.append(f"<< {BODY}{len(bodies) - 1}")
                 index = opener.end()
                 word_start = False
                 continue
@@ -121,20 +138,22 @@ def prepared(command):
             index += 1
             word_start = True
             while pending:
-                strip_tabs, delimiter = pending.pop(0)
+                strip_tabs, delimiter, body = pending.pop(0)
                 while index < len(command):
                     end = command.find("\n", index)
                     end = len(command) if end < 0 else end
                     line = command[index:end]
                     index = end + 1
-                    if (line.lstrip("\t") if strip_tabs else line) == delimiter:
+                    line = line.lstrip("\t") if strip_tabs else line
+                    if line == delimiter:
                         break
+                    bodies[body].append(line)
             continue
         out.append(character)
         index += 1
         if quote is None and character not in "'\"":
             word_start = character in " \t" or character in PUNCTUATION
-    return "".join(out)
+    return "".join(out), ["\n".join(lines) for lines in bodies]
 
 
 class Segment:
@@ -148,11 +167,14 @@ class Segment:
         self.words = []
         self.scope = scope
         self.piped = False
+        # What a heredoc or a here-string feeds it, which a shell reading its input runs as a command line.
+        self.stdin = None
 
 
 def segments(command):
     """The command's simple commands as `Segment`s, or `None` where `shlex` cannot read it."""
-    lexer = shlex.shlex(prepared(command), posix=True, punctuation_chars=PUNCTUATION)
+    text, bodies = prepared(command)
+    lexer = shlex.shlex(text, posix=True, punctuation_chars=PUNCTUATION)
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
     lexer.commenters = ""
@@ -163,17 +185,22 @@ def segments(command):
     opened = 0
     scope = ()
     found = [Segment(scope)]
-    skip = False
+    redirection = None
     for token in tokens:
-        if skip:
-            skip = False
-            continue
         current = found[-1]
+        if redirection is not None:
+            # The word after a redirection is its file, a heredoc's body or a here-string's text.
+            if redirection == "<<" and token.startswith(BODY) and token[len(BODY):].isdigit():
+                current.stdin = bodies[int(token[len(BODY):])]
+            elif redirection == "<<<":
+                current.stdin = token
+            redirection = None
+            continue
         if not token or not set(token) <= set(PUNCTUATION):
             current.words.append(token)
         elif "<" in token or ">" in token:
-            # The word after a redirection is its file, and a bare number before it is its descriptor.
-            skip = True
+            # A bare number before a redirection is its descriptor.
+            redirection = token
             if current.words and current.words[-1].isdigit():
                 current.words.pop()
         else:
@@ -191,11 +218,54 @@ def segments(command):
 
 
 def command_word(words):
-    """The index of the word this simple command runs, past assignments and prefix words."""
+    """The index of the word this simple command runs, past assignments, prefix words and wrappers' options."""
     index = 0
-    while index < len(words) and (ASSIGNMENT.match(words[index]) or words[index] in PREFIXES):
-        index += 1
+    while index < len(words):
+        word = words[index]
+        if ASSIGNMENT.match(word) or word in PREFIXES:
+            index += 1
+        elif word in WRAPPERS:
+            index += 1
+            while index < len(words) and words[index].startswith("-") and words[index] != "-":
+                option = words[index]
+                index += 2 if option in WRAPPERS[word] else 1
+                if option == "--":
+                    break
+            # `timeout` takes its duration before the command.
+            index += 1 if word == "timeout" else 0
+        else:
+            break
     return index
+
+
+def echoed(words):
+    """What an `echo` or `printf` stage writes into the pipe after it, as far as its words say; `None` otherwise."""
+    start = command_word(words)
+    if start >= len(words) or words[start] not in ("echo", "printf"):
+        return None
+    rest = words[start + 1:]
+    while words[start] == "echo" and rest and re.fullmatch(r"-[neE]+", rest[0]):
+        rest = rest[1:]
+    return " ".join(rest)
+
+
+def shell_line(arguments, stdin):
+    """The command line a shell with these arguments runs: its `-c` line, or its input where it reads that."""
+    index = 0
+    reads_input = False
+    while index < len(arguments):
+        argument = arguments[index]
+        if SHELL_COMMAND.fullmatch(argument):
+            return arguments[index + 1] if index + 1 < len(arguments) else None
+        if argument in ("-o", "+o"):
+            index += 2
+            continue
+        if argument == "--" or not argument.startswith(("-", "+")):
+            # An operand is a script, which reads its input as data, unless `-s` said to read commands from it.
+            return stdin if reads_input else None
+        reads_input = reads_input or (not argument.startswith("--") and "s" in argument)
+        index += 1
+    return stdin
 
 
 def long_option(name):
@@ -326,7 +396,8 @@ def judge(command, cwd, git, checked, depth):
     # The directory each subshell stands in. One opened here starts where its parent stands when it is first seen,
     # which is where bash forks it, since the commands are read in order.
     directories = {(): cwd}
-    for segment in found:
+    for position, segment in enumerate(found):
+        previous = found[position - 1] if position else None
         scope = segment.scope
         if scope not in directories:
             parent = next(scope[:length] for length in range(len(scope) - 1, -1, -1)
@@ -353,14 +424,15 @@ def judge(command, cwd, git, checked, depth):
             continue
         program = os.path.basename(native(name)).lower()
         if program in SHELLS:
-            # `bash -c '<line>'` runs its line from here; `-c` may share a cluster, as in `-lc`.
-            for position, argument in enumerate(arguments[:-1]):
-                if SHELL_COMMAND.fullmatch(argument):
-                    if depth < MAX_DEPTH:
-                        reason = judge(arguments[position + 1], cwd, git, checked, depth + 1)
-                        if reason:
-                            return reason
-                    break
+            # The line runs from here: a `-c` line, whose `-c` may share a cluster as in `-lc`, or the shell's input.
+            stdin = segment.stdin
+            if stdin is None and segment.piped and previous is not None and previous.piped:
+                stdin = echoed(previous.words)
+            line = shell_line(arguments, stdin)
+            if line and depth < MAX_DEPTH:
+                reason = judge(line, cwd, git, checked, depth + 1)
+                if reason:
+                    return reason
             continue
         if program not in ("sed", "sed.exe"):
             continue
