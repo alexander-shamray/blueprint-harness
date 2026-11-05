@@ -1459,8 +1459,10 @@ reads the file a `sed -i` names, because nothing in the command's text says
 what line endings that file holds. It reads the command's lines as bash
 does, continuations joined and comments and heredoc bodies dropped, splits
 them into simple commands with `shlex`, follows a plain `cd <dir>` within
-its subshell, judges a `bash -c` or `sh -c` line as a command of its own,
-and reads sed's options as `getopt_long` does:
+its subshell, finds `sed` behind the prefix words and the `env`, `nice`,
+`timeout` and `stdbuf` wrappers, judges what a shell runs — its `-c` line,
+or a heredoc, a here-string or an `echo` piped into one reading its input —
+as a command of its own, and reads sed's options as `getopt_long` does:
 clusters, `-i<suffix>`, `--in-place=`, unique prefixes of long names, and
 the first operand as the script when no `-e` or `-f` names one. It refuses
 when an operand, globbed as bash would, is a regular file whose first 4 MiB
@@ -1494,8 +1496,9 @@ admitted in its suite.** The launchers and wrappers *The guards' threat
 model* names reach this guard only where the command's text holds the file
 list: a `sed` behind `xargs` or `find -exec` takes its files from another
 program's output, which no hook is given, so neither is judged, however
-routine the idiom; nor is a `sed` through the PowerShell tool, or an
-untracked CRLF file, whose endings are not yet the checkout's. A quoted
+routine the idiom; nor is a `printf` format's expansion piped into a
+shell, which is read as its words, a `sed` through the PowerShell tool, or
+an untracked CRLF file, whose endings are not yet the checkout's. A quoted
 glob is expanded although bash would pass it literally, which can only
 refuse more.
 
