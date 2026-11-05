@@ -3,10 +3,11 @@
 import copy
 import json
 import re
+import tempfile
 import unittest
 from pathlib import Path
 
-from harness_sync.ruleset import compare, desired, floor_breaches, load, normal_form
+from harness_sync.ruleset import RulesetError, compare, desired, floor_breaches, load, normal_form
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "rulesets" / "main.json"
@@ -180,6 +181,24 @@ class RulesetTests(unittest.TestCase):
         api = {"rules": [{"type": "required_status_checks", "parameters": {"required_status_checks": found}}]}
         contexts = normal_form(api)["rules"]["required_status_checks"]["contexts"]
         self.assertEqual(contexts, [("a", None), ("a", 15368)])
+
+    def test_load_rejects_a_malformed_file(self) -> None:
+        """A hand-edited file fails with RulesetError, not a TypeError, and a
+        string is never read as a list of characters."""
+        good = json.loads(DATA.read_text(encoding="utf-8"))
+        bad = {
+            "string names": {"names": "main"},
+            "non-iterable names": {"names": 5},
+            "string checks entry": {"checks": {BACKEND: "build"}},
+        }
+        for key in ("rules", "target", "conditions", "bypass_actors"):
+            bad[f"floor without {key}"] = {"floor": {k: v for k, v in good["floor"].items() if k != key}}
+        for label, change in bad.items():
+            with tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "main.json"
+                path.write_text(json.dumps({**good, **change}), encoding="utf-8")
+                with self.assertRaises(RulesetError, msg=label):
+                    load(path)
 
     def test_floor_breaches_names_each_breach(self) -> None:
         """Every desired body is clean, so the data cannot weaken the floor;
