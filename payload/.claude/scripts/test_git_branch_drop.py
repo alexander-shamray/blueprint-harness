@@ -122,6 +122,19 @@ class TheHelperKeepsWhatHasNotLanded(Fixture):
                 self.assertIn("refusing to delete main", result.stderr)
         self.assertTrue(self.exists("main"), "main was deleted")
 
+    def test_a_symbolic_ref_to_main_is_refused(self):
+        # `rev-parse` follows a symbolic ref, so feat/alias reads main's tip;
+        # a MERGED row at that tip would then pass, and a delete that followed
+        # the link too would take main.
+        self.at("git checkout -q feat/x && git symbolic-ref refs/heads/feat/alias refs/heads/main")
+        main_tip = self.tip("main")
+        result = self.helper("feat/alias", rows=[self.row(oid=main_tip)])
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("symbolic ref", result.stderr)
+        self.assertTrue(self.exists("main"), "main was deleted through the link")
+        self.assertEqual(main_tip, self.tip("main"))
+        self.assertEqual("refs/heads/main", self.at("git symbolic-ref refs/heads/feat/alias"))
+
     def test_an_unmerged_branch_is_kept(self):
         result = self.helper(rows=[self.row(state="OPEN", oid=self.tip())])
         self.assertEqual(7, result.returncode, result.stderr)

@@ -1020,20 +1020,21 @@ where `git push origin <branch>` needs no force.
 
 **One more helper relaxes a deny, and it deletes rather than pushes.** `git
 branch -d`, `-D` and `--delete` stay denied. `git-branch-drop.sh <branch>`
-refuses `main` in any spelling, a name that could be read as a flag, and a
-branch checked out in any worktree, this one included. It deletes only when
+refuses `main` in any spelling, a name that could be read as a flag, a
+symbolic ref, which `rev-parse` would follow to its target's tip, and a branch
+checked out in any worktree, this one included. It deletes only when
 `pr-for-branch.sh` reports a pull request for the branch `MERGED` into `main`
 whose head is the branch's tip, which is `/ship` step 0's finished predicate:
 a commit added after the merge is work no merge holds, and keeps the branch,
 and the helper reads only this repository's rows, so a fork's same-named pull
-request lands nothing. The delete is `git update-ref -d` against the tip that
-was checked, a compare-and-swap, rather than `git branch -D`, which deletes
-whatever the branch holds when it runs: the read of the pull requests takes
-seconds, and a commit landing in that window would go with the branch. The
-worktree check runs last, because `update-ref` does not make it, and the
-branch's configuration section, which `update-ref` leaves, is removed after
-the delete. Its residual is a worktree that checks the branch out between that
-check and the delete.
+request lands nothing. The delete is `git update-ref --no-deref -d` against
+the tip that was checked, a compare-and-swap, rather than `git branch -D`,
+which deletes whatever the branch holds when it runs: the read of the pull
+requests takes seconds, and a commit landing in that window would go with the
+branch. The worktree check runs last, because `update-ref` does not make it,
+and the branch's configuration section, which `update-ref` leaves, is removed
+after the delete. Its residual is a worktree that checks the branch out
+between that check and the delete.
 
 **Some of the rebase helper's edges are accepted rather than guarded.** A replay
 amended after a failed push no longer descends from the commit `publish`

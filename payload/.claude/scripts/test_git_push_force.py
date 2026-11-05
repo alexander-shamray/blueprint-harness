@@ -153,6 +153,22 @@ class TheHelperRefusesBeforeItPushes(Fixture):
                 self.assertIn("refusing to force-push main", result.stderr)
         self.assertEqual(before, self.remote("main"), "origin's main was rewritten")
 
+    def test_a_branch_that_is_a_symbolic_ref_to_main_is_main(self):
+        # HEAD names refs/heads/feat/alias, which is itself a symbolic ref to
+        # main. `git branch --show-current` follows the chain, so the name the
+        # helper folds is `main`; a read that stopped at the first link would
+        # push main's rewritten tip as feat/alias.
+        self.at("git checkout -q main")
+        self.amend()
+        before = self.remote("main")
+        self.at("git symbolic-ref refs/heads/feat/alias refs/heads/main "
+                "&& git symbolic-ref HEAD refs/heads/feat/alias")
+        result = self.helper()
+        self.assertEqual(3, result.returncode, result.stderr)
+        self.assertIn("refusing to force-push main", result.stderr)
+        self.assertEqual(before, self.remote("main"))
+        self.assertEqual("", self.at("git ls-remote origin refs/heads/feat/alias"))
+
     def test_a_detached_head_is_refused(self):
         self.amend()
         self.at("git checkout -q --detach HEAD")
