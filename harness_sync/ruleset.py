@@ -37,8 +37,8 @@ _FLOOR_TYPES = (
 
 class RulesetError(Exception):
     """A refusal or failure of the ruleset commands: the data file unreadable
-    or misshapen, data below the floor, two rulesets matching, or a `gh` call
-    that failed or answered something unreadable."""
+    or misshapen, two rulesets matching, or a `gh` call that failed or answered
+    something unreadable."""
 
 
 @dataclass(frozen=True)
