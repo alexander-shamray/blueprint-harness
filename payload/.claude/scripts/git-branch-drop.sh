@@ -49,7 +49,7 @@ esac
 # `rev-parse` follows it, so a refs/heads/<name> pointing at `main` reads
 # main's tip, and `update-ref -d` without `--no-deref` would delete main
 # through it. `branch -D` would have deleted the link; nothing here does.
-if git symbolic-ref -q "refs/heads/$branch" > /dev/null; then
+if git symbolic-ref -q "refs/heads/$branch" > /dev/null 2>&1; then
   echo "$branch is a symbolic ref, not a branch: this helper will not take it" >&2; exit 2
 fi
 
@@ -85,8 +85,9 @@ held=$(printf '%s\n' "$worktrees" | tr -d '\r' | tr '[:upper:]' '[:lower:]' |
 # A worktree mid-rebase or mid-bisect has HEAD detached, so the list above says
 # `detached` while the branch is still the one it works on, as a conflicted
 # `git-rebase-onto-main.sh start` leaves it. git keeps the name in each git
-# dir's rebase-merge/head-name, rebase-apply/head-name and BISECT_START, which
-# is where `git branch -D` looks too; read here from every git dir, folded.
+# dir's rebase-merge/head-name, rebase-apply/head-name, BISECT_START and, for a
+# branch a `rebase --update-refs` will move, rebase-merge/update-refs: where
+# `git branch -D` looks too, from 2.38. Read here from every git dir, folded.
 named() {
   tr -d '\r' < "$1" | tr '[:upper:]' '[:lower:]'
 }
@@ -100,6 +101,14 @@ for gitdir in "$common" "$common"/worktrees/*; do
       echo "$branch is being rebased in a worktree ($gitdir/$state): it is in use, and kept" >&2; exit 4
     fi
   done
+  # `rebase --update-refs` names each stacked branch it will move here, one
+  # line per ref name followed by its before and after oids, so a whole-line
+  # match on the name is the test; an oid line never reads as a ref name.
+  if [ -f "$gitdir/rebase-merge/update-refs" ] &&
+     named "$gitdir/rebase-merge/update-refs" | grep -qxF -- "refs/heads/$lowered"; then
+    echo "$branch is to be updated by a rebase in a worktree ($gitdir/rebase-merge): it is in use, and kept" >&2
+    exit 4
+  fi
   if [ -f "$gitdir/BISECT_START" ]; then
     started=$(named "$gitdir/BISECT_START")
     if [ "$started" = "$lowered" ] || [ "$started" = "refs/heads/$lowered" ]; then
