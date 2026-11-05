@@ -1,0 +1,68 @@
+{
+  "name": "main",
+  "names": [
+    "main",
+    "main non-writable directly",
+    "protect-main"
+  ],
+  "floor": {
+    "enforcement": "active",
+    "target": "branch",
+    "conditions": {
+      "ref_name": {
+        "include": [
+          "~DEFAULT_BRANCH"
+        ],
+        "exclude": []
+      }
+    },
+    "bypass_actors": [],
+    "rules": [
+      "deletion",
+      "non_fast_forward",
+      "required_linear_history",
+      {
+        "type": "pull_request",
+        "parameters": {
+          "required_approving_review_count": 0,
+          "allowed_merge_methods": [
+            "rebase"
+          ]
+        }
+      }
+    ]
+  },
+  "checks": {
+    "alexander-shamray/blueprint-backend": [
+      "changes",
+      "build",
+      "commits",
+      "closure-gate",
+      "locality-gate",
+      "commit-gate"
+    ],
+    "alexander-shamray/blueprint-harness": [
+      "sync-tool",
+      "commit-gate",
+      "closure-gate",
+      "harness-drift",
+      "payload-suites (ubuntu-latest)",
+      "payload-suites (windows-latest)",
+      "payload-suites (macos-latest)"
+    ],
+    "alexander-shamray/blueprint-frontend": [],
+    "alexander-shamray/blueprint-admin": [
+      "host (ubuntu-latest)",
+      "host (windows-latest)",
+      "drift",
+      "web",
+      "smoke",
+      "commits",
+      "harness (macos-latest)",
+      "harness (ubuntu-latest)",
+      "harness (windows-latest)",
+      "commit-gate",
+      "locality-gate"
+    ]
+  }
+}
