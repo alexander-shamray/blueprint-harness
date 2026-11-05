@@ -68,7 +68,15 @@ class Fixture(unittest.TestCase):
         stub.write_text(
             "#!/usr/bin/env bash\n"
             'if [ "$1 $2" = "repo view" ]; then printf "%s" "$STUB_OWNER"; exit 0; fi\n'
-            'if [ "$1 $2" = "pr list" ]; then printf "%s" "$STUB_ROWS"; exit "${STUB_EXIT:-0}"; fi\n'
+            # STUB_MOVE commits to the branch while its pull requests are
+            # read, standing for work landing between the read and the delete.
+            'if [ "$1 $2" = "pr list" ]; then\n'
+            '  if [ -n "${STUB_MOVE:-}" ]; then\n'
+            '    moved=$(git commit-tree -p "$STUB_MOVE" -m "landed during the read" "$STUB_MOVE^{tree}")\n'
+            '    git update-ref "$STUB_MOVE" "$moved"\n'
+            '  fi\n'
+            '  printf "%s" "$STUB_ROWS"; exit "${STUB_EXIT:-0}"\n'
+            'fi\n'
             'echo "unexpected gh call: $*" >&2; exit 9\n',
             encoding="utf-8", newline="\n")
         stub.chmod(0o755)
@@ -90,14 +98,14 @@ class Fixture(unittest.TestCase):
         return {"number": number, "state": state, "url": f"u{number}", "headRefOid": oid,
                 "baseRefName": base, "headRepository": {"nameWithOwner": owner}}
 
-    def helper(self, branch="feat/x", rows=None, exit_code="0"):
+    def helper(self, branch="feat/x", rows=None, exit_code="0", move=""):
         if rows is None:
             rows = [self.row(oid=self.tip())]
         return run_bash(
             f'cd "$W"\nbash "$H" "$B"',
             W=self.work, H=str(HELPER), B=branch,
             STUB_OWNER=OWNER, STUB_ROWS=json.dumps(rows), STUB_EXIT=exit_code,
-            PATH=self.bin + os.pathsep + os.environ["PATH"])
+            STUB_MOVE=move, PATH=self.bin + os.pathsep + os.environ["PATH"])
 
 
 class TheHelperKeepsWhatHasNotLanded(Fixture):
@@ -161,6 +169,18 @@ class TheHelperKeepsWhatHasNotLanded(Fixture):
         self.assertEqual(4, result.returncode, result.stderr)
         self.assertTrue(self.exists())
 
+    def test_a_commit_landing_during_the_read_is_kept(self):
+        # The row is MERGED at the tip the helper read, and the branch moves
+        # while the read runs: the delete must be of that tip, not of
+        # whatever the branch has become.
+        merged_at = self.tip()
+        result = self.helper(rows=[self.row(oid=merged_at)], move="refs/heads/feat/x")
+        self.assertNotEqual(0, result.returncode, result.stdout)
+        self.assertIn("moved", result.stderr)
+        self.assertTrue(self.exists(), "the branch was deleted with the commit on it")
+        self.assertNotEqual(merged_at, self.tip())
+        self.assertEqual(merged_at, self.at("git rev-parse refs/heads/feat/x~1"))
+
     def test_an_unanswered_read_keeps_it(self):
         result = self.helper(exit_code="1")
         self.assertEqual(12, result.returncode, result.stderr)
@@ -192,6 +212,9 @@ class TheHelperDropsWhatLanded(Fixture):
         self.assertIn("dropped feat/x", result.stdout)
         self.assertFalse(self.exists())
         self.assertTrue(self.exists("main"))
+        # `update-ref -d` leaves the section `branch -D` would take; the
+        # fixture's `push -u` wrote one.
+        self.assertEqual("", self.at("git config --get branch.feat/x.remote || true"))
 
     def test_one_landed_row_among_others_is_enough(self):
         # A branch reopened after a closed attempt has several rows.
