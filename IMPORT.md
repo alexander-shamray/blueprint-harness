@@ -253,12 +253,14 @@ where a case read backend's tree only as a fixture, it now builds its own
 (`PathTests`' checkout, `test_pr_helpers.py`'s class map), and where it held a
 list of commands, the list names the payload's and the sibling subclasses the
 case, or reuses it, for backend's. What moved reads a file only backend has.
-The exclusion stays in this pull request: the drift gate judges the root
-against the payload at the manifest's commit, which ships no comment-gate
-suite, so dropping it before this repository's own sync renders that suite
-would fail `harness-drift`. `sync.yml`'s sync never edits a target's config,
-so the exclusion is dropped by hand in the sync pull request that first
-renders the split suites here, and #5 stays open until it is.
+The exclusion stays in this pull request: dropped, it makes the drift gate
+expect `.github/workflows/comment-gate.yml` in the root's manifest, which no
+apply has written, so `harness-drift` fails (`… is a payload file but
+.harness/manifest.json does not list it`, run both ways). Only an apply
+writes the workflow and its manifest entry together, and `sync.yml`'s sync
+never edits a target's config, so the sync pull request that first renders
+the split suites here drops the exclusion by hand and reruns apply; #5 stays
+open until it does.
 
 Backend takes its half in one pull request, since its `.harness/config.json`
 still lists the twelve modules as `local` and apply refuses a payload file
