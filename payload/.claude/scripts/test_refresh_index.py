@@ -735,6 +735,14 @@ class Refreshing(Base):
             [self.mod.sys.executable, "-P", "-m", "codebase_index", "update"],
             attempts[1])
 
+    def test_neither_form_running_is_silent(self):
+        """An index that cannot refresh is not a reason to fail the edit."""
+        self.patch(mock.patch.object(
+            self.mod.subprocess, "run", side_effect=OSError("nothing runnable")))
+
+        self.assertFalse(self.mod.refresh(self.checkout("main")))
+        self.assertEqual([], self.ran)
+
     def test_no_console_script_on_path_goes_straight_to_the_module(self):
         """A name the lookup did not find is never started bare, which is
         the start Windows would satisfy from the working directory."""
@@ -852,14 +860,6 @@ class FindingTheCli(Base):
             (shims / name).write_text("@exit /b 0\r\n", encoding="utf-8")
 
         self.assertIsNone(self.search(shims, root=root))
-
-    def test_neither_form_running_is_silent(self):
-        """An index that cannot refresh is not a reason to fail the edit."""
-        self.patch(mock.patch.object(
-            self.mod.subprocess, "run", side_effect=OSError("nothing runnable")))
-
-        self.assertFalse(self.mod.refresh(self.checkout("main")))
-        self.assertEqual([], self.ran)
 
 
 class Registration(Base):
