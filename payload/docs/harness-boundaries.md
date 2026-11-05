@@ -1557,7 +1557,8 @@ headings, fixed so a citation of one lands in every target:
   measurements `docs/harness/token-rules.md`'s reasons rest on.
 - *Ship checks*: the checks `/ship` step 2 runs here, each with the change
   that selects it and the passes it dispatches, each pass's scope and
-  method as its brief, or `none`.
+  method as its brief, or `none`; and the required checks, the CI check
+  names `/ship` step 6's wait requires on the pushed head, never `none`.
 - *Residuals*: what this file's arguments leave open only in this
   repository, beside the residuals stated above.
 - *Review examples*: the kinds of finding this repository's surface
