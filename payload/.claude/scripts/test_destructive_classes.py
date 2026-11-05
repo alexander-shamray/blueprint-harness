@@ -14,8 +14,11 @@ stale where a gate would not, so this suite reads it:
   leave the two checks above vacuous.
 
 A `ruleset` row is the server-side backstop. Its test is `ruleset-check`,
-which the table names and this suite does not run: it asks GitHub, and the
-`rulesets` job runs it.
+which the table names and this suite does not run. It is blueprint-harness's
+`py -3.12 -m harness_sync ruleset-check`, which asks GitHub and is run by
+that repository's `rulesets` workflow against every target's `main` ruleset,
+so it is not in a target this suite is rendered into. Every other row's
+*Test* must name a suite file that exists beside this one.
 
 The root is the directory two above this file: the rendered root in a
 target, `payload/` in this repository, which has the same layout.
@@ -36,7 +39,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+SCRIPTS = Path(__file__).resolve().parent
+ROOT = SCRIPTS.parents[1]
 DOC = ROOT / "docs" / "harness-boundaries.md"
 BASE = ROOT / ".harness" / "settings.base.json"
 HOOKS = ROOT / ".claude" / "hooks"
@@ -186,7 +190,8 @@ def scratch_checkout():
             _link(real, os.path.join(root, "linked", name))
         yield root
     finally:
-        # Links first: `rmtree` declines to follow one, which is wanted.
+        # `ignore_errors`, and `rmtree` does not follow a link, so the link
+        # goes and the tree it points into stays inside the scratch root.
         shutil.rmtree(root, ignore_errors=True)
 
 
@@ -255,6 +260,12 @@ class DestructiveClasses(unittest.TestCase):
                 problems.append(f"{row.klass}: `{row.example}` "
                                 f"({row.refused_by}): {problem}")
         self.assertEqual([], problems)
+
+    def test_every_row_names_a_suite_that_exists(self):
+        missing = [f"{row.klass}: {row.test}" for row in table()
+                   if row.refused_by != "ruleset"
+                   and not (SCRIPTS / row.test).is_file()]
+        self.assertEqual([], missing)
 
     def test_a_planted_unrefused_row_fails(self):
         for layer in ("guard-git-argv", "deny"):
