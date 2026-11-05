@@ -187,12 +187,13 @@ for this repository's first target.
 ## Changes
 
 `main` takes changes only through pull requests: deletion, force pushes and
-direct pushes are refused, and nobody bypasses it. Seven checks must pass:
+direct pushes are refused, and nobody bypasses it. Eight checks must pass:
 `sync-tool` and `payload-suites` on its three runners (`ubuntu-latest`,
 `windows-latest`, `macos-latest`) from `ci.yml`, and `commit-gate`,
-`closure-gate` and `harness-drift` from the workflows the root renders.
+`closure-gate` and `harness-drift` from the workflows the root renders, and
+`rulesets` from `rulesets.yml`.
 
-`rulesets/main.json` owns the seven required checks, and the floor every
+`rulesets/main.json` owns the eight required checks, and the floor every
 repository's `main` ruleset meets: the rules, no bypass and no approval
 required. `py -3.12 -m harness_sync ruleset-check [--effective] [<repo>...]`
 reads each live ruleset and exits 1 with a line per difference, and

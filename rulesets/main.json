@@ -48,7 +48,8 @@
       "harness-drift",
       "payload-suites (ubuntu-latest)",
       "payload-suites (windows-latest)",
-      "payload-suites (macos-latest)"
+      "payload-suites (macos-latest)",
+      "rulesets"
     ],
     "alexander-shamray/blueprint-frontend": [
       "android",
