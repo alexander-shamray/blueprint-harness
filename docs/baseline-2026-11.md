@@ -77,8 +77,9 @@ compare like with like: the same command, the same repository.
 ## After plan 2
 
 Measured on 2026-11-05, after blueprint-backend's #1750, which made its
-`CLAUDE.md` import `.harness/agent-rules.md`, and plan 2's memory triage. The figures
-are LF bytes of what every backend session loads before its first prompt.
+`CLAUDE.md` import `.harness/agent-rules.md`, and plan 2's memory triage.
+The figures are LF bytes of what every backend session loads before its
+first prompt.
 
 | What a backend session loads | Before | After |
 | --- | ---: | ---: |
