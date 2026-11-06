@@ -25,7 +25,7 @@ reverting commit 3 would break commit 2, they are one commit.
 The splits this repo has actually wanted:
 
 - **Config apart from content.** `.editorconfig` and `CLAUDE.md` are one
-  change; the chapters they govern are another.
+  change; the documents they govern are another.
 - **One mechanical sweep per commit.** A corpus-wide reformat is its own
   commit — mixing it with a substantive edit makes the substantive edit
   invisible in the diff.
