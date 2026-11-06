@@ -260,9 +260,9 @@ class RemoveShape(unittest.TestCase):
         self.assertIn("/.claude/worktrees/probe", listed.replace(chr(92), "/"), "the refusal unregistered it")
 
     def test_a_branch_with_parentheses_is_still_removed(self):
-        # Worktrees forked before the scope in a branch name was dropped carry one, and removing one must not
-        # wait on a rename: `.claude/scripts` is common to every target, and a target may still hold such a branch.
-        # The directory name is the first words of the change and not the branch's.
+        # The pattern is the one git-branch-create.sh and git-worktree-fork.sh use, because `/branch` cuts
+        # `feat(<scope>)/` names, so a forked worktree carries one. The directory name is the first words of the change
+        # and not the branch's.
         root, _ = self.fixture()
         self.fork(root, "masstransit", "feat(template)/masstransit-registration")
         result = self.remove(f"{root}/checkout", ".claude/worktrees/masstransit",

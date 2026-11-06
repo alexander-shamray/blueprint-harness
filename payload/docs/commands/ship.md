@@ -550,9 +550,8 @@ included. `main` is refused, so is a detached worktree, which holds no branch,
 and the directory name need not echo the branch, since `/branch` cuts it to a
 word or two of the change. What remains is a caller that already knows another
 run's path and branch together; `/ship` passes the branch it created at step 1.
-The branch pattern still admits parentheses, though the helpers that make a
-name do not: `.claude/scripts` is common to every target, and one may still
-hold a worktree on a branch cut with a scope.
+The branch pattern is the one `git-branch-create.sh` and `git-worktree-fork.sh`
+use, which admits parentheses because `/branch` cuts `feat(<scope>)/` names.
 
 **The index lock and the helper in place of a grant are
 `docs/harness-boundaries.md`'s**: *Index refresh and worktree seeding* says why
