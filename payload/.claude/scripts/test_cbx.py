@@ -26,7 +26,7 @@ SKILL = SCRIPTS.parent / "skills" / "codebase-index"
 # package name in prose do not match.
 UNPINNED_CLI = re.compile(
     r"(?:^|[`\s])codebase-index\s+(search|explain|architecture|symbol|refs|impact|diff-impact|path|describe|verify"
-    r"|stats|doctor|update|index|graph|mcp)\b", re.M)
+    r"|stats|doctor|update|index|graph|mcp|clean|init|watch)\b", re.M)
 
 
 def _bash():
@@ -334,7 +334,8 @@ class CbxWrapper(unittest.TestCase):
     def test_the_scan_sees_each_way_the_unpinned_cli_is_spelled(self):
         # The scan's subject is the scan: a pattern that matched nothing would pass every file above.
         for text in ("codebase-index verify --json", "Run `codebase-index search X`", "| `codebase-index impact X` |",
-                     "x codebase-index  graph", "$ codebase-index doctor", "codebase-index mcp"):
+                     "x codebase-index  graph", "$ codebase-index doctor", "codebase-index mcp",
+                     "`codebase-index clean`", "codebase-index init .", "run codebase-index watch"):
             with self.subTest(text=text):
                 self.assertIsNotNone(UNPINNED_CLI.search(text))
         for text in ("the `codebase-index` package", "pip install codebase-index", "skills/codebase-index/scripts/cbx",
