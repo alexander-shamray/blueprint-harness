@@ -7,7 +7,7 @@ from pathlib import Path
 
 from harness_sync.render import RenderError, dump_settings, render_settings
 
-FIXTURE = Path(__file__).parent / "fixtures" / "backend-settings.json"
+BASE = Path(__file__).resolve().parents[2] / "payload" / ".harness" / "settings.base.json"
 
 
 def base() -> dict:
@@ -118,8 +118,8 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(out["hooks"]["Stop"], [extra])
         self.assertEqual(list(out["hooks"]), ["PreToolUse", "SessionStart", "Stop"])
 
-    def test_dump_matches_backend_form(self) -> None:
-        raw = FIXTURE.read_bytes().decode("utf-8").replace("\r\n", "\n")
+    def test_dump_matches_the_base_form(self) -> None:
+        raw = BASE.read_bytes().decode("utf-8").replace("\r\n", "\n")
         self.assertEqual(dump_settings(json.loads(raw)), raw)
 
 
