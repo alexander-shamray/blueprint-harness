@@ -469,8 +469,8 @@ Spec §7 step 3, plan 5 Task 1: every file `blueprint-frontend` shares with the
 payload was audited for what only frontend's copy holds, before a sync replaces
 it. Frontend is read at `41a3f45`, whose `.claude` and `.github` had no later
 commit on 2026-11-06, and the payload at harness `9f63bd2`. Task 2 takes its
-work from the tables below, and marks each row it lands `ported` with the
-commit.
+work from the tables below, and marks each row it lands `ported` with its
+pull request, since a rebase landing changes the commit's hash.
 
 Nine read-only agents, one for each of clusters B, C, D, F and G and two for
 each of A and E, whose diffs did not fit one read, returned 350 rows. A row
@@ -544,7 +544,7 @@ which E's row ports.
 
 | Frontend | Behaviour | Payload | Verdict | Task | Reason and fix | Frontend's test |
 |---|---|---|---|---|---|---|
-| .github/workflows/commit-gate.yml:37 | Stands down only when every commit's author and committer are Dependabot | .github/workflows/commit-gate.yml:22 | port | 2 | Payload exempts by opener, so a human push rides unjudged (blueprint-admin#400). Port the step and step ifs; drop job if; fix working-rules.md:62. |  |
+| .github/workflows/commit-gate.yml:37 | Stands down only when every commit's author and committer are Dependabot | .github/workflows/commit-gate.yml:22 | ported | 2 | Payload exempts by opener, so a human push rides unjudged (blueprint-admin#400). Port the step and step ifs; drop job if; fix working-rules.md:62. |  |
 | .github/ISSUE_TEMPLATE/finding.yml:18 | Form offers only kinds and areas frontend has labels for, no test-gap, enhancement, test | .github/ISSUE_TEMPLATE/finding.yml:20 | local |  | Frontend has no test label (README:12), test-gap appears nowhere; create them, check enhancement, before sync or the issue-form job fails. | test_this_repository_s_owners_are_read |
 | .github/issue-form-gate/issue_form_gate.py:154 | Holds form kinds and severities to vocabulary bullet and helper's case arms | .github/issue-form-gate/issue_form_gate.py:165 | covered |  | Owners move to working-rules.md and gh-issue-create.sh, per decided gh-issue-filing.sh drop; helper-subset rule at :171. | test_a_kind_the_contract_lacks_fails |
 | .github/workflows/commit-gate.yml:14 | Cancels a pull request's in-progress gate run when a newer run starts | .github/workflows/commit-gate.yml:14 | obsolete |  | Payload removed the group: a rerun of an older head cancels the newest, leaving a failed required check. |  |
