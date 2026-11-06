@@ -618,9 +618,10 @@ class Runbook(unittest.TestCase):
     def test_step_2_launches_the_sync_before_wake(self):
         text = self.text()
         loop = text[text.index("2. **The night loop.**"):text.index("**Launch a group**")]
-        self.assertIn("**A sync found at step 0 goes first and alone.**", loop)
-        self.assertIn("a sync opening mid-night waits for the running groups, new launches can overtake it, and the "
-                      "morning's list shows it", loop)
+        self.assertIn("**On a night that starts with no group active, a sync found at step 0 goes first and alone.**",
+                      loop)
+        self.assertIn("a sync opening mid-night, or found by a resumed run with a group active, waits for the running "
+                      "groups, new launches can overtake it, and the morning's list shows it", loop)
         self.assertLess(loop.index("git-worktree-sync.sh .claude/worktrees/sync-<sha7> <head>"),
                         loop.index("sync-launch <run> <n> --branch <head> --worktree .claude/worktrees/sync-<sha7> "
                                    "--oid <oid>"))
@@ -649,7 +650,9 @@ class Runbook(unittest.TestCase):
         argued = flat(ARGUMENT.read_text(encoding="utf-8"))
         section = argued[argued.index("## Sync pull requests"):]
         self.assertIn("about 15 minutes, once a night", section)
-        self.assertIn("one found at step 0 goes first and alone", section)
+        self.assertIn("on a night that starts with no group active one found at step 0 goes first and alone", section)
+        self.assertIn("A sync opening mid-night, or found by a resumed run with a group active, gets neither promise",
+                      section)
         self.assertIn("it waits for the running groups and new launches can overtake it", section)
         self.assertNotIn("is met before wake can fill the slots", section)
         self.assertIn("(why: docs/commands/dispatch.md, *Sync pull requests*)", self.text())
