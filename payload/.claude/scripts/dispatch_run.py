@@ -1271,6 +1271,11 @@ def _review_text(entry):
     return f"{_rounds_text(entry.get('rounds'))}; review {entry.get('review_end') or 'not run'}"
 
 
+def _superseded(entry):
+    # Somebody closed the pull request, and the next sync replaces it: the one ending that asks nothing of a human.
+    return entry.get("closed_from") == "stopped" and entry.get("reason") == "closed unmerged"
+
+
 def _sync_line(root, gid, entry):
     """A closed sync's line under Syncs: its outcome, pull request and, on a merge, its oid."""
     ended = entry.get("closed_from")
@@ -1320,6 +1325,8 @@ def report(root, run, tasks_path, today, body_source, open_source):
             syncs.append(_sync_line(root, gid, entry))
             if entry.get("closed_from") == "verified" and entry.get("unreviewed"):
                 needs.append(f"{gid} {_pr_text(entry)} {UNREVIEWED}, as {entry.get('merge_oid')}")
+            elif entry.get("closed_from") in HANDED and not _superseded(entry):
+                needs.append(syncs[-1])
         elif ended == "verified" and status == "done" and entry.get("unreviewed"):
             # It landed, but nobody reviewed it: the one kind of merge that is not a merge needing nothing.
             needs.append(f"{gid} {_pr_text(entry)} {UNREVIEWED}, as {entry.get('merge_oid')}: "
