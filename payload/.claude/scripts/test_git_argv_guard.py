@@ -547,6 +547,52 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertIn("substitution", self.assertRefused(command))
 
+    def test_a_shift_in_arithmetic_opens_no_heredoc(self):
+        # `<<` in a sum is a shift. Read as an opener it has no terminator,
+        # the scan stops there, and the real heredoc after it goes unstripped.
+        for sum_line in (
+            "n=$((1<<4))",
+            "(( n = 1<<4 ))",
+            "n=$((n<<=1))",
+            "(( n = 1<<4 + (( 1 )) ))",
+        ):
+            command = (
+                f"{sum_line}{NEWLINE}"
+                f"git commit -F - <<'EOF'{NEWLINE}don't stop{NEWLINE}EOF"
+            )
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
+        # The other direction: a line reading as the shift's delimiter does
+        # not make the lines above it a body.
+        self.assertIn(
+            "force push",
+            self.assertRefused(
+                f"(( n = 1<<4 )){NEWLINE}git push origin +HEAD:main{NEWLINE}4"
+            ),
+        )
+
+        # What is not a sum keeps its heredoc: these parens close on `) |`, not
+        # on `))`, so bash reads subshells, and a quoted body in them is data.
+        # A quoted `))` closes nothing either.
+        for opener in ("<<'EOF'", "<<'EOF' '))'"):
+            with self.subTest(opener=opener):
+                self.assertAdmitted(
+                    f"((git commit -F - {opener}{NEWLINE}"
+                    f"git push origin +HEAD:main{NEWLINE}EOF{NEWLINE}) | cat)"
+                )
+
+    def test_finding_sums_is_linear_in_the_command(self):
+        # `judge` fails on a verdict that misses the timeout, and a verdict
+        # that never arrives is an admission. Balancing parens once per sum
+        # costs this command's length squared.
+        self.assertIn(
+            "force push",
+            self.assertRefused(
+                "((a)) " * 15000 + "<<4 ; git push origin +HEAD:main"
+            ),
+        )
+
     def test_the_fallback_scan_also_treats_a_heredoc_body_as_data(self):
         # The two paths have to agree: a fallback that scans the raw command
         # refuses a heredoc body naming a forbidden flag the moment anything

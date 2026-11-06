@@ -417,6 +417,33 @@ def _quoting(command, quotes=True, data=()):
         index += 1
 
 
+def _arithmetic_spans(command):
+    """Every outermost `((…))` in `command`, `$((…))` included, in order.
+
+    Bash reads a sum only where the parens close on `))`: `((a) | b)` is two
+    subshells. One pass over a stack, because `_closing_paren` per sum is
+    quadratic and a timeout in this guard fails open.
+
+    Heredoc bodies are read as shell text here, since finding them is what
+    this serves, so an apostrophe in one can lose a later sum or invent one.
+    Neither hides a command: a skipped opener leaves its lines to be judged.
+    """
+    found, stack, previous = [], [], None
+    for index, state, escaped in _quoting(command):
+        if state or escaped:
+            continue
+        if command[index] == "(":
+            stack.append(index)
+        elif command[index] == ")" and stack:
+            start = stack.pop()
+            if previous == (start + 1, index - 1):
+                while found and found[-1][0] > start:
+                    found.pop()
+                found.append((start, index))
+            previous = (start, index)
+    return found
+
+
 def heredoc_spans(command, unclosed=None):
     """Every heredoc body in `command`, as `(start, end, expands)`.
 
@@ -445,10 +472,17 @@ def heredoc_spans(command, unclosed=None):
     # appends spans that start ahead of it, so the list is sorted by
     # construction and the walk stays monotonic.
     data, spans, pending = [], [], 0
+    # Consumed from the end, nearest first, as the walk passes them.
+    sums = _arithmetic_spans(command)[::-1] if "<<" in command else []
     for index, in_quotes, in_comment in shell_positions(command, data):
         if in_quotes or in_comment:
             continue
         if not command.startswith("<<", index):
+            continue
+        # A shift, not an opener.
+        while sums and sums[-1][1] <= index:
+            sums.pop()
+        if sums and sums[-1][0] <= index:
             continue
         # `<<<` is a here-string: `cat <<<EOF` passes the word `EOF` on stdin
         # and the next line is an ordinary command, so matching `<<EOF` at its
