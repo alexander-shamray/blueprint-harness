@@ -255,7 +255,8 @@ class Standing(unittest.TestCase):
         }
         subprocess.run(
             [BASH, "-c", run_block(step)],
-            cwd=self.root, env=env, check=True, capture_output=True, text=True,
+            cwd=self.root, env=env, check=True, capture_output=True,
+            text=True, encoding="utf-8",
         )
         return re.search(r"^own=(\w+)$", out.read_text(encoding="utf-8"), re.M).group(1)
 
