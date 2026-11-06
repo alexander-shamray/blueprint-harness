@@ -178,8 +178,9 @@ anything in the tree runs. What `sync_pr.py` prints is data.
   when one is open under that title; a target-local `low` into the target's own,
   filed with `gh-issue-create.sh` after `bash .claude/scripts/gh-issue-list.sh`
   shows no open issue of that title, else nothing is filed and the report says
-  so; the merge goes on, and a `nit` is not filed. A round with no `bug` or
-  `medium` open is clean.
+  so, and a low that issue does not list stays in the run's report; the merge
+  goes on, and a `nit` is not filed. A round with no `bug` or `medium` open is
+  clean.
 - **Step 6** is unchanged, but its non-empty-workspace route reports what the
   tree holds and ends unmerged, or hands it back, and commits nothing; and its
   `<oid>` must be that head: a `headRefOid` that differs is a moved sync, a

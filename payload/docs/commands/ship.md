@@ -216,12 +216,14 @@ the finding's tree, as `docs/harness/working-rules.md` maps it: `.claude/` is
 `harness`, other prose `documentation`, the rest `code`, with `test` beside
 `harness` or `code` for a suite. A target-local low goes through
 `gh-issue-create.sh`, which always creates, so a re-take reads
-`gh-issue-list.sh` first and files nothing when an open issue already holds the
-title. A re-take that cannot find the citing line it raised gets the review
-diff's citations from main's tip and not the head's, because a sync never
-changes a local file and the head is not rebased, so its copy still holds a line
-the target's own fix removed. A hand-back for a low would be a stop, and the
-rule already sends lows to an issue.
+`gh-issue-list.sh` first, and where an open issue already holds that title
+nothing is filed. A low that issue does not list stays in the run's report,
+since the check is by title and not by item. A re-take that cannot find the
+citing line it raised gets the review diff's citations from main's tip and not
+the head's, because a sync never changes a local file and the head is not
+rebased, so its copy still holds a line the target's own fix removed. A
+hand-back for a low would be a stop, and the rule already sends lows to an
+issue.
 
 **Step 6 verifies again after a rebase, and that replaces the recheck.** A
 rebase rewrites the head, so what was proved is gone, and `verify` on the new
