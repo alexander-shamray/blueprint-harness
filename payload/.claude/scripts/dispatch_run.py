@@ -1031,10 +1031,7 @@ def absorb(root, run, gid, run_refused=None):
         parts.append(f"- {reason}")
     if end.denials:
         parts.append(f"[denials: {len(end.denials)}]")
-    asked = []
-    if decision in HANDED and gid in _released(state):
-        asked = [f"released {gid}: comment its point of failure on {_issues_text(entry.get('issues'))}"]
-    return [" ".join(parts), *asked, f"transcript: {shown}"]
+    return [" ".join(parts), f"transcript: {shown}"]
 
 
 def _merge_problem(root, pr, oid, branch):
@@ -1485,7 +1482,7 @@ def report(root, run, tasks_path, today, body_source, open_source):
         elif ended in HANDED or status == "returned":
             worktree = entry.get("worktree")
             kept = _path_text(worktree) and (Path(root) / worktree).is_dir()
-            failure = ", point of failure" if gid in lifted else ""
+            failure = f", point of failure on {_issues_text(entry.get('issues'))}" if gid in lifted else ""
             needs.append(f"{gid} {ended or 'returned'}{failure}: "
                          f"{one_line(entry.get('reason') or 'no reason recorded')}; "
                          f"worktree {worktree} {'left in place' if kept else 'removed'}"

@@ -206,10 +206,13 @@ it, so the report need not re-derive a row that has left the list. **Decided
 without the owner**, the eighth section, comes after *Merged*: one line per
 released group that merged, or any group whose `decisions` holds an entry opening
 `owner's decision:`, with the issue, the options, the PR and the revert line.
-*Needs a human* gives a released group's `reason` as its point of failure.
-`result` prints a `released` line for such a group, and the dispatcher comments
-that failure on the issue, through `issue_decisions.py comment`, so the next
-person starts from there.
+*Needs a human* gives a released group's `reason` as its point of failure, and
+the dispatcher comments it on each issue, through `issue_decisions.py comment`,
+so the next person starts from there. That is read off the report's line, not
+off `result`, because a group can end unmerged by a crash, a stop or a failed
+`verify`, and the report is the one place every one of them passes through. The
+file it posts from is the record that it was posted, so a rewritten report does
+not comment twice.
 
 ## What an executor returns
 
