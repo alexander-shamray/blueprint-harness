@@ -458,7 +458,8 @@ class Resume(InRoot):
                 self.assertNotIn("tasks done", rows[name])
 
     def test_a_sync_holds_no_run_open(self):
-        # `start` reopens a reported run only for rows, and a sync has none, whichever way it ended.
+        # `start` reopens a reported run only for rows, and a sync has none, whichever way it ended. The list is read
+        # here; the next case is the same with a list that cannot be.
         with open("todo.md", "w", encoding="utf-8", newline="") as handle:
             handle.write(FIXTURE)
         for status in ("closed", "verified", "running", "stopped"):
@@ -466,6 +467,29 @@ class Resume(InRoot):
                 record_sync(status=status)
                 (state_dir() / "report.md").write_text("done\n", encoding="utf-8")
                 self.assertEqual((None, None), dr.open_run(".", "todo.md"))
+
+    def test_an_unclosed_sync_is_not_read_against_a_list_that_cannot_be_read(self):
+        # Empty keys can match no row, so an unreadable list must not keep a run open for a group holding none.
+        for status in ("verified", "running", "stopped"):
+            with self.subTest(status=status):
+                record_sync(status=status)
+                (state_dir() / "report.md").write_text("done\n", encoding="utf-8")
+                self.assertEqual((None, None), dr.open_run(".", "no-such-list.md"))
+
+    def test_a_group_with_rows_over_an_unreadable_list_still_keeps_its_run_open(self):
+        record(RUN, "S1", status="running")
+        (state_dir() / "report.md").write_text("done\n", encoding="utf-8")
+        name, why = dr.open_run(".", "no-such-list.md")
+        self.assertEqual(RUN, name)
+        self.assertIn("could not be read", why)
+
+    def test_a_record_missing_its_keys_still_keeps_its_run_open(self):
+        record_sync()
+        state = dr.load_state(state_dir())
+        del state["groups"][GID]["keys"]
+        dr.save_state(state_dir(), state)
+        (state_dir() / "report.md").write_text("done\n", encoding="utf-8")
+        self.assertEqual(RUN, dr.open_run(".", "no-such-list.md")[0])
 
     def test_a_closed_sync_is_not_read_against_a_list_that_cannot_be_read(self):
         record_sync(status="closed", closed_from="verified")

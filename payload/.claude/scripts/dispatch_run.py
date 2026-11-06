@@ -190,7 +190,8 @@ def _holds_rows(directory, listed):
     except Refusal as error:
         return True, str(error)
     for gid, entry in entries.items():
-        if isinstance(entry, dict) and entry.get("status") in CLOSED:
+        # Empty keys match no row, so a sync is judged without reading a list that might not read.
+        if isinstance(entry, dict) and (entry.get("status") in CLOSED or entry.get("keys") == []):
             continue
         keys, unread = listed()
         if keys is None:
