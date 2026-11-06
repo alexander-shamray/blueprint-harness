@@ -640,7 +640,7 @@ its own.
 ## What this command does not do
 
 It **files**; it does not **fix**. A security fix is a code change with its own
-test and its own PR, and the delivery plan orders that work — this command's job
+test and its own PR — this command's job
 is to make the findings visible and tracked, not to edit source. If a finding is
 better closed than tracked (a one-line binding, a stray secret), say so in the
 round summary and leave the change to the user.
