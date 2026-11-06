@@ -13,6 +13,7 @@ REACH = (
     "harness_sync/",
     "payload/.claude/hooks/",
     "payload/.claude/scripts/",
+    "payload/.claude/skills/codebase-index/examples/",
     "payload/.harness/",
     "targets/",
 )
