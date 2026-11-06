@@ -269,6 +269,27 @@ class TheHelperRefusesBeforeItRewrites(unittest.TestCase):
         self.assertIn("the tree is dirty", result.stderr)
         self.assertIn("uncommitted", self.at("cat b.txt").stdout, "the edit survives the refusal")
 
+    def test_a_skip_worktree_file_is_refused_and_named(self):
+        # `git status` reads clean here, so the dirty-tree guard cannot be what
+        # fires; the message is what tells this guard from that one.
+        self.at("git update-index --skip-worktree b.txt")
+        self.assertEqual("", self.at("git status --porcelain").stdout.strip())
+        before = self.head()
+        result = self.helper("feat/x")
+        self.assertEqual(5, result.returncode, result.stderr)
+        self.assertIn("skip-worktree", result.stderr)
+        self.assertIn("b.txt", result.stderr)
+        self.assertNotIn("the tree is dirty", result.stderr)
+        self.assertEqual(before, self.head())
+        self.assertEqual("", self.at('cat "$(git rev-parse --git-path claude-rebase-pending)" 2>/dev/null').stdout,
+                         "a record was left for a replay that never started")
+
+    def test_a_sparse_checkout_is_not_read_as_a_lift(self):
+        self.at("git config core.sparseCheckout true && git update-index --skip-worktree b.txt")
+        result = self.helper("feat/x")
+        self.assertNotIn("skip-worktree", result.stderr)
+        self.assertEqual(0, result.returncode, result.stderr)
+
     def test_a_branch_the_remote_does_not_have_is_refused(self):
         self.at("git checkout -qb feat/unpublished")
         result = self.helper("feat/unpublished")
