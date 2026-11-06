@@ -263,9 +263,9 @@ def unlisted(payload, paths, local, exclude):
 
 
 def prove(number):
-    """(failures, head): one line per failure; none means the pull request is what the harness released.
+    """(failures, head): one line per failure; none means the checks below hold, not that the sync is whole.
 
-    `head` is the oid that was fetched and judged, so a caller that goes on to read it reads what was proved.
+    The rendered settings.json and the manifest's hashes are the drift gate's. `head` holds the oid judged.
     """
     try:
         oid = fetch_head(number)
