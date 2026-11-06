@@ -6,9 +6,11 @@
 #
 # Registration is not ownership: a path alone would remove any clean linked
 # worktree under the directory, another run's included. So the caller names the
-# branch it forked too, and the worktree at that path must hold it, the pair
+# branch forked there too, and the worktree at that path must hold it, the pair
 # git-worktree-fork.sh wrote. A caller that already knows another run's path
-# and branch together still passes; /ship passes the branch it created.
+# and branch together still passes. /ship's step 6 passes the branch it
+# created; step 0 may remove an earlier run's worktree, so it reads the branch
+# from `git worktree list`.
 set -euo pipefail
 [ "$#" -eq 2 ] ||
   { echo "usage: git-worktree-remove.sh <path> <branch>" >&2; exit 2; }
