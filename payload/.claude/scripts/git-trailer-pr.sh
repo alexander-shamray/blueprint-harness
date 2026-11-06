@@ -9,6 +9,18 @@ set -euo pipefail
 pr="$1"
 [[ "$pr" =~ ^[0-9]+$ ]] || { echo "pr must be a number: $pr" >&2; exit 2; }
 
+# A target's hooks never run inside this helper, for git-rebase-onto-main.sh's reason: a `pre-rebase`,
+# `post-rewrite`, `commit-msg` or `pre-push` hook of its own would run in, and could veto or alter, a rewrite of
+# published history. `core.hooksPath` is an empty directory made for the run, set once through the environment before
+# any git runs, so the sequencer's git and the amend in the exec inherit it. The entry is appended to any the caller
+# already set.
+no_hooks=$(mktemp -d)
+trap 'rmdir "$no_hooks" 2>/dev/null || :' EXIT
+hook_entry="${GIT_CONFIG_COUNT:-0}"
+export "GIT_CONFIG_KEY_$hook_entry=core.hooksPath" \
+  "GIT_CONFIG_VALUE_$hook_entry=$no_hooks" \
+  "GIT_CONFIG_COUNT=$((hook_entry + 1))"
+
 branch=$(git branch --show-current)
 [ -n "$branch" ] || { echo "not on a PR branch: nothing to add the trailer to" >&2; exit 3; }
 # Folded and spelled out as git-rebase-onto-main.sh does: on this host's case-insensitive filesystem `Main` is `main`'s
