@@ -682,7 +682,7 @@ otherwise `null` until they exist; `title` is the PR's as `/pr` opened it,
 |---|---|---|---|
 | Step 6 merged | `merged` | how the review ended | `null` |
 | Step 0 found the PR merged, the predicate holding | `merged`, with `rounds: []` | `null`: the review never ran in this session | `null` |
-| A hand-back | `handed-back` | how the review ended, or `null` if it had not | what a human must do |
+| A hand-back | `handed-back` | how the review ended, or `null` if it had not | what a human must do; under `--berserk`, what was tried and what stopped it too |
 | Step 0 found the PR merged, the predicate failing | `handed-back` | `null` | what the workspace holds |
 | One of the seven stops | `stopped` | how the review ended, or `null` if it had not | what a human must do; a closed PR's is `closed unmerged` |
 

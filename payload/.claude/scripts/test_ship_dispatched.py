@@ -282,6 +282,10 @@ class Berserk(unittest.TestCase):
                 self.assertIn(kept, rule)
         self.assertIn("a hand-back with its recommended answer", rule)
 
+    def test_a_hand_backs_reason_says_what_was_tried(self):
+        row = next(ln for ln in ship_report().splitlines() if ln.startswith("| A hand-back |"))
+        self.assertIn("under --berserk, what was tried and what stopped it too", flat(row))
+
     def test_the_seven_stops_are_not_touched(self):
         self.assertIn("Seven things still stop the chain", flat(ship()))
         stops = between(ship(), "**Seven things still stop", "- **Under the standalone token")
