@@ -641,13 +641,22 @@ class TheGitArgvGuard(unittest.TestCase):
         )
 
         # Past that `$(…)` the sum goes on, and a `$((…))` in it is a sum of its own.
+        # A body is read as a body there too, so a lone quote in it ends nothing.
         for command in (
             f"n=$(( $(cat <<'EOF'{NEWLINE}5{NEWLINE}EOF{NEWLINE}) + (1<<2) )){NEWLINE}"
             f"git push origin +HEAD:main{NEWLINE}2",
             f"n=$(( $(echo $((1<<4))) + 1 )){NEWLINE}git push origin +HEAD:main{NEWLINE}4",
+            f"n=$(( $(wc -l <<'EOF'{NEWLINE}don't{NEWLINE}EOF{NEWLINE}) + (1<<2) )){NEWLINE}"
+            f"git push origin +HEAD:main{NEWLINE}2",
+            f"(( n = $(wc -l <<'EOF'{NEWLINE}a){NEWLINE}EOF{NEWLINE}) + (1<<2) )){NEWLINE}"
+            f"git push origin +HEAD:main{NEWLINE}2",
         ):
             with self.subTest(command=command):
                 self.assertIn("force push", self.assertRefused(command))
+        self.assertAdmitted(
+            f"n=$(( $(wc -l <<'EOF'{NEWLINE}don't{NEWLINE}EOF{NEWLINE}) + (1<<2) )){NEWLINE}"
+            f"git commit -F - <<'B'{NEWLINE}it's{NEWLINE}B"
+        )
 
     def test_a_heredoc_closing_with_its_line_in_a_sum_opens_no_body(self):
         # A backtick's text ends at the backtick, so its heredoc ends there and
