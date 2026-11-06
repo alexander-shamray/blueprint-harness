@@ -324,7 +324,7 @@ target*)
    means the worktree and its registration are gone, also when git failed
    only to delete the empty directory it had unregistered and the helper
    removed that itself; exit 4 means a directory git no longer registers
-   still holds something, named for the owner to remove.
+   holds something or is held by a process, named for the owner to remove.
    (why: `docs/harness-boundaries.md`, *Grant inventory and push helpers*)
 
    Then drop the merged **branch**, once its worktree is gone: after
@@ -613,7 +613,8 @@ target*)
      token /dispatch passes*).
    - Line 9 drops the merged branch: a forked run's once line 7 exits 0, an
      in-place run's after the switch to `main`; a refused removal keeps its
-     branch, exit 4 (a directory left holding something) included, and an exit 0
+     branch, exit 4 (a directory that holds something or that a process holds)
+     included, and an exit 0
      is also git failing only to delete the empty directory the helper then
      removed. Any non-zero exit of the drop is reported and is not a stop, and
      exit 6 (no local branch) is simply reported. Under `--dispatched` the run
