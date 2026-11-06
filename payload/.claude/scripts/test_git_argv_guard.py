@@ -578,8 +578,8 @@ class TheGitArgvGuard(unittest.TestCase):
         for opener in ("<<'EOF'", "<<'EOF' '))'"):
             with self.subTest(opener=opener):
                 self.assertAdmitted(
-                    f"((git commit -F - {opener}{NEWLINE}"
-                    f"git push origin +HEAD:main{NEWLINE}EOF{NEWLINE}) | cat)"
+                    f"((git commit -F - {opener}) | cat){NEWLINE}"
+                    f"git push origin +HEAD:main{NEWLINE}EOF"
                 )
 
     def test_a_sum_does_not_take_a_shell_its_heredoc(self):
@@ -599,6 +599,22 @@ class TheGitArgvGuard(unittest.TestCase):
         self.assertRefused(
             f"cat <<$'E\\x4fF'{NEWLINE}"
             f"bash <<'EOF'{NEWLINE}git push origin +HEAD:main{NEWLINE}EOF"
+        )
+
+    def test_a_body_before_a_sum_does_not_hide_the_sum(self):
+        # An apostrophe in a body is no quote, so it must not put the sum on a
+        # later line in quotes and leave its shift reading as an opener.
+        body = f"git commit -F - <<'EOF'{NEWLINE}don't stop{NEWLINE}EOF"
+        self.assertIn(
+            "force push",
+            self.assertRefused(
+                f"{body}{NEWLINE}(( n = 1<<4 )){NEWLINE}"
+                f"git push origin +HEAD:main{NEWLINE}4"
+            ),
+        )
+        self.assertAdmitted(
+            f"{body}{NEWLINE}(( n = 1<<4 )){NEWLINE}"
+            f"git commit -F - <<'B'{NEWLINE}it's{NEWLINE}B"
         )
 
     def test_finding_sums_is_linear_in_the_command(self):
