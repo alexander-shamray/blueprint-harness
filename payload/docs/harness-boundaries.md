@@ -1062,8 +1062,7 @@ then reads, and refuses with those lines. Its one write is a `.diff` under
 `artifacts/review/`. Not proved: the rendered `.claude/settings.json`, which the
 drift gate renders again, and the manifest's hashes. Residual: blob ids are
 compared exactly where apply and the gate fold CRLF, so a target whose stored
-blob holds CRLF is refused every sync; that fails closed, and plan 4 fixes the
-equality.
+blob holds CRLF is refused every sync; that fails closed.
 
 **Some of the rebase helper's edges are accepted rather than guarded.** A replay
 amended after a failed push no longer descends from the commit `publish`
