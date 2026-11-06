@@ -662,14 +662,25 @@ class TheGitArgvGuard(unittest.TestCase):
         # A backtick's text ends at the backtick, so its heredoc ends there and
         # the next lines are commands. Reading them as a body would hide this
         # push.
-        spelling = "n=$(( `cat <<'EOF'` + 1 ))"
-        self.assertIn(
-            "RAN", run_bash(f"{spelling}{NEWLINE}echo RAN{NEWLINE}EOF").stdout
-        )
+        for spelling in ("n=$(( `cat <<'EOF'` + 1 ))", "n=$(( `cat <<'EOF' ` + 1 ))"):
+            with self.subTest(spelling=spelling):
+                self.assertIn(
+                    "RAN", run_bash(f"{spelling}{NEWLINE}echo RAN{NEWLINE}EOF").stdout
+                )
+                self.assertIn(
+                    "force push",
+                    self.assertRefused(
+                        f"{spelling}{NEWLINE}git push origin +HEAD:main{NEWLINE}EOF"
+                    ),
+                )
+
+        # One closing on a later line, but before the delimiter, is that too.
+        closed_early = f"n=$(( `cat <<'EOF'{NEWLINE}one{NEWLINE}` + 1 )){NEWLINE}"
+        self.assertIn("RAN", run_bash(f"{closed_early}echo RAN{NEWLINE}EOF").stdout)
         self.assertIn(
             "force push",
             self.assertRefused(
-                f"{spelling}{NEWLINE}git push origin +HEAD:main{NEWLINE}EOF"
+                f"{closed_early}git push origin +HEAD:main{NEWLINE}EOF"
             ),
         )
 
@@ -781,6 +792,29 @@ class TheGitArgvGuard(unittest.TestCase):
             self.assertIn(
                 "force push", self.assertRefused(f"{nest}git push origin +HEAD:main")
             )
+
+    def test_an_unclosed_heredoc_in_a_sum_is_searched_for_once(self):
+        # Each search runs to the end of the command, so one must settle it for
+        # the rest. A count rather than a clock: at the length budget the
+        # difference is seconds a pass, which no timeout here would see.
+        guard = self.guard_module()
+        opened = guard._opened_body
+        searches = []
+
+        def counted(*args):
+            searches.append(args[1])
+            return opened(*args)
+
+        guard._opened_body = counted
+        self.addCleanup(setattr, guard, "_opened_body", opened)
+        for nest in (
+            "(( $(" + f"<<4{NEWLINE}" * 100 + ") ))",
+            "(( `" + f"<<4{NEWLINE}" * 100 + "` ))",
+        ):
+            with self.subTest(nest=nest[:6]):
+                searches.clear()
+                guard.heredoc_spans(nest)
+                self.assertLess(len(searches), 5)
 
     def test_the_fallback_scan_also_treats_a_heredoc_body_as_data(self):
         # The two paths have to agree: a fallback that scans the raw command

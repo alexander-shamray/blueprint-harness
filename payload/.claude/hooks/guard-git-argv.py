@@ -467,6 +467,11 @@ def _opened_body(command, index, pending):
     return start, None if closing is None else start + closing.end(), expands
 
 
+def _closes_inside_backtick(command, index, end):
+    """Whether a body ending at `end` does so before the backtick around `index` closes."""
+    return end is not None and command.find("`", index) > end
+
+
 def _sums_in_group(command, start):
     """Whether each `(` of the group opening at `start` opens a sum, and its end."""
     # As bash decides a `((`: quotes are read, and a heredoc only where a `$(…)`
@@ -474,7 +479,7 @@ def _sums_in_group(command, start):
     # subshells. One pass over a stack, because `_closing_paren` per sum is
     # quadratic and a timeout fails open.
     verdicts, stack, previous = {}, [], None
-    substitutions, ticked, bodies, pending = [], False, [], 0
+    substitutions, ticked, bodies, pending, hunting = [], False, [], 0, True
     for index, state, escaped in _quoting(command, data=bodies, start=start):
         if state or escaped:
             continue
@@ -493,9 +498,13 @@ def _sums_in_group(command, start):
                 return verdicts, index + 1
         elif command[index] == "`":
             ticked = not ticked
-        elif (substitutions or ticked) and command.startswith("<<", index):
+        elif (substitutions or ticked) and hunting and command.startswith("<<", index):
             body = _opened_body(command, index, pending)
-            if body is not None and body[1] is not None:
+            if body is None:
+                continue
+            # With no close, the next `<<` would search to the end as well.
+            hunting = body[1] is not None
+            if hunting and (not ticked or _closes_inside_backtick(command, index, body[1])):
                 pending = body[1]
                 bodies.append(body[:2])
     verdicts.update(dict.fromkeys(stack, False))
@@ -514,7 +523,7 @@ class _Sums:
         # The parens open at the walk, those a `$` leads, and each `((` among
         # them not yet refused, named by its outer paren. All three ascend.
         self.opened, self.substitutions, self.pairs = [], [], []
-        self.verdicts, self.read_to, self.backtick = {}, 0, None
+        self.verdicts, self.read_to, self.backtick, self.bodiless_to = {}, 0, None, 0
 
     def open(self, index):
         if self.opened and self.opened[-1] == index - 1:
@@ -534,7 +543,7 @@ class _Sums:
     def tick(self, index):
         self.backtick = index if self.backtick is None else None
 
-    def is_shift(self, index):
+    def is_shift(self, index, pending):
         """Whether a `<<` at `index` is in a sum, with nothing in it running commands."""
         pairs, substitutions = self.pairs, self.substitutions
         while pairs:
@@ -548,13 +557,24 @@ class _Sums:
             if self.verdicts.get(pairs[-1], True):
                 if self.backtick is None or self.backtick < pairs[-1]:
                     return not substitutions or substitutions[-1] <= pairs[-1]
-                # A backtick's heredoc ends with its text, so one closing on
-                # this line holds no body, and the lines after it are commands.
-                line_end = self.command.find("\n", index)
-                return (line_end == -1
-                        or self.command.find("`", index, line_end) != -1)
+                return not self._backtick_holds_body(index, pending)
             pairs.pop()
         return False
+
+    def _backtick_holds_body(self, index, pending):
+        """Whether a `<<` at `index` closes its body before its backtick closes."""
+        if index < self.bodiless_to:
+            return False
+        body = _opened_body(self.command, index, pending)
+        if body is None:
+            return False
+        # A backtick's heredoc ends with its text, so the lines after that are
+        # commands. Once per backtick, or each `<<` in it searches to the end.
+        if not _closes_inside_backtick(self.command, index, body[1]):
+            close = self.command.find("`", index)
+            self.bodiless_to = len(self.command) if close == -1 else close
+            return False
+        return True
 
 
 def heredoc_spans(command, unclosed=None, openers=None):
@@ -595,7 +615,7 @@ def heredoc_spans(command, unclosed=None, openers=None):
             sums.close()
         elif not escaped and command[index] == "`":
             sums.tick(index)
-        if not command.startswith("<<", index) or sums.is_shift(index):
+        if not command.startswith("<<", index) or sums.is_shift(index, pending):
             continue
         body = _opened_body(command, index, pending)
         if body is None:
