@@ -1,7 +1,8 @@
 """A sync pull request: `list`, `verify <n>`, `review-diff <n> <out>` and `local-suites`.
 
-A branch name proves nothing, so `verify` repeats CI's drift gate checks before a sync is reviewed or launched. What
-it reads from GitHub is data, and a read it could not complete fails the check (docs/harness-boundaries.md).
+A branch name proves nothing, so `verify` repeats CI's drift gate checks before a sync is reviewed or launched, the
+rendered settings.json among them, since an executor loads that file before CI has judged it. What it reads from
+GitHub is data, and a read it could not complete fails the check (docs/harness-boundaries.md).
 """
 
 import argparse
@@ -9,6 +10,7 @@ import json
 import re
 import subprocess
 import sys
+import types
 from pathlib import Path
 
 from dispatch_board import path_which
@@ -24,6 +26,8 @@ HASH = re.compile(r"[0-9a-f]{64}")
 MANIFEST = ".harness/manifest.json"
 CONFIG = ".harness/config.json"
 SETTINGS = ".claude/settings.json"
+RENDER = ".harness/render.py"
+BASE_SETTINGS = ".harness/settings.base.json"
 MAIN = "refs/remotes/origin/main"
 REVIEW_DIR ="artifacts/review"
 ROOT = Path(__file__).resolve().parents[2]
@@ -269,10 +273,37 @@ def unlisted(payload, paths, local, exclude):
             and not any(glob_match(g, rel) for g in (*local, *exclude))]
 
 
+def settings_problem(oid, base, paths, payload, in_head):
+    """Why the head's settings.json is not what the proved renderer renders, or None: drift_gate's check, on blobs.
+
+    The head is anyone's branch, so its renderer runs only once it is the payload's at a commit on the harness's main
+    and only from the bytes at the oid. `payload` is None while that is unproved.
+    """
+    if payload is None:
+        return f"{SETTINGS} not checked: the payload is not proved"
+    for path in (RENDER, BASE_SETTINGS):
+        if path not in paths or path not in payload or in_head.get(path) != payload[path]:
+            return f"{SETTINGS} not checked: {path} is not the manifest's and the payload's"
+    if SETTINGS not in in_head:
+        return f"{SETTINGS} is missing from the head"
+    module = types.ModuleType("_harness_render")
+    try:
+        exec(compile(read(["git", "show", f"{oid}:{RENDER}"]), RENDER, "exec"), module.__dict__)
+        settings = json.loads(read(["git", "show", f"{oid}:{BASE_SETTINGS}"]))
+        cfg = types.SimpleNamespace(settings=json.loads(read(["git", "show", f"{base}:{CONFIG}"])).get("settings", {}))
+        want = module.dump_settings(module.render_settings(settings, cfg))
+        have = read(["git", "show", f"{oid}:{SETTINGS}"])
+    except Exception as error:  # a renderer that fails, or a read that does, is a finding and never a pass
+        return f"cannot render {SETTINGS}: {_line(repr(error))}"
+    if have.replace("\r\n", "\n") != want.replace("\r\n", "\n"):
+        return f"{SETTINGS} is not what {RENDER} renders from {BASE_SETTINGS} and the base's {CONFIG}"
+    return None
+
+
 def prove(number, pin=None):
     """(failures, head): one line per failure; none means the checks below hold, not that the sync is whole.
 
-    The rendered settings.json and the manifest's hashes are the drift gate's. `head` holds the oid judged.
+    The manifest's hashes are the drift gate's alone. `head` holds the oid judged.
     """
     try:
         oid = fetch_head(number, pin)
@@ -281,11 +312,13 @@ def prove(number, pin=None):
         return [str(error)], None
     head = {"oid": oid, "commit": commit, "paths": paths}
     failures = []
+    on_main = False
     try:
         on_harness_main(commit)
+        on_main = True
     except Refusal as error:
         failures.append(f"cannot prove harness_commit is on the harness's main: {error}")
-    payload = None  # None while unread, which is itself a failure
+    payload, in_head = None, {}  # None while unread, which is itself a failure
     try:
         payload, in_head = payload_blobs(commit), head_blobs(oid)
         for path in sorted(paths - {SETTINGS}):
@@ -308,6 +341,9 @@ def prove(number, pin=None):
         failures.append(f"cannot read what the head changes: {error}")
         return failures, head
     head.update(base=base, old_commit=old_commit, old=old)
+    problem = settings_problem(oid, base, paths, payload if on_main else None, in_head)
+    if problem:
+        failures.append(problem)
     try:
         local, exclude = config_globs(MAIN)
     except Refusal as error:
