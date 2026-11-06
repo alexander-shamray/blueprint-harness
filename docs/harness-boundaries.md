@@ -18,7 +18,7 @@ the whole is about 20k. `Grep -n "^## <title>"` gives its first line.
 | Destructive classes | One table of what the harness refuses, the layer that refuses each, and the test that holds the table to the deny list and the hooks. |
 | Git argv guard hook | How guard-git-argv.py resolves the executed argv, its successive bypasses, git -c and stated residuals. |
 | The ext transport and pinned grants | Why ext:: cannot be written as a rule, hook coverage, and fetch and pull grant pinning. |
-| Grant inventory and push helpers | Frontmatter grants, the numbered inventory, /ship's closed entries, sweep helpers, the three lease-bound force-push helpers and the branch-drop helper. |
+| Grant inventory and push helpers | Frontmatter grants, the numbered inventory, /ship's closed entries, sweep helpers, the three lease-bound force-push helpers, the branch-drop helper and the sync-PR reader. |
 | Pull request reads and the locality verdict | Fixed-field PR helpers, the gh allow-list gate, #150, and pr-locality.sh's contract. |
 | Sweep push denies and chained commands | Push denies in the sweeps, and why a command /ship runs before it pushes never denies push. |
 | Output deny and shell-expansion residuals | The --output entry closed by the hook, expansion readings, locale quotes, process substitution, crashes and pipes. |
@@ -1039,6 +1039,30 @@ runs last, because `update-ref` does not make it, and the branch's
 configuration section, which `update-ref` leaves, is removed after the delete.
 Its residual is a worktree that checks the branch out between that check and
 the delete.
+
+**A reader of pull requests is granted by its whole command line.** `Bash(py
+-3.12 .claude/scripts/sync_pr.py:*)` admits `list`, `verify <n>`, `review-diff
+<n> <out>` and `local-suites`, and nothing in it writes to GitHub: its `gh`
+calls are `pr list` with a fixed field set and `gh api` reads of the harness
+repository's `git/trees` and `compare`, which it spells itself, so no caller
+chooses a field, a repository or a method. A pull request's body is text anyone
+can post, so `list` reads only whether its last line is the sync footer and
+never passes the body on. `verify` is what a branch name is not: it fetches the
+listed head and fails closed on anything it could not read, a truncated tree, a
+`gh` failure or timeout, a manifest it cannot parse, or a head whose oid is not
+the listed one. It proves five things: the pull request is a `list` row; the
+manifest's `harness_commit` is on the harness's `main` and not older than the
+commit `main`'s own manifest names, so a rollback fails; every manifest path but
+`.claude/settings.json` has the payload's blob id there, mode aside; the
+manifest lists each payload file the config neither excludes nor keeps local,
+and lists no path it does; and the head changes only manifest paths,
+old-manifest paths and the manifest, with `.harness/config.json` and every
+`local` path untouched. `review-diff` proves all of it first, on the head it
+then reads, and refuses with those lines. Its one write is a `.diff` under
+`artifacts/review/`. Not proved: the rendered `.claude/settings.json`, which the
+drift gate renders again, and the manifest's hashes. Residual: blob ids are
+compared exactly where apply and the gate fold CRLF, so a target whose stored
+blob holds CRLF is refused every sync; that fails closed.
 
 **Some of the rebase helper's edges are accepted rather than guarded.** A replay
 amended after a failed push no longer descends from the commit `publish`
