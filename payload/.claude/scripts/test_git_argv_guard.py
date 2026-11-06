@@ -687,11 +687,11 @@ class TheGitArgvGuard(unittest.TestCase):
         )
 
         # A backtick closing past its heredoc's delimiter holds the body.
-        self.assertNotIn(
-            "RAN",
+        self.assertEqual(
+            "6",
             run_bash(
-                f"n=$(( `cat <<'EOF'{NEWLINE}echo RAN{NEWLINE}EOF{NEWLINE}` + 1 ))"
-            ).stdout,
+                f"n=$(( `cat <<'EOF'{NEWLINE}5{NEWLINE}EOF{NEWLINE}` + 1 )){NEWLINE}echo $n"
+            ).stdout.strip(),
         )
         self.assertAdmitted(
             f"n=$(( `git commit -F - <<'EOF'{NEWLINE}"
