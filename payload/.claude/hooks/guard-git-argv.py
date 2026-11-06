@@ -478,8 +478,8 @@ def _sums_in_group(command, start):
     # or a backtick runs commands. A sum closes on `))`: `((a) | b)` is two
     # subshells. One pass over a stack, because `_closing_paren` per sum is
     # quadratic and a timeout fails open.
-    verdicts, stack, previous = {}, [], None
-    substitutions, doubled, ticked = [], [], False
+    verdicts, stack, previous, end = {}, [], None, len(command)
+    substitutions, doubled, ticked, unsettled = [], [], False, False
     bodies, pending, hunting = [], 0, True
     for index, state, escaped in _quoting(command, data=bodies, start=start):
         if state or escaped:
@@ -499,11 +499,14 @@ def _sums_in_group(command, start):
                 if parens and parens[-1] == opener:
                     parens.pop()
             if not stack:
-                return verdicts, index + 1
+                end = index + 1
+                break
         elif command[index] == "`":
             ticked = not ticked
-        elif hunting and command.startswith("<<", index) and (
-                ticked or (substitutions and (not doubled or doubled[-1] < substitutions[-1]))):
+        elif command.startswith("<<", index) and (ticked or substitutions):
+            if not hunting or (not ticked and doubled and doubled[-1] > substitutions[-1]):
+                unsettled = True
+                continue
             body = _opened_body(command, index, pending)
             if body is None:
                 continue
@@ -514,7 +517,9 @@ def _sums_in_group(command, start):
                 pending = body[1]
                 bodies.append(body[:2])
     verdicts.update(dict.fromkeys(stack, False))
-    return verdicts, len(command)
+    # A `<<` this read could not settle may hide a close. A sum opens no body, so
+    # the lines after stay commands, and the cost is a false refusal.
+    return dict.fromkeys(verdicts, True) if unsettled else verdicts, end
 
 
 class _Sums:
