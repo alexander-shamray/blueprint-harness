@@ -109,6 +109,10 @@ class TheSyncRow(unittest.TestCase):
                       flat(ARGUMENT.read_text(encoding="utf-8")))
         self.assertIn("where an open issue already holds that title nothing is filed",
                       flat(ARGUMENT.read_text(encoding="utf-8")))
+        # A dispatched merge has no slot for the report, so the low names the issue and rides in the result's decisions.
+        clause = "naming the open issue's number, and under --dispatched in the result's decisions"
+        self.assertIn(clause, step)
+        self.assertIn(clause, flat(ARGUMENT.read_text(encoding="utf-8")))
         self.assertNotIn("joins", step)
         self.assertIn("gh-issue-harness.sh bug <severity> <area>", step)
         self.assertIn("the area by tree: .claude/ is harness, other prose documentation, the rest code, with test "

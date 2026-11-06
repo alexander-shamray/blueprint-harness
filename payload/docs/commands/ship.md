@@ -218,6 +218,8 @@ the finding's tree, as `docs/harness/working-rules.md` maps it: `.claude/` is
 `gh-issue-create.sh`, which always creates, so a re-take reads
 `gh-issue-list.sh` first, and where an open issue already holds that title
 nothing is filed. A low that issue does not list stays in the run's report,
+naming the open issue's number, and under `--dispatched` in the result's
+`decisions`, since a dispatched merge's result has no other slot for it, and
 since the check is by title and not by item. A re-take that cannot find the
 citing line it raised gets the review diff's citations from main's tip and not
 the head's, because a sync never changes a local file and the head is not
