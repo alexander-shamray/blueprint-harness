@@ -291,6 +291,16 @@ class VerifyTests(SyncCase):
         self.start(payload={**PAYLOAD, "docs/extra.md": "E\n"})
         self.refused("docs/extra.md is a payload file but the manifest does not list it")
 
+    def test_a_payload_tree_entry_is_data_when_it_is_printed(self):
+        self.start()
+        self.gh.tree = [e for e in self.gh.tree if e["path"] != "payload/docs/b.md"]
+        self.gh.tree += [{"path": "payload/docs/b.md", "mode": "100644", "type": "blob", "sha": "x\nforged line"},
+                         {"path": "payload/docs/ev\nil.md", "mode": "100644", "type": "blob", "sha": "a" * 40}]
+        out = self.refused("docs/b.md: not in the payload")
+        self.assertNotIn("forged", out)
+        self.assertNotIn("ev\nil", out)
+        self.assertIn("ev\\nil.md", out)
+
     def test_a_truncated_tree_fails_closed(self):
         self.gh.truncated = True
         self.start()
@@ -533,6 +543,10 @@ class LocalSuitesTests(SyncCase):
         self.write({".harness/config.json": json.dumps({"local": ["payload/**", "harness_sync/**", "measure/**"]})})
         self.tracked("payload/.claude/scripts/test_p.py", "harness_sync/tests/test_h.py", "measure/test_m.py")
         self.assertEqual(["harness_sync/tests/test_h.py", "measure/test_m.py"], self.cli("local-suites")[1].splitlines())
+
+    def test_local_suites_prints_nothing_when_no_suite_matches(self):
+        self.write({".harness/config.json": json.dumps({"local": ["nothing/**"]})})
+        self.assertEqual((0, ""), self.cli("local-suites")[:2])
 
     def test_local_suites_without_a_config_is_a_refusal(self):
         (self.root / ".harness/config.json").unlink()
