@@ -1,14 +1,8 @@
 """Every citation in the payload resolves in any target (plan 2 Task 4).
 
-The payload was taken from backend, so its text cited backend's own commands and documents: right in backend,
-pointing at nothing in a sibling. A target holds the payload and a few files of its own, so a citation must name
-one of those, and a section it names must be a heading that file has.
-
-What a target holds by itself is `CLAUDE.md`, `docs/harness-local.md` (whose four headings
-`docs/harness-boundaries.md` *Managed files* fixes), its `.harness/config.json` and `.harness/manifest.json`, the
-`.claude/settings.json` rendered from the payload, and the task list its config names. `docs/superpowers/` is the
-superpowers plugin's directory in every repository. And a site `IMPORT.md` *Stack mentions left verbatim* lists
-keeps its text for the reason its entry gives; that section is read, not copied here.
+A target holds the payload and what `TARGET_HELD` names, so a citation names one of those and a section it names
+is a heading there. A site `IMPORT.md` *Stack mentions left verbatim* lists keeps its text for the reason its entry
+gives; that section is read, not copied here.
 """
 
 import json
