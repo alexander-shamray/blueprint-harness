@@ -12,6 +12,11 @@ from harness_sync.legs import REACH, changed_paths, reaches, should_test
 ROOT = Path(__file__).resolve().parents[2]
 CI = ROOT / ".github" / "workflows" / "ci.yml"
 RENDERED = {"settings.json": "payload/.harness/settings.base.json"}
+# On a leg for their fixtures, so what they read is not why they run there: `TheShippedTree` in the comment gate's suite
+# reads the whole tree off its `ROOT`, which `REACH` deliberately does not hold: Linux runs it on every pull request.
+FIXTURE_SUITES = {"payload/.claude/scripts/test_git_branch_drop.py",
+                  "payload/.claude/scripts/test_git_pr_trailer_helpers.py",
+                  "payload/.github/comment-gate/test_comment_gate.py"}
 IDENTITY = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
 
 
@@ -111,7 +116,7 @@ class WhatTheFilterLooksAtTests(unittest.TestCase):
         for suite in _leg_suites():
             text = (ROOT / suite).read_text(encoding="utf-8")
             chains = re.findall(r'SCRIPTS\.parent((?:\s*/\s*"[^"]+")+)', text)
-            self.assertEqual(bool(chains), "SCRIPTS.parent" in text,
+            self.assertEqual(bool(chains), suite not in FIXTURE_SUITES,
                              f"{suite} no longer spells what it reads off SCRIPTS.parent")
             for chain in chains:
                 rel = "/".join(re.findall(r'"([^"]+)"', chain))
@@ -119,6 +124,9 @@ class WhatTheFilterLooksAtTests(unittest.TestCase):
                     path = RENDERED.get(rel, f"payload/.claude/{rel}")
                     self.assertTrue((ROOT / path).is_file())
                     self.assertTrue(reaches([path]))
+
+    def test_every_exempt_suite_is_on_a_leg(self) -> None:
+        self.assertLessEqual(FIXTURE_SUITES, set(_leg_suites()))
 
     def test_every_leg_step_obeys_the_decision(self) -> None:
         conditions = [line.strip() for line in _code_lines(CI)
