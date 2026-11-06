@@ -47,7 +47,9 @@ jobs:
   # argument: those modules have branches no Linux runner reaches (junctions,
   # `..` after a link, case folding, `msvcrt.locking`, the guard judging on
   # Windows alone) and need nothing but Python and `git`, where the rest of
-  # the directory needs `bash`, `grep` and `jq` on PATH as well.
+  # the directory needs `bash`, `grep` and `jq` on PATH as well. Those legs
+  # still apply the payload on every run, so a pull request that reaches
+  # nothing they test reports the required check without spending a test step.
   payload-suites:
     strategy:
       fail-fast: false
@@ -60,11 +62,20 @@ jobs:
         # Git's bash on Windows, so the one script below serves all three.
         shell: bash
     steps:
+      # Depth 2 keeps the merge commit's parents, which the decision compares.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
 
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
+
+      # `harness_sync/legs.py` owns the rule and what reaches these legs.
+      - name: Decide whether this leg tests
+        id: reach
+        if: matrix.os != 'ubuntu-latest'
+        run: python -m harness_sync legs --event "$GITHUB_EVENT_NAME" >> "$GITHUB_OUTPUT"
 
       # The config is copied in rather than passed, so apply reads it from the
       # path every target keeps it at.
@@ -106,16 +117,16 @@ jobs:
       # `-v` for the lines the modules print: which link primitive was reached
       # and which lock branch was chosen are why these legs exist.
       - name: Test the edit-target guard
-        if: matrix.os != 'ubuntu-latest'
+        if: matrix.os != 'ubuntu-latest' && steps.reach.outputs.test != 'false'
         working-directory: ${{ runner.temp }}/rendered
         run: python -m unittest discover -s .claude/scripts -p "test_edit_target_guard.py" -v
 
       - name: Test the index hook
-        if: matrix.os != 'ubuntu-latest'
+        if: matrix.os != 'ubuntu-latest' && steps.reach.outputs.test != 'false'
         working-directory: ${{ runner.temp }}/rendered
         run: python -m unittest discover -s .claude/scripts -p "test_refresh_index.py" -v
 
       - name: Test the sed line-ending guard
-        if: matrix.os != 'ubuntu-latest'
+        if: matrix.os != 'ubuntu-latest' && steps.reach.outputs.test != 'false'
         working-directory: ${{ runner.temp }}/rendered
         run: python -m unittest discover -s .claude/scripts -p "test_sed_crlf_guard.py" -v

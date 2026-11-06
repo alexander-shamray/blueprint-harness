@@ -30,7 +30,10 @@ tool renders them into each target through an ordinary pull request.
   went to the payload and which stayed in backend, with the reason for each.
 - `.github/workflows/ci.yml` — the `sync-tool` job; and `payload-suites`,
   which applies the payload to a worktree of the commit and runs the
-  payload's suites there. Both are required on `main` (*Changes*).
+  payload's suites there. Both are required on `main` (*Changes*). A pull
+  request that reaches nothing the windows and macos legs test skips their
+  test steps and still reports the check; `harness_sync/legs.py` owns what
+  reaches them.
 - `.github/workflows/sync.yml` — the sync pull request a merge to `main` opens
   in each target (*The sync workflow*).
 
