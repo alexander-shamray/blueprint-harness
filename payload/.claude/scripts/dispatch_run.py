@@ -358,6 +358,10 @@ def sync_launch(root, run, pr, branch, worktree, oid):
         raise Refusal(f"{gid} is already in this run; a sync is never relaunched")
     if (directory / "STOP").exists():
         raise Refusal("stop file: the owner ended the night, so nothing more launches")
+    # A sync holds no rows, so a report can close its run with the executor alive, in the worktree a re-take reuses.
+    for earlier in sorted(p.parent for p in directory.parent.glob(f"*/{gid}.pid")):
+        if alive(_pid(earlier, gid)):
+            raise Refusal(f"{gid}'s executor from run {earlier.name} is still running")
     # It changes .claude/ for every group after it, so it starts only with nothing beside it.
     for other, entry in entries.items():
         if isinstance(entry, dict) and entry.get("status") in ACTIVE:
