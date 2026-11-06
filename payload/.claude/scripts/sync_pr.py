@@ -24,7 +24,8 @@ HASH = re.compile(r"[0-9a-f]{64}")
 MANIFEST = ".harness/manifest.json"
 CONFIG = ".harness/config.json"
 SETTINGS = ".claude/settings.json"
-REVIEW_DIR = "artifacts/review"
+MAIN = "refs/remotes/origin/main"
+REVIEW_DIR ="artifacts/review"
 ROOT = Path(__file__).resolve().parents[2]
 GH_TIMEOUT = 60
 GIT_TIMEOUT = 120
@@ -221,10 +222,17 @@ def on_harness_main(commit):
         raise Refusal(f"harness_commit {commit} is not on the harness's main (compare says {status!r})")
 
 
-def config_globs(base):
-    """(local, exclude) of the base's config, which the head is proved not to change."""
+def main_commit():
+    """The harness commit main's manifest names, or None before a first sync."""
+    if not read(["git", "ls-tree", "-z", MAIN, "--", MANIFEST]):
+        return None
+    return manifest_at(MAIN, "origin/main")[0]
+
+
+def config_globs(ref):
+    """(local, exclude) of the config at `ref`, which the head is proved not to change."""
     try:
-        raw = json.loads(read(["git", "show", f"{base}:{CONFIG}"]))
+        raw = json.loads(read(["git", "show", f"{ref}:{CONFIG}"]))
     except ValueError:
         raise Refusal(f"cannot read the base's {CONFIG}: it is not JSON") from None
     if not isinstance(raw, dict):
@@ -238,12 +246,12 @@ def config_globs(base):
     return found[0], found[1]
 
 
-def unlisted(payload, paths, base):
+def unlisted(payload, paths):
     """Failures for each payload file apply would have delivered that the manifest does not list: drift_gate's rule."""
     if payload is None:
         return []  # the unread tree is already a failure
     try:
-        local, exclude = config_globs(base)
+        local, exclude = config_globs(MAIN)
     except Refusal as error:
         return [str(error)]
     return [f"{rel} is a payload file but the manifest does not list it" for rel in sorted(payload)
@@ -284,20 +292,22 @@ def prove(number):
     try:
         base, old_commit, old = base_of(oid)
         changed = changed_paths(base, oid)
+        # The drift gate judges against main's tip, which may be past the commit the head was cut from.
+        tip = main_commit()
     except Refusal as error:
         failures.append(f"cannot read what the head changes: {error}")
         return failures, head
     head.update(base=base, old_commit=old_commit, old=old)
-    failures += unlisted(payload, paths, base)
-    if old_commit is not None:
+    failures += unlisted(payload, paths)
+    if tip is not None:
         try:
-            compare = read_json(["gh", "api", f"repos/{HARNESS_REPO}/compare/{old_commit}...{commit}"])
+            compare = read_json(["gh", "api", f"repos/{HARNESS_REPO}/compare/{tip}...{commit}"])
             status = compare.get("status") if isinstance(compare, dict) else None
             if status not in ("ahead", "identical"):
-                failures.append(f"harness_commit {commit} is older than the base's {old_commit} "
+                failures.append(f"harness_commit {commit} is older than the base's {tip} "
                                 f"(compare says {status!r}); a sync only moves forward")
         except Refusal as error:
-            failures.append(f"cannot prove the sync moves forward from {old_commit}: {error}")
+            failures.append(f"cannot prove the sync moves forward from {tip}: {error}")
     for path, status in sorted(changed.items()):
         if path == CONFIG:
             failures.append(f"{CONFIG} is edited; the sync never touches the target's own config")

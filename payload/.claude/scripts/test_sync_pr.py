@@ -59,6 +59,7 @@ class FakeGh:
         self.compare_old = {"status": "ahead",  # <the base's commit>...<commit>
                             "commits": [{"sha": "b" * 40, "commit": {"message": "feat: the new rule\n\nbody"}}]}
         self.tree = []
+        self.compare_by = {}  # a substring of the compare path -> its answer, before the defaults
         self.truncated = False
         self.fail = None  # a substring of the gh argv that fails
         self.calls = []
@@ -74,7 +75,8 @@ class FakeGh:
         if argv[1:3] == ["pr", "list"]:
             return 0, json.dumps(self.prs), ""
         if argv[1] == "api" and "/compare/" in argv[2]:
-            return 0, json.dumps(self.compare if "/compare/main..." in argv[2] else self.compare_old), ""
+            special = next((r for k, r in self.compare_by.items() if k in argv[2]), None)
+            return 0, json.dumps(special or (self.compare if "/compare/main..." in argv[2] else self.compare_old)), ""
         if argv[1] == "api" and "/git/trees/" in argv[2]:
             return 0, json.dumps({"truncated": self.truncated, "tree": self.tree}), ""
         raise AssertionError(f"unexpected gh call {argv}")
@@ -258,6 +260,27 @@ class VerifyTests(SyncCase):
         self.assertEqual(0, self.cli("verify", "7")[0])
         self.gh.fail = f"/compare/{OLD_H}"
         self.refused("cannot prove the sync moves forward")
+
+    def advance_main(self, commit):
+        """Main takes another sync after the head was cut: its manifest now names `commit`."""
+        self.write({".harness/manifest.json": manifest(commit, ["docs/a.md", "docs/c.md", ".claude/settings.json"])})
+        git(self.root, "add", "-A")
+        git(self.root, *SEED, "commit", "-q", "-m", "another sync")
+        git(self.root, "push", "-q", "origin", "main")
+
+    def test_a_sync_behind_a_moved_main_is_refused_as_older(self):
+        # The gate compares with main's tip, not with the commit the head was cut from.
+        self.start()
+        self.advance_main("c" * 40)
+        self.gh.compare_by = {f"/compare/{'c' * 40}...{NEW_H}": {"status": "behind", "commits": []}}
+        out = self.refused("is older than the base's")
+        self.assertIn("c" * 40, out)
+
+    def test_a_sync_behind_a_moved_main_that_is_still_forward_verifies(self):
+        self.start()
+        self.advance_main("c" * 40)
+        self.gh.compare_by = {f"/compare/{'c' * 40}...{NEW_H}": {"status": "ahead", "commits": []}}
+        self.assertEqual(0, self.cli("verify", "7")[0])
 
     def test_a_managed_file_dropped_from_the_manifest_is_refused(self):
         # The row goes with the file: a guard hook deleted and unlisted while the payload still ships it.
