@@ -1570,7 +1570,11 @@ def command(args: argparse.Namespace, today, bodies_from, open_from, branch_from
             if why:
                 print(f"kept open: {why}", file=sys.stderr)
             # The flag is the run's, set once at its start: a later command line neither sets nor clears it.
-            held = berserk(load_state(run_dir(root, existing)))[0]
+            try:
+                held = berserk(load_state(run_dir(root, existing)))[0]
+            except Refusal:
+                # An unreadable state is what keeps a run open: exit 3 stands, and `kept open:` has said why.
+                held = args.berserk
             if held != args.berserk:
                 print(f"kept {'with' if held else 'without'} --berserk: {existing} holds what it started with",
                       file=sys.stderr)

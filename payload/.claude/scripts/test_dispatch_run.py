@@ -1153,6 +1153,12 @@ class BerserkTests(InRoot):
         self.assertIs(False, dr.load_state(state_dir())["berserk"])
         self.assertIn("kept without --berserk", err.getvalue())
 
+    def test_an_unreadable_open_run_still_exits_3(self):
+        self.start()
+        (state_dir() / "state.json").write_text("not json", encoding="utf-8")
+        with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(3, db.main(["start", "--pairs", "2", "--tasks", "todo.md", "--berserk"]))
+
     def test_the_prompt_carries_berserk_after_dispatched(self):
         self.assertEqual("/ship #S1-1682+1683 Narrow --dispatched artifacts/dispatch/20261101-220000 --berserk",
                          dr.prompt(self.s1(), "Narrow", RUN, True))
