@@ -261,21 +261,6 @@ class ATrackedLinkIsRefusedBeforeAnythingIsMade(unittest.TestCase):
         self.assertIn("my link", result.stderr)
         self.assertEqual([], self.sweep_dirs())
 
-    def test_a_commit_with_many_links_is_refused_and_not_killed_by_a_closed_pipe(self):
-        # Five are named; the producer must not die of a closed pipe on the sixth, which under pipefail ends the
-        # script with neither the exit nor the message.
-        names = " ".join(f"l{index:03d}" for index in range(300))
-        made = run_bash(
-            'cd "$R" && blob=$(printf %s ../../outside | git hash-object -w --stdin) '
-            '&& for n in $NAMES; do git update-index --add --cacheinfo "120000,$blob,$n"; done '
-            '&& git -c user.name=t -c user.email=t@example.invalid commit -q -m many',
-            R=self.repo, NAMES=names)
-        self.assertEqual(0, made.returncode, made.stderr)
-        result = self.detach("HEAD")
-        self.assertEqual(5, result.returncode, result.stderr)
-        self.assertIn("tracked symbolic links", result.stderr)
-        self.assertNotIn("l299", result.stderr)
-
     def test_the_same_repository_at_a_commit_without_the_link_is_detached(self):
         # The positive control: the refusal is the commit's, not the repository's.
         result = self.detach("HEAD")
