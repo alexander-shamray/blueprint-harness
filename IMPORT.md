@@ -256,9 +256,11 @@ its own dropped it by hand and reran apply, and the workflow runs here now.
 
 Backend takes its half in one pull request, since its `.harness/config.json`
 still lists the twelve modules as `local` and apply refuses a payload file
-that is `local` and differs: the config this repository's draft carries, the
-eleven siblings and the sync's apply together (blueprint-backend#1773). Until
-it lands, `sync.yml`'s backend leg is refused.
+that is `local` and differs: the config this repository's draft carries, ten
+of the eleven siblings and the sync's apply together (blueprint-backend#1773).
+The eleventh, `test_issue_form_gate_backend.py`, does not land: #7 brought its
+cases back to the payload and it names symbols that are gone. Until #1773
+lands, `sync.yml`'s backend leg is refused.
 
 ## Test counts
 
