@@ -52,7 +52,7 @@ _SECTION = re.compile(r"`?((?:\.claude|\.github|\.harness|docs)/[\w./-]+\.md|CLA
 _CLAUDE_SECTION = re.compile(r"`?CLAUDE\.md" + _LINKED + r"[^*]+\*")
 _HEADING = re.compile(r"^#{1,6} (.+?)\s*#*\s*$", re.MULTILINE)
 _STACK_TOKEN = re.compile(r"`([^`\s]+)`")
-# A name that holds for one stack alone, so a payload line carrying one is wrong in every other target.
+# A stack's name: a payload line carrying one is listed in `IMPORT.md`, whether it is backend's alone or true anywhere.
 _STACK_NAME = re.compile(r"dotnet|Platform\.slnx|Roslyn|MSBuild")
 # A change contract's section cited by number: backend's sections, which no other target's contract shares.
 _CONTRACT_SECTION = re.compile(r"(?:contract's|the contract) (?:§|section )\d|§\d+'s (?:bullet|kinds|areas)")
