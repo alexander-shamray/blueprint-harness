@@ -670,12 +670,16 @@ class TheGitArgvGuard(unittest.TestCase):
 
     def test_a_heredoc_closing_with_its_line_in_a_sum_opens_no_body(self):
         # A backtick's text ends at the backtick, so its heredoc ends there and
-        # the next lines are commands. Reading them as a body would hide this
-        # push.
+        # the next lines are commands. `without_substitutions` refuses these
+        # however the `<<` reads, so the scan is asked for what it found.
+        guard = self.guard_module()
         for spelling in ("n=$(( `cat <<'EOF'` + 1 ))", "n=$(( `cat <<'EOF' ` + 1 ))"):
             with self.subTest(spelling=spelling):
                 self.assertIn(
                     "RAN", run_bash(f"{spelling}{NEWLINE}echo RAN{NEWLINE}EOF").stdout
+                )
+                self.assertEqual(
+                    [], guard.heredoc_spans(f"{spelling}{NEWLINE}a{NEWLINE}EOF")
                 )
                 self.assertIn(
                     "force push",
@@ -684,7 +688,8 @@ class TheGitArgvGuard(unittest.TestCase):
                     ),
                 )
 
-        # One closing on a later line, but before the delimiter, is that too.
+        # One closing on a later line, but before the delimiter, is that too,
+        # and here reading the next lines as a body would hide the push.
         closed_early = f"n=$(( `cat <<'EOF'{NEWLINE}one{NEWLINE}` + 1 )){NEWLINE}"
         self.assertIn("RAN", run_bash(f"{closed_early}echo RAN{NEWLINE}EOF").stdout)
         self.assertIn(
