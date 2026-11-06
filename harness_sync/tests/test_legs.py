@@ -103,11 +103,15 @@ class WhatTheFilterLooksAtTests(unittest.TestCase):
 
     def test_every_file_a_leg_suite_reads_beside_it_is_reached(self) -> None:
         for suite in re.findall(r'-p "(test_\w+\.py)"', "\n".join(_code_lines(CI))):
-            text =(ROOT / "payload/.claude/scripts" / suite).read_text(encoding="utf-8")
-            for chain in re.findall(r'SCRIPTS\.parent((?:\s*/\s*"[^"]+")+)', text):
+            text = (ROOT / "payload/.claude/scripts" / suite).read_text(encoding="utf-8")
+            chains = re.findall(r'SCRIPTS\.parent((?:\s*/\s*"[^"]+")+)', text)
+            self.assertTrue(chains, f"{suite} no longer spells what it reads off SCRIPTS.parent")
+            for chain in chains:
                 rel = "/".join(re.findall(r'"([^"]+)"', chain))
                 with self.subTest(suite=suite, rel=rel):
-                    self.assertTrue(reaches([RENDERED.get(rel, f"payload/.claude/{rel}")]))
+                    path = RENDERED.get(rel, f"payload/.claude/{rel}")
+                    self.assertTrue((ROOT / path).is_file())
+                    self.assertTrue(reaches([path]))
 
     def test_every_leg_step_obeys_the_decision(self) -> None:
         conditions = [line.strip() for line in _code_lines(CI) if "matrix.os != 'ubuntu-latest'" in line]
