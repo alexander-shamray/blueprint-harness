@@ -458,7 +458,10 @@ def _append(lines, name, new):
 def _place(lines, new_line):
     """Insert a Remaining row after its group, else after its wave, else before the first later wave."""
     scan = _scan(lines)
-    _, sep, rows, _ = _table(lines, scan, "Remaining")
+    _, sep, rows, none = _table(lines, scan, "Remaining")
+    if none is not None:
+        _append(lines, "Remaining", [new_line])
+        return
     row = _row("Remaining", new_line)
     parsed = [(i, _row("Remaining", lines[i])) for i in rows]
     same_group = [i for i, r in parsed if r.group == row.group]
