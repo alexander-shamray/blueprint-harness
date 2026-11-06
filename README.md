@@ -25,9 +25,7 @@ tool renders them into each target through an ordinary pull request.
   the root is rendered from it (see *The rendered root*).
 - `targets/` — each target's draft `.harness/config.json`, kept here until
   the target holds its own.
-- `.harness/config.json` — this repository's own sync config; the reason it
-  excludes `.github/workflows/comment-gate.yml` is in `IMPORT.md`, *Decided
-  after review*.
+- `.harness/config.json` — this repository's own sync config.
 - `IMPORT.md` — the backend commit the payload was taken from, and which file
   went to the payload and which stayed in backend, with the reason for each.
 - `.github/workflows/ci.yml` — the `sync-tool` job; and `payload-suites`,
@@ -43,8 +41,8 @@ its sessions run under the harness it develops.
 
 - **Rendered from `payload/`**: `.claude/**`, `docs/commands/**`,
   `docs/harness/**`, `docs/harness-boundaries.md`, the managed files under `.github/` (the gate
-  directories, `ISSUE_TEMPLATE/`, and the `closure-gate`, `commit-gate` and
-  `harness-drift` workflows), `.harness/render.py`,
+  directories, `ISSUE_TEMPLATE/`, and the `closure-gate`, `comment-gate`,
+  `commit-gate` and `harness-drift` workflows), `.harness/render.py`,
   `.harness/settings.base.json`, `.harness/agent-rules.md` and
   `.harness/manifest.json`.
   `.harness/config.json` is the one input written by hand.
@@ -188,6 +186,9 @@ direct pushes are refused, and nobody bypasses it. Eight checks must pass:
 `windows-latest`, `macos-latest`) from `ci.yml`, and `commit-gate`,
 `closure-gate` and `harness-drift` from the workflows the root renders, and
 `rulesets` from `rulesets.yml`.
+
+`comment-gate` runs on every pull request too and is not among them; backend
+does not require it either.
 
 `rulesets/main.json` owns the eight required checks, and the floor every
 repository's `main` ruleset meets: the rules, no bypass and no approval

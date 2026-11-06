@@ -258,9 +258,9 @@ expect `.github/workflows/comment-gate.yml` in the root's manifest, which no
 apply has written, so `harness-drift` fails (`… is a payload file but
 .harness/manifest.json does not list it`, run both ways). Only an apply
 writes the workflow and its manifest entry together, and `sync.yml`'s sync
-never edits a target's config, so the sync pull request that first renders
-the split suites here drops the exclusion by hand and reruns apply; #5 stays
-open until it does.
+never edits a target's config. The sync that first rendered the split suites
+here, #78, left the exclusion in place, so a pull request of its own dropped
+it by hand and reran apply, and the workflow runs here now.
 
 Backend takes its half in one pull request, since its `.harness/config.json`
 still lists the twelve modules as `local` and apply refuses a payload file

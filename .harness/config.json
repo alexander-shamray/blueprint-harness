@@ -12,7 +12,5 @@
     "harness_sync/**",
     "measure/**"
   ],
-  "exclude": [
-    ".github/workflows/comment-gate.yml"
-  ]
+  "exclude": []
 }

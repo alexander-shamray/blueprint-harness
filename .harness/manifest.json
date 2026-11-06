@@ -1,5 +1,5 @@
 {
-  "harness_commit": "02b9528e0e000e43394cf6fcfe95dec607fa64bd",
+  "harness_commit": "f5e25362d01a44c0db82e01db20976d8c8cec3da",
   "files": {
     ".claude/agents/branch-reviewer.md": "cbdcb74b32ca6d000b697d98396c86339c5feb271190d34be42f9eb98c1c8388",
     ".claude/agents/bug-auditor.md": "6219201313c10252798ff249570298f4de6ad6a66690f3dc40510fd76859b4d7",
@@ -127,6 +127,7 @@
     ".github/workflow-lint/README.md": "806413dfb94bf31575f641e96a554e5f3a6e25218d02c766b0cd3ad00d24791b",
     ".github/workflow-lint/broken-reference.yml": "1c277e1b5b960ed6d05707695759ae3ab658b667a587a06194d29ac6601217d2",
     ".github/workflows/closure-gate.yml": "c16ea96c62464a7b849922806a2b14d8a704865cee9b662a89d5d85bae46cd59",
+    ".github/workflows/comment-gate.yml": "1bee768de62ee6b425cf7d6cb7c8499d68d1a9191b9e34af2e9687362457f819",
     ".github/workflows/commit-gate.yml": "12062b9627f5539236df9023c8d6073e9d3dae3995f6de3b032fcb76336f5d76",
     ".github/workflows/harness-drift.yml": "7f4c08c47283a15629b1f9374f9e0e9a7e46ea07f5c10843e4224db6fb0d3cce",
     ".harness/agent-rules.md": "fe44464e7945a2f8b354e8c302eaac1dfa30a041aa317f00863360c862997796",
