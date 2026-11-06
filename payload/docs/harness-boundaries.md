@@ -681,8 +681,8 @@ holds the row, which the suite checks exists (a `ruleset` row names
   `.claude/hooks/guard-sed-crlf.py` from a scratch git checkout tracking
   `crlf.txt`, which holds CRLF endings. The test calls the hook's `offence`
   with `strips_cr=True` rather than running it, since the hook judges on
-  Windows alone (*The sed line-ending guard*) and the table holds on every
-  leg.
+  Windows alone (*The sed line-ending guard*) and CI runs this suite on
+  Linux.
 - `ruleset` — the server-side backstop on `main`, and its test is
   `ruleset-check`, which the table names and the suite does not run. It is
   blueprint-harness's `py -3.12 -m harness_sync ruleset-check`, which asks
