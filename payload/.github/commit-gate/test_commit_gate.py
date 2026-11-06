@@ -274,6 +274,10 @@ class Standing(unittest.TestCase):
         self.commit(HUMAN, HUMAN)
         self.assertEqual(self.own(DEPENDABOT_LOGIN), "false")
 
+    def test_a_human_author_with_githubs_committer_is_judged(self) -> None:
+        self.commit(HUMAN, DEPENDABOT_MAKER[1])
+        self.assertEqual(self.own(DEPENDABOT_LOGIN), "false")
+
     def test_dependabots_commits_on_a_pull_request_a_human_opened_are_judged(self) -> None:
         self.commit(*DEPENDABOT_MAKER)
         self.assertEqual(self.own("someone"), "false")
