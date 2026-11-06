@@ -267,7 +267,9 @@ A closed sync a human owes, each hand-back kind, is under *Needs a human* as
 well as *Syncs*, since its worktree waits for the owner; only one stopped by a
 closed pull request is left out, which the next sync supersedes.
 *Resume* has lines of its own for a sync, because `done`, `back` and the
-window's `wait` lead to `tasks`.
+window's `wait` lead to `tasks`. A sync whose worktree is gone has no other
+way out, so `sync-close` takes it once no executor is alive and no exit is
+unread, as `crash-hand-back`: how it ended is unknown, so a human reads it.
 
 **Sonnet.** `verify`, CI and the `branch-reviewer` catch its errors, and the
 reviewer runs on its own profile's model (`docs/harness/token-rules.md`,

@@ -34,6 +34,7 @@ SYNC_MERGED = {"group": GID, "issues": [], "outcome": "merged", "pr": PR, "title
                "rounds": [{"kind": "full", "raised": 1, "fixed": 0, "refused": 1}], "review_end": "clean",
                "filed": [], "reason": None, "workspace": {"worktree": WORKTREE, "removed": False},
                "decisions": ["kept the target's own note"]}
+GONE = "its worktree is gone, so how its executor ended is unknown"
 SYNC_CLOSED = {**SYNC_MERGED, "outcome": "stopped", "pr": None, "merge_oid": None, "rounds": [], "review_end": None,
                "reason": "closed unmerged", "decisions": []}
 
@@ -329,8 +330,46 @@ class SyncClose(InRoot):
                 os.rmdir("gone/z")
                 self.assertEqual("", run_cli(["sync-close", RUN, GID]))
                 entry = group_state(RUN, GID)
-                self.assertEqual(("closed", status, "its worktree is gone"),
+                self.assertEqual(("closed", "crash-hand-back", GONE),
                                  (entry["status"], entry["closed_from"], entry["reason"]))
+
+    def gone(self, **fields):
+        record_sync(worktree="gone/z", **fields)
+        os.rmdir("gone/z")
+
+    def test_a_sync_closed_on_a_gone_worktree_reaches_a_human(self):
+        # How its executor ended is unknown, so it may have merged or left work: nobody else reads it.
+        self.gone()
+        run_cli(["sync-close", RUN, GID])
+        with open("todo.md", "w", encoding="utf-8", newline="") as handle:
+            handle.write(FIXTURE)
+        out = run_cli(["report", RUN, "--tasks", "todo.md", "--today", "2026-11-01"], body_source=lambda n: "",
+                      open_source=lambda: {1440}, branch_source=NO_BRANCH)
+        needs = out.split("## Needs a human\n", 1)[1].split("\n## ", 1)[0]
+        self.assertIn(f"{GID} #{PR} crash-hand-back: {GONE}", needs)
+
+    def test_an_unread_session_record_is_read_before_a_gone_worktree_closes(self):
+        self.gone()
+        record = state_dir() / f"{GID}.session.json"
+        record.write_text(json.dumps({"started": NOW.isoformat(), "stdout": "{}"}), encoding="utf-8")
+        self.assertIn(f"refused: {GID} has an exit not yet read; run result first", run_cli(["sync-close", RUN, GID]))
+        self.assertEqual("running", group_state(RUN, GID)["status"])
+        self.assertNotIn("reason", group_state(RUN, GID))
+
+    def test_a_session_record_already_read_does_not_hold_the_close(self):
+        self.gone(status="relaunch", absorbed=NOW.isoformat())
+        record = state_dir() / f"{GID}.session.json"
+        record.write_text(json.dumps({"started": NOW.isoformat(), "stdout": "{}"}), encoding="utf-8")
+        self.assertEqual("", run_cli(["sync-close", RUN, GID]))
+        self.assertEqual("closed", group_state(RUN, GID)["status"])
+
+    def test_a_refused_marker_is_read_before_a_gone_worktree_closes(self):
+        self.gone()
+        marker = state_dir() / f"{GID}.refused.json"
+        marker.write_text(json.dumps({"refused": "stop file", "at": NOW.isoformat()}), encoding="utf-8")
+        self.assertIn(f"refused: {GID} has an exit not yet read; run result first", run_cli(["sync-close", RUN, GID]))
+        self.assertEqual("running", group_state(RUN, GID)["status"])
+        self.assertIn(f"{GID}: crashed-before-launch", run_cli(["result", RUN, GID]))
 
     def test_a_gone_worktree_with_a_live_executor_is_not_closed(self):
         record_sync(worktree="gone/z")

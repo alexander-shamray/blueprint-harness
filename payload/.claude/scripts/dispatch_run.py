@@ -1031,8 +1031,13 @@ def sync_close(root, run, gid):
         pid = _pid(directory, gid)
         if pid is not None and alive(pid):
             raise Refusal(f"{gid}'s executor is still running")
-        # No run can relaunch it and no result will come, and it would hold `wake` and `sync-launch` all night.
-        entry["reason"] = "its worktree is gone"
+        record = directory / f"{gid}.session.json"
+        if _refused(directory, gid, entry) is not None or (record.exists()
+                                                            and not _read_already(directory, gid, entry)):
+            raise Refusal(f"{gid} has an exit not yet read; run result first")
+        # Nothing can relaunch it, and it would hold `wake` and `sync-launch` all night. It may have merged or left
+        # work, so it ends as a hand-back, which the report puts before a human.
+        entry.update(status="crash-hand-back", reason="its worktree is gone, so how its executor ended is unknown")
         save_state(directory, state)
     elif entry.get("status") not in SYNC_ENDED:
         raise Refusal(f"{gid} is {entry.get('status') or 'not launched'}, not a sync that ended")
