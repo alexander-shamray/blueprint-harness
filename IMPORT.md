@@ -145,11 +145,8 @@ right in every target, and `dispatch_board.py` takes the task list as
   `project_slug`.
 - `.github/closure-gate/test_closure_gate.py:17` — the repository fixture the
   gate's parser is called with.
-- `docs/commands/bug-sweep.md:519`, `docs/commands/security-sweep.md:352` —
+- `docs/commands/bug-sweep.md:520`, `docs/commands/security-sweep.md:353` —
   history: what backend's run of 2026-10-21 filed.
-- `docs/commands/security-sweep.md:366` — cites *The guards' threat model* in
-  blueprint-backend's `docs/harness-boundaries.md`, its owner today (spec 6
-  moves that citation to the harness).
 
 ## Stack mentions left verbatim
 
