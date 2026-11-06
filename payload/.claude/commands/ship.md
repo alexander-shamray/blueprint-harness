@@ -77,7 +77,7 @@ merge; the rows say what is owed *between* them:
 | On a branch, tree clean and pushed | `/pr`, then the review |
 | On a branch with an open PR | The review (step 5) — and, if the tree is dirty, checks, `/commit` **scoped to the implementation paths** and a push first, so the reviewer reads what the PR will actually carry |
 | On a branch whose PR was **closed unmerged** | **Stop.** Somebody decided this branch does not land, and the open-PR read cannot see that: with no open PR the *clean and pushed* row would send the run to `/pr`, which refuses only an **open** one — so the chain would open a replacement and merge it, overriding a deliberate closure with no human in the loop. Report the closed PR and its number |
-| On a branch whose PR is **already merged** | **Step 0 alone, and then the run is over.** `pr-for-branch.sh`'s newest row reading `MERGED` is what classifies this row — not step 0's finished predicate, which also asks for a clean tree, a base of `main` and a tip equal to a merged row's `headRefOid` — and the classification comes before the review rather than after it — reviewing a merged PR spends a round on a branch nobody can change. Where the predicate holds, step 0's teardown is a complete one (switch, pull, remove, prune); with a dirty tree, a row merged into a branch other than `main`, or a tip that is not that `headRefOid` — commits made after the merge, or a checkout behind it — the branch is **not** finished, step 0 stays put and tears nothing down, and the run still ends here. Either way step 6 has nothing left to do: there is no PR to merge |
+| On a branch whose PR is **already merged** | **Step 0 alone, and then the run is over.** `pr-for-branch.sh`'s newest row reading `MERGED` is what classifies this row — not step 0's finished predicate, which also asks for a clean tree, a base of `main` and a tip equal to a merged row's `headRefOid` — and the classification comes before the review rather than after it — reviewing a merged PR spends a round on a branch nobody can change. Where the predicate holds, step 0's teardown is a complete one (switch, pull, remove, prune, drop); with a dirty tree, a row merged into a branch other than `main`, or a tip that is not that `headRefOid` — commits made after the merge, or a checkout behind it — the branch is **not** finished, step 0 stays put and tears nothing down, and the run still ends here. Either way step 6 has nothing left to do: there is no PR to merge |
 | On a branch named `chore/harness-sync-…` | *A sync pull request is reviewed once, for this target*: its proof first, which a run already in the worktree holds none of, then step 2's local suites, one round and step 6, never steps 3 and 4; the closed and merged rows win over it, and it over the dirty and open-PR rows |
 
 - Step 0's teardown targets a worktree already finished; step 6's targets
@@ -316,8 +316,9 @@ target*)
    ```
 
    A refused removal keeps its branch, and no drop runs. Any non-zero exit of
-   the drop is reported and is not a stop: the helper refuses only a branch
-   that has not landed, and exit 6 (no local branch) is simply reported.
+   the drop is reported and is not a stop: on any non-zero exit the branch
+   is kept and the merge stands, and exit 6 (no local branch) is simply
+   reported.
    (why: docs/commands/ship.md, *Step 0: the teardown*)
 
 1. **`/branch`**, passing $ARGUMENTS. Skip if already off `main` — which

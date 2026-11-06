@@ -973,8 +973,8 @@ rule rather than complied with it.
 
 ## Step 6: the teardown
 
-**The order of the runbook's eight teardown lines is the instruction**, and
-three of them depend on which outcome step 1 produced; the line numbers
+**The order of the runbook's nine teardown lines is the instruction**, and
+four of them depend on which outcome step 1 produced; the line numbers
 below are that block's.
 
 **`main` ends at a descendant of the merge, not at the merge**, and the
@@ -1081,8 +1081,9 @@ A stop is a case where the person has something to do, and a machine asleep
 under an unreported stop is the one failure this step could add, so every stop
 and every run that ended at step 0 skips it and says so.
 
-**A failed suspend is reported, not a stop, and it is the one helper whose
-non-zero exit the stop list does not take.** The PR has merged and the
+**A failed suspend is reported, not a stop, and it is one of the two helpers
+whose non-zero exit the stop list does not take; the other is the branch drop,
+argued in *Step 0: the teardown*.** The PR has merged and the
 workspace is torn down; nothing a retry could change is left, so the report
 says the machine was not suspended and why.
 
