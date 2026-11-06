@@ -686,7 +686,7 @@ def _spent(envelope):
         return total, "modelUsage", models
     last = envelope.get("usage") if isinstance(envelope.get("usage"), dict) else {}
     usage = {key: last[key] for key in TOKEN_KEYS if _count(last.get(key))}
-    return usage, "usage" if usage else None, {}
+    return usage, "usage" if any(usage.values()) else None, {}
 
 
 def _usage_sources(entry):
@@ -978,7 +978,7 @@ def absorb(root, run, gid, run_refused=None):
         reason = UNREVIEWED
     # Summed over every session the group ran this move, so a relaunched group is not reported as its last session.
     spent = entry.get("usage") if isinstance(entry.get("usage"), dict) else {}
-    sources = _usage_sources(entry) if spent else []
+    sources = _usage_sources(entry) if any(spent.values()) else []
     if end.usage_source and end.usage_source not in sources:
         sources.append(end.usage_source)
     models = entry.get("usage_models") if isinstance(entry.get("usage_models"), dict) else {}
