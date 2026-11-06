@@ -512,16 +512,16 @@ class TheHostsHooksNeverRunInAReplay(unittest.TestCase):
 
     def test_configuration_the_caller_already_injected_is_kept(self):
         # The helper appends to `GIT_CONFIG_COUNT` rather than overwriting it,
-        # so a caller's own entry survives and the hooks path is still set.
-        self.at("git checkout -q main && echo later > d.txt && git add -A && git commit -qm later "
-                "&& git push -q origin main && git checkout -q feat/x && git merge -q --no-edit main "
-                "&& git push -q origin feat/x")
+        # so a caller's own entry survives and the hooks path is still set. The
+        # entry is a key the helper does not spell, with an effect that shows on
+        # the replayed commit: the committer name. A helper that overwrote entry
+        # 0 would lose it and the replay would be committed as `Test`.
         self.plant_every_hook()
-        result = self.helper("start", GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="rebase.rebaseMerges",
-                             GIT_CONFIG_VALUE_0="true")
+        result = self.helper("start", GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="user.name",
+                             GIT_CONFIG_VALUE_0="Injected")
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual([], self.markers())
-        self.assertEqual("", self.at("git log --merges --format=%H origin/main..HEAD").stdout,
+        self.assertEqual("Injected", self.at("git log -1 --format=%cn").stdout.strip(),
                          "the caller's entry was dropped rather than kept beside the helper's")
 
     def test_the_path_is_set_before_the_first_command_that_can_run_a_hook(self):
