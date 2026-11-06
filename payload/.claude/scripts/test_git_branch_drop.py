@@ -185,6 +185,22 @@ class TheHelperKeepsWhatHasNotLanded(Fixture):
         self.assertIn("checked out", result.stderr)
         self.assertTrue(self.exists())
 
+    def test_a_worktree_list_that_cannot_be_folded_keeps_the_branch(self):
+        # Nothing holds the branch, so the failed read is all that stops the drop.
+        stub = Path(self.bin, "tr")
+        stub.write_text(
+            "#!/usr/bin/env bash\n"
+            "PATH=${PATH#*:}\n"
+            'input=$(cat)\n'
+            'case "$input" in worktree\\ *) exit 1 ;; esac\n'
+            'printf "%s" "$input" | tr "$@"\n',
+            encoding="utf-8", newline="\n")
+        stub.chmod(0o755)
+        result = self.helper()
+        self.assertEqual(12, result.returncode, result.stderr)
+        self.assertIn("cannot read the worktrees", result.stderr)
+        self.assertTrue(self.exists())
+
     def test_a_branch_a_worktree_takes_during_the_delete_is_put_back(self):
         tip = self.tip()
         self.stub_git()

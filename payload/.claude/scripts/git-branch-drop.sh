@@ -62,8 +62,9 @@ holder() {
   # `Feat/x` keeps `feat/x` on a filesystem where the two are one ref.
   local worktrees held common gitdir state text
   worktrees=$(git worktree list --porcelain) || return 12
-  held=$(printf '%s\n' "$worktrees" | tr -d '\r' | tr '[:upper:]' '[:lower:]' |
-    grep -cxF -- "branch refs/heads/$lowered" || true)
+  # Held apart from the count, whose `|| true` for no match would swallow this.
+  worktrees=$(printf '%s\n' "$worktrees" | tr -d '\r' | tr '[:upper:]' '[:lower:]') || return 12
+  held=$(grep -cxF -- "branch refs/heads/$lowered" <<<"$worktrees" || true)
   [ "$held" = 0 ] || { echo "checked out in a worktree (git worktree list)"; return 0; }
 
   # A worktree mid-rebase or mid-bisect has HEAD detached while the branch is
