@@ -36,9 +36,14 @@ git rev-parse --verify --quiet "$commit^{commit}" >/dev/null ||
 # the worktree materialises, not of `main`. Refused rather than pruned, as a
 # sweep over a tree with a file removed would report a clean audit of
 # something that is not the branch.
-links=$(git ls-tree -r "$commit" | awk '$1 == "120000" { print $4 }' | head -5)
+# The listing is read whole by awk, which stops itself at five names: a `head`
+# closing the pipe early would kill the producer under pipefail, with neither
+# the exit nor the message. Split on the tab, so a name holding a space is named
+# whole, and printed quoted, so no name is globbed.
+links=$(git ls-tree -r "$commit" | awk -F'\t' 'index($1, "120000 ") == 1 && n < 5 { n++; print $2 }')
 [ -z "$links" ] ||
-  { echo "$commit carries tracked symbolic links, and a sweep's reads follow them out of the worktree: $(printf '%s ' $links)" >&2
+  { echo "$commit carries tracked symbolic links, and a sweep's reads follow them out of the worktree:" >&2
+    printf '%s\n' "$links" >&2
     exit 5; }
 
 # A sweep stopped before its teardown leaves its worktree registered, and no
