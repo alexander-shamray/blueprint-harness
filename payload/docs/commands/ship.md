@@ -529,6 +529,18 @@ rather than an inconvenience — the same refusal `/security-sweep`'s
 teardown uses. A worktree it declines to remove is left where it is and
 named in the report.
 
+**The helper takes the path and the branch the run forked, and removes only
+the worktree registered at that path holding that branch.** A path alone made
+registration stand for ownership: a prefix grant with a caller-chosen path
+could remove any clean forked worktree, another run's pull request checkout
+included. `main` is refused, so is a detached worktree, which holds no branch,
+and the directory name need not echo the branch, since `/branch` cuts it to a
+word or two of the change. What remains is a caller that already knows another
+run's path and branch together; `/ship` passes the branch it created at step 1.
+The branch pattern still admits parentheses, though the helpers that make a
+name do not: `.claude/scripts` is common to every target, and one may still
+hold a worktree on a branch cut with a scope.
+
 **The index lock and the helper in place of a grant are
 `docs/harness-boundaries.md`'s**: *Index refresh and worktree seeding* says why
 the removal waits for the refresh lock, and *Grant inventory and push helpers*

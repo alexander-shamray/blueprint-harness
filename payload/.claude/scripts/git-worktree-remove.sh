@@ -1,13 +1,30 @@
 #!/usr/bin/env bash
-# Remove a /branch worktree under .claude/worktrees/, without -f, once no
-# code-index refresh holds it. A prefix grant on `git worktree remove` also
-# buys the `-f` that discards what git's refusal protects; here the command is
-# fixed and its one argument shape-checked, so no flag can arrive.
+# Remove the /branch worktree a run forked under .claude/worktrees/, without
+# -f, once no code-index refresh holds it. A prefix grant on `git worktree
+# remove` also buys the `-f` that discards what git's refusal protects; here the
+# command is fixed and both arguments shape-checked, so no flag can arrive.
+#
+# Registration is not ownership: a path alone would remove any clean linked
+# worktree under the directory, another run's included. So the caller names the
+# branch it forked too, and the worktree at that path must hold it, the pair
+# git-worktree-fork.sh wrote. A caller that already knows another run's path
+# and branch together still passes; /ship passes the branch it created.
 set -euo pipefail
-[ "$#" -eq 1 ] || { echo "usage: git-worktree-remove.sh <path>" >&2; exit 2; }
+[ "$#" -eq 2 ] ||
+  { echo "usage: git-worktree-remove.sh <path> <branch>" >&2; exit 2; }
 path="$1"
+branch="$2"
 [[ "$path" =~ ^\.claude/worktrees/[A-Za-z0-9][A-Za-z0-9._-]*$ ]] ||
   { echo "path must be .claude/worktrees/<name>" >&2; exit 2; }
+# Admits `()`, which the helpers that make a name do not: `.claude/scripts` is
+# common to every target, and one may still hold a branch cut with a scope, which
+# removing must not wait on a rename for.
+[[ "$branch" =~ ^[A-Za-z0-9][A-Za-z0-9._/()-]*$ ]] && [[ "$branch" != *..* ]] ||
+  { echo "not a branch name this helper will take: $branch" >&2; exit 2; }
+# Folded, as git-rebase-onto-main.sh folds it: a case-insensitive host's `Main`
+# is `main`'s ref.
+[ "$(printf %s "$branch" | tr '[:upper:]' '[:lower:]')" != main ] ||
+  { echo "main is never a forked branch: $branch" >&2; exit 2; }
 git rev-parse --git-dir >/dev/null 2>&1 ||
   { echo "not in a git repository" >&2; exit 2; }
 [ -z "$(git rev-parse --show-prefix)" ] ||
@@ -24,6 +41,11 @@ common_there=$(git -C "$path" rev-parse --path-format=absolute --git-common-dir)
   { echo "not a git worktree: $path" >&2; exit 3; }
 [ "$common_there" = "$common_here" ] && [ "$dir_there" != "$common_there" ] ||
   { echo "not a linked worktree of this repository: $path" >&2; exit 3; }
+# The branch is asked of the worktree itself, as git answers there, which holds
+# on Windows where a comparison of directory spellings does not. A detached
+# worktree has no symbolic HEAD and holds no branch, so it is refused too.
+[ "$(git -C "$path" symbolic-ref --quiet HEAD || :)" = "refs/heads/$branch" ] ||
+  { echo "not the worktree of this repository holding ${branch}: $path" >&2; exit 3; }
 # Every refresh worker holds this lock for its whole run, the index update
 # included, and Windows will not delete a file held open: a remove meanwhile
 # deletes part of the tree and fails. So the lock is taken first, with the

@@ -311,11 +311,12 @@ target*)
    since the session is not in it, and let git decide the tree half:
 
    ```bash
-   bash .claude/scripts/git-worktree-remove.sh .claude/worktrees/<slug>
+   bash .claude/scripts/git-worktree-remove.sh .claude/worktrees/<slug> <branch>
    ```
 
    The helper runs without `-f` and refuses a worktree holding uncommitted or
-   untracked files; leave a refused one where it is and name it in the
+   untracked files, one that does not hold `<branch>`, the branch this run
+   forked, and `main`; leave a refused one where it is and name it in the
    report. It first waits for the code-index refresh lock up to the bound it
    declares; a lock still held removes nothing and exits non-zero.
    (why: `docs/harness-boundaries.md`, *Grant inventory and push helpers*)
@@ -580,7 +581,7 @@ target*)
    git branch --show-current                            # 4. main, or a branch another session left here
    git pull --ff-only                                   # 5. on main; elsewhere git fetch origin main:main
    git merge-base --is-ancestor <merge-oid> main        # 6. and main really does contain it
-   bash .claude/scripts/git-worktree-remove.sh .claude/worktrees/<slug>  # 7. forked runs only
+   bash .claude/scripts/git-worktree-remove.sh .claude/worktrees/<slug> <branch>  # 7. forked runs only
    git worktree prune                                   # 8.
    bash .claude/scripts/git-branch-drop.sh <branch>  # 9. after 7 or 3
    ```

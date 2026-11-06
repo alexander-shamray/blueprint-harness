@@ -976,13 +976,15 @@ Two are `/ship`'s, and both are closed:
 failing checks. Both are withdrawn. `gh-pr-merge.sh` takes a number and a
 head oid, spells `--rebase --match-head-commit` itself, and refuses a pull
 request that is not the checked-out branch's own, from this repository, into
-`main`. `git-worktree-remove.sh` takes one `.claude/worktrees/<name>` path,
-run from the main checkout, refuses a directory that is not a linked worktree
-of this repository, and spells `git worktree remove` with no flag, under
-`core.longpaths` so that a file past Windows' 260 characters is deleted too
-rather than left in a directory git has already unregistered; it first
-waits, to a bound it declares, for the worktree's code-index refresh lock,
-because Windows will not delete a file a running refresh holds (#516).
+`main`. `git-worktree-remove.sh` takes a `.claude/worktrees/<name>` path and
+the branch forked there, run from the main checkout. It refuses `main` as that
+branch, a directory that is not a linked worktree of this repository, and one
+that does not hold the branch, a detached one included. It spells
+`git worktree remove` with no flag, under `core.longpaths` so that a file past
+Windows' 260 characters is deleted too rather than left in a directory git has
+already unregistered; it first waits, to a bound it declares, for the
+worktree's code-index refresh lock, because Windows will not delete a file a
+running refresh holds (#516).
 
 **Two more sat in the sweep command files rather than in this paragraph, and
 both are now closed — which is worth recording because they were closed the

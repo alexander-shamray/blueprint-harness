@@ -94,8 +94,9 @@ class RemoveShape(unittest.TestCase):
         self.assertEqual(0, made.returncode, made.stderr)
         return root, Path(root)
 
-    def remove(self, where, path=".claude/worktrees/probe", script=REMOVE, **env):
-        return run_bash('cd "$WHERE" && bash "$REMOVE" "$P"', WHERE=where, REMOVE=str(script), P=path, **env)
+    def remove(self, where, path=".claude/worktrees/probe", branch="feat/probe", script=REMOVE, **env):
+        return run_bash('cd "$WHERE" && bash "$REMOVE" "$P" "$B"', WHERE=where, REMOVE=str(script), P=path,
+                        B=branch, **env)
 
     def timed(self, native, bound, grace):
         """A copy of the helper with a shorter bound and grace, so a test waits
@@ -155,7 +156,7 @@ class RemoveShape(unittest.TestCase):
         made = run_bash(DEEP, C=f"{root}/checkout", O=f"{root}/origin", F=deep)
         self.assertEqual(0, made.returncode, made.stderr)
         self.assertGreater(len(f"{root}/checkout/.claude/worktrees/deep/{deep}"), 260)
-        result = self.remove(f"{root}/checkout", ".claude/worktrees/deep", GIT_CONFIG_COUNT="1",
+        result = self.remove(f"{root}/checkout", ".claude/worktrees/deep", "feat/deep", GIT_CONFIG_COUNT="1",
                              GIT_CONFIG_KEY_0="core.longpaths", GIT_CONFIG_VALUE_0="false")
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertFalse(run_bash('[ -e "$W" ]', W=f"{root}/checkout/.claude/worktrees/deep").returncode == 0)
@@ -202,6 +203,81 @@ class RemoveShape(unittest.TestCase):
         self.assertEqual(3, result.returncode, result.stderr)
         self.assertIn("not a linked worktree of this repository", result.stderr)
         self.assertEqual(0, run_bash('[ -f "$C/.claude/worktrees/plain/f" ]', C=f"{root}/checkout").returncode)
+
+    def fork(self, root, name, branch):
+        """A second /branch worktree, as the fixture's first one was made."""
+        made = run_bash('git -C "$C" worktree add -q --no-track -b "$B" ".claude/worktrees/$N" origin/main',
+                        C=f"{root}/checkout", B=branch, N=name)
+        self.assertEqual(0, made.returncode, made.stderr)
+
+    def test_the_path_alone_is_refused(self):
+        # Registration is not ownership: a path without the branch it was forked for would remove any clean
+        # forked worktree, another run's included.
+        root, _ = self.fixture()
+        result = run_bash('cd "$WHERE" && bash "$REMOVE" .claude/worktrees/probe', WHERE=f"{root}/checkout",
+                          REMOVE=str(REMOVE))
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("usage: git-worktree-remove.sh <path> <branch>", result.stderr)
+        self.assertTrue(self.present(root))
+
+    def test_main_and_anything_shaped_like_a_flag_are_refused_as_the_branch(self):
+        root, _ = self.fixture()
+        for branch in ("main", "Main", "MAIN", "-f", "--force", "feat/..x", "feat/a b", "", "/feat"):
+            with self.subTest(branch=branch):
+                result = self.remove(f"{root}/checkout", branch=branch)
+                self.assertEqual(2, result.returncode, result.stderr)
+        self.assertTrue(self.present(root))
+        self.assertTrue(self.registered(root))
+
+    def test_a_worktree_is_removed_only_with_the_branch_it_holds(self):
+        root, _ = self.fixture()
+        self.fork(root, "other", "feat/other")
+        for path, branch in ((".claude/worktrees/probe", "feat/other"),
+                             (".claude/worktrees/other", "feat/probe"),
+                             (".claude/worktrees/probe", "feat/absent"),
+                             (".claude/worktrees/probe", "feat/prob")):
+            with self.subTest(path=path, branch=branch):
+                result = self.remove(f"{root}/checkout", path, branch)
+                self.assertEqual(3, result.returncode, result.stderr)
+                self.assertIn("not the worktree of this repository holding", result.stderr)
+                self.assertTrue(self.present(root))
+                self.assertTrue(self.present(root, "other"))
+        self.assertEqual(0, self.remove(f"{root}/checkout", ".claude/worktrees/other", "feat/other").returncode)
+        self.assertFalse(self.present(root, "other"))
+        self.assertTrue(self.present(root))
+
+    def test_a_detached_worktree_holds_no_branch_and_is_refused(self):
+        root, _ = self.fixture()
+        detached = run_bash('git -C "$W" checkout -q --detach', W=f"{root}/checkout/.claude/worktrees/probe")
+        self.assertEqual(0, detached.returncode, detached.stderr)
+        result = self.remove(f"{root}/checkout")
+        self.assertEqual(3, result.returncode, result.stderr)
+        self.assertIn("not the worktree of this repository holding feat/probe", result.stderr)
+        self.assertTrue(self.present(root))
+        listed = run_bash('git -C "$C" worktree list --porcelain', C=f"{root}/checkout").stdout
+        self.assertIn("/.claude/worktrees/probe", listed.replace(chr(92), "/"), "the refusal unregistered it")
+
+    def test_a_branch_with_parentheses_is_still_removed(self):
+        # Worktrees forked before the scope in a branch name was dropped carry one, and removing one must not
+        # wait on a rename: `.claude/scripts` is common to every target, and a target may still hold such a branch.
+        # The directory name is the first words of the change and not the branch's.
+        root, _ = self.fixture()
+        self.fork(root, "masstransit", "feat(template)/masstransit-registration")
+        result = self.remove(f"{root}/checkout", ".claude/worktrees/masstransit",
+                             "feat(template)/masstransit-registration")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertFalse(self.present(root, "masstransit"))
+        self.assertTrue(self.present(root))
+
+    def test_the_dirty_refusal_names_gits_own_reason_and_keeps_the_work(self):
+        # A worktree git still registers is the dirty-tree refusal, which keeps git's own status and message.
+        root, _ = self.fixture()
+        run_bash('printf x > "$W/notes.txt"', W=f"{root}/checkout/.claude/worktrees/probe")
+        result = self.remove(f"{root}/checkout")
+        self.assertNotIn(result.returncode, (0, 4), result.stderr)
+        self.assertNotIn("not deleted", result.stderr)
+        self.assertIn("contains modified or untracked files", result.stderr)
+        self.assertTrue(self.registered(root))
 
     def test_a_missing_directory_is_refused(self):
         root, _ = self.fixture()
