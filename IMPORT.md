@@ -504,7 +504,7 @@ commands and by counting 46,810 Bash commands and 5,090 edit targets typed in
 backend, frontend and the harness since 2026-10-19. `c1` in a reason is that
 section's criterion 1, and the counts are from that reading. Every `covered`
 row's citation was opened. Outside cluster A a `port` is the agent's reading;
-D's rows beyond the five *Decisions* names were checked against
+D's rows beyond those *Decisions* names were checked against
 `refresh-index.py`.
 
 The check moved 21 rows off the agents' verdicts and narrowed 10 more, because
