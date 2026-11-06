@@ -114,7 +114,8 @@ that prefix; one path elsewhere and it is reviewed as any other branch is.
 prefix prints only its new path, and the path it left is never tested. A
 plan is a pre-build record from the moment it merges and is never edited
 after, so wording, completeness and prose are not findings in it. A
-statement that cannot be true beside the blueprint, or beside another plan,
+statement that cannot be true beside the product specification
+`docs/harness-local.md` *Documents* names, or beside another plan,
 is a finding, and its fix lands in the plan this PR adds, because the
 others are already frozen.
 

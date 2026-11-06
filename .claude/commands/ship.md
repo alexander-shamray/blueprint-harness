@@ -111,7 +111,8 @@ A PR is a plan when every path that
 branch is.
 
 - Give it one full pass in which only a contradiction — a statement that
-  cannot be true beside the blueprint, or beside another plan — is a
+  cannot be true beside the product specification
+  `docs/harness-local.md` *Documents* names, or beside another plan — is a
   finding; refuse every other finding as a house rule naming this section.
   A round whose findings are all refused is clean.
 - Fix a contradiction in the plan this PR adds, and run one recheck of the
