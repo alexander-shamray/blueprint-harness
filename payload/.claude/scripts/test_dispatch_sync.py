@@ -428,9 +428,26 @@ class Report(InRoot):
         self.assertIn('sync-7 #7 "chore(harness): sync" handed-back: a local test fails', syncs[2])
         self.assertIn("worktree gone/x removed", syncs[2])
         self.assertEqual(["none"], self.section(lines, "Merged"))
-        self.assertEqual(["none"], self.section(lines, "Needs a human"))
+        # The hand-back's reason is what a human must do; a closed pull request was superseded and asks nothing.
+        self.assertEqual([syncs[2]], self.section(lines, "Needs a human"))
         self.assertEqual(["none"], self.section(lines, "Interrupted"))
         self.assertEqual(["#1701"], self.section(lines, "Filed overnight"))
+
+    def test_every_sync_a_human_owes_is_named_for_one(self):
+        for status in dr.HANDED:
+            with self.subTest(status=status):
+                record_sync(status="closed", closed_from=status, reason="a local suite fails")
+                needs = self.section(self.report(), "Needs a human")
+                self.assertEqual(1, len(needs), needs)
+                self.assertIn(f"{GID} #{PR} {status}: a local suite fails", needs[0])
+                self.assertIn(f"worktree {WORKTREE} left in place", needs[0])
+
+    def test_only_a_closed_pull_request_is_left_out(self):
+        # A failed merge check ends `stopped` too, and a hand-back could name the same words: neither is a supersede.
+        record_sync(status="closed", closed_from="stopped", reason="closed unmerged")
+        self.assertEqual(["none"], self.section(self.report(), "Needs a human"))
+        record_sync(status="closed", closed_from="handed-back", reason="closed unmerged")
+        self.assertIn("handed-back: closed unmerged", self.section(self.report(), "Needs a human")[0])
 
     def test_with_no_sync_the_section_says_none(self):
         sync_state()

@@ -257,6 +257,9 @@ done` and `back`, and empty `keys`, so it never holds a reported run open.
 `closed` and keeps the outcome, so `report` does not list a merged and
 confirmed sync as not confirmed in main. One left `verified`, by a failed pull
 or containment read, is named as merged and not confirmed, and claims no rows.
+A closed sync a human owes, each hand-back kind, is under *Needs a human* as
+well as *Syncs*, since its worktree waits for the owner; only one stopped by a
+closed pull request is left out, which the next sync supersedes.
 *Resume* has lines of its own for a sync, because `done`, `back` and the
 window's `wait` lead to `tasks`.
 
