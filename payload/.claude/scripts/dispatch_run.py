@@ -101,16 +101,11 @@ def _note_released(directory, lifted):
 
 
 def berserk(state):
-    """Whether the run holds --berserk, and the rows it does not lift: `tasks back`'s OWNER mark exists so nothing
-    relaunches them, and a row the night placed waits on OWNER as the cautious value, so the flag reading either as a
-    wait to lift would turn a hand-back into a relaunch and a filed issue into a launch."""
+    """Whether the run holds --berserk, and the rows it does not lift: a row the night placed waits on OWNER as the
+    cautious value, so lifting it would launch a filed issue nobody read."""
     if state.get("berserk") is not True:
         return False, frozenset()
-    kept = {f"#{number}" for number in state.get("placed") or [] if _number(number)}
-    for entry in state.get("groups", {}).values():
-        if isinstance(entry, dict) and entry.get("status") == "returned" and isinstance(entry.get("keys"), list):
-            kept.update(key for key in entry["keys"] if isinstance(key, str))
-    return True, frozenset(kept)
+    return True, frozenset(f"#{number}" for number in state.get("placed") or [] if _number(number))
 
 
 def _released(state):

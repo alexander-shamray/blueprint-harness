@@ -191,12 +191,15 @@ These are the owner's calls, each reversible:
 
 Two rows the flag does not lift, though both read `OWNER`, because lifting them
 would undo what the mark is for. `tasks back` marks a row so nothing relaunches
-it unseen: lifted, every hand-back would launch again on the next wake and the
-night would spin on it. `tasks place` writes `OWNER` as the cautious value:
-lifted, whatever opened during the night, or a follow-up an executor filed,
-would launch unread and could feed itself. `state.json` already names both, as
-a group's `returned` keys and as `placed`, so they stay held, the first read as
-drained rather than held, the second reported as it is on any night.
+it unseen, so on a flagged run it adds `tried under --berserk`, which every
+flagged run reads as held, this one and a later one: lifted, a hand-back would
+launch again on the next wake, and a row whose PR was closed on purpose would
+be reopened. The row has failed once, and an owner who wants it tried again
+removes the words. A plain night's hand-back reads `OWNER` alone, which is the
+row the flag is for. `tasks place` writes `OWNER` as the cautious value: lifted,
+whatever opened during the night, or a follow-up an executor filed, would launch
+unread and could feed itself, so a row in `state.json`'s `placed` stays held and
+is reported as it is on any night.
 
 `wake` records what it released, with the reason, from the read that launched
 it, so the report need not re-derive a row that has left the list. **Decided

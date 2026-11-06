@@ -258,6 +258,20 @@ class BerserkTests(unittest.TestCase):
         self.assertEqual((False, "waits on a human"), db.ready(group_of(row), set(), TODAY, None, True, {"#1700"}))
         self.assertEqual((True, ""), db.ready(group_of(row), set(), TODAY, None, True, {"#1"}))
 
+    def test_back_on_a_flagged_run_keeps_the_rest_of_the_cell_beside_its_mark(self):
+        for depends, marked in (("none", f"OWNER; {db.TRIED}"), ("OWNER", f"OWNER; {db.TRIED}"),
+                                ("OWNER; 2026-10-01", f"OWNER; {db.TRIED}; 2026-10-01"),
+                                (f"OWNER; {db.TRIED}", f"OWNER; {db.TRIED}")):
+            with self.subTest(depends=depends):
+                group = group_of(line(depends=depends))
+                text = tasks_of(line(depends=depends), line(number=1701, gid="Z2"))
+                moved = db.move_to_in_progress(text, group, "fix/x", ".claude/x", TODAY)
+                back = db.return_to_remaining(moved, [r.line for r in group.rows], {"#1700"}, True)
+                row = next(g for g in db.groups(db.parse_tasks(back)) if g.id == "Z1")
+                self.assertEqual(marked, row.rows[0].cells[db.DEPENDS])
+                self.assertEqual((False, db.TRIED), db.ready(row, set(), TODAY, None, True))
+                self.assertEqual((False, "waits on a human"), db.ready(row, set(), TODAY))
+
     def test_released_names_what_only_the_flag_made_ready_and_why(self):
         found = db.groups(db.parse_tasks(tasks_of(line(number=1, gid="A1"), line(number=2, gid="A2", depends="OWNER"),
                                                   line(number=3, gid="A3", labels="paused"))))
