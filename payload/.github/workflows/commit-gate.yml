@@ -26,13 +26,8 @@ jobs:
           # The decision below reads it too.
           fetch-depth: 0
 
-      # Dependabot's pull requests carry no PR trailer, so the gate stands
-      # down for one Dependabot opened and whose every commit Dependabot made,
-      # and runs for any commit made elsewhere; .github/commit-gate/README.md,
-      # How it runs. The commits decide, by author and committer together: who
-      # opened the pull request does not say who pushed to it, and a local
-      # amend or rebase keeps Dependabot as the author but makes the human the
-      # committer, where Dependabot's own commits and rebases have GitHub's.
+      # The opener alone is not enough: every commit's author and committer
+      # must be Dependabot's too; .github/commit-gate/README.md, How it runs.
       # No job condition: a skipped job passes a required check unjudged.
       - name: Decide whether this is Dependabot's own pull request
         id: dependabot
