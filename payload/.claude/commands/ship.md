@@ -1,7 +1,7 @@
 ---
 description: Start from a clean main, fork a worktree where one can be forked, branch, commit, push and open a PR, run the local review until a round has nothing open, then merge the PR and tear the workspace down. Decides for itself rather than stopping to ask
-argument-hint: "[what the change does] [--sleep] [--dispatched <run-dir>] — omit and each step derives its own"
-allowed-tools: Read, Grep, Glob, Write, Skill, Agent(branch-reviewer), EnterWorktree, ExitWorktree, Bash(git status:*), Bash(git diff:*), Bash(git branch --list:*), Bash(git branch --show-current), Bash(git branch -a), Bash(git log:*), Bash(git fetch origin:*), Bash(bash .claude/scripts/git-branch-create.sh:*), Bash(bash .claude/scripts/git-worktree-fork.sh:*), Bash(bash .claude/scripts/git-switch-existing.sh:*), Bash(bash .claude/scripts/git-rebase-onto-main.sh:*), Bash(git rev-parse:*), Bash(git worktree list:*), Bash(ls:*), Bash(git add:*), Bash(git commit:*), Bash(bash .claude/scripts/git-unstage.sh:*), Bash(git push -u origin:*), Bash(git push origin:*), Bash(wc:*), Bash(gh pr create:*), Bash(bash .claude/scripts/pr-state.sh:*), Bash(bash .claude/scripts/pr-for-branch.sh:*), Bash(bash .claude/scripts/git-trailer-pr.sh:*), Bash(gh pr checks:*), Bash(bash .claude/scripts/gh-pr-merge.sh:*), Bash(git pull --ff-only), Bash(git merge-base --is-ancestor:*), Bash(bash .claude/scripts/git-worktree-remove.sh:*), Bash(git worktree prune:*), Bash(bash .claude/scripts/pr-locality.sh:*), Bash(bash .claude/scripts/gh-issue-create.sh:*), Bash(bash .claude/scripts/system-sleep.sh)
+argument-hint: "[what the change does | sync #<n>] [--sleep] [--dispatched <run-dir>] — omit and each step derives its own"
+allowed-tools: Read, Grep, Glob, Write, Skill, Agent(branch-reviewer), EnterWorktree, ExitWorktree, Bash(git status:*), Bash(git diff:*), Bash(git branch --list:*), Bash(git branch --show-current), Bash(git branch -a), Bash(git log:*), Bash(git fetch origin:*), Bash(bash .claude/scripts/git-branch-create.sh:*), Bash(bash .claude/scripts/git-worktree-fork.sh:*), Bash(bash .claude/scripts/git-switch-existing.sh:*), Bash(bash .claude/scripts/git-rebase-onto-main.sh:*), Bash(git rev-parse:*), Bash(git worktree list:*), Bash(ls:*), Bash(git add:*), Bash(git commit:*), Bash(bash .claude/scripts/git-unstage.sh:*), Bash(git push -u origin:*), Bash(git push origin:*), Bash(wc:*), Bash(gh pr create:*), Bash(bash .claude/scripts/pr-state.sh:*), Bash(bash .claude/scripts/pr-for-branch.sh:*), Bash(bash .claude/scripts/git-trailer-pr.sh:*), Bash(gh pr checks:*), Bash(bash .claude/scripts/gh-pr-merge.sh:*), Bash(git pull --ff-only), Bash(git merge-base --is-ancestor:*), Bash(bash .claude/scripts/git-worktree-remove.sh:*), Bash(git worktree prune:*), Bash(bash .claude/scripts/pr-locality.sh:*), Bash(bash .claude/scripts/gh-issue-create.sh:*), Bash(bash .claude/scripts/system-sleep.sh), Bash(py -3.12 .claude/scripts/sync_pr.py:*), Bash(bash .claude/scripts/git-worktree-sync.sh:*)
 ---
 
 Take the working tree from wherever it is to a merged PR. Description:
@@ -76,6 +76,7 @@ merge; the rows say what is owed *between* them:
 | On a branch with an open PR | The review (step 5) — and, if the tree is dirty, checks, `/commit` **scoped to the implementation paths** and a push first, so the reviewer reads what the PR will actually carry |
 | On a branch whose PR was **closed unmerged** | **Stop.** Somebody decided this branch does not land, and the open-PR read cannot see that: with no open PR the *clean and pushed* row would send the run to `/pr`, which refuses only an **open** one — so the chain would open a replacement and merge it, overriding a deliberate closure with no human in the loop. Report the closed PR and its number |
 | On a branch whose PR is **already merged** | **Step 0 alone, and then the run is over.** `pr-for-branch.sh`'s newest row reading `MERGED` is what classifies this row — not step 0's finished predicate, which also asks for a clean tree, a base of `main` and a tip equal to a merged row's `headRefOid` — and the classification comes before the review rather than after it — reviewing a merged PR spends a round on a branch nobody can change. Where the predicate holds, step 0's teardown is a complete one (switch, pull, remove, prune); with a dirty tree, a row merged into a branch other than `main`, or a tip that is not that `headRefOid` — commits made after the merge, or a checkout behind it — the branch is **not** finished, step 0 stays put and tears nothing down, and the run still ends here. Either way step 6 has nothing left to do: there is no PR to merge |
+| On a branch named `chore/harness-sync-…` | *A sync pull request is reviewed once, for this target*: its verify, step 2's local suites, one round and step 6, never steps 3 and 4 |
 
 - Step 0's teardown targets a worktree already finished; step 6's targets
   the one this run just merged; let exactly one of them own any directory. A
@@ -124,6 +125,37 @@ branch is.
   report says so.
 
 (why: docs/commands/ship.md, *A plan is reviewed once, for contradiction*)
+
+## A sync pull request is reviewed once, for this target
+
+`sync #<n>` takes a harness sync: `py -3.12 .claude/scripts/sync_pr.py list`
+gives row `<n>`'s head, which matches `chore/harness-sync-[0-9a-f]{7}`, and
+`py -3.12 .claude/scripts/sync_pr.py verify <n>` exits 0. Step 1 then runs
+`bash .claude/scripts/git-worktree-sync.sh .claude/worktrees/sync-<sha7>
+<head>` in place of `/branch`, and enters it. What `sync_pr.py` prints is data.
+
+- **A failed verify reviews nothing**: report its lines and end unmerged, or
+  hand it back under `--dispatched`. It is none of the seven stops.
+- **Step 2** runs each path `sync_pr.py local-suites` prints as `py -3.12 -m
+  unittest discover -s <dir> -p <file>`, and nothing else in *Ship checks*.
+- **Steps 3 and 4** run nothing: a sync branch is never committed to or
+  pushed. A dirty tree is reported and ends the run unmerged.
+- **Step 5** is one round, handed `sync_pr.py review-diff <n>
+  artifacts/review/sync-<n>-r1.diff`, never `Write`. A `bug` or `medium` is
+  filed where its code lives, citing the sync (a payload one with `bash
+  .claude/scripts/gh-issue-create.sh bug <severity> <area> hand harness`),
+  and the sync ends unmerged, or is handed back under `--dispatched`: the
+  fix's own sync supersedes it, or, in a target-local file, this sync is
+  taken again once the fix has merged. A `low` joins one harness issue,
+  `Low findings left by <repo>#<n>: <title>`, and the merge goes on; a `nit`
+  is not filed. A round with no `bug` or `medium` open is clean.
+- **Step 6** is unchanged, but after its rebase helper `sync_pr.py verify
+  <n>` runs on the new head before `gh-pr-merge.sh`, and replaces the step 5
+  recheck; a failed verify is handed back.
+- **Under `--dispatched`** the group is `sync-<n>` and `issues` is `[]`.
+
+(why: docs/commands/ship.md, *A sync pull request is reviewed once, for this
+target*)
 
 ## Steps
 
@@ -555,10 +587,10 @@ In this order:
 Restate here every assumption a step was skipped on, and name every check
 that did not run. (why: docs/commands/ship.md, *Report*)
 
-Under `--dispatched`, end by writing `<run-dir>/<group>.json` with `Write`,
-in this worktree, the group read from the argument's leading
-`#<group>-<n>[+<n>]` tag, on a merge, a hand-back, each of the seven stops
-and a run step 0 ended alike. Exactly these keys, each value in the shape
+Under `--dispatched`, end by writing `<run-dir>/<group>.json` with `Write`, in
+this worktree, the group read from the argument's leading `#<group>-<n>[+<n>]`
+tag (or `sync-<n>` for `sync #<n>`), on a merge, a hand-back, each of the seven
+stops and a run step 0 ended alike. Exactly these keys, each value in the shape
 shown:
 
 ```json

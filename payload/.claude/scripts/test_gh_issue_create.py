@@ -110,10 +110,11 @@ class IssueHelperHasNoFreeParameter(unittest.TestCase):
             result.stderr,
         )
 
-    def test_the_argument_count_is_exactly_four(self):
+    def test_the_argument_count_is_four_or_five_with_the_closed_word(self):
         # A title on the command line is a free parameter: it crosses the
         # parent's shell before the helper runs. A call missing the area is
-        # refused rather than read with the route in the area's place.
+        # refused rather than read with the route in the area's place; a
+        # fifth word is read only as the repository word, which has its own case.
         self.assert_refused_before_gh(self.run_helper("bug", body=self.STDIN))
         self.assert_refused_before_gh(self.run_helper("bug", "low", body=self.STDIN))
         self.assert_refused_before_gh(self.run_helper("bug", "low", "sweep", body=self.STDIN))
@@ -364,6 +365,37 @@ class IssueHelperHasNoFreeParameter(unittest.TestCase):
         d = Path(self.dir)
         self.assertEqual(body, (d / "body").read_text(encoding="utf-8"))
         self.assertEqual("*", (d / "conv").read_text(encoding="utf-8").strip())
+
+    def test_a_fifth_word_of_harness_files_in_the_harness_and_nothing_else_does(self):
+        # /ship's sync row files a payload finding from a target, where the checkout names the wrong repository.
+        # The word is a closed set of one: a repository name, a flag or a near spelling is a free parameter.
+        result = self.run_helper("bug", "high", "harness", "hand", "harness", body=self.HAND_STDIN)
+        self.assertEqual(0, result.returncode, result.stderr)
+        create = [c for c in self.calls() if c.startswith("issue create ")]
+        self.assertEqual(1, len(create), self.calls())
+        self.assertIn("--repo alexander-shamray/blueprint-harness ", create[0])
+        self.assertNotIn("acme/widgets", " ".join(self.calls()))
+        self.assertIn("--label bug ", create[0])
+        self.assertIn("--label high ", create[0])
+        self.assertIn("--label harness ", create[0])
+        self.assertEqual(f"the body\n\n{self.HAND_TRAILER}\n", (Path(self.dir) / "body").read_text(encoding="utf-8"))
+        for word in ("Harness", "harness ", " harness", "sweep", "code", "", "-R", "--repo", "other/repo",
+                     "alexander-shamray/blueprint-harness", "harness,code", "harnes", "harnesss"):
+            with self.subTest(word=word):
+                Path(self.dir, "argv").unlink(missing_ok=True)
+                refused = self.run_helper("bug", "high", "harness", "hand", word, body=self.HAND_STDIN)
+                self.assert_refused_before_gh(refused)
+                self.assertIn("not a repository word", refused.stderr)
+        Path(self.dir, "argv").unlink(missing_ok=True)
+        self.assert_refused_before_gh(
+            self.run_helper("bug", "high", "harness", "hand", "harness", "harness", body=self.HAND_STDIN))
+
+    def test_four_arguments_still_file_in_the_checkouts_repository(self):
+        result = self.run_helper("bug", "high", "harness", "hand", body=self.HAND_STDIN)
+        self.assertEqual(0, result.returncode, result.stderr)
+        create = [c for c in self.calls() if c.startswith("issue create ")]
+        self.assertIn("--repo acme/widgets ", create[0])
+        self.assertTrue(any("repo view" in c for c in self.calls()), self.calls())
 
     def test_force_is_never_spelled(self):
         text = self.HELPER.read_text(encoding="utf-8")
