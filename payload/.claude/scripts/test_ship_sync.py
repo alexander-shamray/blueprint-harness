@@ -103,6 +103,12 @@ class TheSyncRow(unittest.TestCase):
         # The helper only creates on a first filing: on a re-take it comments on the open issue of that title.
         self.assertIn("which the helper adds a comment to when one is open under that title", step)
         self.assertIn("a target-local low into the target's own, filed with gh-issue-create.sh", step)
+        # The title-only check files nothing for a low a re-take newly raises, so the run's report is where it stays.
+        self.assertIn("a low that issue does not list stays in the run's report", step)
+        self.assertIn("A low that issue does not list stays in the run's report",
+                      flat(ARGUMENT.read_text(encoding="utf-8")))
+        self.assertIn("where an open issue already holds that title nothing is filed",
+                      flat(ARGUMENT.read_text(encoding="utf-8")))
         self.assertNotIn("joins", step)
         self.assertIn("gh-issue-harness.sh bug <severity> <area>", step)
         self.assertIn("the area by tree: .claude/ is harness, other prose documentation, the rest code, with test "
