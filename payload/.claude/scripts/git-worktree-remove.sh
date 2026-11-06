@@ -16,9 +16,8 @@ path="$1"
 branch="$2"
 [[ "$path" =~ ^\.claude/worktrees/[A-Za-z0-9][A-Za-z0-9._-]*$ ]] ||
   { echo "path must be .claude/worktrees/<name>" >&2; exit 2; }
-# Admits `()`, which the helpers that make a name do not: `.claude/scripts` is
-# common to every target, and one may still hold a branch cut with a scope, which
-# removing must not wait on a rename for.
+# The pattern git-branch-create.sh and git-worktree-fork.sh use, which admits
+# `()` because `/branch` cuts `feat(<scope>)/` names.
 [[ "$branch" =~ ^[A-Za-z0-9][A-Za-z0-9._/()-]*$ ]] && [[ "$branch" != *..* ]] ||
   { echo "not a branch name this helper will take: $branch" >&2; exit 2; }
 # Folded, as git-rebase-onto-main.sh folds it: a case-insensitive host's `Main`
