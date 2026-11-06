@@ -1075,8 +1075,12 @@ branch holds when it runs: the read of the pull requests takes seconds, and a
 commit landing in that window would go with the branch. The worktree check
 runs last, because `update-ref` does not make it, and the branch's
 configuration section, which `update-ref` leaves, is removed after the delete.
-Its residual is a worktree that checks the branch out between that check and
-the delete.
+The check and the delete are two steps, so the check runs again after it: a
+worktree that took the branch between them, or a second read that fails, puts
+the branch back at the tip, where no commit can have gone, and exits 4 or 12
+as the first read would have. Its residual is a commit made in that worktree
+in the instant the branch is gone, and a branch that cannot be put back, which
+exits 4 and names the `git branch` line that restores it.
 
 Its exit codes, in the rebase helper's meanings where one fits: 0 dropped; 2
 usage, or a name it will not take, a symbolic ref among them; 3 the branch is
