@@ -11,6 +11,7 @@ from harness_sync.legs import REACH, changed_paths, reaches, should_test
 
 ROOT = Path(__file__).resolve().parents[2]
 CI = ROOT / ".github" / "workflows" / "ci.yml"
+RENDERED = {"settings.json": "payload/.harness/settings.base.json"}
 IDENTITY = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
 
 
@@ -99,6 +100,14 @@ class WhatTheFilterLooksAtTests(unittest.TestCase):
                 rel = f"payload/.claude/scripts/{suite}"
                 self.assertTrue((ROOT / rel).is_file())
                 self.assertTrue(reaches([rel]))
+
+    def test_every_file_a_leg_suite_reads_beside_it_is_reached(self) -> None:
+        for suite in re.findall(r'-p "(test_\w+\.py)"', "\n".join(_code_lines(CI))):
+            text =(ROOT / "payload/.claude/scripts" / suite).read_text(encoding="utf-8")
+            for chain in re.findall(r'SCRIPTS\.parent((?:\s*/\s*"[^"]+")+)', text):
+                rel = "/".join(re.findall(r'"([^"]+)"', chain))
+                with self.subTest(suite=suite, rel=rel):
+                    self.assertTrue(reaches([RENDERED.get(rel, f"payload/.claude/{rel}")]))
 
     def test_every_leg_step_obeys_the_decision(self) -> None:
         conditions = [line.strip() for line in _code_lines(CI) if "matrix.os != 'ubuntu-latest'" in line]
