@@ -44,7 +44,8 @@ its sessions run under the harness it develops.
 
 - **Rendered from `payload/`**: `.claude/**`, `docs/commands/**`,
   `docs/harness/**`, `docs/harness-boundaries.md`, the managed files under `.github/` (the gate
-  directories, `ISSUE_TEMPLATE/`, and the `closure-gate`, `comment-gate`,
+  directories but `output-gate`, a .NET gate `.harness/config.json` excludes
+  here, `ISSUE_TEMPLATE/`, and the `closure-gate`, `comment-gate`,
   `commit-gate` and `harness-drift` workflows), `.harness/render.py`,
   `.harness/settings.base.json`, `.harness/agent-rules.md` and
   `.harness/manifest.json`.
