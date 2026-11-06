@@ -60,6 +60,7 @@ import re
 import shlex
 import sys
 import traceback
+from bisect import bisect_left
 
 # Flags that write or execute rather than inspect. Matched on a prefix, so
 # `--exec-path=<dir>` — a directory of binaries for git to run — is the same act
@@ -292,7 +293,7 @@ def quote_states(command, quotes=True):
     return states
 
 
-def _quoting(command, quotes=True, data=()):
+def _quoting(command, quotes=True, data=(), start=0):
     """Walk `command`, yielding `(index, state, escaped)` per character.
 
     `data` is spans this scanner must read as data rather than as shell text —
@@ -333,7 +334,7 @@ def _quoting(command, quotes=True, data=()):
     # one: in `git log --grep=foo\\ #bar;git push origin +HEAD:main` bash keeps
     # `#bar` inside the `--grep` argument and runs the push.
     at_word_start = True
-    index = 0
+    index = start  # Read as unquoted and as beginning a word.
     # Whether this character is the one the backslash before it escapes.
     pending = False
     # A cursor rather than a search: this walk is monotonic, so the spans are
@@ -417,24 +418,71 @@ def _quoting(command, quotes=True, data=()):
         index += 1
 
 
-def _arithmetic_spans(line):
-    """Every outermost `((…))` in `line`, `$((…))` included, in order."""
-    # A sum closes on `))`: `((a) | b)` is two subshells. One pass over a stack,
-    # because `_closing_paren` per sum is quadratic and a timeout fails open.
-    found, stack, previous = [], [], None
-    for index, state, escaped in _quoting(line):
+def _sums_in_group(command, start):
+    """Whether each `(` of the group opening at `start` opens a sum, and its end."""
+    # As bash decides a `((`: quotes are read and heredocs are not. A sum closes
+    # on `))`: `((a) | b)` is two subshells. One pass over a stack, because
+    # `_closing_paren` per sum is quadratic and a timeout fails open.
+    verdicts, stack, previous = {}, [], None
+    for index, state, escaped in _quoting(command, start=start):
         if state or escaped:
             continue
-        if line[index] == "(":
+        if command[index] == "(":
             stack.append(index)
-        elif line[index] == ")" and stack:
-            start = stack.pop()
-            if previous == (start + 1, index - 1):
-                while found and found[-1][0] > start:
-                    found.pop()
-                found.append((start, index))
-            previous = (start, index)
-    return found
+        elif command[index] == ")":
+            opener = stack.pop()
+            verdicts[opener] = previous == (opener + 1, index - 1)
+            previous = (opener, index)
+            if not stack:
+                return verdicts, index + 1
+    verdicts.update(dict.fromkeys(stack, False))
+    return verdicts, len(command)
+
+
+class _Sums:
+    """Which `<<` are shifts, for the walk `heredoc_spans` makes.
+
+    A group is read ahead only where a `<<` needs the verdict, and no two reads
+    overlap, so the walk stays linear.
+    """
+
+    def __init__(self, command):
+        self.command = command
+        # The parens open at the walk, those a `$` leads, and each `((` among
+        # them not yet refused, named by its outer paren. All three ascend.
+        self.opened, self.substitutions, self.pairs = [], [], []
+        self.verdicts, self.read_to = {}, 0
+
+    def open(self, index):
+        if self.opened and self.opened[-1] == index - 1:
+            self.pairs.append(index - 1)
+        if self.command[index - 1:index] == "$":
+            self.substitutions.append(index)
+        self.opened.append(index)
+
+    def close(self):
+        if not self.opened:
+            return
+        index = self.opened.pop()
+        for parens in (self.substitutions, self.pairs):
+            if parens and parens[-1] == index:
+                parens.pop()
+
+    def is_shift(self):
+        """Whether a `<<` here is in a sum, with no `$(…)` between them."""
+        pairs, substitutions = self.pairs, self.substitutions
+        while pairs:
+            if pairs[-1] >= self.read_to:
+                first = pairs[bisect_left(pairs, self.read_to)]
+                verdicts, self.read_to = _sums_in_group(self.command, first)
+                self.verdicts.update(verdicts)
+            # A read that did not see this paren is one a body's lone quote put
+            # out of step, which is a syntax error in bash too. Reading a shift
+            # opens no body, so the lines after it stay commands.
+            if self.verdicts.get(pairs[-1], True):
+                return not substitutions or substitutions[-1] <= pairs[-1]
+            pairs.pop()
+        return False
 
 
 def heredoc_spans(command, unclosed=None, openers=None):
@@ -465,35 +513,18 @@ def heredoc_spans(command, unclosed=None, openers=None):
     # appends spans that start ahead of it, so the list is sorted by
     # construction and the walk stays monotonic.
     data, spans, pending = [], [], 0
-    # Sums are read a line at a time, because an earlier body's apostrophe would
-    # quote every later one, and no body shares a line with an opener. A sum
-    # spanning lines, or hard against the `#` after a string that crossed one,
-    # is missed, and its shift reads as an opener.
-    sums, line_end, unquoted, crossed = [], 0, 0, False
-    for index, in_quotes, in_comment in shell_positions(command, data):
-        # `pending` tells a string's newline from a body's.
-        if in_quotes and index >= pending and command[index] == "\n":
-            crossed = True
-        if in_quotes or in_comment:
+    sums = _Sums(command)
+    for index, state, escaped in _quoting(command, data=data):
+        if state:
             continue
-        if crossed and command[index] in "'\"":
-            # From its line's start, this closing quote would read as opening.
-            unquoted, crossed = index + 1, False
-            continue
-        if not command.startswith("<<", index):
-            continue
-        if index >= line_end:
-            line_start = max(command.rfind("\n", 0, index) + 1, unquoted)
-            line_end = command.find("\n", index)
-            line_end = len(command) if line_end == -1 else line_end
-            # Reversed, so the walk pops the nearest as it passes them.
-            sums = [(line_start + start, line_start + end) for start, end
-                    in _arithmetic_spans(command[line_start:line_end])][::-1]
-        # A shift, not an opener. A heredoc in a `$(…)` nested in the sum lands
-        # here too, and its body is then judged as commands, which over-refuses.
-        while sums and sums[-1][1] <= index:
-            sums.pop()
-        if sums and sums[-1][0] <= index:
+        if command[index] == "(" and not escaped:
+            sums.open(index)
+        elif command[index] == ")" and not escaped:
+            sums.close()
+        # A backtick in a sum takes no part here, because a `<<` in one is
+        # skipped with the shifts: bash ends its text, and so its heredoc, at
+        # the backtick, so the lines after it are commands.
+        if not command.startswith("<<", index) or sums.is_shift():
             continue
         # `<<<` is a here-string: `cat <<<EOF` passes the word `EOF` on stdin
         # and the next line is an ordinary command, so matching `<<EOF` at its
