@@ -30,31 +30,29 @@ def run_bash(script, **env):
 
 # A remote, a checkout of it on `main`, and a branch with one commit, published.
 BUILD = '''
-root=$(mktemp -d)
-git init -q --bare --initial-branch=main "$root/remote.git"
-git init -q --initial-branch=main "$root/work"
-cd "$root/work"
+git init -q --bare --initial-branch=main "$R/remote.git"
+git init -q --initial-branch=main "$R/work"
+cd "$R/work"
 git config user.email test@example.invalid
 git config user.name Test
-git remote add origin "$root/remote.git"
+git remote add origin "$R/remote.git"
 echo base > a.txt && git add -A && git commit -qm "the base"
 git push -q -u origin main
 git checkout -qb feat/x
 echo work > b.txt && git add -A && git commit -qm "the branch work"
 git push -q -u origin feat/x
 git checkout -q main
-printf %s "$root"
 '''
 
 
 class Fixture(unittest.TestCase):
 
     def setUp(self):
-        built = run_bash(BUILD)
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.root = Path(scratch.name).as_posix()
+        built = run_bash(BUILD, R=self.root)
         self.assertEqual(0, built.returncode, built.stderr)
-        self.root = built.stdout.strip()
-        self.assertTrue(self.root, "the fixture produced no path")
-        self.addCleanup(lambda: run_bash('rm -rf "$R"', R=self.root))
         self.work = self.root + "/work"
         holder = tempfile.TemporaryDirectory(prefix="ghstub-")
         self.addCleanup(holder.cleanup)
