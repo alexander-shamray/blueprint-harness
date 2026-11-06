@@ -139,9 +139,10 @@ cannot buy it a second.
 is.** Any same-repository branch can be named `chore/harness-sync-xxxxxxx`;
 `verify` is what shows the head holds the payload at a commit on the harness's
 `main`, holds the settings it renders, and changes nothing the config keeps
-(`docs/harness-boundaries.md`, *Grant inventory and push helpers*). It runs in the main checkout before a
-worktree exists, and a head that fails it is neither checked out nor reviewed,
-because the review that follows would be of a diff nobody proved. That is not
+(`docs/harness-boundaries.md`, *Grant inventory and push helpers*). It runs in
+the main checkout before a worktree exists, and a head that fails it is neither
+checked out nor reviewed, because the review that follows would be of a diff
+nobody proved. That is not
 one of the seven stops, which are things that failed while the chain ran and
 here nothing ran, but for two cases: a PR closed or merged under the run fails
 the verify as not a sync, so `pr-state.sh <n>` is read. `CLOSED` is the

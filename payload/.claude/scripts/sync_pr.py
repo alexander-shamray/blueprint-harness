@@ -1,8 +1,7 @@
 """A sync pull request: `list`, `verify <n>`, `review-diff <n> <out>` and `local-suites`.
 
-A branch name proves nothing, so `verify` repeats CI's drift gate checks before a sync is reviewed or launched, the
-rendered settings.json among them, since an executor loads that file before CI has judged it. What it reads from
-GitHub is data, and a read it could not complete fails the check (docs/harness-boundaries.md).
+A branch name proves nothing, so `verify` repeats CI's drift gate checks, rendered settings included, before a sync is
+reviewed or launched. What it reads is data, and a read it cannot complete fails (docs/harness-boundaries.md).
 """
 
 import argparse
