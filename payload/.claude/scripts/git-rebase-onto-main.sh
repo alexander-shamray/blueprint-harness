@@ -47,6 +47,19 @@ case "$lowered" in
     echo "refusing to rebase or force-push main, spelled $branch" >&2; exit 3 ;;
 esac
 
+# A target's hooks never run inside this helper: a `pre-rebase`, `post-rewrite`,
+# `pre-push` or `reference-transaction` hook of its own would run in, and could
+# veto or alter, a replay of published history. `core.hooksPath` is an empty
+# directory made for the run, set once through the environment before any git
+# runs, so every git started after it, the sequencer's included, inherits it.
+# The entry is appended to any the caller already set.
+no_hooks=$(mktemp -d)
+trap 'rmdir "$no_hooks" 2>/dev/null || :' EXIT
+hook_entry="${GIT_CONFIG_COUNT:-0}"
+export "GIT_CONFIG_KEY_$hook_entry=core.hooksPath" \
+  "GIT_CONFIG_VALUE_$hook_entry=$no_hooks" \
+  "GIT_CONFIG_COUNT=$((hook_entry + 1))"
+
 # Both state directories, although `start` only ever makes rebase-merge: a
 # rebase this helper did not start may be either, and it has to be seen to be
 # refused. A function, because the answer moves: a replay that stops leaves
