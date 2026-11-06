@@ -769,11 +769,11 @@ class TheGitArgvGuard(unittest.TestCase):
                 "((a)) " * 15000 + "<<4 ; git push origin +HEAD:main"
             ),
         )
-        # The same for a `((` left open: read ahead at each `<<` in it instead
-        # of once, these miss the timeout too.
+        # The same for reading ahead: done at each `<<` in a `((` left open, or
+        # in one long sum, rather than once, these miss the timeout too.
         for nest in (
             f"((cat <<A{NEWLINE}A{NEWLINE}" * 8000,
-            "(" * 30000 + " <<4" * 15000 + NEWLINE,
+            "((" + "1<<4 " * 15000 + "))" + NEWLINE,
         ):
             self.assertIn(
                 "force push", self.assertRefused(f"{nest}git push origin +HEAD:main")
