@@ -364,7 +364,7 @@ hide a command from a hook exposed the next one, and none of them is how an
 agent doing ordinary work goes wrong, so such a spelling is recorded in the
 summary as outside the model rather than filed. What the model admits as a
 finding, and why, is the section *The guards' threat model* in
-blueprint-backend's `docs/harness-boundaries.md`.
+`docs/harness-boundaries.md`.
 
 ## Fan out
 
