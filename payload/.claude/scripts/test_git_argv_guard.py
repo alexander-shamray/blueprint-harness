@@ -650,6 +650,8 @@ class TheGitArgvGuard(unittest.TestCase):
             f"git push origin +HEAD:main{NEWLINE}2",
             f"(( n = $(wc -l <<'EOF'{NEWLINE}a){NEWLINE}EOF{NEWLINE}) + (1<<2) )){NEWLINE}"
             f"git push origin +HEAD:main{NEWLINE}2",
+            f"n=$(( $(echo $((1<<4)); cat <<'EOF'{NEWLINE}it{NEWLINE}EOF{NEWLINE}) + (1<<4) )){NEWLINE}"
+            f"git push origin +HEAD:main{NEWLINE}4",
         ):
             with self.subTest(command=command):
                 self.assertIn("force push", self.assertRefused(command))

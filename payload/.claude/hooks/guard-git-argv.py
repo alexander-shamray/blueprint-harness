@@ -479,11 +479,14 @@ def _sums_in_group(command, start):
     # subshells. One pass over a stack, because `_closing_paren` per sum is
     # quadratic and a timeout fails open.
     verdicts, stack, previous = {}, [], None
-    substitutions, ticked, bodies, pending, hunting = [], False, [], 0, True
+    substitutions, doubled, ticked = [], [], False
+    bodies, pending, hunting = [], 0, True
     for index, state, escaped in _quoting(command, data=bodies, start=start):
         if state or escaped:
             continue
         if command[index] == "(":
+            if stack and stack[-1] == index - 1:
+                doubled.append(index - 1)
             stack.append(index)
             if (command[index - 1:index] == "$"
                     and command[index + 1:index + 2] != "("):
@@ -492,13 +495,15 @@ def _sums_in_group(command, start):
             opener = stack.pop()
             verdicts[opener] = previous == (opener + 1, index - 1)
             previous = (opener, index)
-            if substitutions and substitutions[-1] == opener:
-                substitutions.pop()
+            for parens in (substitutions, doubled):
+                if parens and parens[-1] == opener:
+                    parens.pop()
             if not stack:
                 return verdicts, index + 1
         elif command[index] == "`":
             ticked = not ticked
-        elif (substitutions or ticked) and hunting and command.startswith("<<", index):
+        elif hunting and command.startswith("<<", index) and (
+                ticked or (substitutions and (not doubled or doubled[-1] < substitutions[-1]))):
             body = _opened_body(command, index, pending)
             if body is None:
                 continue
