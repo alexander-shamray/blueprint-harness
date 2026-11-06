@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from review_helpers import SCRIPTS, code_lines, git_commands, run_bash, setUpModule  # noqa: F401
+from review_helpers import SCRIPTS, code_lines, git_commands, run_bash, setUpModule, temp_root  # noqa: F401
 
 TRAILER = SCRIPTS / "git-trailer-pr.sh"
 REVERT = SCRIPTS / "git-revert-pr.sh"
@@ -43,10 +43,7 @@ def sh(script, **env):
 
 class Fixture(unittest.TestCase):
     def setUp(self):
-        # Made here, not by `mktemp -d`: its MSYS path is one Python on Windows cannot open, so nothing removed it.
-        holder = tempfile.TemporaryDirectory()
-        self.addCleanup(holder.cleanup)
-        self.root = Path(holder.name).as_posix()
+        self.root = temp_root(self)
         built = run_bash(
             BUILD, ROOT=self.root, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", GIT_CONFIG_NOSYSTEM="1")
         self.assertEqual(0, built.returncode, built.stderr)
