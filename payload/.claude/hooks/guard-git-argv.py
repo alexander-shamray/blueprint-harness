@@ -495,7 +495,8 @@ def heredoc_spans(command, unclosed=None, openers=None):
             line_end = len(command) if line_end == -1 else line_end
             sums = [(line_start + start, line_start + end) for start, end
                     in _arithmetic_spans(command[line_start:line_end])][::-1]
-        # A shift, not an opener.
+        # A shift, not an opener. A heredoc in a `$(…)` nested in the sum lands
+        # here too, and its body is then judged as commands, which over-refuses.
         while sums and sums[-1][1] <= index:
             sums.pop()
         if sums and sums[-1][0] <= index:
