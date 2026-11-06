@@ -426,9 +426,9 @@ def _arithmetic_spans(line):
 
     A line rather than a whole command: `heredoc_spans` is still finding the
     bodies, and an apostrophe in an earlier one would put every later sum in
-    quotes. No body shares a line with an opener. A sum spanning lines, or
-    holding a quote before its shift, is not found, so that shift reads as an
-    opener, as it did before this existed.
+    quotes. No body shares a line with an opener. A sum spanning lines is not
+    found, nor one hard against the `#` after a string that crossed a line, so
+    its shift reads as an opener, as it did before this existed.
     """
     found, stack, previous = [], [], None
     for index, state, escaped in _quoting(line):
@@ -479,13 +479,17 @@ def heredoc_spans(command, unclosed=None, openers=None):
     # construction and the walk stays monotonic.
     data, spans, pending = [], [], 0
     # The sums on the line ending at `line_end`, consumed from the end, nearest
-    # first, as the walk passes them. `unquoted` is past the walk's last quote,
-    # because a string closing on this line would read as opening from its start.
-    sums, line_end, unquoted = [], 0, 0
+    # first, as the walk passes them. `unquoted` is past the last string that
+    # crossed a line, whose closing quote would read as opening from its line's
+    # start; `pending` tells a string's newline from a body's.
+    sums, line_end, unquoted, crossed = [], 0, 0, False
     for index, in_quotes, in_comment in shell_positions(command, data):
-        # A closing quote is the one quote character the walk calls unquoted.
-        if in_quotes or in_comment or command[index] in "'\"":
-            unquoted = index + 1
+        if in_quotes and index >= pending and command[index] == "\n":
+            crossed = True
+        if in_quotes or in_comment:
+            continue
+        if crossed and command[index] in "'\"":
+            unquoted, crossed = index + 1, False
             continue
         if not command.startswith("<<", index):
             continue
