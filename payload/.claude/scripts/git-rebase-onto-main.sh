@@ -372,14 +372,20 @@ case "$mode" in
     require_no_merge_invented_anything
     remember_lease
 
-    # The flags are spelled rather than inherited. `rebase.rebaseMerges` would
-    # keep the merge commits this helper exists to be rid of, and
-    # `rebase.updateRefs` would force-update other local branches' refs as a
-    # side effect — both from configuration this script does not own. The
-    # apply backend, `rebase.backend`'s other choice, leaves a commit it never
-    # applied looking exactly like one a resolution emptied.
+    # The flags are spelled rather than inherited, one for every `rebase.*` key
+    # that changes which commits are replayed or what the tree is while they
+    # are. `rebase.rebaseMerges` would keep the merge commits this helper
+    # exists to be rid of; `rebase.updateRefs` would force-update other local
+    # branches' refs as a side effect; `rebase.autoSquash` would fold a
+    # `fixup!` commit into the one it names; `rebase.forkPoint` would choose a
+    # different base; `rebase.autoStash` would carry through a dirty tree that
+    # this helper refuses to start with. All come from configuration this
+    # script does not own, and the result is force-pushed. The apply backend,
+    # `rebase.backend`'s other choice, leaves a commit it never applied looking
+    # exactly like one a resolution emptied.
     before=$(git rev-parse HEAD)
-    git rebase --merge --no-rebase-merges --no-update-refs "refs/remotes/origin/main" || stopped
+    git rebase --merge --no-rebase-merges --no-update-refs --no-autosquash \
+      --no-fork-point --no-autostash "refs/remotes/origin/main" || stopped
     remember_replay "$(git rev-parse HEAD)" "$before"
     publish
     ;;
