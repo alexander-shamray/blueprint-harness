@@ -50,8 +50,8 @@ A push whose destination is not the branch you are on is not this step.
 ## Title
 
 One line, semantic prefix, the same form as the commits. It names the change,
-not the file count. Where the branch implements a delivery-plan PR, use
-Appendix C's title verbatim.
+not the file count. Where the branch implements a PR on the roadmap
+`docs/harness-local.md` *Documents* names, use its title verbatim.
 
 A branch carrying several related commits takes a title that covers them
 honestly — `chore: Claude Code guidance, explicit types in samples, and the

@@ -43,7 +43,7 @@ CODE_NAMES = {
 # A path a target creates as it runs, never one it holds in its tree.
 RUNTIME = (".claude/worktrees/", ".claude/projects/", ".claude/cache/")
 # A repository path: one of the trees the payload is laid out in, naming a file by its extension or a directory by
-# its trailing slash, or the target's CLAUDE.md. A bare `docs/split-by-chapter` is a branch name, not a path.
+# its trailing slash, or the target's CLAUDE.md. A bare `docs/split-the-runbook` is a branch name, not a path.
 _PATH = re.compile(
     r"(?<![\w./<>-])((?:\.claude|\.github|\.harness|docs)/[\w./*<>-]*(?:\.[A-Za-z]+|/)|CLAUDE\.md)(?![\w/{-])")
 # A cited path, written bare, in a code span or as a link's text, then its section in italics.

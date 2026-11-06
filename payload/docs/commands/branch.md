@@ -138,8 +138,8 @@ the diff says what it is.
 
 **A mixed tree takes the type of the change that carries the argument, not
 the one with the most files.** `chore/repo-guidance-and-explicit-types`
-touched `CLAUDE.md`, `.editorconfig` and nine chapters, and is `chore/`
-because the guidance change was the point and the chapter edits followed
+touched `CLAUDE.md`, `.editorconfig` and nine documents, and is `chore/`
+because the guidance change was the point and the document edits followed
 from it.
 
 Two genuinely unrelated changes cannot both be in the name. Say so, name the
@@ -153,7 +153,7 @@ what the branch is for rather than inventing a name.
 ## Step 3
 
 The type is the one the commit will carry, so the branch and its commits
-agree. A delivery-plan PR's name derives from its title so the branch, the
+agree. A roadmap PR's name derives from its title so the branch, the
 commit and the plan all read the same.
 
 ## Step 4
