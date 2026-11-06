@@ -583,12 +583,20 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertIn("force push", self.assertRefused(command))
 
-        # A shell fed from a `$(…)` in a sum reads its body as commands.
+        # A shell fed from a `$(…)` in a sum reads its body as commands: where
+        # the `$(…)` holds the body, that is the only reading that shows them.
         self.assertIn(
             "force push",
             self.assertRefused(
                 f"n=$(( $(bash <<'EOF') + 1 )){NEWLINE}"
                 f"git push origin +HEAD:main{NEWLINE}EOF"
+            ),
+        )
+        self.assertIn(
+            "handed to a shell on stdin",
+            self.assertRefused(
+                f"n=$(( $(bash <<'EOF'{NEWLINE}"
+                f"git push origin +HEAD:main{NEWLINE}EOF{NEWLINE}) + 1 ))"
             ),
         )
 
