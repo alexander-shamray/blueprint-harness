@@ -8,7 +8,7 @@ What a target holds by itself is `CLAUDE.md`, `docs/harness-local.md` (whose fou
 `docs/harness-boundaries.md` *Managed files* fixes), its `.harness/config.json` and `.harness/manifest.json`, the
 `.claude/settings.json` rendered from the payload, and the task list its config names. `docs/superpowers/` is the
 superpowers plugin's directory in every repository. And a site `IMPORT.md` *Stack mentions left verbatim* lists
-keeps its backend text until its issue lands; that section is read, not copied here.
+keeps its text for the reason its entry gives; that section is read, not copied here.
 """
 
 import json
