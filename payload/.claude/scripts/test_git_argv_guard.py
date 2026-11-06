@@ -595,10 +595,14 @@ class TheGitArgvGuard(unittest.TestCase):
                 with self.subTest(command=command):
                     self.assertIn("force push", self.assertRefused(command))
 
-        # An undecodable opener takes no place either: it opens no body.
-        self.assertRefused(
-            f"cat <<$'E\\x4fF'{NEWLINE}"
-            f"bash <<'EOF'{NEWLINE}git push origin +HEAD:main{NEWLINE}EOF"
+        # An undecodable opener takes no place either, since it opens no body.
+        # Read from `stdin_scripts`: `offence` refuses this before reaching it.
+        self.assertEqual(
+            [f"git push origin +HEAD:main{NEWLINE}EOF"],
+            list(self.guard_module().stdin_scripts(
+                f"cat <<$'E\\x4fF'{NEWLINE}"
+                f"bash <<'EOF'{NEWLINE}git push origin +HEAD:main{NEWLINE}EOF"
+            )),
         )
 
     def test_a_body_before_a_sum_does_not_hide_the_sum(self):
