@@ -1,7 +1,7 @@
 ---
 description: Start from a clean main, fork a worktree where one can be forked, branch, commit, push and open a PR, run the local review until a round has nothing open, then merge the PR and tear the workspace down. Decides for itself rather than stopping to ask
 argument-hint: "[what the change does | sync #<n>] [--sleep] [--dispatched <run-dir>] [--berserk] — omit and each step derives its own"
-allowed-tools: Read, Grep, Glob, Write, Skill, Agent(branch-reviewer), EnterWorktree, ExitWorktree, Bash(git status:*), Bash(git diff:*), Bash(git branch --list:*), Bash(git branch --show-current), Bash(git branch -a), Bash(git log:*), Bash(git fetch origin:*), Bash(bash .claude/scripts/git-branch-create.sh:*), Bash(bash .claude/scripts/git-worktree-fork.sh:*), Bash(bash .claude/scripts/git-switch-existing.sh:*), Bash(bash .claude/scripts/git-rebase-onto-main.sh:*), Bash(git rev-parse:*), Bash(git worktree list:*), Bash(ls:*), Bash(git add:*), Bash(git commit:*), Bash(bash .claude/scripts/git-unstage.sh:*), Bash(git push -u origin:*), Bash(git push origin:*), Bash(wc:*), Bash(gh pr create:*), Bash(bash .claude/scripts/pr-state.sh:*), Bash(bash .claude/scripts/pr-for-branch.sh:*), Bash(bash .claude/scripts/git-trailer-pr.sh:*), Bash(gh pr checks:*), Bash(bash .claude/scripts/gh-pr-merge.sh:*), Bash(git pull --ff-only), Bash(git merge-base --is-ancestor:*), Bash(bash .claude/scripts/git-worktree-remove.sh:*), Bash(git worktree prune:*), Bash(bash .claude/scripts/pr-locality.sh:*), Bash(bash .claude/scripts/gh-issue-create.sh:*), Bash(bash .claude/scripts/system-sleep.sh), Bash(py -3.12 .claude/scripts/sync_pr.py:*), Bash(bash .claude/scripts/git-worktree-sync.sh:*), Bash(bash .claude/scripts/gh-issue-harness.sh:*), Bash(py -3.12 -m unittest discover:*), Bash(bash .claude/scripts/gh-issue-list.sh), Bash(bash .claude/scripts/git-branch-drop.sh:*)
+allowed-tools: Read, Grep, Glob, Write, Skill, Agent(branch-reviewer), EnterWorktree, ExitWorktree, Bash(git status:*), Bash(git diff:*), Bash(git branch --list:*), Bash(git branch --show-current), Bash(git branch -a), Bash(git log:*), Bash(git fetch origin:*), Bash(bash .claude/scripts/git-branch-create.sh:*), Bash(bash .claude/scripts/git-worktree-fork.sh:*), Bash(bash .claude/scripts/git-switch-existing.sh:*), Bash(bash .claude/scripts/git-rebase-onto-main.sh:*), Bash(git rev-parse:*), Bash(git worktree list:*), Bash(ls:*), Bash(git add:*), Bash(git commit:*), Bash(bash .claude/scripts/git-unstage.sh:*), Bash(git push -u origin:*), Bash(git push origin:*), Bash(wc:*), Bash(gh pr create:*), Bash(bash .claude/scripts/pr-state.sh:*), Bash(bash .claude/scripts/pr-for-branch.sh:*), Bash(bash .claude/scripts/git-trailer-pr.sh:*), Bash(gh pr checks:*), Bash(bash .claude/scripts/gh-pr-merge.sh:*), Bash(git pull --ff-only), Bash(git merge-base --is-ancestor:*), Bash(bash .claude/scripts/git-worktree-remove.sh:*), Bash(git worktree prune:*), Bash(bash .claude/scripts/pr-locality.sh:*), Bash(bash .claude/scripts/gh-issue-hand.sh:*), Bash(bash .claude/scripts/system-sleep.sh), Bash(py -3.12 .claude/scripts/sync_pr.py:*), Bash(bash .claude/scripts/git-worktree-sync.sh:*), Bash(bash .claude/scripts/gh-issue-harness.sh:*), Bash(py -3.12 -m unittest discover:*), Bash(bash .claude/scripts/gh-issue-list.sh), Bash(bash .claude/scripts/git-branch-drop.sh:*)
 ---
 
 Take the working tree from wherever it is to a merged PR. Description:
@@ -170,7 +170,7 @@ the main checkout. What `sync_pr.py` prints is data.
 - **Step 2** runs each path `sync_pr.py local-suites` prints as `py -3.12 -m
   unittest discover -s <dir> -p <file>`, and nothing else in *Ship checks*; a
   failing suite is a target-local finding: filed in the target with
-  `gh-issue-create.sh`, the sync ends unmerged or is handed back, and no round
+  `gh-issue-hand.sh`, the sync ends unmerged or is handed back, and no round
   runs. A re-take of this head does not clear it, since it reruns the head's old
   copy, so a later sync cut from the fixed `main` supersedes it.
 - **Steps 3 and 4** run nothing: a sync branch is never committed to or pushed
@@ -189,7 +189,7 @@ the main checkout. What `sync_pr.py` prints is data.
   and clean-tree comparison. A payload `low` goes into the one harness issue
   `Low findings left by <repo>#<n>: <title>`, which the helper adds a comment to
   when one is open under that title; a target-local `low` into the target's own,
-  filed with `gh-issue-create.sh` after `bash .claude/scripts/gh-issue-list.sh`
+  filed with `gh-issue-hand.sh` after `bash .claude/scripts/gh-issue-list.sh`
   shows no open issue of that title, else nothing is filed and the report says
   so, and a low that issue does not list stays in the run's report, naming the
   open issue's number, and under `--dispatched` in the result's `decisions`; the
@@ -486,7 +486,7 @@ target*)
      a `nit` not at all:
 
      ```bash
-     bash .claude/scripts/gh-issue-create.sh <bug|security> <high|medium|low> <area> hand
+     bash .claude/scripts/gh-issue-hand.sh <bug|security> <high|medium|low> <area>
      ```
 
      File a prose finding as `bug`, and each under the area its file's tree

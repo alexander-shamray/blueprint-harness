@@ -3183,12 +3183,12 @@ class TheGitArgvGuard(unittest.TestCase):
 
     def test_a_heredoc_fed_to_a_script_names_the_file_route(self):
         reason = self.assertRefused(
-            "bash .claude/scripts/gh-issue-create.sh bug low harness hand <<'EOF'\nsee `x` here\nEOF")
+            "bash .claude/scripts/gh-issue-hand.sh bug low harness <<'EOF'\nsee `x` here\nEOF")
         self.assertIn("with `Write`", reason)
         self.assertIn("< <path>", reason)
 
     def test_a_script_fed_from_a_file_is_admitted(self):
-        self.assertAdmitted("bash .claude/scripts/gh-issue-create.sh bug low harness hand < body.md")
+        self.assertAdmitted("bash .claude/scripts/gh-issue-hand.sh bug low harness < body.md")
 
     # ---- the wiring, without which none of the above runs -------------------
 

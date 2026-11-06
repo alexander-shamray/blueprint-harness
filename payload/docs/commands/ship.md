@@ -206,7 +206,7 @@ in the target, and this sync is taken again once that merges. The harness is not
 the checkout's repository, so a payload finding is filed with
 `gh-issue-harness.sh`, whose repository is a literal and which only `/ship`
 holds: a route or repository word to `gh-issue-create.sh` would be declared by
-the caller, and the sweeps hold that helper over a tree they cannot trust. A
+the caller, which is why no command is granted that helper. A
 `low` goes where its code is, as the user-level filing rule sends it: a payload
 one into the one harness issue, and a target-local one into the target's own
 one; the merge goes on, and a `nit` is not filed. The harness filer only creates
@@ -216,7 +216,7 @@ timeout, and comments on a match, and a failed search files nothing. Its area is
 the finding's tree, as `docs/harness/working-rules.md` maps it: `.claude/` is
 `harness`, other prose `documentation`, the rest `code`, with `test` beside
 `harness` or `code` for a suite. A target-local low goes through
-`gh-issue-create.sh`, which always creates, so a re-take reads
+`gh-issue-hand.sh`, which always creates, so a re-take reads
 `gh-issue-list.sh` first, and where an open issue already holds that title
 nothing is filed. A low that issue does not list stays in the run's report,
 naming the open issue's number, and under `--dispatched` in the result's

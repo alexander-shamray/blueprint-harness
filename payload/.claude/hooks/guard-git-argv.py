@@ -2253,7 +2253,7 @@ REMOTE_RESET = (
 )
 STDIN_DATA_ROUTE = (
     " If the shell runs a script file and this text is that script's input, "
-    "as an issue body for `gh-issue-create.sh` is, write the text to a file "
+    "as an issue body for `gh-issue-hand.sh` is, write the text to a file "
     "with `Write` and pass it as `< <path>`: this guard reads a shell's stdin "
     "as a script, quoted delimiter or not, since it cannot see what the "
     "script does with it."

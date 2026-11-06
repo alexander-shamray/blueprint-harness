@@ -1175,6 +1175,24 @@ sibling, which resolves the checkout's repository, so a label the harness lacks
 fails the create rather than being made. Residual: `/ship` can file any text in
 the harness with it, which is its whole use.
 
+**The issue route is the entry point a command is granted, never an argument.**
+`gh-issue-create.sh` takes the route as its fourth word and so lets whoever
+holds a prefix grant on it claim any route's last line, among them the sweep
+route's sentence that a second read-only auditor verified the finding. So no
+command is granted it. `gh-issue-sweep.sh <kind> <severity> <area>` fixes the
+`sweep` route and is the sweeps' only filing grant; `gh-issue-hand.sh` fixes
+`hand` and is `/ship`'s, `/team`'s and `/dispatch`'s. Each execs
+`gh-issue-create.sh` with the route spelled, so the kind, severity, area, stdin
+and trailer checks stay in one place. A grant on one entry point withholds
+nothing from the other, so each command denies the entries it does not hold by
+name, and `gh-issue-create.sh` besides; `/ship` states no deny list, because a
+deny on a command it chains outlasts the step. The `mutation` and `request`
+routes have no entry point, since no command files under either; they stay
+reachable by calling `gh-issue-create.sh` directly, and a command that comes to
+need one gets its own entry point of the same shape. Residual: a prefix grant
+on a helper lets its holder choose that helper's own arguments, which here are
+the kind, the severity and the area, all in closed sets.
+
 **Some of the rebase helper's edges are accepted rather than guarded.** A replay
 amended after a failed push no longer descends from the commit `publish`
 recorded, so `publish` refuses it and names the tip to reset the branch to by
