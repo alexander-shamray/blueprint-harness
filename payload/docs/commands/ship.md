@@ -538,9 +538,10 @@ the helper asks whether git still registers the worktree, by the branch it
 holds, which needs no comparison of directory spellings under MSYS. A worktree
 still registered is the dirty-tree refusal and keeps git's own status and
 message. One no longer registered is tried with `rmdir`, which refuses a
-directory holding anything: an emptied one is gone and the removal succeeded,
-so the helper exits 0 whatever git's status was, and any other is named with
-exit 4 for the owner to remove, the branch kept.
+directory holding anything and an empty one a process holds: an emptied one is
+gone and the removal succeeded, so the helper exits 0 whatever git's status
+was, and any other is named with exit 4 for the owner to remove, the branch
+kept.
 
 **The helper takes the path and the branch forked there, and removes only
 the worktree registered at that path holding that branch.** A path alone made
@@ -569,7 +570,8 @@ deletes only a branch a pull request merged into `main` at its tip, which
 `docs/harness-boundaries.md`, *Grant inventory and push helpers*, argues. A
 worktree whose removal was refused keeps its branch, because the branch is
 still checked out there and the helper would refuse it in any case; an
-exit 4, a directory left holding something, keeps it too. Leaving a
+exit 4, a directory that holds something or that a process holds, keeps it
+too. Leaving a
 landed branch behind costs a line in `git branch` per run, which no one reads
 and no one clears; the drop is cheap and keeps the list to live work.
 
