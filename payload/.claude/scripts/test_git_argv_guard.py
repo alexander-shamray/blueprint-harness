@@ -605,7 +605,7 @@ class TheGitArgvGuard(unittest.TestCase):
         # A quoted `))` closes nothing either.
         # A group before them is read on its own and tells them nothing.
         for opener in ("<<'EOF'", "<<'EOF' '))'"):
-            for before in ("", f"n=$((1+1)){NEWLINE}", f"(a) ; ((1)) ; n=$((1)){NEWLINE}"):
+            for before in ("", f"n=$((1<<1)){NEWLINE}", f"(a) ; ((1<<1)) ; n=$((1<<1)){NEWLINE}"):
                 with self.subTest(opener=opener, before=before):
                     self.assertAdmitted(
                         f"{before}((git commit -F - {opener}) | cat){NEWLINE}"
