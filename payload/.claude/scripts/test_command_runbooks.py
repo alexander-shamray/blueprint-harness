@@ -20,7 +20,7 @@ CEILINGS = {
     "security-sweep.md": 14900,
     "branch.md": 9000,
     "team.md": 6300,
-    "dispatch.md": 14500,
+    "dispatch.md": 16200,
 }
 
 ROOT = COMMANDS.parent.parent

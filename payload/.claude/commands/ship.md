@@ -1,7 +1,7 @@
 ---
 description: Start from a clean main, fork a worktree where one can be forked, branch, commit, push and open a PR, run the local review until a round has nothing open, then merge the PR and tear the workspace down. Decides for itself rather than stopping to ask
 argument-hint: "[what the change does | sync #<n>] [--sleep] [--dispatched <run-dir>] — omit and each step derives its own"
-allowed-tools: Read, Grep, Glob, Write, Skill, Agent(branch-reviewer), EnterWorktree, ExitWorktree, Bash(git status:*), Bash(git diff:*), Bash(git branch --list:*), Bash(git branch --show-current), Bash(git branch -a), Bash(git log:*), Bash(git fetch origin:*), Bash(bash .claude/scripts/git-branch-create.sh:*), Bash(bash .claude/scripts/git-worktree-fork.sh:*), Bash(bash .claude/scripts/git-switch-existing.sh:*), Bash(bash .claude/scripts/git-rebase-onto-main.sh:*), Bash(git rev-parse:*), Bash(git worktree list:*), Bash(ls:*), Bash(git add:*), Bash(git commit:*), Bash(bash .claude/scripts/git-unstage.sh:*), Bash(git push -u origin:*), Bash(git push origin:*), Bash(wc:*), Bash(gh pr create:*), Bash(bash .claude/scripts/pr-state.sh:*), Bash(bash .claude/scripts/pr-for-branch.sh:*), Bash(bash .claude/scripts/git-trailer-pr.sh:*), Bash(gh pr checks:*), Bash(bash .claude/scripts/gh-pr-merge.sh:*), Bash(git pull --ff-only), Bash(git merge-base --is-ancestor:*), Bash(bash .claude/scripts/git-worktree-remove.sh:*), Bash(git worktree prune:*), Bash(bash .claude/scripts/pr-locality.sh:*), Bash(bash .claude/scripts/gh-issue-create.sh:*), Bash(bash .claude/scripts/system-sleep.sh), Bash(py -3.12 .claude/scripts/sync_pr.py:*), Bash(bash .claude/scripts/git-worktree-sync.sh:*), Bash(bash .claude/scripts/gh-issue-harness.sh:*), Bash(py -3.12 -m unittest discover:*), Bash(bash .claude/scripts/gh-issue-list.sh)
+allowed-tools: Read, Grep, Glob, Write, Skill, Agent(branch-reviewer), EnterWorktree, ExitWorktree, Bash(git status:*), Bash(git diff:*), Bash(git branch --list:*), Bash(git branch --show-current), Bash(git branch -a), Bash(git log:*), Bash(git fetch origin:*), Bash(bash .claude/scripts/git-branch-create.sh:*), Bash(bash .claude/scripts/git-worktree-fork.sh:*), Bash(bash .claude/scripts/git-switch-existing.sh:*), Bash(bash .claude/scripts/git-rebase-onto-main.sh:*), Bash(git rev-parse:*), Bash(git worktree list:*), Bash(ls:*), Bash(git add:*), Bash(git commit:*), Bash(bash .claude/scripts/git-unstage.sh:*), Bash(git push -u origin:*), Bash(git push origin:*), Bash(wc:*), Bash(gh pr create:*), Bash(bash .claude/scripts/pr-state.sh:*), Bash(bash .claude/scripts/pr-for-branch.sh:*), Bash(bash .claude/scripts/git-trailer-pr.sh:*), Bash(gh pr checks:*), Bash(bash .claude/scripts/gh-pr-merge.sh:*), Bash(git pull --ff-only), Bash(git merge-base --is-ancestor:*), Bash(bash .claude/scripts/git-worktree-remove.sh:*), Bash(git worktree prune:*), Bash(bash .claude/scripts/pr-locality.sh:*), Bash(bash .claude/scripts/gh-issue-create.sh:*), Bash(bash .claude/scripts/system-sleep.sh), Bash(py -3.12 .claude/scripts/sync_pr.py:*), Bash(bash .claude/scripts/git-worktree-sync.sh:*), Bash(bash .claude/scripts/gh-issue-harness.sh:*), Bash(py -3.12 -m unittest discover:*), Bash(bash .claude/scripts/gh-issue-list.sh), Bash(bash .claude/scripts/git-branch-drop.sh:*)
 ---
 
 Take the working tree from wherever it is to a merged PR. Description:
@@ -33,7 +33,7 @@ checkout and removes the worktree, however the review ended.
 
 | | |
 |---|---|
-| A helper or a guarded git command exits non-zero | The step did not run; a report that says otherwise is false. `git pull --ff-only` refusing a diverged branch is the commonest one; step 7's `system-sleep.sh` is the one exception, reported and not a stop |
+| A helper or a guarded git command exits non-zero | The step did not run; a report that says otherwise is false. `git pull --ff-only` refusing a diverged branch is the commonest one; step 7's `system-sleep.sh` and the branch drop's `git-branch-drop.sh` are the two exceptions, each reported and not a stop |
 | This branch's PR was closed unmerged | Reopening a deliberate closure is not a recommended option |
 | A `branch-reviewer` round did not run | The round did not happen, so no verdict may be minted from it |
 | A fix to a script under `.claude/` lacks its case | Step 2's read refuses it, and the case is a file this session is denied editing, so the run has no fix to make |
@@ -307,8 +307,18 @@ target*)
    declares; a lock still held removes nothing and exits non-zero.
    (why: `docs/harness-boundaries.md`, *Grant inventory and push helpers*)
 
-   Never delete the merged **branch**: `git branch -d` is denied; name it in
-   the report and leave it.
+   Then drop the merged **branch**, once its worktree is gone: after
+   `git-worktree-remove.sh` exits 0, or, for an in-place branch, after the
+   switch to `main`.
+
+   ```bash
+   bash .claude/scripts/git-branch-drop.sh <branch>
+   ```
+
+   A refused removal keeps its branch, and no drop runs. Any non-zero exit of
+   the drop is reported and is not a stop: the helper refuses only a branch
+   that has not landed, and exit 6 (no local branch) is simply reported.
+   (why: docs/commands/ship.md, *Step 0: the teardown*)
 
 1. **`/branch`**, passing $ARGUMENTS. Skip if already off `main` — which
    includes the unused-workspace row above, so `git-worktree-fork.sh` is
@@ -546,7 +556,7 @@ target*)
    docs/commands/ship.md, *Step 6: the landing*)
 
    Now put the workspace back the way step 0 wants to find it. **The order is
-   the instruction**, and three of the eight lines depend on which outcome
+   the instruction**, and four of the nine lines depend on which outcome
    step 1 produced:
 
    ```bash
@@ -558,6 +568,7 @@ target*)
    git merge-base --is-ancestor <merge-oid> main        # 6. and main really does contain it
    bash .claude/scripts/git-worktree-remove.sh .claude/worktrees/<slug>  # 7. forked runs only
    git worktree prune                                   # 8.
+   bash .claude/scripts/git-branch-drop.sh <branch>  # 9. after 7 or 3
    ```
 
    - **Verify first**, from the remote rather than an exit code: `state`
@@ -574,12 +585,15 @@ target*)
      `task_list`, in the main checkout's parent directory, by that path (why:
      docs/commands/ship.md, *Step 6: the teardown*).
    - Under `--dispatched`, skip this write, and only lines 1 and 8 run: no
-     `ExitWorktree`, no `git-worktree-remove.sh`, no switch, pull or
-     containment read; `/dispatch` does those once it has verified the
-     merge (why: docs/commands/ship.md, *Dispatched: the one token /dispatch
-     passes*).
-   - Never delete the merged branch: `git branch -d` is denied; name it in
-     the report.
+     `ExitWorktree`, no `git-worktree-remove.sh`, no switch, pull,
+     containment read or branch drop; `/dispatch` does those once it has
+     verified the merge (why: docs/commands/ship.md, *Dispatched: the one
+     token /dispatch passes*).
+   - Line 9 drops the merged branch: a forked run's once line 7 exits 0, an
+     in-place run's after the switch to `main`; a refused removal keeps its
+     branch. Any non-zero exit of the drop is reported and is not a stop, and
+     exit 6 (no local branch) is simply reported. Under `--dispatched` the run
+     does not drop; `/dispatch` does.
 
    (why: docs/commands/ship.md, *Step 6: the teardown*)
 
@@ -619,9 +633,10 @@ In this order:
   the literal `gh-pr-merge.sh` and `git-worktree-remove.sh` lines that ran,
   or which of the two gates stopped it; that `main` was pulled, the HEAD it
   is now at, and that it contains the merge oid; the worktree removed, or
-  the one left behind and why the helper refused it; and the merged branch
-  still sitting in `git branch`. Under `--dispatched`, the pull, containment
-  and removal are the dispatcher's: say "teardown left to /dispatch".
+  the one left behind and why the helper refused it; and whether the merged
+  branch was dropped, or why the helper kept it. Under `--dispatched`, the
+  pull, containment and removal are the dispatcher's: say "teardown left to
+  /dispatch".
 
 Restate here every assumption a step was skipped on, and name every check
 that did not run. (why: docs/commands/ship.md, *Report*)
