@@ -337,6 +337,24 @@ class VerifyTests(SyncCase):
                 self.refused("manifest path")
 
 
+class LocalPathTests(SyncCase):
+    def test_a_changed_local_path_is_refused(self):
+        self.head_files["docs/local.md"] = "overwritten by a forged sync\n"
+        self.start()
+        self.refused("docs/local.md is local to this target")
+
+    def test_a_deleted_local_path_is_refused_whatever_its_case(self):
+        self.start()
+        with mock.patch.object(sync_pr, "changed_paths", return_value={"Docs/LOCAL.md": "D"}):
+            self.refused("Docs/LOCAL.md is local to this target")
+
+    def test_a_manifest_path_that_is_local_is_refused_though_its_blob_matches(self):
+        self.head_files["docs/local.md"] = "L\n"
+        self.head_files[".harness/manifest.json"] = manifest(NEW_H, ["docs/a.md", "docs/b.md", "docs/local.md"])
+        self.start(payload={**PAYLOAD, "docs/local.md": "L\n"})
+        self.refused("docs/local.md is excluded or local to this target but the manifest lists it")
+
+
 class ConfigGlobTests(SyncCase):
     config = {**CONFIG, "local": ["docs/local.md", "docs/d.md"], "exclude": ["docs/c.md"]}
 
@@ -344,6 +362,12 @@ class ConfigGlobTests(SyncCase):
         # The path was managed before and is excluded now: apply deletes it, though the payload still ships it.
         self.start(payload={**PAYLOAD, "docs/c.md": "C\n"})
         self.assertEqual(0, self.cli("verify", "7")[0])
+
+    def test_a_manifest_path_that_is_excluded_is_refused_though_its_blob_matches(self):
+        self.deleted = []
+        self.head_files[".harness/manifest.json"] = manifest(NEW_H, ["docs/a.md", "docs/b.md", "docs/c.md"])
+        self.start(payload={**PAYLOAD, "docs/c.md": "C\n"})
+        self.refused("docs/c.md is excluded or local to this target but the manifest lists it")
 
     def test_a_local_payload_path_need_not_be_listed(self):
         self.start(payload={**PAYLOAD, "docs/d.md": "D\n"})

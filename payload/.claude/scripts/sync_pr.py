@@ -246,14 +246,15 @@ def config_globs(ref):
     return found[0], found[1]
 
 
-def unlisted(payload, paths):
+def folded(globs, path):
+    """apply folds case in its protection of a local path, since any filesystem may."""
+    return any(glob_match(g.lower(), path.lower()) for g in globs)
+
+
+def unlisted(payload, paths, local, exclude):
     """Failures for each payload file apply would have delivered that the manifest does not list: drift_gate's rule."""
-    if payload is None:
-        return []  # the unread tree is already a failure
-    try:
-        local, exclude = config_globs(MAIN)
-    except Refusal as error:
-        return [str(error)]
+    if payload is None or local is None:
+        return []  # an unread tree or config is already a failure
     return [f"{rel} is a payload file but the manifest does not list it" for rel in sorted(payload)
             if rel not in (SETTINGS, MANIFEST, CONFIG) and rel not in paths
             and not any(glob_match(g, rel) for g in (*local, *exclude))]
@@ -298,7 +299,15 @@ def prove(number):
         failures.append(f"cannot read what the head changes: {error}")
         return failures, head
     head.update(base=base, old_commit=old_commit, old=old)
-    failures += unlisted(payload, paths)
+    try:
+        local, exclude = config_globs(MAIN)
+    except Refusal as error:
+        local = exclude = None
+        failures.append(str(error))
+    failures += unlisted(payload, paths, local, exclude)
+    if local is not None:
+        failures += [f"{_name(path)} is excluded or local to this target but the manifest lists it"
+                     for path in sorted(paths) if folded((*local, *exclude), path)]
     if tip is not None:
         try:
             compare = read_json(["gh", "api", f"repos/{HARNESS_REPO}/compare/{tip}...{commit}"])
@@ -311,6 +320,8 @@ def prove(number):
     for path, status in sorted(changed.items()):
         if path == CONFIG:
             failures.append(f"{CONFIG} is edited; the sync never touches the target's own config")
+        elif local is not None and folded(local, path):
+            failures.append(f"{_name(path)} is local to this target; a sync neither writes nor deletes it")
         elif path in paths or path == MANIFEST:
             continue
         elif path in old:
