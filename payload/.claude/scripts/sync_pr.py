@@ -216,36 +216,52 @@ def on_harness_main(commit):
         raise Refusal(f"harness_commit {commit} is not on the harness's main (compare says {status!r})")
 
 
-def verify(number):
-    """(failures, harness commit): one line per failure; none means the pull request is what the harness released."""
+def prove(number):
+    """(failures, head): one line per failure; none means the pull request is what the harness released.
+
+    `head` is the oid that was fetched and judged, so a caller that goes on to read it reads what was proved.
+    """
     try:
         oid = fetch_head(number)
         commit, paths = manifest_at(oid, f"#{number}")
     except Refusal as error:
         return [str(error)], None
+    head = {"oid": oid, "commit": commit, "paths": paths}
     failures = []
     try:
         on_harness_main(commit)
     except Refusal as error:
         failures.append(f"cannot prove harness_commit is on the harness's main: {error}")
+    payload = None  # None while unread, so no deletion below can be confirmed
     try:
-        payload, head = payload_blobs(commit), head_blobs(oid)
+        payload, in_head = payload_blobs(commit), head_blobs(oid)
         for path in sorted(paths - {SETTINGS}):
             if path not in payload:
                 failures.append(f"{path}: not in the payload at {commit}")
-            elif path not in head:
+            elif path not in in_head:
                 failures.append(f"{path}: in the manifest but not on the head")
-            elif head[path] != payload[path]:
-                failures.append(f"{path} differs from the payload at {commit} (head {head[path][1]}, "
+            elif in_head[path] != payload[path]:
+                failures.append(f"{path} differs from the payload at {commit} (head {in_head[path][1]}, "
                                 f"payload {payload[path][1]})")
     except Refusal as error:
+        payload = None
         failures.append(f"cannot compare the managed files with the payload tree: {error}")
     try:
-        base, _, old = base_of(oid)
+        base, old_commit, old = base_of(oid)
         changed = changed_paths(base, oid)
     except Refusal as error:
         failures.append(f"cannot read what the head changes: {error}")
-        return failures, commit
+        return failures, head
+    head.update(base=base, old_commit=old_commit, old=old)
+    if old_commit is not None:
+        try:
+            compare = read_json(["gh", "api", f"repos/{HARNESS_REPO}/compare/{old_commit}...{commit}"])
+            status = compare.get("status") if isinstance(compare, dict) else None
+            if status not in ("ahead", "identical"):
+                failures.append(f"harness_commit {commit} is older than the base's {old_commit} "
+                                f"(compare says {status!r}); a sync only moves forward")
+        except Refusal as error:
+            failures.append(f"cannot prove the sync moves forward from {old_commit}: {error}")
     for path, status in sorted(changed.items()):
         if path == CONFIG:
             failures.append(f"{CONFIG} is edited; the sync never touches the target's own config")
@@ -254,9 +270,20 @@ def verify(number):
         elif path in old:
             if status != "D":
                 failures.append(f"{path} left the manifest but was changed, not deleted")
+            elif payload is None:
+                failures.append(f"{path} was deleted and the payload tree could not be read to confirm it is gone")
+            elif path in payload:
+                failures.append(f"{path} was deleted and dropped from the manifest, but the payload at {commit} "
+                                "still has it")
         else:
             failures.append(f"{path} is changed but is outside the manifest")
-    return failures, commit
+    return failures, head
+
+
+def verify(number):
+    """(failures, harness commit) of `prove`."""
+    failures, head = prove(number)
+    return failures, head["commit"] if head else None
 
 
 def _citations(oid, path, managed):
@@ -275,10 +302,10 @@ def _citations(oid, path, managed):
     return found
 
 
-def review_text(number):
-    oid = fetch_head(number)
-    commit, paths = manifest_at(oid, f"#{number}")
-    base, old_commit, old = base_of(oid)
+def review_text(number, head):
+    """The review input for the head `prove` judged; `head` is what it returned, never a second fetch."""
+    oid, commit, paths = head["oid"], head["commit"], head["paths"]
+    base, old_commit, old = head["base"], head["old_commit"], head["old"]
     managed = paths | old | {MANIFEST}
     changed = {p: s for p, s in changed_paths(base, oid).items() if p in managed}
     written = sorted(p for p, s in changed.items() if s != "D")
@@ -372,8 +399,12 @@ def main(argv=None):
             print(f"verified {args.number} {commit}")
         elif args.command == "review-diff":
             target = review_target(args.out)
+            failures, head = prove(args.number)
+            if failures:
+                print("\n".join(failures))
+                return 1
             try:
-                text = review_text(args.number)
+                text = review_text(args.number, head)
             except Refusal as error:
                 print(error, file=sys.stderr)
                 return 1

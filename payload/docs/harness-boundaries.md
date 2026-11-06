@@ -1050,15 +1050,15 @@ post, so `list` reads only whether its last line is the sync footer and never
 passes the body on. `verify` is what a branch name is not: it fetches the
 listed head and fails closed on anything it could not read, a truncated
 tree, a `gh` failure or timeout, a manifest it cannot parse, or a head whose
-oid is not the listed one. It proves four things: the pull request is a
-`list` row; the manifest's `harness_commit` is on the harness's `main`; every
-manifest path but `.claude/settings.json` has the blob id and mode the payload
-has at that commit; and the head changes nothing but manifest paths, paths the
-old manifest held, and the manifest, with `.harness/config.json` untouched.
-`.claude/settings.json` is left to the drift gate, which renders it again. The
-one file it writes is `review-diff`'s, and only a `.diff` directly under
-`artifacts/review/`. Its residual is the manifest's own hashes: they are the
-drift gate's to check against the files, and `verify` does not.
+oid is not the listed one. It proves five things: the pull request is a
+`list` row; the manifest's `harness_commit` is on the harness's `main` and
+not older than the base's, so a rollback fails; every manifest path but
+`.claude/settings.json` has the blob id and mode of the payload there; the
+head changes only manifest paths, old-manifest paths and the manifest, with
+`.harness/config.json` untouched; and a path deleted from the manifest is
+gone from the payload too. `review-diff` proves all of it first, on the head
+it then reads, and refuses with those lines. Its one write is a `.diff` under
+`artifacts/review/`. Residual: the manifest's hashes are the drift gate's.
 
 **Some of the rebase helper's edges are accepted rather than guarded.** A replay
 amended after a failed push no longer descends from the commit `publish`

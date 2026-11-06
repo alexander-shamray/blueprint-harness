@@ -57,7 +57,9 @@ class FakeGh:
     def __init__(self, root):
         self.root = root
         self.prs = []
-        self.compare = {"status": "behind", "commits": [{"commit": {"message": "feat: the new rule\n\nbody"}}]}
+        self.compare = {"status": "behind", "commits": []}  # main...<commit>
+        self.compare_old = {"status": "ahead",  # <the base's commit>...<commit>
+                            "commits": [{"sha": "b" * 40, "commit": {"message": "feat: the new rule\n\nbody"}}]}
         self.tree = []
         self.truncated = False
         self.fail = None  # a substring of the gh argv that fails
@@ -74,7 +76,7 @@ class FakeGh:
         if argv[1:3] == ["pr", "list"]:
             return 0, json.dumps(self.prs), ""
         if argv[1] == "api" and "/compare/" in argv[2]:
-            return 0, json.dumps(self.compare), ""
+            return 0, json.dumps(self.compare if "/compare/main..." in argv[2] else self.compare_old), ""
         if argv[1] == "api" and "/git/trees/" in argv[2]:
             return 0, json.dumps({"truncated": self.truncated, "tree": self.tree}), ""
         raise AssertionError(f"unexpected gh call {argv}")
@@ -162,7 +164,8 @@ class VerifyTests(SyncCase):
         code, out, err = self.cli("verify", "7")
         self.assertEqual((0, f"verified 7 {NEW_H}\n", ""), (code, out, err))
         compare = [c[2] for c in self.gh.calls if "/compare/" in c[2]]
-        self.assertEqual([f"repos/{sync_pr.HARNESS_REPO}/compare/main...{NEW_H}"], compare)
+        self.assertEqual([f"repos/{sync_pr.HARNESS_REPO}/compare/main...{NEW_H}",
+                          f"repos/{sync_pr.HARNESS_REPO}/compare/{OLD_H}...{NEW_H}"], compare)
 
     def test_a_branch_name_alone_is_not_a_sync(self):
         self.start(row={"body": "A sync, but no footer.\n"})
@@ -235,6 +238,24 @@ class VerifyTests(SyncCase):
         self.head_files["docs/c.md"] = "edited instead of deleted\n"
         self.start()
         self.refused("docs/c.md left the manifest but was changed, not deleted")
+
+    def test_a_sync_older_than_the_base_is_refused(self):
+        self.start()
+        for status in ("behind", "diverged"):
+            self.gh.compare_old = {"status": status, "commits": []}
+            out = self.refused("is older than the base's")
+            self.assertIn(OLD_H, out)
+        self.gh.compare_old = {"status": "identical", "commits": []}
+        self.assertEqual(0, self.cli("verify", "7")[0])
+        self.gh.fail = f"/compare/{OLD_H}"
+        self.refused("cannot prove the sync moves forward")
+
+    def test_a_managed_file_dropped_from_the_manifest_is_refused(self):
+        self.start(payload={**PAYLOAD, "docs/c.md": "C\n"})
+        self.refused("docs/c.md was deleted and dropped from the manifest, but the payload")
+        self.gh.fail = "/git/trees/"
+        out = self.refused("cannot compare the managed files with the payload tree")
+        self.assertIn("docs/c.md was deleted and the payload tree could not be read", out)
 
     def test_a_truncated_tree_fails_closed(self):
         self.gh.truncated = True
@@ -350,6 +371,29 @@ class ReviewDiffTests(SyncCase):
         # The one managed file whose content is wanted: the rendered settings.
         self.assertIn('-{"old": true}', text)
         self.assertIn('+{"new": true}', text)
+
+    def test_review_diff_refuses_a_head_that_does_not_verify(self):
+        self.head_files["src/hidden.py"] = "x = 1\n"
+        self.start()
+        code, out, err = self.cli("review-diff", "7", self.out_path())
+        self.assertEqual(1, code)
+        self.assertIn("src/hidden.py is changed but is outside the manifest", out)
+        self.assertFalse(Path(self.out_path()).exists())
+
+    def test_review_diff_reads_the_head_it_verified(self):
+        oid = self.start()
+        fetches = []
+        real = self.gh
+
+        def spy(argv, cwd=None, timeout=60):
+            if argv[:2] == ["git", "fetch"]:
+                fetches.append(argv)
+            return real(argv, cwd, timeout)
+
+        with mock.patch.object(sync_pr, "run", spy):
+            self.assertEqual(0, self.cli("review-diff", "7", self.out_path())[0])
+        self.assertEqual(2, len(fetches), "the head and main, once each")
+        self.assertIn(oid, Path(self.out_path()).read_text(encoding="utf-8"))
 
     def test_review_diff_refuses_an_out_path_outside_artifacts_review(self):
         self.start()
