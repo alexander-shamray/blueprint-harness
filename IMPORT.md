@@ -103,9 +103,8 @@ workflow, `ci.yml` included — product and stack, by spec 3 and 8.
 ## Settings split
 
 `payload/.harness/settings.base.json` is backend's `.claude/settings.json` at
-the pin, whole (blob `aeb89a9`, the same blob as at `f61a0932f`, so the
-Task 3 fixture `harness_sync/tests/fixtures/backend-settings.json` needed no
-update). The config's `settings` additions are empty.
+the pin, whole (blob `aeb89a9`, the same blob as at `f61a0932f`). The
+config's `settings` additions are empty.
 
 Nothing in that file is backend's alone. Its denies protect the harness's own
 control surface (`.claude/scripts/**`, `commands`, `agents`, `hooks`,
@@ -118,10 +117,12 @@ stack denies (frontend's `package.json`, admin's `*.slnx`) are sibling
 additions; backend has none in `settings.json`, its build files being denied
 per command in `disallowed-tools` instead.
 
-`dump_settings(render_settings(base, backend config))` is byte-identical to
-backend's file today; `test_backend_render_equivalent` holds the weaker
-property Task 9 needs — the same `allow`, `deny` and `hooks` as multisets and
-the same `env` — so a later reorder of the base does not fail it.
+`dump_settings(render_settings(base, backend config))` was byte-identical to
+backend's file at the pin. From then on the target's drift gate holds that
+claim: `_check_settings` renders the file from the target's own base and
+config on every pull request there. This repository keeps no copy of backend's
+file to compare with, since a copy has to move with the base in the same
+commit, and a test between the two cannot fail (#9).
 
 ## Repository slug and task list
 
