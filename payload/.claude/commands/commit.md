@@ -47,9 +47,8 @@ British spelling in prose, identifiers left alone.>
 
 - Types are `docs:`, `feat(<scope>):`, `fix:`, `chore:`, `refactor:`, `test:`.
   **Implementing a PR on the roadmap `docs/harness-local.md` *Documents*
-  names? Use its title verbatim** — it is
-  already written in this form, and matching it is what lets the plan be traced
-  against the log.
+  names? Use its title verbatim where it is already in this form** — matching
+  it is what lets the plan be traced against the log.
 - **The subject names what changed and where** — a symbol, a file or a
   behaviour a reviewer could search for — lower case, with no full stop; the
   aphorism goes in the body. The primer's *Commit messages* line is the rule.
