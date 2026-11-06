@@ -61,9 +61,7 @@ class SyncPrConstants(unittest.TestCase):
         flat = re.sub(r"\s+", " ", body)
         self.assertIn("`sync_pr.py review-diff` writes what a round should be given, leaving out managed content "
                       "but for the settings diff", flat)
-        # No payload command takes a sync yet, so the body must not say one does.
-        self.assertNotIn("/dispatch", body)
-        self.assertNotIn("/ship", body)
+        self.assertIn("A sync is taken by `/dispatch`, or by `/ship sync #<n>`.", flat)
 
 
 if __name__ == "__main__":

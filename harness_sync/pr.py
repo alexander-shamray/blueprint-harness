@@ -121,7 +121,7 @@ def pr_body(harness_commit: str, written: list[str], deleted: list[str], run_url
         "(shared-harness spec 5.3). The sync workflow wrote it; the managed files were reviewed in the harness "
         "repository, so the review here is of what is specific to this target: "
         "`sync_pr.py review-diff` writes what a round should be given, leaving out managed content but for the "
-        "settings diff.",
+        "settings diff. A sync is taken by `/dispatch`, or by `/ship sync #<n>`.",
         width=80, break_long_words=False, break_on_hyphens=False,
     )
     touch = ", ".join(f"`{rel}`" for rel in sorted({*written, *deleted, MANIFEST}))
