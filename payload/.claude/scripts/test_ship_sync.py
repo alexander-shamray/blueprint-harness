@@ -309,6 +309,8 @@ class TheMergedBranchIsDropped(unittest.TestCase):
                 self.assertIn("after the switch to main", part)
         self.assertIn("nine lines", step_6_teardown())
         self.assertIn("four of the nine", step_6_teardown())
+        self.assertIn("nine teardown lines", flat(ARGUMENT.read_text(encoding="utf-8")))
+        self.assertIn("four of them depend", flat(ARGUMENT.read_text(encoding="utf-8")))
         self.assertIn("git-branch-drop.sh <branch> # 9.", step_6_teardown())
         self.assertIn(f"Bash({DROP}:*)", [g.strip() for g in frontmatter("allowed-tools").split(",")])
 
@@ -345,6 +347,9 @@ class TheMergedBranchIsDropped(unittest.TestCase):
         part = dispatch_exit()
         self.assertLess(part.index("git-worktree-remove.sh"), part.index(f"{DROP} <branch>"))
         self.assertIn("refused removal", part)
+        resume = flat(DISPATCH.read_text(encoding="utf-8")).split("done <g>: … |", 1)[1].split(" |", 1)[0]
+        self.assertIn("removal, then the drop", resume)
+        self.assertIn("each refused drop", flat(DISPATCH.read_text(encoding="utf-8")))
         grants = [g.strip() for g in re.search(r"^allowed-tools: (.*)$", DISPATCH.read_text(encoding="utf-8"),
                                                re.MULTILINE).group(1).split(",")]
         self.assertIn(f"Bash({DROP}:*)", grants)

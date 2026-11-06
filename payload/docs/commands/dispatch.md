@@ -259,8 +259,8 @@ stop does.
 
 The report is `report`'s English facts written up in `--lang`, in the
 spec's §10's six sections, with what only the session saw added: a refused
-removal, a failed pull, a failed `record`. It ends with the apply line every
-message here ends with.
+removal, a refused drop, a failed pull, a failed `record`. It ends with the
+apply line every message here ends with.
 
 ## Resume
 
