@@ -419,10 +419,7 @@ def _quoting(command, quotes=True, data=(), start=0):
 
 
 def _opened_body(command, index, pending):
-    """The body a `<<` at `index` opens, past `pending`, as `(start, end, expands)`.
-
-    None where it opens no body, and an `end` of None where none terminates it.
-    """
+    """`(start, end, expands)` for a `<<` at `index`, past `pending`: None if no body, `end` None if none closes it."""
     # `<<<` is a here-string: `cat <<<EOF` passes the word `EOF` on stdin and the
     # next line is an ordinary command, so matching `<<EOF` at its second
     # character would swallow that line. Two tests, because the operator has two
