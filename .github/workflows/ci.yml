@@ -24,6 +24,10 @@ jobs:
   # makes every pull request wait for a check that never reports.
   sync-tool:
     runs-on: ubuntu-latest
+    # Read only still: the issue-form gate below lists the repository's labels.
+    permissions:
+      contents: read
+      issues: read
     steps:
       - uses: actions/checkout@v7
 
@@ -34,6 +38,15 @@ jobs:
       - run: python -m unittest discover -s harness_sync/tests -t .
 
       - run: python -m unittest discover -s measure -t .
+
+      # From the payload: the rendered root's copy is a sync behind this commit.
+      - name: Every issue-form choice is its owner's word and a label here
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          gh label list --repo "$GITHUB_REPOSITORY" --limit 1000 --json name |
+            python payload/.github/issue-form-gate/issue_form_gate.py
 
   # The payload's own suites, run where a target runs them: in a worktree of
   # this commit with the payload applied over it under backend's draft config,

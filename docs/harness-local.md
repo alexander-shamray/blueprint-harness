@@ -23,8 +23,8 @@ figures behind `docs/harness/token-rules.md` are backend's measurements.
 ## Ship checks
 
 None. CI runs every check the repository has: `sync-tool` over
-`harness_sync/`, `payload-suites` over the payload applied to a worktree,
-and the gates the sync renders.
+`harness_sync/` and the payload's issue forms, `payload-suites` over the
+payload applied to a worktree, and the gates the sync renders.
 
 The required checks, which `/ship` step 6's wait holds the list to: `sync-tool`,
 `payload-suites (ubuntu-latest)`, `payload-suites (windows-latest)`,
