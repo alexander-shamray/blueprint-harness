@@ -1053,7 +1053,7 @@ tree, a `gh` failure or timeout, a manifest it cannot parse, or a head whose
 oid is not the listed one. It proves five things: the pull request is a
 `list` row; the manifest's `harness_commit` is on the harness's `main` and
 not older than the base's, so a rollback fails; every manifest path but
-`.claude/settings.json` has the blob id and mode of the payload there; the
+`.claude/settings.json` has the payload's blob id there, mode aside; the
 head changes only manifest paths, old-manifest paths and the manifest, with
 `.harness/config.json` untouched; and a path deleted from the manifest is
 gone from the payload too. `review-diff` proves all of it first, on the head

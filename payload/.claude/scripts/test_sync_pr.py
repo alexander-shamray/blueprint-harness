@@ -197,9 +197,10 @@ class VerifyTests(SyncCase):
         self.start(payload={"docs/a.md": PAYLOAD["docs/a.md"]})
         self.refused("docs/b.md")
 
-    def test_a_mode_difference_is_refused(self):
+    def test_a_mode_difference_is_not_a_difference(self):
+        # apply writes no mode: the payload's 100755 script lands as 100644 in a target, and the sync must verify.
         self.start(tree_mode="100755")
-        self.refused("differs from the payload")
+        self.assertEqual(0, self.cli("verify", "7")[0])
 
     def test_a_harness_commit_off_main_is_refused(self):
         self.gh.compare = {"status": "ahead", "commits": []}
