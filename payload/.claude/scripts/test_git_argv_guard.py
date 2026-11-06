@@ -673,6 +673,18 @@ class TheGitArgvGuard(unittest.TestCase):
             ),
         )
 
+        # A backtick closing past its heredoc's delimiter holds the body.
+        self.assertNotIn(
+            "RAN",
+            run_bash(
+                f"n=$(( `cat <<'EOF'{NEWLINE}echo RAN{NEWLINE}EOF{NEWLINE}` + 1 ))"
+            ).stdout,
+        )
+        self.assertAdmitted(
+            f"n=$(( `git commit -F - <<'EOF'{NEWLINE}"
+            f"git push origin +HEAD:main{NEWLINE}EOF{NEWLINE}` + 1 ))"
+        )
+
         # A `$(…)` closing on its opener's line is that too before bash 5.2,
         # which reads the next lines as its body. `without_substitutions`
         # leaves them commands, an apostrophe included, so neither bash hides

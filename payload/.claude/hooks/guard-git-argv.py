@@ -517,7 +517,7 @@ class _Sums:
         # The parens open at the walk, those a `$` leads, and each `((` among
         # them not yet refused, named by its outer paren. All three ascend.
         self.opened, self.substitutions, self.pairs = [], [], []
-        self.verdicts, self.read_to = {}, 0
+        self.verdicts, self.read_to, self.backtick = {}, 0, None
 
     def open(self, index):
         if self.opened and self.opened[-1] == index - 1:
@@ -534,8 +534,11 @@ class _Sums:
             if parens and parens[-1] == index:
                 parens.pop()
 
-    def is_shift(self):
-        """Whether a `<<` here is in a sum, with no `$(…)` between them."""
+    def tick(self, index):
+        self.backtick = index if self.backtick is None else None
+
+    def is_shift(self, index):
+        """Whether a `<<` at `index` is in a sum, with nothing in it running commands."""
         pairs, substitutions = self.pairs, self.substitutions
         while pairs:
             if pairs[-1] >= self.read_to:
@@ -546,7 +549,13 @@ class _Sums:
             # out of step, which is a syntax error in bash too. Reading a shift
             # opens no body, so the lines after it stay commands.
             if self.verdicts.get(pairs[-1], True):
-                return not substitutions or substitutions[-1] <= pairs[-1]
+                if self.backtick is None or self.backtick < pairs[-1]:
+                    return not substitutions or substitutions[-1] <= pairs[-1]
+                # A backtick's heredoc ends with its text, so one closing on
+                # this line holds no body, and the lines after it are commands.
+                line_end = self.command.find("\n", index)
+                return (line_end == -1
+                        or self.command.find("`", index, line_end) != -1)
             pairs.pop()
         return False
 
@@ -587,10 +596,9 @@ def heredoc_spans(command, unclosed=None, openers=None):
             sums.open(index)
         elif not escaped and command[index] == ")":
             sums.close()
-        # A backtick in a sum takes no part here, because a `<<` in one is
-        # skipped with the shifts: bash ends its text, and so its heredoc, at
-        # the backtick, so the lines after it are commands.
-        if not command.startswith("<<", index) or sums.is_shift():
+        elif not escaped and command[index] == "`":
+            sums.tick(index)
+        if not command.startswith("<<", index) or sums.is_shift(index):
             continue
         body = _opened_body(command, index, pending)
         if body is None:
