@@ -521,9 +521,9 @@ rollout's anti-goal:
   from each target's denies, so `.github` is refused only where a target denies
   it.
 - **The edit guard's allow-list** becomes a refusal of `~/.ssh`, shell profiles
-  and `~/.gitconfig`, since it refuses sibling checkouts and `run-locally.md`; the control set
-  drops `~/.claude/CLAUDE.md` for the same reason. The rows that only served it
-  are `obsolete`.
+  and `~/.gitconfig`, since it refuses sibling checkouts and `run-locally.md`;
+  the control set drops `~/.claude/CLAUDE.md` for the same reason. The rows that
+  only served it are `obsolete`.
 - **The helper-copy `ask`** is out of scope: it meets none of the three criteria
   and would stop a headless `/ship` at every helper in a worktree that differs
   from the hooks' checkout.
