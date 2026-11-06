@@ -165,7 +165,7 @@ are outside it (`docs/harness-boundaries.md`) — so `$work` stays clean on its
 own and the teardown below removes it without `--force`.
 
 **Prove the root is readable before the fan-out, rather than trusting the add.**
-`Glob` a file the pinned commit is known to carry — `$work/CLAUDE.md`, the one
+`Glob` a file the pinned commit is known to carry — `$work/CLAUDE.md`, a
 tracked file every target holds, since each imports `.harness/agent-rules.md`
 from it, as an **absolute** path — and require exactly one hit. A path the shell created is not
 necessarily a path the built-in readers resolve, and the failure is not reliably
