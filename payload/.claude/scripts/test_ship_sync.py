@@ -17,6 +17,7 @@ BASE = ROOT / ".harness" / "settings.base.json"
 HEADING = "A sync pull request is reviewed once, for this target"
 HELPER = "bash .claude/scripts/git-worktree-sync.sh"
 SYNC_PR = "py -3.12 .claude/scripts/sync_pr.py"
+FILER = "bash .claude/scripts/gh-issue-harness.sh"
 
 
 def flat(text):
@@ -72,26 +73,41 @@ class TheSyncRow(unittest.TestCase):
 
     def test_a_failed_verify_reviews_nothing(self):
         lead = flat(section().split("\n- **", 1)[0])
-        self.assertIn(f"{SYNC_PR} verify <n> exits 0", lead)
+        self.assertIn(f"{SYNC_PR} list gives row <n>'s <head>", lead)
+        self.assertIn(f"{SYNC_PR} verify <n> --head <oid> exits 0 there, before any worktree", lead)
         failed = bullet("A failed verify reviews nothing")
-        self.assertIn("a moved head included", failed)
+        self.assertIn("a moved head or a HEAD that differs included", failed)
         self.assertIn("report its lines and end unmerged, or hand it back under --dispatched", failed)
         self.assertIn("none of the seven stops", failed)
         # The verify comes before the worktree is opened, so a head that fails it is never checked out.
-        self.assertLess(lead.index("verify <n>"), lead.index(HELPER))
+        self.assertLess(lead.index("verify <n> --head <oid>"), lead.index(HELPER))
 
-    def test_the_head_in_the_worktree_is_what_every_later_read_is_pinned_to(self):
+    def test_the_worktree_is_compared_to_the_proved_oid_before_anything_in_it_runs(self):
+        # A verify run inside the tree it verifies is the tree's own sync_pr.py, so the proof is made in the main
+        # checkout and the worktree is shown to be that head before it is trusted.
         lead = flat(section().split("\n- **", 1)[0])
-        self.assertIn("There git rev-parse HEAD is the head", lead)
-        # The verify in the worktree runs before step 2 reads anything, and the pre-worktree verify has no pin.
-        self.assertIn("verify <n> --head <oid> runs before step 2 reads anything", lead)
-        self.assertIn("every later verify and review-diff takes the same --head <oid>", lead)
+        rule = "git rev-parse HEAD must equal <oid> before anything in that tree runs"
+        self.assertIn(rule, lead)
+        self.assertIn("which is what makes its own sync_pr.py the proved one", lead)
+        self.assertLess(lead.index("verify <n> --head <oid>"), lead.index(HELPER))
+        self.assertLess(lead.index(HELPER), lead.index(rule))
+        self.assertIn("Every later verify and review-diff passes --head <oid>", lead)
         self.assertIn("sync-<n>-r1.diff --head <oid>", bullet("Step 5"))
-        self.assertLess(lead.index(HELPER), lead.index("--head <oid> runs before step 2"))
+
+    def test_a_run_inside_a_sync_worktree_holds_no_proof(self):
+        lead = flat(section().split("\n- **", 1)[0])
+        self.assertIn("A run that starts inside a sync worktree holds no proof: attended, it leaves with "
+                      'ExitWorktree({action: "keep"}), reads and verifies as above, enters with EnterWorktree and '
+                      "compares", lead)
+        self.assertIn("under --dispatched the dispatcher bound the worktree to the head it proved, so <oid> is "
+                      "git rev-parse HEAD", lead)
+        table = ship().split("## Resume, don't restart", 1)[1].split("\n## ", 1)[0]
+        row = flat(next(ln for ln in table.splitlines() if ln.startswith("| On a branch named `chore/harness-sync-")))
+        self.assertIn("its proof first, which a run already in the worktree holds none of", row)
 
     def test_step_1_opens_the_worktree_on_the_existing_branch(self):
         lead = flat(section().split("\n- **", 1)[0])
-        self.assertIn(f"{HELPER} .claude/worktrees/sync-<sha7> <head> in place of /branch", lead)
+        self.assertIn(f"{HELPER} .claude/worktrees/sync-<sha7> <head> in place of /branch and enters it", lead)
         self.assertIn("chore/harness-sync-[0-9a-f]{7}", lead)
 
     def test_step_2_runs_the_target_local_suites_as_ci_does(self):
@@ -109,8 +125,6 @@ class TheSyncRow(unittest.TestCase):
         for severity in ("bug", "medium", "low", "nit"):
             self.assertIn(severity, step)
         self.assertIn("Low findings left by <repo>#<n>: <title>", step)
-        # A payload finding is filed in the harness, which a target's checkout cannot name: the closed fifth word.
-        self.assertIn("gh-issue-create.sh bug <severity> <area> hand harness", step)
 
     def test_step_6_verifies_again_after_a_rebase(self):
         step = bullet("Step 6")
@@ -144,6 +158,14 @@ class TheSyncRow(unittest.TestCase):
         allow = json.loads(BASE.read_text(encoding="utf-8"))["permissions"]["allow"]
         self.assertIn(f"Bash({HELPER}:*)", allow)
         self.assertIn(f"Bash({SYNC_PR}:*)", allow)
+        # The harness filing helper is /ship's grant alone: a settings allow would reach every command, the sweeps too.
+        self.assertIn(f"Bash({FILER}:*)", grants)
+        self.assertEqual([], [a for a in allow if "gh-issue-harness" in a])
+
+    def test_a_payload_finding_is_filed_by_the_harness_helper(self):
+        step = bullet("Step 5")
+        self.assertIn("bash .claude/scripts/gh-issue-harness.sh bug <severity> harness", step)
+        self.assertNotIn("gh-issue-create.sh", step)
 
 
 if __name__ == "__main__":
