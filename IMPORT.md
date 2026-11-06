@@ -54,8 +54,8 @@ backend's at that commit. `.claude/commands/dispatch.md` and
 `.claude/commands/ship.md` were merged three ways (`git merge-file`, the pin's
 blob as base), with no conflict, so each still differs from backend's only in
 the task-list line *Repository slug and task list* names. Backend's
-`.claude/settings.json` is still blob `aeb89a9`, so the settings base and the
-Task 3 fixture needed no change.
+`.claude/settings.json` is still blob `aeb89a9`, so the settings base needed no
+change.
 
 Task 9 Step 2's second backend pull request, #1732 (rebased onto backend
 `main`, its last commit landing as
