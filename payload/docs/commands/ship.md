@@ -258,8 +258,12 @@ this session it leaves with `ExitWorktree`, which is why the rows that keep a
 run in its worktree except it, proves the head in the main checkout and enters
 again. A session that did not enter it gets an error from `ExitWorktree`, so it
 reports and ends unmerged, to be started again from the main checkout. A
-`--dispatched` sync run starts inside its worktree and holds no proof, so it
-hands back before anything in the tree runs.
+`--dispatched` sync run starts inside its worktree too, but the dispatcher made
+the proof in the main checkout, and `dispatch_board.py sync-launch` and every
+relaunch's `run` refuse a tree that is not that head or is not clean, so the run
+takes `<oid>` as `git rev-parse HEAD`. That bind has to be the dispatcher's
+code: the run's own `sync_pr.py` is the head's copy, so a proof made here would
+be the tree vouching for itself.
 
 **Under `--dispatched` the group is `sync-<n>` and `issues` is `[]`.** The
 argument carries no `#<group>-<n>` tag for the Report's rule to read, and a sync
@@ -1167,8 +1171,8 @@ through the result's `filed`, which the dispatcher places.
 **The workspace is the worktree the session starts in**, and nothing new
 makes it so: the branch there is clean and holds nothing `origin/main` lacks,
 which is step 0's *unused* row, so step 0 stays and step 1 skips `/branch`. A
-sync is the exception: its branch holds the sync's commits and the run holds no
-proof, so it hands back as the sync section says.
+sync is the exception: its branch holds the sync's commits, so the sync row
+takes it, on the dispatcher's proof as the sync section says.
 
 **The worktree outlives the session, and the dispatcher tears it down.** A
 session started inside a worktree it did not enter has no `EnterWorktree`

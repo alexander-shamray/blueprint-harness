@@ -149,19 +149,23 @@ class TheSyncRow(unittest.TestCase):
         text = flat(ship())
         self.assertEqual(4, text.count("a sync run's attended resume aside"), text.count("attended resume aside"))
 
-    def test_no_clause_says_the_dispatcher_proves_the_head(self):
-        # The clause is written with the code that makes it true; until then nothing here claims it.
-        for text in (flat(ship()), flat(ARGUMENT.read_text(encoding="utf-8"))):
-            self.assertNotIn("dispatcher bound", text)
-            self.assertNotIn("dispatcher proved", text)
+    def test_a_dispatched_run_takes_the_head_the_dispatcher_bound(self):
+        # sync-launch and run are what make this true, so the run neither proves again nor hands back for want of one.
+        lead = flat(section().split("\n- **", 1)[0])
+        self.assertIn("Under --dispatched the dispatcher proved the head and bound the worktree to it before launching, "
+                      "so the run takes <oid> as git rev-parse HEAD", lead)
+        self.assertNotIn("holding no proof", lead)
 
-    def test_a_dispatched_run_with_no_proof_is_scoped_in_the_argument_and_the_boundaries(self):
+    def test_the_bind_is_argued_and_scoped_in_the_boundaries(self):
         boundaries = flat((ROOT / "docs" / "harness-boundaries.md").read_text(encoding="utf-8"))
         self.assertNotIn("A dispatched sync's step 2 runs", boundaries)
         self.assertIn("A sync's step 2 runs the target-local suites with it", boundaries)
-        self.assertIn("a --dispatched run holding no proof hands back before anything in the tree runs", boundaries)
+        self.assertIn("which dispatch_board.py sync-launch and run compare before a --dispatched run starts in it",
+                      boundaries)
+        self.assertNotIn("holding no proof", boundaries)
         argued = flat(ARGUMENT.read_text(encoding="utf-8"))
-        self.assertIn("A --dispatched sync run starts inside its worktree and holds no proof, so it hands back", argued)
+        self.assertIn("a proof made here would be the tree vouching for itself", argued)
+        self.assertNotIn("holds no proof, so it hands back", argued)
 
     def test_the_first_proof_is_made_on_main(self):
         lead = flat(section().split("\n- **", 1)[0])
@@ -196,15 +200,13 @@ class TheSyncRow(unittest.TestCase):
     def test_a_run_inside_a_sync_worktree_holds_no_proof(self):
         lead = flat(section().split("\n- **", 1)[0])
         # ExitWorktree answers an error to a session that did not enter the worktree itself.
-        self.assertIn("A run that starts inside a sync worktree holds no proof: if it entered the worktree this "
+        self.assertIn("Any other run that starts inside a sync worktree holds no proof: if it entered the worktree this "
                       'session, it leaves with ExitWorktree({action: "keep"}), proves as above, and enters with '
-                      "EnterWorktree; any other reports and ends unmerged, to be started again from the main checkout",
+                      "EnterWorktree; if not, it reports and ends unmerged, to be started again from the main checkout",
                       lead)
-        # A dispatched run always starts inside the worktree, so it has no route to a proof.
-        self.assertIn("a --dispatched run holding no proof hands back before anything in the tree runs", lead)
         table = ship().split("## Resume, don't restart", 1)[1].split("\n## ", 1)[0]
         row = flat(next(ln for ln in table.splitlines() if ln.startswith("| On a branch named `chore/harness-sync-")))
-        self.assertIn("its proof first, which a run already in the worktree holds none of", row)
+        self.assertIn("its proof first, which a run already in the worktree holds none of unless --dispatched", row)
 
     def test_step_1_opens_the_worktree_on_the_existing_branch(self):
         lead = flat(section().split("\n- **", 1)[0])
