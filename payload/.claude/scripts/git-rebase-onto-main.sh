@@ -390,10 +390,11 @@ case "$mode" in
     # that changes which commits are replayed or what the tree is while they
     # are. `rebase.rebaseMerges` would keep the merge commits this helper
     # exists to be rid of; `rebase.updateRefs` would force-update other local
-    # branches' refs as a side effect; `rebase.autoSquash` would fold a
-    # `fixup!` commit into the one it names; `rebase.forkPoint` would choose a
-    # different base; `rebase.autoStash` would carry through a dirty tree that
-    # this helper refuses to start with. All come from configuration this
+    # branches' refs as a side effect. `--no-autosquash`, `--no-fork-point` and
+    # `--no-autostash` are defensive: git limits `rebase.autoSquash` to
+    # interactive mode and takes no fork point when an upstream is named, and
+    # the start refuses a dirty tree, so each spelling holds against a change of
+    # git's version or mode. All come from configuration this
     # script does not own, and the result is force-pushed. The apply backend,
     # `rebase.backend`'s other choice, leaves a commit it never applied looking
     # exactly like one a resolution emptied.
