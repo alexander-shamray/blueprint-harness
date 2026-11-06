@@ -173,7 +173,12 @@ be named by its own grants. A failing suite has no ending of its own, since step
 2 otherwise says to fix what the checks find and a sync branch is never
 committed to: it is a target-local finding, filed in the target, and the sync
 ends unmerged or is handed back with no round run, because the code under test
-is the target's and a review of the managed files cannot clear it.
+is the target's and a review of the managed files cannot clear it. A re-take
+keeps `HEAD` at `<oid>` and so reruns the head's old copy of the suite: the fix
+the finding waits for is on `main`, not in this head, so only a later sync cut
+from the fixed `main` clears it. A finding in a local file the round reads is
+the other kind: the re-take's review diff reads main's tree, so the merged fix
+clears it.
 
 **Steps 3 and 4 do nothing, because a sync branch is never committed to.** A
 commit would make the head something `verify` never proved and the next sync
@@ -208,12 +213,15 @@ on a first filing: a re-taken sync meets the issue its first round filed, so it
 first searches the open issues for that exact title, with every call under a
 timeout, and comments on a match, and a failed search files nothing. Its area is
 the finding's tree, as `docs/harness/working-rules.md` maps it: `.claude/` is
-`harness`, a suite beside it `harness,test`, other prose `documentation`. A
-re-take that cannot find the citing line it raised gets the review diff's
-citations from main's tip and not the head's, because a sync never changes a
-local file and the head is not rebased, so its copy still holds a line the
-target's own fix removed. A hand-back for a low would be a stop, and the rule
-already sends lows to an issue.
+`harness`, other prose `documentation`, the rest `code`, with `test` beside
+`harness` or `code` for a suite. A target-local low goes through
+`gh-issue-create.sh`, which always creates, so a re-take reads
+`gh-issue-list.sh` first and files nothing when an open issue already holds the
+title. A re-take that cannot find the citing line it raised gets the review
+diff's citations from main's tip and not the head's, because a sync never
+changes a local file and the head is not rebased, so its copy still holds a line
+the target's own fix removed. A hand-back for a low would be a stop, and the
+rule already sends lows to an issue.
 
 **Step 6 verifies again after a rebase, and that replaces the recheck.** A
 rebase rewrites the head, so what was proved is gone, and `verify` on the new

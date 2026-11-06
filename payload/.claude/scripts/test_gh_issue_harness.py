@@ -131,7 +131,8 @@ class HarnessIssueHelperHasNoFreeParameter(unittest.TestCase):
                 self.refused(self.run_helper("bug", severity, "harness", body=self.stdin()), "not a severity")
 
     def test_an_area_outside_the_two_is_refused(self):
-        for area in ("code", "test", "code,test", "harness,code", "Harness", "harness,", "documentation,test",
+        for area in ("test", "harness,code", "code,harness", "Harness", "harness,", "documentation,test", "code,documentation",
+                     "code,test,test", "test,code",
                      "harness,documentation", "documentation,",
                      ",test", "harness,test,test", "harness test", "harness,--repo", "--label bug", ""):
             with self.subTest(area=area):
@@ -140,7 +141,7 @@ class HarnessIssueHelperHasNoFreeParameter(unittest.TestCase):
     def test_each_area_the_tree_map_gives_is_filed_under_its_own_label(self):
         # working-rules: `.claude/` is harness, a suite beside it harness,test, other prose documentation.
         for area, labels in (("harness", ["harness"]), ("harness,test", ["harness", "test"]),
-                             ("documentation", ["documentation"])):
+                             ("documentation", ["documentation"]), ("code", ["code"]), ("code,test", ["code", "test"])):
             with self.subTest(area=area):
                 Path(self.dir, "argv").unlink(missing_ok=True)
                 result = self.run_helper("bug", "low", area, body=self.stdin())

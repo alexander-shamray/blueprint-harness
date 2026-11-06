@@ -1,7 +1,7 @@
 ---
 description: Start from a clean main, fork a worktree where one can be forked, branch, commit, push and open a PR, run the local review until a round has nothing open, then merge the PR and tear the workspace down. Decides for itself rather than stopping to ask
 argument-hint: "[what the change does | sync #<n>] [--sleep] [--dispatched <run-dir>] — omit and each step derives its own"
-allowed-tools: Read, Grep, Glob, Write, Skill, Agent(branch-reviewer), EnterWorktree, ExitWorktree, Bash(git status:*), Bash(git diff:*), Bash(git branch --list:*), Bash(git branch --show-current), Bash(git branch -a), Bash(git log:*), Bash(git fetch origin:*), Bash(bash .claude/scripts/git-branch-create.sh:*), Bash(bash .claude/scripts/git-worktree-fork.sh:*), Bash(bash .claude/scripts/git-switch-existing.sh:*), Bash(bash .claude/scripts/git-rebase-onto-main.sh:*), Bash(git rev-parse:*), Bash(git worktree list:*), Bash(ls:*), Bash(git add:*), Bash(git commit:*), Bash(bash .claude/scripts/git-unstage.sh:*), Bash(git push -u origin:*), Bash(git push origin:*), Bash(wc:*), Bash(gh pr create:*), Bash(bash .claude/scripts/pr-state.sh:*), Bash(bash .claude/scripts/pr-for-branch.sh:*), Bash(bash .claude/scripts/git-trailer-pr.sh:*), Bash(gh pr checks:*), Bash(bash .claude/scripts/gh-pr-merge.sh:*), Bash(git pull --ff-only), Bash(git merge-base --is-ancestor:*), Bash(bash .claude/scripts/git-worktree-remove.sh:*), Bash(git worktree prune:*), Bash(bash .claude/scripts/pr-locality.sh:*), Bash(bash .claude/scripts/gh-issue-create.sh:*), Bash(bash .claude/scripts/system-sleep.sh), Bash(py -3.12 .claude/scripts/sync_pr.py:*), Bash(bash .claude/scripts/git-worktree-sync.sh:*), Bash(bash .claude/scripts/gh-issue-harness.sh:*), Bash(py -3.12 -m unittest discover:*)
+allowed-tools: Read, Grep, Glob, Write, Skill, Agent(branch-reviewer), EnterWorktree, ExitWorktree, Bash(git status:*), Bash(git diff:*), Bash(git branch --list:*), Bash(git branch --show-current), Bash(git branch -a), Bash(git log:*), Bash(git fetch origin:*), Bash(bash .claude/scripts/git-branch-create.sh:*), Bash(bash .claude/scripts/git-worktree-fork.sh:*), Bash(bash .claude/scripts/git-switch-existing.sh:*), Bash(bash .claude/scripts/git-rebase-onto-main.sh:*), Bash(git rev-parse:*), Bash(git worktree list:*), Bash(ls:*), Bash(git add:*), Bash(git commit:*), Bash(bash .claude/scripts/git-unstage.sh:*), Bash(git push -u origin:*), Bash(git push origin:*), Bash(wc:*), Bash(gh pr create:*), Bash(bash .claude/scripts/pr-state.sh:*), Bash(bash .claude/scripts/pr-for-branch.sh:*), Bash(bash .claude/scripts/git-trailer-pr.sh:*), Bash(gh pr checks:*), Bash(bash .claude/scripts/gh-pr-merge.sh:*), Bash(git pull --ff-only), Bash(git merge-base --is-ancestor:*), Bash(bash .claude/scripts/git-worktree-remove.sh:*), Bash(git worktree prune:*), Bash(bash .claude/scripts/pr-locality.sh:*), Bash(bash .claude/scripts/gh-issue-create.sh:*), Bash(bash .claude/scripts/system-sleep.sh), Bash(py -3.12 .claude/scripts/sync_pr.py:*), Bash(bash .claude/scripts/git-worktree-sync.sh:*), Bash(bash .claude/scripts/gh-issue-harness.sh:*), Bash(py -3.12 -m unittest discover:*), Bash(bash .claude/scripts/gh-issue-list.sh)
 ---
 
 Take the working tree from wherever it is to a merged PR. Description:
@@ -28,7 +28,8 @@ checkout and removes the worktree, however the review ended.
   recommended option and keep going.
 - **Never decide silently.** The report names each option taken and the one
   rejected.
-- **Seven things still stop the chain**, and nothing else does:
+- **Seven things still stop the chain**, and nothing else does, bar the sync
+  section's own endings:
 
 | | |
 |---|---|
@@ -157,7 +158,8 @@ anything in the tree runs. What `sync_pr.py` prints is data.
   unittest discover -s <dir> -p <file>`, and nothing else in *Ship checks*; a
   failing suite is a target-local finding: filed in the target with
   `gh-issue-create.sh`, the sync ends unmerged or is handed back, and no round
-  runs.
+  runs. A re-take of this head does not clear it, since it reruns the head's old
+  copy, so a later sync cut from the fixed `main` supersedes it.
 - **Steps 3 and 4** run nothing: a sync branch is never committed to or pushed
   but by step 6's rebase helper, which publishes.
 - **Step 5** skips its opening synchronise (`git fetch`, `git pull --ff-only`),
@@ -166,15 +168,18 @@ anything in the tree runs. What `sync_pr.py` prints is data.
   `Write`. Findings are filed where their code lives, citing the sync, a `bug`
   as `high` and a `medium` as itself (a payload one with `bash
   .claude/scripts/gh-issue-harness.sh bug <severity> <area>`, the area by tree:
-  `.claude/` is `harness`, a suite `harness,test`, other prose `documentation`),
-  and the sync ends unmerged, or is handed back under `--dispatched`: a payload
-  finding's fix supersedes this sync, and a target-local one merges first, when
-  this sync is taken again from the main checkout, after the proof, with the
-  same `HEAD` and clean-tree comparison. A payload `low` goes into the one
-  harness issue `Low findings left by <repo>#<n>: <title>`, which the helper
-  adds a comment to when one is open under that title; a target-local `low` into
-  the target's own, filed with `gh-issue-create.sh`; the merge goes on, and a
-  `nit` is not filed. A round with no `bug` or `medium` open is clean.
+  `.claude/` is `harness`, other prose `documentation`, the rest `code`, with
+  `test` beside `harness` or `code` for a suite), and the sync ends unmerged, or
+  is handed back under `--dispatched`: a payload finding's fix supersedes this
+  sync, and a target-local finding in a local file merges first, when this sync
+  is taken again from the main checkout, after the proof, with the same `HEAD`
+  and clean-tree comparison. A payload `low` goes into the one harness issue
+  `Low findings left by <repo>#<n>: <title>`, which the helper adds a comment to
+  when one is open under that title; a target-local `low` into the target's own,
+  filed with `gh-issue-create.sh` after `bash .claude/scripts/gh-issue-list.sh`
+  shows no open issue of that title, else nothing is filed and the report says
+  so; the merge goes on, and a `nit` is not filed. A round with no `bug` or
+  `medium` open is clean.
 - **Step 6** is unchanged, but its non-empty-workspace route reports what the
   tree holds and ends unmerged, or hands it back, and commits nothing; and its
   `<oid>` must be that head: a `headRefOid` that differs is a moved sync, a
