@@ -115,7 +115,8 @@ code=0
 why=$(holder) || code=$?
 if [ "$code" -ne 0 ] || [ -n "$why" ]; then
   git update-ref --no-deref "refs/heads/$branch" "$tip" "" ||
-    { echo "$branch was deleted while a worktree took it, and could not be put back: git branch $branch $tip" >&2
+    { echo "$branch was deleted while a worktree took it, and could not be put back at $tip" >&2
+      echo "if it is still absent: git branch $branch $tip" >&2
       exit 4; }
   [ "$code" -eq 0 ] ||
     { echo "cannot read the worktrees or their state, so whether $branch is in use is unknown; it is kept" >&2; exit 12; }
