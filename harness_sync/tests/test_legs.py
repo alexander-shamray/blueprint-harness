@@ -117,7 +117,7 @@ class WhatTheFilterLooksAtTests(unittest.TestCase):
             text = (ROOT / suite).read_text(encoding="utf-8")
             chains = re.findall(r'SCRIPTS\.parent((?:\s*/\s*"[^"]+")+)', text)
             self.assertEqual(bool(chains), suite not in FIXTURE_SUITES,
-                             f"{suite} no longer spells what it reads off SCRIPTS.parent")
+                             f"{suite}: what it spells off SCRIPTS.parent disagrees with FIXTURE_SUITES")
             for chain in chains:
                 rel = "/".join(re.findall(r'"([^"]+)"', chain))
                 with self.subTest(suite=suite, rel=rel):
