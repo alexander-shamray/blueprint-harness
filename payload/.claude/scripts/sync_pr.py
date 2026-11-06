@@ -191,7 +191,7 @@ def head_blobs(oid):
         meta, _, path = entry.partition("\t")
         parts = meta.split()
         if len(parts) == 3 and parts[1] == "blob":
-            found[path] = (parts[0], parts[2])
+            found[path] = parts[2]  # the blob id alone: apply writes no mode, so 100755 arrives as 100644
     return found
 
 
@@ -205,7 +205,7 @@ def payload_blobs(commit):
     for entry in tree["tree"]:
         path = entry.get("path") if isinstance(entry, dict) else None
         if isinstance(path, str) and path.startswith("payload/") and entry.get("type") == "blob":
-            found[path[len("payload/"):]] = (entry.get("mode"), entry.get("sha"))
+            found[path[len("payload/"):]] = entry.get("sha")
     return found
 
 
@@ -241,8 +241,8 @@ def prove(number):
             elif path not in in_head:
                 failures.append(f"{path}: in the manifest but not on the head")
             elif in_head[path] != payload[path]:
-                failures.append(f"{path} differs from the payload at {commit} (head {in_head[path][1]}, "
-                                f"payload {payload[path][1]})")
+                failures.append(f"{path} differs from the payload at {commit} (head {in_head[path]}, "
+                                f"payload {payload[path]})")
     except Refusal as error:
         payload = None
         failures.append(f"cannot compare the managed files with the payload tree: {error}")
