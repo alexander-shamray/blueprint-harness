@@ -355,7 +355,7 @@ def sync_launch(root, run, pr, branch, worktree, oid):
     gid = f"sync-{pr}"
     entries = state.setdefault("groups", {})
     if gid in entries:
-        raise Refusal(f"{gid} is already in this run; a sync is never relaunched")
+        raise Refusal(f"{gid} is already in this run; a new take is a new group")
     if (directory / "STOP").exists():
         raise Refusal("stop file: the owner ended the night, so nothing more launches")
     # A sync holds no rows, so a report can close its run with the executor alive, in the worktree a re-take reuses.
