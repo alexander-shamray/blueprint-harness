@@ -1,5 +1,5 @@
 {
-  "harness_commit": "f5e25362d01a44c0db82e01db20976d8c8cec3da",
+  "harness_commit": "02b9528e0e000e43394cf6fcfe95dec607fa64bd",
   "files": {
     ".claude/agents/branch-reviewer.md": "cbdcb74b32ca6d000b697d98396c86339c5feb271190d34be42f9eb98c1c8388",
     ".claude/agents/bug-auditor.md": "6219201313c10252798ff249570298f4de6ad6a66690f3dc40510fd76859b4d7",
