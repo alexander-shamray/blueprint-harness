@@ -56,6 +56,11 @@ def _line(text, cap=200):
     return " ".join(text.split())[:cap]
 
 
+def _name(path):
+    """A path read from the head, safe to print: its author chose the text, and git allows a newline in a name."""
+    return path[:200] if path.isprintable() else _line(repr(path), 80)
+
+
 def read(argv, timeout=GH_TIMEOUT):
     code, out, err = run(argv, timeout=timeout)
     if code:
@@ -300,9 +305,9 @@ def prove(number):
             continue
         elif path in old:
             if status != "D":
-                failures.append(f"{path} left the manifest but was changed, not deleted")
+                failures.append(f"{_name(path)} left the manifest but was changed, not deleted")
         else:
-            failures.append(f"{path} is changed but is outside the manifest")
+            failures.append(f"{_name(path)} is changed but is outside the manifest")
     return failures, head
 
 
@@ -324,7 +329,7 @@ def _citations(oid, path, managed):
             continue
         name = parts[0][len(oid) + 1:] if parts[0].startswith(f"{oid}:") else parts[0]
         if name not in managed and name != MANIFEST:
-            found.append(f"{name}:{parts[1]}: {_line(parts[2], TEXT_CAP)}")
+            found.append(f"{_name(name)}:{parts[1]}: {_line(parts[2], TEXT_CAP)}")
     return found
 
 
