@@ -143,3 +143,22 @@ jobs:
         if: matrix.os != 'ubuntu-latest' && steps.reach.outputs.test != 'false'
         working-directory: ${{ runner.temp }}/rendered
         run: python -m unittest discover -s .claude/scripts -p "test_sed_crlf_guard.py" -v
+
+      # Windows alone, for their fixtures rather than their subjects: a path bash
+      # and Python both open, and a cleanup meeting git's read-only objects, fail
+      # nowhere else. These stand for every suite on `review_helpers.temp_root`;
+      # the others take minutes more, so `test_python_hygiene.py` holds their form.
+      - name: Test the branch drop's fixture
+        if: matrix.os == 'windows-latest' && steps.reach.outputs.test != 'false'
+        working-directory: ${{ runner.temp }}/rendered
+        run: python -m unittest discover -s .claude/scripts -p "test_git_branch_drop.py" -v
+
+      - name: Test the trailer helpers' fixture
+        if: matrix.os == 'windows-latest' && steps.reach.outputs.test != 'false'
+        working-directory: ${{ runner.temp }}/rendered
+        run: python -m unittest discover -s .claude/scripts -p "test_git_pr_trailer_helpers.py" -v
+
+      - name: Test the comment gate's fixture
+        if: matrix.os == 'windows-latest' && steps.reach.outputs.test != 'false'
+        working-directory: ${{ runner.temp }}/rendered
+        run: python -m unittest discover -s .github/comment-gate -p "test_comment_gate.py" -v
