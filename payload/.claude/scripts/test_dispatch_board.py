@@ -548,6 +548,16 @@ class WriteTests(unittest.TestCase):
         back_row = next(r for r in db.parse_tasks(late).remaining if r.number == 1440)
         self.assertEqual("OWNER; 2026-11-09", back_row.cells[db.DEPENDS])
 
+    def test_back_and_place_rebuild_a_remaining_the_last_row_emptied(self):
+        text = tasks_of(line())
+        group = group_of(line())
+        moved = db.move_to_in_progress(text, group, "fix/x", ".claude/x", TODAY)
+        self.assertEqual([], db.parse_tasks(moved).remaining)
+        back = db.return_to_remaining(moved, [r.line for r in group.rows], {"#1700"})
+        self.assertEqual([1700], [r.number for r in db.parse_tasks(back).remaining])
+        placed = db.place(db.delete_in_progress(moved, {"#1700"}), 1, "Z1", 1701)
+        self.assertEqual([1701], [r.number for r in db.parse_tasks(placed).remaining])
+
     def test_a_row_not_where_it_should_be_is_refused(self):
         group = self.s1()
         moved = db.move_to_in_progress(FIXTURE, group, "b", "w", TODAY)
