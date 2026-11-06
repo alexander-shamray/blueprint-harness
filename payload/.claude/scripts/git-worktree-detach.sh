@@ -28,18 +28,10 @@ commit="$1"
 git rev-parse --verify --quiet "$commit^{commit}" >/dev/null ||
   { echo "no such commit: $commit" >&2; exit 3; }
 
-# A commit carrying a tracked symbolic link is refused, before any worktree is
-# dropped or made. A worktree keeps links, so `$work/leak -> ~/.ssh/id_rsa` is
-# a path under `$work` whose target is not, and `Read`, `Grep` and `Glob`, the
-# three tools an auditor holds, all follow it: the sweeps' rule about the
-# spelling of a path cannot see it. Asked of the pinned commit, which is what
-# the worktree materialises, not of `main`. Refused rather than pruned, as a
-# sweep over a tree with a file removed would report a clean audit of
-# something that is not the branch.
-# The listing is read whole by awk, which stops itself at five names: a `head`
-# closing the pipe early would kill the producer under pipefail, with neither
-# the exit nor the message. Split on the tab, so a name holding a space is named
-# whole, and printed quoted, so no name is globbed.
+# A commit carrying a tracked symbolic link is refused before any worktree is
+# dropped or made, since an auditor's reads follow it out of the worktree
+# (docs/commands/bug-sweep.md, *Residuals*). awk reads the listing whole and
+# stops at five names: a closing `head` can kill the producer under pipefail.
 links=$(git ls-tree -r "$commit" | awk -F'\t' 'index($1, "120000 ") == 1 && n < 5 { n++; print $2 }')
 [ -z "$links" ] ||
   { echo "$commit carries tracked symbolic links, and a sweep's reads follow them out of the worktree:" >&2

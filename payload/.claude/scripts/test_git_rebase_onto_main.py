@@ -94,8 +94,7 @@ git commit -qm "the branch edits a.txt" && git push -q origin feat/x
 FAIL_PUSH = 'git --git-dir=../remote.git config receive.denyNonFastForwards true'
 ALLOW_PUSH = 'git --git-dir=../remote.git config --unset receive.denyNonFastForwards || true'
 # A rebase that fails before any state exists, on every platform: git wants the
-# index lock and finds a file there. A `pre-rebase` hook used to do it, and the
-# helper no longer lets one run.
+# index lock and finds a file there. The helper runs no `pre-rebase` hook.
 LOCK_INDEX = 'printf x > "$(git rev-parse --git-path index.lock)"'
 UNLOCK_INDEX = 'rm -f "$(git rev-parse --git-path index.lock)"'
 
@@ -446,13 +445,10 @@ class TheArgumentGuardsEachHaveTheirOwnCase(unittest.TestCase):
 
 
 class TheHostsHooksNeverRunInAReplay(unittest.TestCase):
-    """The helper spells the `rebase.*` keys itself, and `core.hooksPath` is the
-    same kind of input: a `pre-rebase`, `post-rewrite`, `pre-push` or
-    `reference-transaction` hook in the repository would otherwise run inside a
-    replay that rewrites published history, and could veto or alter it. The
-    helper points `core.hooksPath` at an empty directory for the whole run,
-    through the environment, so every git it starts, the sequencer's included,
-    inherits it.
+    """The helper points `core.hooksPath` at an empty directory for the whole run,
+    through the environment, so a `pre-rebase`, `post-rewrite`, `pre-push` or
+    `reference-transaction` hook of the host's, which could veto or alter a
+    replay, runs in no git the helper starts.
     """
 
     HOOKS = ("pre-rebase", "post-rewrite", "pre-push", "reference-transaction")

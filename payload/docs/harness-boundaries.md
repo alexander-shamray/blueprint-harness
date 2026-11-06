@@ -1012,8 +1012,14 @@ relax at all is the `main` ruleset on the server, read back green for every
 target, so a helper that got its guards wrong still cannot rewrite or delete
 `main` (*Destructive classes*). `git-rebase-onto-main.sh` carries the flags
 itself, runs none of the target's hooks (`core.hooksPath` is an empty
-directory for the run, as in `git-trailer-pr.sh`), takes one branch name that
-has to equal the one checked out, refuses
+directory for the run, as in `git-trailer-pr.sh`), spells over every
+`rebase.*` key that changes a replay (`--no-rebase-merges` and
+`--no-update-refs` answer settings that act today; `--no-autosquash`,
+`--no-fork-point` and `--no-autostash` are defensive, since git limits
+`rebase.autoSquash` to interactive mode, takes no fork point when an upstream
+is named and the start refuses a dirty tree; `--merge` keeps the apply backend
+out, which leaves a commit it never applied looking like one a resolution
+emptied), takes one branch name that has to equal the one checked out, refuses
 `main` by name before it reads the checkout at all, refuses a remote holding
 commits this checkout lacks, and leases the push against the commit the same
 run read. **A rule could have bought none of that**: a permission pattern

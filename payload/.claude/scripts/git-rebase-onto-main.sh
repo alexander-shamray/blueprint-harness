@@ -47,12 +47,10 @@ case "$lowered" in
     echo "refusing to rebase or force-push main, spelled $branch" >&2; exit 3 ;;
 esac
 
-# A target's hooks never run inside this helper: a `pre-rebase`, `post-rewrite`,
-# `pre-push` or `reference-transaction` hook of its own would run in, and could
-# veto or alter, a replay of published history. `core.hooksPath` is an empty
-# directory made for the run, set once through the environment before any git
-# runs, so every git started after it, the sequencer's included, inherits it.
-# The entry is appended to any the caller already set.
+# A target's hooks never run inside this helper: its `pre-rebase`, `post-rewrite`
+# or `pre-push` hook could veto or alter a replay of published history. An empty
+# `core.hooksPath` is exported before any git runs, so the sequencer inherits
+# it; the caller's own entries are kept.
 no_hooks=$(mktemp -d)
 trap 'rmdir "$no_hooks" 2>/dev/null || :' EXIT
 hook_entry="${GIT_CONFIG_COUNT:-0}"
@@ -386,18 +384,9 @@ case "$mode" in
     require_no_merge_invented_anything
     remember_lease
 
-    # The flags are spelled rather than inherited, one for every `rebase.*` key
-    # that changes which commits are replayed or what the tree is while they
-    # are. `rebase.rebaseMerges` would keep the merge commits this helper
-    # exists to be rid of; `rebase.updateRefs` would force-update other local
-    # branches' refs as a side effect. `--no-autosquash`, `--no-fork-point` and
-    # `--no-autostash` are defensive: git limits `rebase.autoSquash` to
-    # interactive mode and takes no fork point when an upstream is named, and
-    # the start refuses a dirty tree, so each spelling holds against a change of
-    # git's version or mode. All come from configuration this
-    # script does not own, and the result is force-pushed. The apply backend,
-    # `rebase.backend`'s other choice, leaves a commit it never applied looking
-    # exactly like one a resolution emptied.
+    # Every `rebase.*` key that changes the replay is spelled over, three of
+    # them defensively (docs/harness-boundaries.md, *Grant inventory and push
+    # helpers*); `--merge` keeps the apply backend out.
     before=$(git rev-parse HEAD)
     git rebase --merge --no-rebase-merges --no-update-refs --no-autosquash \
       --no-fork-point --no-autostash "refs/remotes/origin/main" || stopped
