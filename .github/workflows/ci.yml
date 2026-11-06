@@ -58,7 +58,7 @@ jobs:
   # macOS run what only they can reach, on backend's `edit-target-guard`
   # argument: junctions, `..` after a link, case folding, `msvcrt.locking` and
   # the guard judging on Windows alone, in suites needing only Python and `git`.
-  # Windows adds the fixture steps below, which need `bash`, `grep` and `jq` too.
+  # Windows adds the fixture steps below; two of them need `bash`, `grep`, `jq`.
   payload-suites:
     strategy:
       fail-fast: false
