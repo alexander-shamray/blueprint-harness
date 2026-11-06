@@ -524,8 +524,10 @@ class TheGitArgvGuard(unittest.TestCase):
                 self.assertIn("substitution", self.assertRefused(command))
 
     def test_arithmetic_expansion_runs_no_program(self):
-        # `$((…))` shares its opening with `$(…)`, and its body is a sum: a
-        # guard that reads that body as a command refuses a poll loop's counter.
+        # `substitutions` hands a `$((…))` body on as a command, because it
+        # shares its opening with `$(…)`. A sum names no program there, so a
+        # poll loop's counter is admitted, and the same reading judges what
+        # is nested in it.
         for command in (
             "n=$((n+1))",
             "n=0; n=$((n+1)); echo $n",
