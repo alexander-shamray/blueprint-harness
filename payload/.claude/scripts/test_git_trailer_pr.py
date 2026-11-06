@@ -19,6 +19,7 @@ class TheHelperRefusesMain(Fixture):
         tip = self.git("rev-parse", "HEAD")
         for spelling in SPELLINGS:
             with self.subTest(spelling=spelling):
+                self.git("update-ref", f"refs/heads/{spelling}", tip)
                 self.git("symbolic-ref", "HEAD", f"refs/heads/{spelling}")
                 out = self.run_helper(TRAILER, row=f"OPEN\t{spelling}\tmain\tfalse")
                 self.assertEqual(3, out.returncode, f"{spelling!r}: {out.stderr}")
