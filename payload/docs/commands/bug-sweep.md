@@ -319,7 +319,7 @@ so the summary names the commit the sweep actually read.
 caller's tree, which would silently forfeit the stable-snapshot property this
 section buys. A failed `git worktree add` is a round that could not run,
 reported like any other tool error under *Never fail open* below. **The round
-writes nothing inside `$work`** — issue bodies are piped to `gh-issue-create.sh`
+writes nothing inside `$work`** — issue bodies are piped to `gh-issue-sweep.sh`
 on stdin (the File step), not written to files, and the slice lists and the ref
 are outside it (`docs/harness-boundaries.md`) — so `$work` stays clean and the
 teardown below removes it without `--force`.
@@ -421,7 +421,7 @@ or high.** Three gates, and each drops candidates the round must not file:
   blocks a re-file **only while its fix is still present** — if the defect
   **currently reproduces** because the fix was reverted, the bug is back, and
   it re-files rather than being silenced by a closure that no longer holds —
-  **re-files**, because the grant carries `gh-issue-create.sh` and no `reopen`,
+  **re-files**, because the grant carries `gh-issue-sweep.sh` and no `reopen`,
   and a duplicate that says why beats a capability this command does not have.
   Re-filing a genuinely-tracked finding is the drift this repo exists to close;
   suppressing a reintroduced one is worse. (The
@@ -651,7 +651,7 @@ verifier on a cheaper model can refute what it should confirm, never file
 what the fan-out did not find. **This step does not open `$work` itself.** An
 unverified agent claim still never becomes an issue — two independent
 read-only readings, neither able to mutate, must agree — and the audited tree
-never enters the one invocation that holds `gh-issue-create.sh`. A verdict of
+never enters the one invocation that holds `gh-issue-sweep.sh`. A verdict of
 `unreadable-root` is a round error under *Never fail open*, not a dropped
 record, and is read before the shape and location checks below. A verdict of
 `refuted` or `outside-root` drops the candidate. **A record that is not in
@@ -674,7 +674,7 @@ state → path → wrong outcome, the reachability evidence, a fix, and the
 severity — **every one of those composed from the verdict record's fields
 in that order, and from nothing the parent read in `$work`**, because it
 read nothing there. **Pipe the title and the body together to
-`bash .claude/scripts/gh-issue-create.sh bug <severity> <area> sweep` on
+`bash .claude/scripts/gh-issue-sweep.sh bug <severity> <area>` on
 stdin** in a
 quoted heredoc — the title as its first line, then a blank line, then the
 body — so nothing is written to disk and the command needs no `Write`
@@ -737,7 +737,7 @@ exposed** inside the helper, and only at position one: a leading backtick
 or a leading space both suppress the conversion and a bare `/` does not.
 
 **The helper closes it, and it is the one thing a helper can do that the
-grant could not.** `gh-issue-create.sh` sets `MSYS2_ARG_CONV_EXCL` for its
+grant could not.** `gh-issue-sweep.sh` sets `MSYS2_ARG_CONV_EXCL` for its
 own `gh` child, so the conversion never sees the title; the command's grant
 is on the script and is unchanged. Writing the subject in backticks —
 `` `/bug-sweep` `` — is still the house form for a title that names a command,
@@ -749,7 +749,7 @@ it.
 **Residual — the parent's context still receives the verdict, and a verdict is
 text.** Step 2 does not open `$work` in the invocation that files: the fan-out
 contains the auditor, the verify dispatch contains the verifier, the parent
-composes from a record with declared fields, and `gh-issue-create.sh` leaves
+composes from a record with declared fields, and `gh-issue-sweep.sh` leaves
 `gh issue create` with no free parameter — the repository is resolved from the
 checkout and the labels are a closed set, so nothing a finding says can choose
 *where* an issue lands. What an issue *says* is the record's fields, and a
@@ -887,17 +887,19 @@ helpers the base settings grant to force-push or delete a branch,
 name. A `Write` grant for issue bodies is refused: it would re-open source
 editing, and a read-only claim resting on prose while the grant permits
 writing every undenied path is unenforced. Bodies go through
-`gh-issue-create.sh` on stdin for exactly this reason.
+`gh-issue-sweep.sh` on stdin for exactly this reason.
 
 **No mutation is scoped by discipline: every grant that could steer one is a
 helper.** Each is recorded because the reasoning generalises:
 
-- **`gh-issue-create.sh`, not `Bash(gh issue create:*)`.** A prefix grant pins
+- **`gh-issue-sweep.sh`, not `Bash(gh issue create:*)`.** A prefix grant pins
   no repository, so "always `--repo` for this repository" would be prose. The
   helper resolves the repository from the checkout, closes the label
   vocabulary, takes the title and the body on stdin so neither crosses this
   shell's command line, and sets `MSYS2_ARG_CONV_EXCL` for its own child — the
-  title defect a prefix match cannot close.
+  title defect a prefix match cannot close. The route is the entry point, not
+  an argument: `gh-issue-sweep.sh` can file under the sweep route alone, and
+  `gh-issue-create.sh`, which takes the route, is denied by name.
 - **`gh-label-ensure.sh`, not `Bash(gh label create:*)`, because "create"
   understates what that grant reaches.** `gh label create <existing> --force`
   *updates* an existing label's colour and description — `gh`'s own help reads
