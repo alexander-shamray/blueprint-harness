@@ -1101,6 +1101,30 @@ drift gate renders again, and the manifest's hashes. Residual: blob ids are
 compared exactly where apply and the gate fold CRLF, so a target whose stored
 blob holds CRLF is refused every sync; that fails closed.
 
+**A worktree on a sync branch is granted by its whole command line.**
+`Bash(bash .claude/scripts/git-worktree-sync.sh:*)` admits `<path> <branch>`
+and nothing else. A prefix grant on `git worktree add` also buys `-B`, which
+resets an existing branch past the `git branch --force` deny, so the helper
+spells `git fetch origin <branch>` and `git worktree add --track -b <branch>
+<path> origin/<branch>` itself. The branch must match `SYNC_HEAD` in full,
+`main` included, and a harness test holds the helper's pattern to `pr.py`'s;
+the path and root checks are `git-worktree-fork.sh`'s; a branch that exists
+locally, or that origin lacks, is refused. A name that matches is not a proved
+sync, which is `sync_pr.py verify`'s to say, and `/ship` runs it before the
+helper. Residual: called directly, the helper opens any branch named like a
+sync, which it checks out and runs nothing in.
+
+**`gh-issue-create.sh` takes one repository word, a closed set of one.** A
+fifth argument of exactly `harness` files in
+`alexander-shamray/blueprint-harness`, a name spelled in the helper, for
+`/ship`'s sync row, which finds payload defects from a target whose checkout
+is another repository. Any other word is
+refused before `gh` runs, four arguments file where they always did, and the
+sweeps never pass the word. It skips the label sibling, which resolves the
+checkout's repository, so a label the harness lacks fails the create rather
+than being made. Residual: a caller that passes the word files in the harness
+whatever the checkout, which is its whole use.
+
 **Some of the rebase helper's edges are accepted rather than guarded.** A replay
 amended after a failed push no longer descends from the commit `publish`
 recorded, so `publish` refuses it and names the tip to reset the branch to by

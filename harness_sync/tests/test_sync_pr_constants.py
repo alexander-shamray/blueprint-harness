@@ -42,6 +42,13 @@ class SyncPrConstants(unittest.TestCase):
             self.assertFalse(self.script.is_sync_body(body.replace(pr.FOOTER, "Opened by someone else")), run_url)
             self.assertFalse(self.script.is_sync_body(body + "trailing line\n"), run_url)
 
+    def test_the_worktree_helper_takes_the_sync_head_and_no_other(self):
+        # The helper is bash, so its pattern is read out of its text and held to pr.py's, not re-spelled.
+        text = (SCRIPTS / "git-worktree-sync.sh").read_text(encoding="utf-8")
+        found = re.findall(r'^\[\[ "\$branch" =~ \^(\S+)\$ \]\]', text, re.MULTILINE)
+        self.assertEqual([pr.SYNC_HEAD.pattern], found)
+        self.assertFalse(pr.SYNC_HEAD.pattern.startswith("^") or pr.SYNC_HEAD.pattern.endswith("$"))
+
     def test_the_glob_matcher_is_apply_s(self):
         cases = [("a.md", "a.md"), ("*.md", "d/a.md"), ("**/*.md", "a.md"), ("d/**", "d/e/f"), ("d/**", "d"),
                  ("d/?.md", "d/ab.md"), ("(x)+", "(x)+"), ("a.b", "aXb")]

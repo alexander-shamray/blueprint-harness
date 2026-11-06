@@ -133,6 +133,69 @@ not run it again.** A commit or rebase made there merges without a review
 reading it, and the report says so, because a plan is one round and step 6
 cannot buy it a second.
 
+## A sync pull request is reviewed once, for this target
+
+**A branch name proves nothing, so a sync is what `sync_pr.py verify` says it
+is.** Any same-repository branch can be named `chore/harness-sync-xxxxxxx`;
+`verify` is what shows the head holds the payload at a commit on the harness's
+`main` and changes nothing the config keeps (`docs/harness-boundaries.md`,
+*Grant inventory and push helpers*). It runs in the main checkout before a
+worktree exists, and a head that fails it is neither checked out nor reviewed,
+because the review that follows would be of a diff nobody proved. That is not
+one of the seven stops: they are things that failed while the chain ran, and
+here nothing ran. A session reports the verify's lines and ends unmerged; an
+executor hands the change back with them as the reason, since nobody is there to
+read a report.
+
+**The worktree is opened on the branch that exists, not forked from `main`.**
+`/branch` would name a new branch, and a sync's commits are the harness's: the
+PR's head is the branch `gh-pr-merge.sh` binds to, so the merge must run from a
+checkout of it. `git-worktree-sync.sh` fetches the branch and adds the worktree
+tracking `origin/<branch>`, refusing any name that is not a sync head and every
+path and root `git-worktree-fork.sh` refuses.
+
+**Step 2 runs the target's own suites and nothing else.** The managed files were
+checked in the harness, so *Ship checks* would read them a second time; what the
+harness never runs is the target-local test a payload change can trip
+(`docs/harness/working-rules.md`). Each is run as CI runs it, with `discover -s
+<dir> -p <file>`, because it imports its siblings from its own directory and a
+dotted module name cannot be formed from `.claude/` or `.github/comment-gate/`.
+
+**Steps 3 and 4 do nothing, because a sync branch is never committed to.** A
+commit would make the head something `verify` never proved and the next sync
+overwrite it. A dirty tree is the sync row's own case, not the open-PR row's,
+whose answer is to commit: it is reported, with what the tree holds, and the run
+ends unmerged.
+
+**One round, because the diff is the part that is this target's.** The reviewer
+is handed `review-diff`'s file, which leaves the managed content out, and not
+the branch diff, which holds every managed file once more. The file is written
+by the helper and never with `Write`: the helper proves the head first, and a
+file this session composed would not be that proof. A `bug` or `medium` finding
+is filed in the repository whose code it is about, citing the sync, then the
+sync ends unmerged or is handed back; a payload one is the harness's, so the
+fix's own sync supersedes this one, and a target-local one, such as Review Focus
+3's local line citing a deleted path, is fixed in the target and this sync taken
+again once that merges. The harness is not the checkout's repository, so the
+filing line takes the closed fifth word `harness`, which `gh-issue-create.sh`
+reads as that one repository and as no other. A `low` goes into one harness
+issue, as the user-level filing rule sends it, and the merge goes on; a `nit` is
+not filed. *(Builder's call: a hand-back for a low is a stop that the dispatch
+design's section 4 counts, and the rule already sends lows to an issue.)*
+
+**Step 6 verifies again after a rebase, and that replaces the recheck.** A
+rebase rewrites the head, so what was proved is gone, and `verify` on the new
+head is the proof again. The step's ordinary route re-enters step 5 for a
+recheck after a rebase; a sync keeps its one round, because the verify compares
+the new head's managed files by blob id. A failed verify is handed back, as the
+first one is.
+
+**Under `--dispatched` the group is `sync-<n>` and `issues` is `[]`.** The
+argument carries no `#<group>-<n>` tag for the Report's rule to read, and a sync
+answers no issue. `/ship` is granted `sync_pr.py` and the worktree helper in its
+frontmatter as well as in the settings: a dispatched run's reads must be named
+by its own grants, and one they do not name is the auto classifier's to refuse.
+
 ## Step 0: the finished predicate
 
 **Start from the main checkout, on an up-to-date `main`, with no leftover
