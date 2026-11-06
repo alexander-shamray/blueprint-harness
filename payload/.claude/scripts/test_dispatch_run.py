@@ -1191,12 +1191,22 @@ class BerserkTests(InRoot):
         self.assertNotIn("released", dr.load_state(state_dir()), "a group not chosen is not recorded")
 
     def test_a_group_sent_back_is_never_relaunched_by_its_owner_mark(self):
-        # `tasks back` marks a row OWNER so nothing relaunches it unseen; the flag must not turn that mark into a launch.
+        # `tasks back` marks a row so nothing relaunches it unseen; the flag must not turn that mark into a launch.
         self.state()
-        record(RUN, "Z1", status="returned", closed_from="handed-back", keys=["#1700"],
-               rows=[line(depends="OWNER")], issues=[1700])
-        lines = self.wake(tasks_of(line(depends="OWNER")))
-        self.assertEqual("end: drained", lines[-1], lines)
+        with open("todo.md", "w", encoding="utf-8", newline="") as handle:
+            handle.write(FIXTURE)
+        run_cli(["tasks", "move", "--tasks", "todo.md", "--run", RUN, "S3", "--branch", BRANCH, "--worktree", WORKTREE])
+        run_cli(["tasks", "back", "--tasks", "todo.md", "--run", RUN, "S3"])
+        with open("todo.md", encoding="utf-8", newline="") as handle:
+            text = handle.read()
+        self.assertIn(f"| OWNER; {db.TRIED} |", text)
+        self.assertNotIn("S3", self.wake(text)[-1])
+
+    def test_a_later_flagged_run_does_not_lift_a_row_an_earlier_one_tried(self):
+        self.state()
+        self.assertEqual("end: drained", self.wake(tasks_of(line(depends=f"OWNER; {db.TRIED}")))[-1])
+        self.assertEqual("launch: Z1", self.wake(tasks_of(line(depends="OWNER")))[-1],
+                         "a plain night's hand-back reads OWNER alone, which is the row the flag is for")
 
     def test_a_row_the_night_placed_keeps_its_cautious_owner(self):
         self.state(placed=[1700])
