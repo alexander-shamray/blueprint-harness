@@ -468,7 +468,7 @@ def heredoc_spans(command, unclosed=None, openers=None):
     # Sums are read a line at a time, because an earlier body's apostrophe would
     # quote every later one, and no body shares a line with an opener. A sum
     # spanning lines, or hard against the `#` after a string that crossed one,
-    # is missed, and its shift reads as an opener as it did before.
+    # is missed, and its shift reads as an opener.
     sums, line_end, unquoted, crossed = [], 0, 0, False
     for index, in_quotes, in_comment in shell_positions(command, data):
         # `pending` tells a string's newline from a body's.
