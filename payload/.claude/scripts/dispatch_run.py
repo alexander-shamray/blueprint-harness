@@ -1573,7 +1573,7 @@ def command(args: argparse.Namespace, today, bodies_from, open_from, branch_from
             try:
                 held = berserk(load_state(run_dir(root, existing)))[0]
             except Refusal:
-                # An unreadable state is what keeps a run open: exit 3 stands, and `kept open:` has said why.
+                # An unreadable state still names a run to resume, so exit 3 stands and no flag is claimed for it.
                 held = args.berserk
             if held != args.berserk:
                 print(f"kept {'with' if held else 'without'} --berserk: {existing} holds what it started with",
