@@ -41,7 +41,7 @@ DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 NUMBER = re.compile(r"(?<![\w-])#?(\d{2,6})(?![\w-])")
 OWNER = re.compile(r"\bOWNER\b")
 # What `tasks back` adds on a --berserk run: OWNER alone is a question, which the next flagged run would lift.
-TRIED = "tried under --berserk"
+SENT_BACK = "sent back under --berserk"
 # A task-list group. A sync's is a run's alone, since no row ever holds one, so `tasks` takes only this.
 ROW_GROUP = re.compile(r"\b[A-Z]\d+\b")
 GROUP_ID = re.compile(rf"{ROW_GROUP.pattern}|\bsync-[1-9][0-9]*\b")
@@ -357,8 +357,8 @@ def _blocker(row, open_issues, today, bodies, berserk=False):
     for label in ("paused", "tracking"):
         if label in labels:
             return f"labelled {label}"
-    if berserk and TRIED in row.cells[DEPENDS]:
-        return TRIED
+    if berserk and SENT_BACK in row.cells[DEPENDS]:
+        return SENT_BACK
     depends = _without_owner(row.cells[DEPENDS]) if berserk else row.cells[DEPENDS]
     if depends.strip().casefold() != "none":
         dates = DATE.findall(depends)
@@ -500,18 +500,18 @@ def delete_in_progress(text, keys):
     return "\n".join(lines)
 
 
-def _owner_marked(cells, tried=False):
+def _owner_marked(cells, sent_back=False):
     cells = list(cells)
     depends = cells[DEPENDS]
-    if tried and TRIED not in depends:
+    if sent_back and SENT_BACK not in depends:
         rest = _without_owner(depends)
-        cells[DEPENDS] = depends = TRIED if rest.strip().casefold() == "none" else f"{TRIED}; {rest}"
+        cells[DEPENDS] = depends = SENT_BACK if rest.strip().casefold() == "none" else f"{SENT_BACK}; {rest}"
     if not OWNER.search(depends):
         cells[DEPENDS] = "OWNER" if depends.strip().casefold() == "none" else f"OWNER; {depends}"
     return cells
 
 
-def return_to_remaining(text, rows, keys, tried=False):
+def return_to_remaining(text, rows, keys, sent_back=False):
     """Put a stopped group's rows back in their wave, marked OWNER so no later pass relaunches them unseen."""
     lines = _lines(text)
     cr = _cr(lines)
@@ -523,7 +523,7 @@ def return_to_remaining(text, rows, keys, tried=False):
         raise Refusal(f"{', '.join(clash)} is already in a table; a row lives in one table only")
     _remove(lines, "In progress", set(keys))
     for row in returning:
-        _place(lines, _line(_owner_marked(row.cells, tried), cr))
+        _place(lines, _line(_owner_marked(row.cells, sent_back), cr))
     return "\n".join(lines)
 
 

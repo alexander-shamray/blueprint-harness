@@ -1205,12 +1205,12 @@ class BerserkTests(InRoot):
         run_cli(["tasks", "back", "--tasks", "todo.md", "--run", RUN, "S3"])
         with open("todo.md", encoding="utf-8", newline="") as handle:
             text = handle.read()
-        self.assertIn(f"| OWNER; {db.TRIED} |", text)
+        self.assertIn(f"| OWNER; {db.SENT_BACK} |", text)
         self.assertNotIn("S3", self.wake(text)[-1])
 
     def test_a_later_flagged_run_does_not_lift_a_row_an_earlier_one_tried(self):
         self.state()
-        self.assertEqual("end: drained", self.wake(tasks_of(line(depends=f"OWNER; {db.TRIED}")))[-1])
+        self.assertEqual("end: drained", self.wake(tasks_of(line(depends=f"OWNER; {db.SENT_BACK}")))[-1])
         self.assertEqual("launch: Z1", self.wake(tasks_of(line(depends="OWNER")))[-1],
                          "a plain night's hand-back reads OWNER alone, which is the row the flag is for")
 
