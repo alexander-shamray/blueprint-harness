@@ -370,8 +370,8 @@ merged is *unused*, not finished — and the difference is what makes an
 interrupted run resumable.** `/branch` forks a worktree and enters it; a
 run interrupted there leaves a branch with no commits, no PR and a pristine
 tree. Under a predicate asking only *does this hold work*, that reads as
-finished: step 0 removes the worktree, keeps the branch — `git branch -d`
-is denied — and step 1 then hands `git-worktree-fork.sh` a name that
+finished: step 0 removes the worktree, the drop then refuses the branch for
+want of a landing — and step 1 hands `git-worktree-fork.sh` a name that
 already exists, which it refuses. A stop with no defect behind it, and the
 workspace deleted on the way to it.
 
@@ -530,9 +530,22 @@ the removal waits for the refresh lock, and *Grant inventory and push helpers*
 why `git-worktree-remove.sh` replaces the withdrawn `git worktree remove`
 grant, whose trailing `-f` an allow rule could not exclude.
 
-Deleting the merged **branch** is not part of this. `git branch -d` is
-denied in `.claude/settings.json`, deliberately, and a merged branch costs
-nothing but a line in `git branch`. Name it in the report and leave it.
+**The merged branch is dropped once its worktree is gone**, by
+`git-branch-drop.sh <branch>`: after `git-worktree-remove.sh` exits 0, or, for
+an in-place branch, after the switch to `main`. Raw `git branch -d` and `-D`
+stay denied in `.claude/settings.json`; the helper is the one route, and it
+deletes only a branch a pull request merged into `main` at its tip, which
+`docs/harness-boundaries.md`, *Grant inventory and push helpers*, argues. A
+worktree whose removal was refused keeps its branch, because the branch is
+still checked out there and the helper would refuse it in any case. Leaving a
+landed branch behind costs a line in `git branch` per run, which no one reads
+and no one clears; the drop is cheap and keeps the list to live work.
+
+**A refused drop is reported and is not a stop.** The helper refuses a branch
+that has not landed, and keeping that branch is exactly right; the merge is
+done and stopping would strand a finished run. Exit 6 (no local branch) means
+there is nothing to drop, which a reader of the report wants to know and
+nothing more.
 
 ## Step 1: /branch
 
@@ -1020,8 +1033,9 @@ not to say.
 
 Line 5 runs on both paths, the pull on `main` or the fetch elsewhere,
 because skipping it leaves local `main` a merge behind — precisely the state
-step 0 exists to stop the next run from starting in. The merged branch stays
-for step 0's teardown's reason.
+step 0 exists to stop the next run from starting in. Line 9 drops the merged
+branch for step 0's teardown's reason, and a dispatched run leaves it to
+`/dispatch`, which removes the worktree and so is the one that can.
 
 ## Report
 

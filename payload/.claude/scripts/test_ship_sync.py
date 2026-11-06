@@ -278,5 +278,77 @@ class TheSyncRow(unittest.TestCase):
         self.assertNotIn("gh-issue-create.sh bug", step)
 
 
+DROP = "bash .claude/scripts/git-branch-drop.sh"
+DISPATCH = ROOT / ".claude" / "commands" / "dispatch.md"
+
+
+def step_0_teardown():
+    text = flat(ship())
+    return text[text.index("Remove a forked worktree only when"):text.index("1. **/branch**")]
+
+
+def step_6_teardown():
+    text = flat(ship())
+    return text[text.index("Now put the workspace back"):text.index("7. **Sleep")]
+
+
+def dispatch_exit():
+    text = flat(DISPATCH.read_text(encoding="utf-8"))
+    return text[text.index("On an executor's exit"):text.index("handed-back, stopped")]
+
+
+class TheMergedBranchIsDropped(unittest.TestCase):
+
+    def test_the_teardown_drops_the_branch_after_removing_its_worktree(self):
+        removal = "git-worktree-remove.sh"
+        for name, part in (("step 0", step_0_teardown()), ("step 6", step_6_teardown())):
+            with self.subTest(step=name):
+                self.assertIn(f"{DROP} <branch>", part)
+                self.assertLess(part.index(removal), part.index(f"{DROP} <branch>"))
+                self.assertIn("exits 0", part)
+                self.assertIn("after the switch to main", part)
+        self.assertIn("nine lines", step_6_teardown())
+        self.assertIn("four of the nine", step_6_teardown())
+        self.assertIn("git-branch-drop.sh <branch> # 9.", step_6_teardown())
+        self.assertIn(f"Bash({DROP}:*)", [g.strip() for g in frontmatter("allowed-tools").split(",")])
+
+    def test_no_passage_leaves_the_merged_branch(self):
+        gone = ("Never delete the merged", "is denied; name it", "branch -d is denied", "merged branch still sitting",
+                "merged branch stays", "keeps the branch", "costs nothing but a line", "Name it in the report and leave it")
+        for path in (SHIP, ARGUMENT):
+            text = flat(path.read_text(encoding="utf-8"))
+            for phrase in gone:
+                with self.subTest(file=path.name, phrase=phrase):
+                    self.assertNotIn(phrase, text)
+            # Paraphrases: the merged branch left standing, or the deny given as the reason to leave it.
+            tokens = r"(?:leave|leaves|leaving|left|keep|keeps)"
+            for pattern in (rf"\b{tokens}\b[^.]{{0,20}}\bthe merged branch", r"\bmerged branch (?:still )?(?:stays|stay|is left|remains|sits|sitting in)",
+                            r"branch -[dD]\W{0,3}\s*is denied"):
+                with self.subTest(file=path.name, pattern=pattern):
+                    self.assertIsNone(re.search(pattern, text, re.IGNORECASE))
+        report = flat(ship().split("\n## Report\n", 1)[1])
+        self.assertIn("whether the merged branch was dropped, or why the helper kept it", report)
+
+    def test_a_refused_drop_is_not_a_stop(self):
+        first = flat(ship().split("| | |\n|---|---|\n", 1)[1].splitlines()[0])
+        self.assertIn("git-branch-drop.sh", first)
+        self.assertIn("system-sleep.sh", first)
+        self.assertIn("reported and not a stop", first)
+        for name, part in (("step 0", step_0_teardown()), ("step 6", step_6_teardown())):
+            with self.subTest(step=name):
+                self.assertIn("Any non-zero exit of the drop is reported and is not a stop", part)
+                self.assertIn("exit 6", part)
+        self.assertIn("A refused removal keeps its branch", step_0_teardown())
+        self.assertIn("Under --dispatched the run does not drop", step_6_teardown())
+
+    def test_dispatch_drops_after_its_removal(self):
+        part = dispatch_exit()
+        self.assertLess(part.index("git-worktree-remove.sh"), part.index(f"{DROP} <branch>"))
+        self.assertIn("refused removal", part)
+        grants = [g.strip() for g in re.search(r"^allowed-tools: (.*)$", DISPATCH.read_text(encoding="utf-8"),
+                                               re.MULTILINE).group(1).split(",")]
+        self.assertIn(f"Bash({DROP}:*)", grants)
+
+
 if __name__ == "__main__":
     unittest.main()
