@@ -150,9 +150,10 @@ right in every target, and `dispatch_board.py` takes the task list as
 
 ## Stack mentions left verbatim
 
-Payload files that still name a backend stack value, each tracked where it
-says. `harness_sync/tests/test_payload_references.py` reads this section and
-refuses a stack name anywhere else in the payload.
+Payload files that still name a backend stack value, each with why it stays.
+`harness_sync/tests/test_payload_references.py` reads this section and refuses
+the four names its `_STACK_NAME` holds anywhere else in the payload, its suites
+aside. A shape those names cannot see, such as a C# sample, rests on review.
 
 - `.claude/commands/bug-sweep.md:187`, `docs/commands/bug-sweep.md:577` — the
   sweep's area rows name backend's §4.1 gateway, BFF and AppHost;
