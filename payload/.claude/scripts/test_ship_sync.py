@@ -65,18 +65,83 @@ class TheSyncRow(unittest.TestCase):
 
     def test_a_sync_branch_is_never_committed_to(self):
         steps = bullet("Steps 3 and 4")
-        self.assertIn("never committed to or pushed", steps)
-        self.assertIn("A dirty tree is reported and ends the run unmerged", steps)
+        self.assertIn("never committed to or pushed but by step 6's rebase helper, which publishes", steps)
         # Nothing in the section tells a sync run to commit, push or open a PR, in any spelling.
         for word in ("/commit", "/pr", "git commit", "git push", "git add"):
-            self.assertNotIn(word, flat(section()).replace("never committed to or pushed", ""), word)
+            self.assertNotIn(word, flat(section()), word)
+        # Step 6's own route for a non-empty workspace commits, pushes and re-enters step 5; a sync takes none of it.
+        step = bullet("Step 6")
+        self.assertIn("its non-empty-workspace route reports what the tree holds and ends unmerged, or hands it back, "
+                      "and commits nothing", step)
+
+    def test_the_tree_must_be_the_proved_one_and_clean_before_anything_in_it_runs(self):
+        # A pre-existing worktree with HEAD equal can hold a modified sync_pr.py or suite: the commit is not the files.
+        lead = flat(section().split("\n- **", 1)[0])
+        rule = ("Before anything in the tree runs, git rev-parse HEAD must equal <oid> and git status --short must be "
+                "empty, which is what makes its own sync_pr.py and suites the proved ones")
+        self.assertIn(rule, lead)
+        self.assertIn("a tree that differs is reported, with what it holds, and ends unmerged", lead)
+        self.assertLess(lead.index(HELPER), lead.index(rule))
+        self.assertNotIn("A dirty tree", bullet("Steps 3 and 4"))
+
+    def test_a_sync_taken_again_enters_the_worktree_it_left(self):
+        # The unmerged ending leaves the worktree and branch, so the helper would refuse a second make.
+        lead = flat(section().split("\n- **", 1)[0])
+        self.assertIn("or, where .claude/worktrees/sync-<sha7> already exists on that branch, enters that", lead)
+        self.assertIn("taken again from the main checkout, after the proof", bullet("Step 5"))
+
+    def test_step_5_does_not_pull(self):
+        # `--track` makes the opening `git pull --ff-only` work, and a push after the proof would move HEAD off <oid>.
+        step = bullet("Step 5")
+        self.assertIn("skips its opening synchronise (git fetch, git pull --ff-only), which would move HEAD off <oid>",
+                      step)
+
+    def test_severity_is_mapped_and_a_low_goes_where_its_code_is(self):
+        step = bullet("Step 5")
+        self.assertIn("a bug as high and a medium as itself", step)
+        self.assertIn("A payload low joins the one harness issue", step)
+        self.assertIn("a target-local low the target's own, filed with gh-issue-create.sh", step)
+
+    def test_no_prose_here_names_what_a_target_does_not_hold(self):
+        for text in (flat(section()), flat(ARGUMENT.read_text(encoding="utf-8"))):
+            for word in ("Review Focus", "Builder's call", "design's section"):
+                self.assertNotIn(word, text)
+
+    def test_the_counts_the_section_makes_false_are_qualified(self):
+        self.assertIn("three more things, beyond the sync section's own,", flat(ship()))
+        self.assertIn("beyond the seven stops and the sync section's own", flat(ARGUMENT.read_text(encoding="utf-8")))
+
+    def test_the_sync_row_ranks_against_the_rows_it_overlaps(self):
+        table = ship().split("## Resume, don't restart", 1)[1].split("\n## ", 1)[0]
+        row = flat(next(ln for ln in table.splitlines() if ln.startswith("| On a branch named `chore/harness-sync-")))
+        self.assertIn("the closed and merged rows win over it, and it over the dirty and open-PR rows", row)
+        failed = bullet("A failed verify reviews nothing")
+        self.assertIn("then pr-for-branch.sh <head> is read, and a closed PR ends as that stop", failed)
+
+    def test_the_rows_that_say_a_run_stays_in_its_worktree_except_the_sync_row(self):
+        text = flat(ship())
+        self.assertEqual(4, text.count("a sync run's attended resume aside"), text.count("attended resume aside"))
+
+    def test_no_clause_says_the_dispatcher_proves_the_head(self):
+        # Task 4 adds that with the code; until then nothing in the runbook or its argument claims it.
+        for text in (flat(ship()), flat(ARGUMENT.read_text(encoding="utf-8"))):
+            self.assertNotIn("dispatcher bound", text)
+            self.assertNotIn("dispatcher proved", text)
+
+    def test_the_first_proof_is_made_on_main(self):
+        lead = flat(section().split("\n- **", 1)[0])
+        self.assertIn("From the main checkout, on main,", lead)
+        self.assertIn("a main checkout on another branch verifies with that branch's copy, so the run reports and "
+                      "ends unmerged", lead)
+        argued = flat(ARGUMENT.read_text(encoding="utf-8"))
+        self.assertNotIn("the verifier is never the tree it verifies", argued)
 
     def test_a_failed_verify_reviews_nothing(self):
         lead = flat(section().split("\n- **", 1)[0])
         self.assertIn(f"{SYNC_PR} list gives row <n>'s <head>", lead)
         self.assertIn(f"{SYNC_PR} verify <n> --head <oid> exits 0 there, before any worktree", lead)
         failed = bullet("A failed verify reviews nothing")
-        self.assertIn("a moved head or a HEAD that differs included", failed)
+        self.assertIn("a moved head, a HEAD that differs or a dirty tree included", failed)
         self.assertIn("report its lines and end unmerged, or hand it back under --dispatched", failed)
         self.assertIn("none of the seven stops", failed)
         # The verify comes before the worktree is opened, so a head that fails it is never checked out.
@@ -86,9 +151,8 @@ class TheSyncRow(unittest.TestCase):
         # A verify run inside the tree it verifies is the tree's own sync_pr.py, so the proof is made in the main
         # checkout and the worktree is shown to be that head before it is trusted.
         lead = flat(section().split("\n- **", 1)[0])
-        rule = "git rev-parse HEAD must equal <oid> before anything in that tree runs"
+        rule = "Before anything in the tree runs, git rev-parse HEAD must equal <oid>"
         self.assertIn(rule, lead)
-        self.assertIn("which is what makes its own sync_pr.py the proved one", lead)
         self.assertLess(lead.index("verify <n> --head <oid>"), lead.index(HELPER))
         self.assertLess(lead.index(HELPER), lead.index(rule))
         self.assertIn("Every later verify and review-diff passes --head <oid>", lead)
@@ -97,10 +161,7 @@ class TheSyncRow(unittest.TestCase):
     def test_a_run_inside_a_sync_worktree_holds_no_proof(self):
         lead = flat(section().split("\n- **", 1)[0])
         self.assertIn("A run that starts inside a sync worktree holds no proof: attended, it leaves with "
-                      'ExitWorktree({action: "keep"}), reads and verifies as above, enters with EnterWorktree and '
-                      "compares", lead)
-        self.assertIn("under --dispatched the dispatcher bound the worktree to the head it proved, so <oid> is "
-                      "git rev-parse HEAD", lead)
+                      'ExitWorktree({action: "keep"}), proves as above, and enters with EnterWorktree', lead)
         table = ship().split("## Resume, don't restart", 1)[1].split("\n## ", 1)[0]
         row = flat(next(ln for ln in table.splitlines() if ln.startswith("| On a branch named `chore/harness-sync-")))
         self.assertIn("its proof first, which a run already in the worktree holds none of", row)
@@ -108,6 +169,7 @@ class TheSyncRow(unittest.TestCase):
     def test_step_1_opens_the_worktree_on_the_existing_branch(self):
         lead = flat(section().split("\n- **", 1)[0])
         self.assertIn(f"{HELPER} .claude/worktrees/sync-<sha7> <head> in place of /branch and enters it", lead)
+        self.assertIn(f"Bash(py -3.12 -m unittest discover:*)", [g.strip() for g in frontmatter("allowed-tools").split(",")])
         self.assertIn("chore/harness-sync-[0-9a-f]{7}", lead)
 
     def test_step_2_runs_the_target_local_suites_as_ci_does(self):
@@ -128,7 +190,7 @@ class TheSyncRow(unittest.TestCase):
 
     def test_step_6_verifies_again_after_a_rebase(self):
         step = bullet("Step 6")
-        self.assertIn("After its rebase helper the new HEAD is the head, and sync_pr.py verify <n> --head <oid> "
+        self.assertIn("After its rebase helper, which publishes, the new HEAD is the head, and sync_pr.py verify <n> --head <oid> "
                       "runs on it before gh-pr-merge.sh", step)
         self.assertIn("replacing the step 5 recheck", step)
         self.assertIn("a failed verify is handed back", step)
@@ -152,7 +214,7 @@ class TheSyncRow(unittest.TestCase):
 
     def test_the_grants_name_every_read_a_dispatched_sync_makes(self):
         grants = [g.strip() for g in frontmatter("allowed-tools").split(",")]
-        for grant in (f"Bash({SYNC_PR}:*)", f"Bash({HELPER}:*)"):
+        for grant in (f"Bash({SYNC_PR}:*)", f"Bash({HELPER}:*)", "Bash(py -3.12 -m unittest discover:*)"):
             self.assertIn(grant, grants)
         # The same two reach a session that is not /ship through the settings the sync renders.
         allow = json.loads(BASE.read_text(encoding="utf-8"))["permissions"]["allow"]
@@ -165,7 +227,7 @@ class TheSyncRow(unittest.TestCase):
     def test_a_payload_finding_is_filed_by_the_harness_helper(self):
         step = bullet("Step 5")
         self.assertIn("bash .claude/scripts/gh-issue-harness.sh bug <severity> harness", step)
-        self.assertNotIn("gh-issue-create.sh", step)
+        self.assertNotIn("gh-issue-create.sh bug", step)
 
 
 if __name__ == "__main__":
