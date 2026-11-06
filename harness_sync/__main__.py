@@ -1,4 +1,4 @@
-"""Command line for the harness sync: `py -3.12 -m harness_sync apply|check|open-pr ...`."""
+"""Command line for the harness sync: `py -3.12 -m harness_sync apply|check|open-pr|legs ...`."""
 
 import argparse
 import importlib.util
@@ -7,6 +7,7 @@ from pathlib import Path
 
 from harness_sync.apply import ApplyError, apply
 from harness_sync.config import ConfigError
+from harness_sync.legs import should_test
 from harness_sync.pr import GhCli, SyncError, open_sync_pr
 from harness_sync import render
 from harness_sync.ruleset import DATA_PATH, GhApi, RulesetError, load as load_rulesets, run_apply, run_check
@@ -31,6 +32,8 @@ def _build_parser() -> argparse.ArgumentParser:
     opr.add_argument("--harness", type=Path, help="the harness checkout whose history orders commits; default: "
                      "the directory holding --payload")
     opr.add_argument("--run-url", help="the workflow run that opens the pull request, linked from its body")
+    leg = sub.add_parser("legs", help="print whether payload-suites tests on its windows and macos legs")
+    leg.add_argument("--event", required=True, help="the workflow event name")
     exits = "exit 0: matches; 1: differs, one line per difference; 2: refused (repository outside the data, data below the floor, two matching rulesets) or a gh call failed"
     rck = sub.add_parser("ruleset-check", help="compare the live main ruleset of each repository with rulesets/main.json", epilog=exits)
     rck.add_argument("--effective", action="store_true", help="read the rules in force on main (any token; no bypass list) and compare rules and checks only")
@@ -78,6 +81,9 @@ def main(argv: list[str] | None = None) -> int:
         # The harness's own renderer, never the target's: check must not execute code a target controls.
         argv = ["--root", str(args.target)] + (["--payload", str(args.payload)] if args.payload else [])
         return _load_gate().main(argv, render_module=render)
+    if args.command == "legs":
+        print(f"test={str(should_test(args.event, Path.cwd())).lower()}")
+        return 0
     if args.command in ("ruleset-check", "ruleset-apply"):
         return _rulesets(args)
     try:
