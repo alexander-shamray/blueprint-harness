@@ -9,6 +9,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 REACH = (
+    ".gitattributes",
     ".github/workflows/ci.yml",
     "harness_sync/",
     "payload/.claude/hooks/",
