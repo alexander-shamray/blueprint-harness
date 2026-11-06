@@ -53,14 +53,12 @@ jobs:
   # from the worktree root (shared-harness spec 5.1, *Tests*). The payload is
   # not live here, so this is the only place its tests run before a sync
   # carries it into a target.
-  #
+
   # Linux runs everything, as backend's `review-helpers` job does. Windows and
-  # macOS run only the edit-target guard, the index hook and the sed
-  # line-ending guard, mirroring backend's `edit-target-guard` job and on its
-  # argument: those modules have branches no Linux runner reaches (junctions,
-  # `..` after a link, case folding, `msvcrt.locking`, the guard judging on
-  # Windows alone) and need nothing but Python and `git`, where the rest of
-  # the directory needs `bash`, `grep` and `jq` on PATH as well.
+  # macOS run what only they can reach, on backend's `edit-target-guard`
+  # argument: junctions, `..` after a link, case folding, `msvcrt.locking` and
+  # the guard judging on Windows alone, in suites needing only Python and `git`.
+  # Windows adds the fixture steps below, which need `bash`, `grep` and `jq` too.
   payload-suites:
     strategy:
       fail-fast: false
