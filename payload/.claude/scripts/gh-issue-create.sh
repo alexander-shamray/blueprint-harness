@@ -1,27 +1,17 @@
 #!/usr/bin/env bash
 # File one issue here with no free parameter for a sweep reading an injectable
 # tree: closed-set kind, severity, area and route, title and body as bytes on
-# stdin with a fixed last line, and a repository the checkout resolves or the
-# fifth word `harness` names. Why each: the sweep runbooks' filing step.
+# stdin with a fixed last line, and the repository resolved from the checkout.
+# Why each: the filing step of the sweep runbooks under docs/commands/.
 set -euo pipefail
 
-{ [ "$#" -eq 4 ] || [ "$#" -eq 5 ]; } || {
+[ "$#" -eq 4 ] || {
   echo "usage: gh-issue-create.sh <security|bug|test-gap|enhancement> <critical|high|medium|low>" \
        "<harness|code|documentation|harness,test|code,test> <sweep|mutation|hand|request>" \
        "< title, blank line, body ending in the trailer" >&2
-  echo "a fifth word, exactly harness, files in the harness repository instead" >&2
   exit 2
 }
 kind="$1"; severity="$2"; area="$3"; route="$4"
-# A closed set of one, refused rather than defaulted like the four above: a
-# repository name or flag in this place would be the free parameter the
-# resolved repository below exists to remove.
-repo_word=""
-if [ "$#" -eq 5 ]; then
-  [ "$5" = harness ] ||
-    { echo "not a repository word this helper will file under: $5" >&2; exit 2; }
-  repo_word="$5"
-fi
 
 # A word outside the vocabulary is refused rather than passed on.
 # `documentation` is absent because no sweep files one and a wrong statement
@@ -54,10 +44,6 @@ case "$route" in
   request) trailer='Filed by hand as a requested change, not a finding: nothing was verified at filing.' ;;
   *) echo "not a route this helper will file under: $route" >&2; exit 2 ;;
 esac
-# The sweeps hold this helper over a tree they cannot trust, so the harness word
-# is for a hand filing alone: under a sweep route it would be the free parameter.
-[ -z "$repo_word" ] || [ "$route" = hand ] ||
-  { echo "the harness word files under the hand route alone: $route" >&2; exit 2; }
 # The request route's sentence is the one that says the issue is not a finding,
 # so an enhancement files under it alone and nothing else does: under any other
 # route a request would read as a finding, and under it a finding as a request.
@@ -90,16 +76,11 @@ last=$(printf '%s' "$body" | sed -e 's/\r$//' -e '/^[[:space:]]*$/d' | tail -n 1
 [ "$last" = "$trailer" ] ||
   { echo "the body does not end with the trailer line; a heredoc closed early or the line was left off" >&2; exit 2; }
 
-# The repository is resolved, never accepted as a name: the harness word picks a
-# constant, not a caller's text. Otherwise `gh repo view` reads the checkout
+# The repository is resolved, never accepted. `gh repo view` reads the checkout
 # this process is standing in, so the answer is a property of the filesystem
 # rather than of anything a finding could have said.
-if [ -n "$repo_word" ]; then
-  repo=alexander-shamray/blueprint-harness
-else
-  repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner) ||
-    { echo "cannot resolve this checkout's repository" >&2; exit 3; }
-fi
+repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner) ||
+  { echo "cannot resolve this checkout's repository" >&2; exit 3; }
 
 # Each label but `enhancement` is ensured through the sibling helper, so a
 # fresh clone gets the colour and description this repository already uses
@@ -107,15 +88,12 @@ fi
 # refuses it, and GitHub creates it with every repository, so it is filed
 # under as the repository already has it.
 here=$(dirname "$0")
-# Skipped for the harness word: the sibling ensures in the checkout's repository.
-if [ -z "$repo_word" ]; then
-  [ "$kind" = enhancement ] || bash "$here/gh-label-ensure.sh" "$kind" >/dev/null
-  bash "$here/gh-label-ensure.sh" "$severity" >/dev/null
-fi
+[ "$kind" = enhancement ] || bash "$here/gh-label-ensure.sh" "$kind" >/dev/null
+bash "$here/gh-label-ensure.sh" "$severity" >/dev/null
 area_labels=()
 IFS=, read -r -a areas <<<"$area"
 for label in "${areas[@]}"; do
-  [ -n "$repo_word" ] || bash "$here/gh-label-ensure.sh" "$label" >/dev/null
+  bash "$here/gh-label-ensure.sh" "$label" >/dev/null
   area_labels+=(--label "$label")
 done
 

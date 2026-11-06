@@ -1117,17 +1117,20 @@ sync, which is `sync_pr.py verify`'s to say, and `/ship` runs it before the
 helper. Residual: called directly, the helper opens any branch named like a
 sync, which it checks out and runs nothing in.
 
-**`gh-issue-create.sh` takes one repository word, a closed set of one.** A fifth
-argument of exactly `harness` files in `alexander-shamray/blueprint-harness`, a
-name spelled in the helper, for `/ship`'s sync row, which finds payload defects
-from a target whose checkout is another repository. Any other word is refused
-before `gh` runs, and so is the word under any route but `hand`, because the
-sweeps hold the helper over a tree they cannot trust and the word would let a
-finding file a target's content elsewhere; four arguments file where they always
-did, and the sweeps never pass the word. It skips the label sibling, which
-resolves the checkout's repository, so a label the harness lacks fails the
-create rather than being made. Residual: a caller that passes the word files in
-the harness whatever the checkout, which is its whole use.
+**`gh-issue-harness.sh` files in the harness from a target, and only /ship holds
+it.** `<bug|test-gap|enhancement> <critical|high|medium|low>
+<harness|harness,test>`, with the stdin shape of `gh-issue-create.sh` and the
+hand route's last line (an enhancement's is the request route's), for the sync
+row, which finds payload defects from a target whose checkout is another
+repository. The repository is a literal in the helper and no word selects it: a
+word `gh-issue-create.sh` took would be the caller's to declare, and the sweeps
+hold that helper over a tree they cannot trust. So the grant is the boundary:
+`/ship`'s frontmatter names the helper, the settings do not allow it, and both
+sweeps deny it by the same key as the force-push helpers, for the day someone
+allows it globally. It skips the label sibling, which resolves the checkout's
+repository, so a label the harness lacks fails the create rather than being
+made. Residual: `/ship` can file any text in the harness with it, which is its
+whole use.
 
 **Some of the rebase helper's edges are accepted rather than guarded.** A replay
 amended after a failed push no longer descends from the commit `publish`
@@ -1269,24 +1272,25 @@ to the bound by the glob rather than by someone remembering it.
 The fifth is **`git push` under the two sweeps**, and it is the one that looks
 closed and is not. Both commands state a read-only boundary, and both used to
 close it with "no `git push` is granted either, so the branch cannot move" —
-which reads an *absence* as a control, the exact rule the sentence beside it
-had just retired. `.claude/settings.json` **allows** `Bash(git push origin:*)`
-and `Bash(git push -u origin:*)` globally, so a push of the current branch does
-not prompt at all; only force-pushes and pushes to `main` are denied. Naming
-`git push` in each sweep's `disallowed-tools` was the obvious fix and stayed
-**unverified** for a while: that key's `Bash(...)` form had never been
-measured here — the `Agent(...)` form is what was — and a nested `claude -p`
-probe could not separate a rejected pattern from a command that failed to
-load. **It is measured now**, by a throwaway command in a detached worktree
-carrying `Bash(git diff:*)` in both keys: the diff was refused with the
-harness's own "has been denied" text while a `Bash(wc:*)` in the same session
-ran, which separates the two exactly. Both sweeps deny `git push origin`,
-its `-u` form, the raw `gh issue create` by name and every `gh` command
-(`Bash(gh:*)`, for `gh issue new` and `gh api`), and the deny wins over
-the global allow because precedence is deny first. The base settings also
-grant `git-push-force.sh` and `git-branch-drop.sh` globally, so both sweeps
-deny those two helpers by the same key: a terminal read-only command has no
-branch to force-push or drop.
+which reads an *absence* as a control, the exact rule the sentence beside it had
+just retired. `.claude/settings.json` **allows** `Bash(git push origin:*)` and
+`Bash(git push -u origin:*)` globally, so a push of the current branch does not
+prompt at all; only force-pushes and pushes to `main` are denied. Naming `git
+push` in each sweep's `disallowed-tools` was the obvious fix and stayed
+**unverified** for a while: that key's `Bash(...)` form had never been measured
+here — the `Agent(...)` form is what was — and a nested `claude -p` probe could
+not separate a rejected pattern from a command that failed to load. **It is
+measured now**, by a throwaway command in a detached worktree carrying `Bash(git
+diff:*)` in both keys: the diff was refused with the harness's own "has been
+denied" text while a `Bash(wc:*)` in the same session ran, which separates the
+two exactly. Both sweeps deny `git push origin`, its `-u` form, the raw `gh
+issue create` by name and every `gh` command (`Bash(gh:*)`, for `gh issue new`
+and `gh api`), and the deny wins over the global allow because precedence is
+deny first. The base settings also grant `git-push-force.sh` and
+`git-branch-drop.sh` globally, so both sweeps deny those two helpers by the same
+key: a terminal read-only command has no branch to force-push or drop. They deny
+`gh-issue-harness.sh` beside them though no setting allows it, so a later global
+allow cannot reach them.
 
 **A frontmatter deny holds for the rest of the user turn, not for the command
 that states it (blueprint-admin#17).** Measured there: `/ship` ran `/commit`,

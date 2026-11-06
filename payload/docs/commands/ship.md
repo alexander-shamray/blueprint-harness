@@ -176,11 +176,13 @@ is filed in the repository whose code it is about, citing the sync, then the
 sync ends unmerged or is handed back; a payload one is the harness's, so the
 fix's own sync supersedes this one, and a target-local one, such as Review Focus
 3's local line citing a deleted path, is fixed in the target and this sync taken
-again once that merges. The harness is not the checkout's repository, so the
-filing line takes the closed fifth word `harness`, which `gh-issue-create.sh`
-reads as that one repository and as no other. A `low` goes into one harness
-issue, as the user-level filing rule sends it, and the merge goes on; a `nit` is
-not filed. *(Builder's call: a hand-back for a low is a stop that the dispatch
+again once that merges. The harness is not the checkout's repository, so a
+payload finding is filed with `gh-issue-harness.sh`, whose repository is a
+literal and which only `/ship` holds: a route or repository word to
+`gh-issue-create.sh` would be declared by the caller, and the sweeps hold that
+helper over a tree they cannot trust. A `low` goes into one harness issue, as
+the user-level filing rule sends it, and the merge goes on; a `nit` is not
+filed. *(Builder's call: a hand-back for a low is a stop that the dispatch
 design's section 4 counts, and the rule already sends lows to an issue.)*
 
 **Step 6 verifies again after a rebase, and that replaces the recheck.** A
@@ -190,25 +192,31 @@ recheck after a rebase; a sync keeps its one round, because the verify compares
 the new head's managed files by blob id. A failed verify is handed back, as the
 first one is.
 
-**What was proved is what runs and merges, so the proof carries the head.**
-Verified from the main checkout, the head could still move before step 2 runs
-its suites or step 6 merges it: the helper fetches whatever origin's tip is by
-then, and `pr-state.sh` reads the pull request's current `headRefOid`. A push in
-that window would run and land a head nobody proved. So once in the worktree,
-`git rev-parse HEAD` is the head, a verify with `--head <oid>` runs before step
-2 reads anything, and every `verify` and `review-diff` after it names the same
-oid; `sync_pr.py` refuses unless both the listing and the fetch are exactly that
-oid. Step 6's `<oid>` must be it too, and one that differs is a moved sync,
-reported as a failed verify and handed back with no merge. After step 6's rebase
-the new `HEAD` is the head, since the replay is the session's own and the verify
-on it is the proof. The verify before the worktree exists has no head to name;
-it decides only whether to open one.
+**What was proved is what runs and merges, so the proof carries the head, and
+the verifier is never the tree it verifies.** A `verify` run inside the worktree
+executes that head's own `sync_pr.py`, and a forged head carries one that always
+prints `verified`. So the proof is made in the main checkout, by the target's
+own `sync_pr.py`, on `<oid>` from `list`; `--head <oid>` makes the listing and
+the fetch each exactly that oid. In the worktree, `git rev-parse HEAD` must
+equal `<oid>` before anything there runs, which is what makes the worktree's
+managed copy of `sync_pr.py` the proved one, and a difference is a failed
+verify. Every later `verify` and `review-diff` passes the same `--head <oid>`,
+because the branch could move before step 2 runs its suites, and step 6's
+`<oid>` is that value, since `pr-state.sh` reads the pull request's current
+`headRefOid` and a push after the proof would otherwise land unproved. One that
+differs is a moved sync, handed back with no merge. After step 6's rebase the
+new `HEAD` is the head, the replay being the session's own. A run that starts
+inside a sync worktree holds no proof, as nothing says what put that tree there:
+attended, it returns to the main checkout to prove the head and comes back to
+compare; under `--dispatched` the dispatcher proved the head and bound the
+worktree before launching, so the run takes `<oid>` as `git rev-parse HEAD`.
 
 **Under `--dispatched` the group is `sync-<n>` and `issues` is `[]`.** The
 argument carries no `#<group>-<n>` tag for the Report's rule to read, and a sync
 answers no issue. `/ship` is granted `sync_pr.py` and the worktree helper in its
-frontmatter as well as in the settings: a dispatched run's reads must be named
-by its own grants, and one they do not name is the auto classifier's to refuse.
+frontmatter as well as in the settings, and the harness filer in its frontmatter
+alone: a dispatched run's reads must be named by its own grants, and one they do
+not name is the auto classifier's to refuse.
 
 ## Step 0: the finished predicate
 
