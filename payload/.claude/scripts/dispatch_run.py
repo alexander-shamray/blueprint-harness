@@ -692,7 +692,8 @@ def _spent(envelope):
 def _usage_sources(entry):
     """The fields a group's counts came from; counts with no such list predate it, so came from `usage`."""
     listed = entry.get("usage_sources")
-    sources = [source for source in listed if source in USAGE_SOURCES] if isinstance(listed, list) else []
+    sources = [item for item in listed if isinstance(item, str) and item in USAGE_SOURCES] \
+        if isinstance(listed, list) else []
     return sources or ["usage"]
 
 

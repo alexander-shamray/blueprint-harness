@@ -1558,6 +1558,7 @@ class ReportTests(InRoot):
         full = "from modelUsage"
         last = "from usage, the last turn alone"
         for sources, text in ((["modelUsage"], full), (["usage"], last), (None, last), ("garbled", last),
+                              ([[], {}], last), ([["modelUsage"], "modelUsage"], full),
                               (["usage", "modelUsage"], f"{full}, and {last}")):
             with self.subTest(sources=sources):
                 record(RUN, "S1", status="running", usage={"input_tokens": 20}, usage_sources=sources)
