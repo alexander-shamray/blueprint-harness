@@ -14,8 +14,8 @@ that does fewer than four is not done.
 ## 1. Name the rule
 
 State it in one sentence before touching anything, and say what it implies for
-cases the example does not show. `builder.Services` / `.AddReverseProxy()` /
-`.LoadFromConfig(…)` is not "indent that chain four" — it is *a broken
+cases the example does not show. `query` / `.where(…)` /
+`.orderBy(…)` is not "indent that chain four" — it is *a broken
 fluent chain puts every call on its own line at head + 4, the first call
 included*, which then decides what happens to a chain whose head is a wrapped
 initialiser line.
@@ -67,8 +67,8 @@ here does.
 
 **Confirm each hit by reading it.** The recurring false positives are real and
 they repeat: `})` closing a lambda mid-chain is a continuation, not a chain
-head; `(await conn.QueryAsync<T>(` opens two brackets on one line legitimately;
-an expression-bodied member is not a lambda; commas inside a generic argument
+head; `(await fetch(` opens two brackets on one line legitimately;
+a one-line function body is not a lambda; commas inside a generic argument
 list are not list elements.
 
 ## 3. Record it in the style guide
