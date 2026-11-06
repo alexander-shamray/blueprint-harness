@@ -1255,19 +1255,18 @@ class BerserkTests(InRoot):
         record(RUN, "S1", status="returned", closed_from="handed-back", reason="tried the hook edit; a deny stopped it")
         record(RUN, "M1", status="returned", closed_from="handed-back", reason="needs a key")
         needs = self.section(self.report(), "## Needs a human")
-        self.assertTrue(needs[0].startswith("S1 handed-back, point of failure: tried the hook edit; a deny stopped it"),
-                        needs)
+        self.assertTrue(needs[0].startswith("S1 handed-back, point of failure on #1682, #1683: tried the hook edit; "
+                                            "a deny stopped it"), needs)
         self.assertTrue(needs[1].startswith("M1 handed-back: needs a key"), needs)
 
-    def test_result_asks_for_a_released_groups_point_of_failure_on_its_issues(self):
-        self.state(released={"S1": "waits on a human"})
-        record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
-        run_fake_claude(json.dumps(SUCCESS).encode("utf-8"))
-        target = Path(WORKTREE) / "artifacts" / "dispatch" / RUN
-        target.mkdir(parents=True, exist_ok=True)
-        (target / "S1.json").write_text(json.dumps(HANDED_S1), encoding="utf-8")
-        lines = run_cli(["result", RUN, "S1"]).splitlines()
-        self.assertEqual("released S1: comment its point of failure on #1682, #1683", lines[1], lines)
+    def test_every_way_a_released_group_can_end_unmerged_reaches_the_same_line(self):
+        # The comment is step 3's, read off this line, so a crash, a stop and a failed verify are not three paths.
+        self.state(released={"S1": "waits on a human", "M1": "edits .claude/", "M2": "edits .claude/"})
+        record(RUN, "S1", status="crash-hand-back", reason="crashed twice")
+        record(RUN, "M1", status="returned", closed_from="stopped", reason="the PR was closed")
+        record(RUN, "M2", status="returned", reason=None)
+        needs = self.section(self.report(), "## Needs a human")
+        self.assertEqual(3, sum(", point of failure on #" in text for text in needs), needs)
 
 
 class WakeTests(InRoot):
