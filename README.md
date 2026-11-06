@@ -73,6 +73,12 @@ To run the drift gate against a target, from this repository:
 py -3.12 -m harness_sync check --target <dir>
 ```
 
+To run the comment gate over a branch, which it reads as committed:
+
+```bash
+py -3.12 .github/comment-gate/comment_gate.py --base origin/main --head HEAD
+```
+
 The payload's suites run in a worktree that starts with this repository's own
 rendered root and has backend's config applied over it; the
 `payload-suites` job in `.github/workflows/ci.yml` is the reference, gate
