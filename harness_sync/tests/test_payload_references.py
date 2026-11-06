@@ -1,8 +1,7 @@
 """Every citation in the payload resolves in any target (plan 2 Task 4).
 
-A target holds the payload and what `TARGET_HELD` names, so a citation names one of those and a section it names
-is a heading there. A site `IMPORT.md` *Stack mentions left verbatim* lists keeps its text for the reason its entry
-gives; that section is read, not copied here.
+What resolves is `resolves()`'s: the payload, `TARGET_HELD`, a config's task list and `docs/superpowers/`. A site
+`IMPORT.md` *Stack mentions left verbatim* lists keeps its text for the reason its entry gives; that section is read.
 """
 
 import json
