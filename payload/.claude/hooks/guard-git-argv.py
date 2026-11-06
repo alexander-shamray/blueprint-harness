@@ -418,23 +418,89 @@ def _quoting(command, quotes=True, data=(), start=0):
         index += 1
 
 
+def _opened_body(command, index, pending):
+    """The body a `<<` at `index` opens, past `pending`, as `(start, end, expands)`.
+
+    None where it opens no body, and an `end` of None where none terminates it.
+    """
+    # `<<<` is a here-string: `cat <<<EOF` passes the word `EOF` on stdin and the
+    # next line is an ordinary command, so matching `<<EOF` at its second
+    # character would swallow that line. Two tests, because the operator has two
+    # ends: an index inside a run of `<`, and an operator continuing past `<<`.
+    if index > 0 and command[index - 1] == "<":
+        return None
+    if command.startswith("<<<", index):
+        return None
+    match = HEREDOC.match(command, index)
+    if not match:
+        return None
+    # One parse of the delimiter word, quote removal included —
+    # `<<\EOF` is a quoted delimiter to bash the same way `<<'EOF'`
+    # is, and `<<E"OF"` is one in parts.
+    delimiter, expands = _heredoc_delimiter(match.group("word"))
+    if delimiter is None:
+        # A delimiter this file cannot decode opens no body, so the
+        # lines after it stay commands and are judged as such.
+        return None
+    intro_end, dash = match.end(), bool(match.group("dash"))
+
+    # An introducer inside an earlier body is body text, which the scanner
+    # settles by not walking a body at all. Two heredocs stacked on one
+    # line both introduce before either body starts, which is `pending`'s
+    # job below.
+
+    # A body begins on the next line: everything between the introducer
+    # and that newline is still command line, as the push in
+    # `cat <<'A' ; git push origin +HEAD:main` is.
+    newline = command.find("\n", intro_end)
+    if newline == -1:
+        # An introducer with no line after it opens no body at all.
+        return None
+
+    # Stacked bodies queue: the second starts where the first terminated,
+    # which is past its own line break.
+    start = max(newline + 1, pending)
+    # The terminator is the delimiter and nothing else: bash accepts no
+    # indented or trailing-spaced terminator — only `<<-` strips leading
+    # tabs — so a commit body that indents the word keeps going.
+    terminator = (
+        rf"^\t*{re.escape(delimiter)}$" if dash
+        else rf"^{re.escape(delimiter)}$")
+    closing = re.search(terminator, command[start:], re.MULTILINE)
+    return start, None if closing is None else start + closing.end(), expands
+
+
 def _sums_in_group(command, start):
     """Whether each `(` of the group opening at `start` opens a sum, and its end."""
-    # As bash decides a `((`: quotes are read and heredocs are not. A sum closes
-    # on `))`: `((a) | b)` is two subshells. One pass over a stack, because
-    # `_closing_paren` per sum is quadratic and a timeout fails open.
+    # As bash decides a `((`: quotes are read, and a heredoc only where a `$(…)`
+    # or a backtick runs commands. A sum closes on `))`: `((a) | b)` is two
+    # subshells. One pass over a stack, because `_closing_paren` per sum is
+    # quadratic and a timeout fails open.
     verdicts, stack, previous = {}, [], None
-    for index, state, escaped in _quoting(command, start=start):
+    substitutions, ticked, bodies, pending = [], False, [], 0
+    for index, state, escaped in _quoting(command, data=bodies, start=start):
         if state or escaped:
             continue
         if command[index] == "(":
             stack.append(index)
+            if (command[index - 1:index] == "$"
+                    and command[index + 1:index + 2] != "("):
+                substitutions.append(index)
         elif command[index] == ")":
             opener = stack.pop()
             verdicts[opener] = previous == (opener + 1, index - 1)
             previous = (opener, index)
+            if substitutions and substitutions[-1] == opener:
+                substitutions.pop()
             if not stack:
                 return verdicts, index + 1
+        elif command[index] == "`":
+            ticked = not ticked
+        elif (substitutions or ticked) and command.startswith("<<", index):
+            body = _opened_body(command, index, pending)
+            if body is not None and body[1] is not None:
+                pending = body[1]
+                bodies.append(body[:2])
     verdicts.update(dict.fromkeys(stack, False))
     return verdicts, len(command)
 
@@ -517,62 +583,20 @@ def heredoc_spans(command, unclosed=None, openers=None):
     for index, state, escaped in _quoting(command, data=data):
         if state:
             continue
-        if command[index] == "(" and not escaped:
+        if not escaped and command[index] == "(":
             sums.open(index)
-        elif command[index] == ")" and not escaped:
+        elif not escaped and command[index] == ")":
             sums.close()
         # A backtick in a sum takes no part here, because a `<<` in one is
         # skipped with the shifts: bash ends its text, and so its heredoc, at
         # the backtick, so the lines after it are commands.
         if not command.startswith("<<", index) or sums.is_shift():
             continue
-        # `<<<` is a here-string: `cat <<<EOF` passes the word `EOF` on stdin
-        # and the next line is an ordinary command, so matching `<<EOF` at its
-        # second character would swallow that line. Two tests, because the
-        # operator has two ends: an index inside a run of `<` is not the start
-        # of an operator, and an operator that continues past `<<` is not a
-        # heredoc.
-        if index > 0 and command[index - 1] == "<":
+        body = _opened_body(command, index, pending)
+        if body is None:
             continue
-        if command.startswith("<<<", index):
-            continue
-        match = HEREDOC.match(command, index)
-        if not match:
-            continue
-        # One parse of the delimiter word, quote removal included —
-        # `<<\EOF` is a quoted delimiter to bash the same way `<<'EOF'`
-        # is, and `<<E"OF"` is one in parts.
-        delimiter, expands = _heredoc_delimiter(match.group("word"))
-        if delimiter is None:
-            # A delimiter this file cannot decode opens no body, so the
-            # lines after it stay commands and are judged as such.
-            continue
-        intro_end, dash = match.end(), bool(match.group("dash"))
-
-        # An introducer inside an earlier body is body text, which the scanner
-        # settles by not walking a body at all. Two heredocs stacked on one
-        # line both introduce before either body starts, which is `pending`'s
-        # job below.
-
-        # A body begins on the next line: everything between the introducer
-        # and that newline is still command line, as the push in
-        # `cat <<'A' ; git push origin +HEAD:main` is.
-        newline = command.find("\n", intro_end)
-        if newline == -1:
-            # An introducer with no line after it opens no body at all.
-            continue
-
-        # Stacked bodies queue: the second starts where the first terminated,
-        # which is past its own line break.
-        start = max(newline + 1, pending)
-        # The terminator is the delimiter and nothing else: bash accepts no
-        # indented or trailing-spaced terminator — only `<<-` strips leading
-        # tabs — so a commit body that indents the word keeps going.
-        terminator = (
-            rf"^\t*{re.escape(delimiter)}$" if dash
-            else rf"^{re.escape(delimiter)}$")
-        closing = re.search(terminator, command[start:], re.MULTILINE)
-        if closing is None:
+        start, end, expands = body
+        if end is None:
             # No span, so nothing is stripped. A delimiter this guard cannot
             # find means either an unterminated heredoc, whose tail is data and
             # over-refuses, or a delimiter read wrongly, whose tail holds
@@ -580,7 +604,7 @@ def heredoc_spans(command, unclosed=None, openers=None):
             if unclosed is not None:
                 unclosed.append(index)
             break
-        pending = start + closing.end()
+        pending = end
         spans.append((start, pending, expands))
         data.append((start, pending))
         # One for one with `spans`: a reader pairing bodies with openers takes
