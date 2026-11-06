@@ -1,16 +1,8 @@
 #!/usr/bin/env bash
-# Remove the /branch worktree a run forked under .claude/worktrees/, without
-# -f, once no code-index refresh holds it. A prefix grant on `git worktree
-# remove` also buys the `-f` that discards what git's refusal protects; here the
-# command is fixed and both arguments shape-checked, so no flag can arrive.
-#
-# Registration is not ownership: a path alone would remove any clean linked
-# worktree under the directory, another run's included. So the caller names the
-# branch forked there too, and the worktree at that path must hold it, the pair
-# git-worktree-fork.sh wrote. A caller that already knows another run's path
-# and branch together still passes. /ship's step 6 passes the branch it
-# created; step 0 may remove an earlier run's worktree, so it reads the branch
-# from `git worktree list`.
+# Remove the /branch worktree at <path> holding <branch>, without -f, once no
+# code-index refresh holds it. The command is fixed and both arguments are
+# shape-checked, so no flag can arrive; docs/commands/ship.md says who passes
+# the branch and what the binding leaves open.
 set -euo pipefail
 [ "$#" -eq 2 ] ||
   { echo "usage: git-worktree-remove.sh <path> <branch>" >&2; exit 2; }
@@ -112,13 +104,8 @@ fi
 # The status is captured, so the checks below run whatever git exits.
 status=0
 git -c core.longpaths=true worktree remove "$path" || status=$?
-# The directory is checked as well as git's exit, and registration tells the two
-# leftovers apart. A directory git still registers is the dirty-tree refusal,
-# which keeps git's own status and message. One it no longer registers is a
-# failed delete, and a teardown read as done would leave a directory nobody
-# looks at, which the next `/branch` on that slug stops on. Registration is
-# asked by the branch, which a worktree holds alone and which needs no
-# comparison of directory spellings.
+# Git still registering the worktree is the dirty-tree refusal; one it no longer
+# registers is a failed delete. Asked by branch, so no spellings are compared.
 if [ -e "$path" ]; then
   listed=$(git worktree list --porcelain) ||
     { echo "cannot read the worktree list, so whether $path is still registered is unknown" >&2

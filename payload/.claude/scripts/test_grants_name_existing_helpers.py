@@ -1,14 +1,8 @@
 """Every helper a command or the base settings grant exists under `.claude/scripts/`.
 
-A grant naming a helper that is gone approves whatever file is put at that path next, and nothing else notices: the
-grant still matches, and the permission prompt it replaced never comes. A removed helper takes its grants with it, or
-this fails.
-
-It reads the two surfaces the payload ships and every target renders: each command's `allowed-tools` frontmatter
-and `permissions.allow` in `.harness/settings.base.json`. A target's own config grants are that target's, and this
-suite does not read them. Paths are taken from this file, so the same cases hold in the payload and in a rendered
-root.
-"""
+A grant for a gone helper approves whatever file lands there next. It reads each command's
+`allowed-tools` and `permissions.allow` in `.harness/settings.base.json`, from this file's own
+location; a target's own config grants are its own."""
 
 import json
 import re

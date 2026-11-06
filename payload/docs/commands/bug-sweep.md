@@ -782,7 +782,8 @@ exactly what an auditor is left with. `git-worktree-detach.sh` now refuses a
 pinned commit carrying any tracked link, before the worktree exists and before
 any stale one is dropped. It asks the pinned COMMIT rather than `main`, because
 the commit is what the worktree materialises and the branch is where a link
-would arrive.
+would arrive. It refuses rather than prunes the link: a sweep over a tree with a
+file removed would report a clean audit of something that is not the branch.
 
 What stays open is the rest of the paragraph above: a crafted file can still
 name a host path in prose, and only the path rule and the verify step stand
