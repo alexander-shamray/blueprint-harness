@@ -138,8 +138,8 @@ cannot buy it a second.
 **A branch name proves nothing, so a sync is what `sync_pr.py verify` says it
 is.** Any same-repository branch can be named `chore/harness-sync-xxxxxxx`;
 `verify` is what shows the head holds the payload at a commit on the harness's
-`main` and changes nothing the config keeps (`docs/harness-boundaries.md`,
-*Grant inventory and push helpers*). It runs in the main checkout before a
+`main`, holds the settings it renders, and changes nothing the config keeps
+(`docs/harness-boundaries.md`, *Grant inventory and push helpers*). It runs in the main checkout before a
 worktree exists, and a head that fails it is neither checked out nor reviewed,
 because the review that follows would be of a diff nobody proved. That is not
 one of the seven stops, which are things that failed while the chain ran and

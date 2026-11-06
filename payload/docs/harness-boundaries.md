@@ -1090,19 +1090,26 @@ listed head and fails closed on anything it could not read, a truncated tree, a
 the listed one. `--head <oid>`, 40 lowercase hex or exit 2 with nothing read, on
 `verify` or `review-diff` also requires the listed and the fetched head to be
 that oid, so a session binds its proof to the head it checked out and a push
-after it is refused as moved. It proves five things: the pull request is a
+after it is refused as moved. It proves six things: the pull request is a
 `list` row; the manifest's `harness_commit` is on the harness's `main` and not
 older than the commit `main`'s own manifest names, so a rollback fails; every
 manifest path but `.claude/settings.json` has the payload's blob id there, mode
-aside; the manifest lists each payload file the config neither excludes nor
-keeps local, and lists no path it does; and the head changes only manifest
-paths, old-manifest paths and the manifest, with `.harness/config.json` and
-every `local` path untouched. `review-diff` proves all of it first, on the head
-it then reads, and refuses with those lines. Its one write is a `.diff` under
-`artifacts/review/`. Not proved: the rendered `.claude/settings.json`, which the
-drift gate renders again, and the manifest's hashes. Residual: blob ids are
-compared exactly where apply and the gate fold CRLF, so a target whose stored
-blob holds CRLF is refused every sync; that fails closed.
+aside; the head's `.claude/settings.json` is what the drift gate would render,
+CRLF folded, since `run` starts an executor on that file before CI has judged
+it; the manifest lists each payload file the config neither excludes nor keeps
+local, and lists no path it does; and the head changes only manifest paths,
+old-manifest paths and the manifest, with `.harness/config.json` and every
+`local` path untouched. The settings proof executes code from the head: its
+`.harness/render.py`, read by oid and never from a tree, runs only once that
+commit is on the harness's `main` and the renderer and
+`.harness/settings.base.json` are manifest paths whose blobs are the payload's
+there, and it renders from those and the base commit's config. A difference, a
+missing file, a renderer that raises or one not trusted is a failure line.
+`review-diff` proves all of it first, on the head it then reads, and refuses
+with those lines. Its one write is a `.diff` under `artifacts/review/`. Not
+proved: the manifest's hashes. Residual: blob ids are compared exactly where
+apply and the gate fold CRLF, so a target whose stored blob holds CRLF is
+refused every sync; that fails closed.
 
 **A worktree on a sync branch is granted by its whole command line.**
 `Bash(bash .claude/scripts/git-worktree-sync.sh:*)` admits `<path> <branch>`
