@@ -1,7 +1,7 @@
 """The table of destructive classes in `docs/harness-boundaries.md`, held.
 
-That section says what is checked. A new *Refused by* value is one `REFUSERS`
-entry, returning `None` when refused and else the reason, and section prose.
+*Destructive classes* says what is checked. A new *Refused by* value is one
+`REFUSERS` entry, returning `None` if refused, else the reason, and its prose.
 """
 
 import ast
