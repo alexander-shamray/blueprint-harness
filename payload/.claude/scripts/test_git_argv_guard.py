@@ -582,6 +582,25 @@ class TheGitArgvGuard(unittest.TestCase):
                     f"git push origin +HEAD:main{NEWLINE}EOF{NEWLINE}) | cat)"
                 )
 
+    def test_a_sum_does_not_take_a_shell_its_heredoc(self):
+        # A body is a script when its own opener feeds a shell. A shift that
+        # opens nothing must not take a place in that pairing, or the shell's
+        # body is paired with the shift, stripped as data, and its push admitted.
+        for sum_line in ("n=$((1<<4))", "(( n = 1<<4 ))"):
+            for fed in ("bash <<'EOF'", "cat <<'EOF' | bash", "sh <<EOF"):
+                command = (
+                    f"{sum_line}{NEWLINE}{fed}{NEWLINE}"
+                    f"git push origin +HEAD:main{NEWLINE}EOF"
+                )
+                with self.subTest(command=command):
+                    self.assertIn("force push", self.assertRefused(command))
+
+        # An undecodable opener takes no place either: it opens no body.
+        self.assertRefused(
+            f"cat <<$'E\\x4fF'{NEWLINE}"
+            f"bash <<'EOF'{NEWLINE}git push origin +HEAD:main{NEWLINE}EOF"
+        )
+
     def test_finding_sums_is_linear_in_the_command(self):
         # `judge` fails on a verdict that misses the timeout, and a verdict
         # that never arrives is an admission. Balancing parens once per sum
@@ -2378,8 +2397,8 @@ class TheGitArgvGuard(unittest.TestCase):
             for count in (100, 200, 400):
                 tally = [0]
                 guard.heredoc_spans = (
-                    lambda command, _o=original, _t=tally:
-                    _TallyingList(_o(command), _t))
+                    lambda command, *args, _o=original, _t=tally, **kwargs:
+                    _TallyingList(_o(command, *args, **kwargs), _t))
                 # A distinct trailing comment per size, because `offence`
                 # memoises its verdict per string.
                 guard.offence(body * count + "# " + str(count))
