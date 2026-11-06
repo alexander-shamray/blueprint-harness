@@ -105,7 +105,7 @@ detached
   tree; it is a round that could not run, under *Never fail open*. **The round
   writes nothing inside `$work`**, so the teardown needs no `--force`.
 - **Prove the root is readable before the fan-out**: `Glob`
-  `$work/Platform.slnx` as an **absolute** path and require exactly one hit, or
+  `$work/CLAUDE.md` as an **absolute** path and require exactly one hit, or
   report a round that could not run, under *Never fail open*.
 - **Every read is an absolute path under `$work`** — every `Read`, `Grep` and
   `Glob` argument and every Agent prompt's stated root; the one exception is

@@ -49,7 +49,7 @@ detached
   caller's tree; report it under *Never fail open*.
 - **The round writes nothing inside `$work`**, so the teardown removes it
   without `--force`.
-- **Prove the root readable before the fan-out**: `Glob` `$work/Platform.slnx`
+- **Prove the root readable before the fan-out**: `Glob` `$work/CLAUDE.md`
   as an absolute path and require exactly one hit; otherwise the round could
   not run, under *Never fail open*.
 - **Every read is an absolute path under `$work`** — every `Read`, `Grep` and

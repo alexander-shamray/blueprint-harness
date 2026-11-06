@@ -27,7 +27,7 @@ case "$label" in
   low)      colour=0e8a16; description="Severity: latent (no current caller), hardening, or deferred follow-up" ;;
   harness)  colour=1d76db
             description="The Claude Code harness under .claude/: commands, hooks, scripts, agents, settings" ;;
-  code)     colour=006b75; description="Code and configuration: src/, tests/, tools/, deploy/ and the CI workflows" ;;
+  code)     colour=006b75; description="Code and configuration outside .claude/: the product, its tests and tools, its deployment, the CI workflows" ;;
   documentation) colour=0075ca; description="Improvements or additions to documentation" ;;
   test)     colour=c5def5; description="A test suite: a test that cannot fail, a flake, a coverage gap" ;;
   *) echo "not a label this helper will create: $label" >&2; exit 2 ;;

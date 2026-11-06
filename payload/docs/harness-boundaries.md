@@ -22,12 +22,12 @@ the whole is about 31k. `Grep -n "^## <title>"` gives its first line.
 | Pull request reads and the locality verdict | Fixed-field PR helpers, the gh allow-list gate, #150, and pr-locality.sh's contract. |
 | Sweep push denies and chained commands | Push denies in the sweeps, and why a command /ship runs before it pushes never denies push. |
 | Output deny and shell-expansion residuals | The --output entry closed by the hook, expansion readings, locale quotes, process substitution, crashes and pipes. |
-| Agent-type, push and dotnet entries | Agent-type deny enumeration, the inverted push check, and a branch-review command's dotnet grants and MSBuild imports. |
+| Agent-type and push entries | Agent-type deny enumeration and the inverted push check. |
 | The edit-target guard | The symbolic-link premise and guard-edit-target.py refusing spelling mismatches. |
 | Edit guard path resolution | Link anchors, case folding, checkout-root anchors, UNC and device prefixes, and short-name aliases. |
 | Normalisation, residuals and the sweeps | Unicode and per-directory traits, the .. admission, out-of-tree residual, how the sweeps share worktrees, and their slice lists and ref. |
 | The sed line-ending guard | guard-sed-crlf.py refusing `sed -i` on a tracked CRLF file: what it reads, what a crafted path makes it run, where it fails open, and its residuals. |
-| Headless dispatched sessions | Unattended `claude -p` executors, what holds them, why no grant was added, and the night's residuals: a refusal read in the morning, and the weekly stop; the quality sets' runs, which load only user settings. |
+| Headless dispatched sessions | Unattended `claude -p` executors, what holds them, why no grant was added, and the night's residuals: a refusal read in the morning, and the weekly stop. |
 | Managed files | Which paths blueprint-harness owns and where they are changed, the `local` paths a repository keeps, and the drift gate that holds them. |
 
 ## Purpose and provenance of this file
@@ -1357,7 +1357,7 @@ it does not deserve. That shape needs a printer writing a push into a pipeline
 whose far end merely mentions a shell; it has never been typed here, and the
 alternative fails open on a wrapper nobody listed.
 
-## Agent-type, push and dotnet entries
+## Agent-type and push entries
 
 **A seventh thing is a gap in the mechanism rather than in a grant.** Pinning a
 command to one subagent type is a **deny list of every other type**, because the
@@ -1397,34 +1397,11 @@ matches a destination that is not fully qualified against `refs/%s`, so
 longer prefix (#1154). It strips either now, once, so `refs/heads/heads/main`
 stays the branch it names.
 
-**The ninth is backend's branch-review command's pair of `dotnet` grants, and
-what makes it worth its own entry is that the enumeration guarding it could
-never have worked.** That command holds `Write` and held `Bash(dotnet build:*)`
-and `Bash(dotnet test:*)`; its `disallowed-tools` denies every tracked root
-file, read from `git ls-files` by a test so a new one is a red build. But
-MSBuild imports `Directory.Build.targets` into every build of every project
-beneath it, and that file **does not exist in this repository** — so it is on no
-list read from what exists, and no care about that test could have put it there.
-Write it, run the build the command already had, and an `Exec` in it runs.
-Measured, in a scratch tree: the target fires and `dotnet build` reports
-success. Raised in review.
-
-`dotnet build` was a grant the command never used — its body names
-`dotnet test` alone — and `dotnet test:*` bought two things beyond the run it
-was added for: any project path, and `/p:CustomBeforeMicrosoftCommonTargets=`,
-which imports whatever file it names, `suggestions.md` among them. Both are
-gone, replaced by `dotnet-test.sh`, whose only variable is one word out of two.
-**The helper closes the executor and not the import**, so the auto-imported
-names are denied as well — in **both** commands that state editing boundaries,
-because the artefact outlives the command that writes it and only one of the
-two had an executor. A `Directory.Build.targets` written by backend's
-blueprint audit is executed by the next thing that builds.
-
-**Which half is measured is recorded rather than rounded up.** The exact
-filenames are the spelling both files already used and the suite reads. The
-`**/*.targets`-style globs beside them are the documented gitignore syntax and
-are **not** measured in a `disallowed-tools` value — belt to the names' braces,
-and not the control.
+**The ninth was a build tool's grants in backend's branch-review command**,
+and it is that repository's to keep, under *Residuals* in its
+`docs/harness-local.md`: a file the build imports by name that does not exist
+yet is on no list read from what exists, so a deny enumerated from the tree
+cannot cover it.
 
 ## The edit-target guard
 
@@ -1636,8 +1613,8 @@ fork a detached worktree, verify every subagent claim before filing,
 de-duplicate against the whole issue set, never fail open, and file without
 fixing. Three things differ: the threshold, the fan-out cut, and what
 confirmation can mean — **`/bug-sweep` executes none of the snapshot it
-audits**, because building a tree executes it (MSBuild targets, source
-generators, analysers, and under `dotnet test` the tree's own test code) and
+audits**, because building a tree executes it (build targets, source
+generators, analysers, and under a test run the tree's own test code) and
 the audited repository is prompt-injection input. So a defect claim there is
 confirmed by reading, and the class of bug only execution catches is named as
 the residual.
@@ -1807,21 +1784,6 @@ crash, never a success.
   `state.json`. No step edits it, so an honest mistake does not reach it,
   and a session setting out to defeat the helper's checks is what *The
   guards' threat model* puts outside what the guards defend.
-
-**The quality sets' scoring runs are headless too, and read only the user's
-settings.** `run review` and `run sweep` in
-`tools/quality-sets/quality_sets.py` start `claude -p` in a detached worktree
-of a recorded or a named commit, whose author need not be the operator. That
-tree's `.claude/settings.json` hooks and `.mcp.json` servers are commands,
-not tools, so the agent's `Read`, `Grep` and `Glob` grant does not bound them
-(#1680). The script's `ISOLATION` passes `--setting-sources user` and
-`--strict-mcp-config`, so neither starts: probed on Claude Code 2.1.316, a
-project's SessionStart and UserPromptSubmit hooks and its MCP server all ran
-without the two flags, and none ran with them. The residual is what the tree
-still supplies as text, which reaches the agent as prompt and is the sweeps'
-residual for the same tool set. The operator's own user settings, their
-hooks included, still load there; `--strict-mcp-config` with no
-`--mcp-config` starts no MCP server, the operator's own included.
 
 ## Managed files
 
