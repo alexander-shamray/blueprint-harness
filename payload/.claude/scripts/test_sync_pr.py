@@ -18,7 +18,7 @@ HEAD_NAME = f"chore/harness-sync-{NEW_H[:7]}"
 RUN_URL = "https://github.com/alexander-shamray/blueprint-harness/actions/runs/123"
 BODY = f"A sync.\n\n{sync_pr.FOOTER}, in run {RUN_URL}.\n"
 SEED = ("-c", "user.name=Seed", "-c", "user.email=seed@example.invalid", "-c", "commit.gpgsign=false")
-CONFIG = json.dumps({"repo": "o/r", "task_list": ".todo/r.md", "local": ["docs/local.md"]})
+CONFIG = {"repo": "o/r", "task_list": ".todo/r.md", "local": ["docs/local.md"]}
 SETTINGS_OLD = '{"old": true}\n'
 SETTINGS_NEW = '{"new": true}\n'
 MAIN_FILES = {
@@ -27,7 +27,6 @@ MAIN_FILES = {
     "docs/a.md": "A old\n",
     "docs/c.md": "C\n",
     ".claude/settings.json": SETTINGS_OLD,
-    ".harness/config.json": CONFIG,
 }
 PAYLOAD = {
     "docs/a.md": "A new\n",
@@ -83,6 +82,8 @@ class FakeGh:
 
 
 class SyncCase(unittest.TestCase):
+    config = CONFIG  # the base's .harness/config.json; a subclass sets its own globs
+
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -92,7 +93,7 @@ class SyncCase(unittest.TestCase):
         git(base, "init", "-q", "-b", "main", str(self.root))
         git(self.root, "config", "core.autocrlf", "false")
         git(self.root, "remote", "add", "origin", str(origin))
-        self.write(MAIN_FILES)
+        self.write({**MAIN_FILES, ".harness/config.json": json.dumps(self.config)})
         self.write({".harness/manifest.json": manifest(OLD_H, ["docs/a.md", "docs/c.md", ".claude/settings.json"])})
         git(self.root, "add", "-A")
         git(self.root, *SEED, "commit", "-q", "-m", "seed")
@@ -229,11 +230,6 @@ class VerifyTests(SyncCase):
         self.start()
         self.refused(".claude/settings.json")
 
-    def test_a_deleted_old_manifest_path_that_stays_is_not_a_change(self):
-        self.deleted = []  # docs/c.md stays on the head though the new manifest drops it: not in the diff
-        self.start()
-        self.assertEqual(0, self.cli("verify", "7")[0])
-
     def test_a_path_dropped_from_the_manifest_may_only_be_deleted(self):
         self.deleted = []
         self.head_files["docs/c.md"] = "edited instead of deleted\n"
@@ -252,11 +248,13 @@ class VerifyTests(SyncCase):
         self.refused("cannot prove the sync moves forward")
 
     def test_a_managed_file_dropped_from_the_manifest_is_refused(self):
+        # The row goes with the file: a guard hook deleted and unlisted while the payload still ships it.
         self.start(payload={**PAYLOAD, "docs/c.md": "C\n"})
-        self.refused("docs/c.md was deleted and dropped from the manifest, but the payload")
-        self.gh.fail = "/git/trees/"
-        out = self.refused("cannot compare the managed files with the payload tree")
-        self.assertIn("docs/c.md was deleted and the payload tree could not be read", out)
+        self.refused("docs/c.md is a payload file but the manifest does not list it")
+
+    def test_a_payload_file_the_manifest_does_not_list_is_refused_with_the_file_untouched(self):
+        self.start(payload={**PAYLOAD, "docs/extra.md": "E\n"})
+        self.refused("docs/extra.md is a payload file but the manifest does not list it")
 
     def test_a_truncated_tree_fails_closed(self):
         self.gh.truncated = True
@@ -302,6 +300,31 @@ class VerifyTests(SyncCase):
                 self.head_files[".harness/manifest.json"] = manifest(NEW_H, ["docs/a.md", bad])
                 self.start()
                 self.refused("manifest path")
+
+
+class ConfigGlobTests(SyncCase):
+    config = {**CONFIG, "local": ["docs/local.md", "docs/d.md"], "exclude": ["docs/c.md"]}
+
+    def test_an_excluded_deletion_verifies(self):
+        # The path was managed before and is excluded now: apply deletes it, though the payload still ships it.
+        self.start(payload={**PAYLOAD, "docs/c.md": "C\n"})
+        self.assertEqual(0, self.cli("verify", "7")[0])
+
+    def test_a_local_payload_path_need_not_be_listed(self):
+        self.start(payload={**PAYLOAD, "docs/d.md": "D\n"})
+        self.assertEqual(0, self.cli("verify", "7")[0])
+
+    def test_the_globs_match_case_sensitively(self):
+        self.start(payload={**PAYLOAD, "docs/D.md": "D\n"})
+        self.refused("docs/D.md is a payload file but the manifest does not list it")
+
+
+class UnreadableConfigTests(SyncCase):
+    config = ["not", "an", "object"]
+
+    def test_a_config_that_cannot_be_read_is_a_failure(self):
+        self.start()
+        self.refused("cannot read the base's .harness/config.json")
 
 
 class ListTests(SyncCase):

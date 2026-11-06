@@ -216,6 +216,36 @@ def on_harness_main(commit):
         raise Refusal(f"harness_commit {commit} is not on the harness's main (compare says {status!r})")
 
 
+def config_globs(base):
+    """(local, exclude) of the base's config, which the head is proved not to change."""
+    try:
+        raw = json.loads(read(["git", "show", f"{base}:{CONFIG}"]))
+    except ValueError:
+        raise Refusal(f"cannot read the base's {CONFIG}: it is not JSON") from None
+    if not isinstance(raw, dict):
+        raise Refusal(f"cannot read the base's {CONFIG}: it is not an object")
+    found = []
+    for key in ("local", "exclude"):
+        globs = raw.get(key, [])
+        if not isinstance(globs, list) or not all(isinstance(g, str) for g in globs):
+            raise Refusal(f"cannot read the base's {CONFIG}: {key!r} is not a list of globs")
+        found.append(globs)
+    return found[0], found[1]
+
+
+def unlisted(payload, paths, base):
+    """Failures for each payload file apply would have delivered that the manifest does not list: drift_gate's rule."""
+    if payload is None:
+        return []  # the unread tree is already a failure
+    try:
+        local, exclude = config_globs(base)
+    except Refusal as error:
+        return [str(error)]
+    return [f"{rel} is a payload file but the manifest does not list it" for rel in sorted(payload)
+            if rel not in (SETTINGS, MANIFEST, CONFIG) and rel not in paths
+            and not any(glob_match(g, rel) for g in (*local, *exclude))]
+
+
 def prove(number):
     """(failures, head): one line per failure; none means the pull request is what the harness released.
 
@@ -232,7 +262,7 @@ def prove(number):
         on_harness_main(commit)
     except Refusal as error:
         failures.append(f"cannot prove harness_commit is on the harness's main: {error}")
-    payload = None  # None while unread, so no deletion below can be confirmed
+    payload = None  # None while unread, which is itself a failure
     try:
         payload, in_head = payload_blobs(commit), head_blobs(oid)
         for path in sorted(paths - {SETTINGS}):
@@ -253,6 +283,7 @@ def prove(number):
         failures.append(f"cannot read what the head changes: {error}")
         return failures, head
     head.update(base=base, old_commit=old_commit, old=old)
+    failures += unlisted(payload, paths, base)
     if old_commit is not None:
         try:
             compare = read_json(["gh", "api", f"repos/{HARNESS_REPO}/compare/{old_commit}...{commit}"])
@@ -270,11 +301,6 @@ def prove(number):
         elif path in old:
             if status != "D":
                 failures.append(f"{path} left the manifest but was changed, not deleted")
-            elif payload is None:
-                failures.append(f"{path} was deleted and the payload tree could not be read to confirm it is gone")
-            elif path in payload:
-                failures.append(f"{path} was deleted and dropped from the manifest, but the payload at {commit} "
-                                "still has it")
         else:
             failures.append(f"{path} is changed but is outside the manifest")
     return failures, head

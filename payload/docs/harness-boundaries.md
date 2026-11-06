@@ -1055,10 +1055,10 @@ oid is not the listed one. It proves five things: the pull request is a
 not older than the base's, so a rollback fails; every manifest path but
 `.claude/settings.json` has the payload's blob id there, mode aside; the
 head changes only manifest paths, old-manifest paths and the manifest, with
-`.harness/config.json` untouched; and a path deleted from the manifest is
-gone from the payload too. `review-diff` proves all of it first, on the head
-it then reads, and refuses with those lines. Its one write is a `.diff` under
-`artifacts/review/`. Residual: the manifest's hashes are the drift gate's.
+`.harness/config.json` untouched; and the manifest lists each payload file the
+config neither excludes nor keeps local. `review-diff` proves all of it first,
+on the head it then reads, and refuses with those lines. Its one write is a
+`.diff` under `artifacts/review/`. Residual: manifest hashes are the gate's.
 
 **Some of the rebase helper's edges are accepted rather than guarded.** A replay
 amended after a failed push no longer descends from the commit `publish`
