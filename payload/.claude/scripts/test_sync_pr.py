@@ -405,9 +405,16 @@ class RenderedSettingsTests(SyncCase):
         self.refused(".claude/settings.json is missing from the head")
 
     def test_a_crlf_settings_blob_is_the_same_settings(self):
-        self.head_files[".claude/settings.json"] = SETTINGS_NEW.replace("\n", "\r\n")
         self.start()
-        self.assertEqual((0, f"verified 7 {NEW_H}\n", ""), self.cli("verify", "7"))
+
+        # The runner reads text, which folds line endings already, so the blob is handed over with its CRLF intact.
+        def crlf(argv, cwd=None, timeout=60):
+            code, out, err = self.gh(argv, cwd, timeout)
+            whole = argv[:2] == ["git", "show"] and argv[2].endswith(":.claude/settings.json")
+            return code, out.replace("\n", "\r\n") if whole else out, err
+
+        with mock.patch.object(sync_pr, "run", crlf):
+            self.assertEqual((0, f"verified 7 {NEW_H}\n", ""), self.cli("verify", "7"))
 
     def test_a_renderer_that_is_not_the_payloads_is_never_executed(self):
         self.head_files[".harness/render.py"] = self.marker_renderer()
