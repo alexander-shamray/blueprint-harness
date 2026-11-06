@@ -708,7 +708,10 @@ class TheGitArgvGuard(unittest.TestCase):
                         f"{opener}{NEWLINE}git push origin +HEAD:main{NEWLINE}EOF"
                     ),
                 )
-                self.assertRefused(f"{opener}{NEWLINE}don't stop{NEWLINE}EOF")
+                self.assertIn(
+                    "taken as empty",
+                    self.assertRefused(f"{opener}{NEWLINE}don't stop{NEWLINE}EOF"),
+                )
 
     def test_a_sum_does_not_take_a_shell_its_heredoc(self):
         # A body is a script when its own opener feeds a shell. A shift that
