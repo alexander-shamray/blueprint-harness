@@ -323,7 +323,7 @@ session, one entry per model and its subagents included. The envelope's
 1662280, and it looks just as plausible, so it is read only for an envelope
 with no model counts and the row says which of the two it came from. The row
 carries `total_cost_usd`, and a session on more than one model has a line per
-model, since an executor's reviewer runs on another.
+model, since a Sonnet executor's reviewer runs on Opus.
 
 The report is `report`'s English facts written up in `--lang`, in seven
 sections, the spec's §10's and *Syncs*, with what only the session saw added:
