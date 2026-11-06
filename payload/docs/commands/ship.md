@@ -142,17 +142,23 @@ is.** Any same-repository branch can be named `chore/harness-sync-xxxxxxx`;
 *Grant inventory and push helpers*). It runs in the main checkout before a
 worktree exists, and a head that fails it is neither checked out nor reviewed,
 because the review that follows would be of a diff nobody proved. That is not
-one of the seven stops: they are things that failed while the chain ran, and
-here nothing ran. A session reports the verify's lines and ends unmerged; an
-executor hands the change back with them as the reason, since nobody is there to
-read a report.
+one of the seven stops, which are things that failed while the chain ran and
+here nothing ran, but for one case: a PR closed under the run fails the verify
+as not a sync, and a closed PR is a stop, so `pr-for-branch.sh <head>` is read
+and the ending is `stopped` with reason `closed unmerged`, which a later
+superseding sync depends on. A session reports the verify's lines and ends
+unmerged; an executor hands the change back with them as the reason, since
+nobody is there to read a report.
 
 **The worktree is opened on the branch that exists, not forked from `main`.**
 `/branch` would name a new branch, and a sync's commits are the harness's: the
 PR's head is the branch `gh-pr-merge.sh` binds to, so the merge must run from a
 checkout of it. `git-worktree-sync.sh` fetches the branch and adds the worktree
 tracking `origin/<branch>`, refusing any name that is not a sync head and every
-path and root `git-worktree-fork.sh` refuses.
+path and root `git-worktree-fork.sh` refuses. A sync taken again after the fix
+it waited for has merged finds that worktree and branch where the unmerged
+ending left them, and the helper would refuse a second make, so the run enters
+the one that exists and makes the same comparisons.
 
 **Step 2 runs the target's own suites and nothing else.** The managed files were
 checked in the harness, so *Ship checks* would read them a second time; what the
@@ -160,30 +166,39 @@ harness never runs is the target-local test a payload change can trip
 (`docs/harness/working-rules.md`). Each is run as CI runs it, with `discover -s
 <dir> -p <file>`, because it imports its siblings from its own directory and a
 dotted module name cannot be formed from `.claude/` or `.github/comment-gate/`.
+The command is granted in the frontmatter, since a dispatched run's reads must
+be named by its own grants.
 
 **Steps 3 and 4 do nothing, because a sync branch is never committed to.** A
 commit would make the head something `verify` never proved and the next sync
-overwrite it. A dirty tree is the sync row's own case, not the open-PR row's,
-whose answer is to commit: it is reported, with what the tree holds, and the run
-ends unmerged.
+overwrite it. Step 6's rebase helper is the one publish, a replay the head is
+re-proved after. A dirty tree is the sync row's own case, not the open-PR row's,
+whose answer is to commit: it is reported, with what it holds, and the run ends
+unmerged, and so it is at step 6, whose own route for a non-empty workspace
+commits, pushes and re-enters step 5.
 
 **One round, because the diff is the part that is this target's.** The reviewer
 is handed `review-diff`'s file, which leaves the managed content out, and not
 the branch diff, which holds every managed file once more. The file is written
 by the helper and never with `Write`: the helper proves the head first, and a
-file this session composed would not be that proof. A `bug` or `medium` finding
-is filed in the repository whose code it is about, citing the sync, then the
-sync ends unmerged or is handed back; a payload one is the harness's, so the
-fix's own sync supersedes this one, and a target-local one, such as Review Focus
-3's local line citing a deleted path, is fixed in the target and this sync taken
-again once that merges. The harness is not the checkout's repository, so a
-payload finding is filed with `gh-issue-harness.sh`, whose repository is a
-literal and which only `/ship` holds: a route or repository word to
-`gh-issue-create.sh` would be declared by the caller, and the sweeps hold that
-helper over a tree they cannot trust. A `low` goes into one harness issue, as
-the user-level filing rule sends it, and the merge goes on; a `nit` is not
-filed. *(Builder's call: a hand-back for a low is a stop that the dispatch
-design's section 4 counts, and the rule already sends lows to an issue.)*
+file this session composed would not be that proof. Step 5's opening synchronise
+is skipped, because the branch tracks `origin` and the pull fast-forwards: a
+push after the proof would move `HEAD` and `review-diff` would then run the
+unproved head's script. A finding is filed in the repository whose code it is
+about, citing the sync, with the severity map the reviewer's words need for the
+filing helper, which takes `critical|high|medium|low`: a `bug` as `high`, a
+`medium` as itself. The sync then ends unmerged or is handed back. A payload
+finding is the harness's, so the fix's own sync supersedes this one. A
+target-local one, such as a local file citing a path the sync deletes, is fixed
+in the target, and this sync is taken again once that merges. The harness is not
+the checkout's repository, so a payload finding is filed with
+`gh-issue-harness.sh`, whose repository is a literal and which only `/ship`
+holds: a route or repository word to `gh-issue-create.sh` would be declared by
+the caller, and the sweeps hold that helper over a tree they cannot trust. A
+`low` goes where its code is, as the user-level filing rule sends it: a payload
+one into the one harness issue, a target-local one into the target's own one,
+and the merge goes on; a `nit` is not filed. A hand-back for a low would be a
+stop, and the rule already sends lows to an issue.
 
 **Step 6 verifies again after a rebase, and that replaces the recheck.** A
 rebase rewrites the head, so what was proved is gone, and `verify` on the new
@@ -193,23 +208,27 @@ the new head's managed files by blob id. A failed verify is handed back, as the
 first one is.
 
 **What was proved is what runs and merges, so the proof carries the head, and
-the verifier is never the tree it verifies.** A `verify` run inside the worktree
-executes that head's own `sync_pr.py`, and a forged head carries one that always
-prints `verified`. So the proof is made in the main checkout, by the target's
-own `sync_pr.py`, on `<oid>` from `list`; `--head <oid>` makes the listing and
-the fetch each exactly that oid. In the worktree, `git rev-parse HEAD` must
-equal `<oid>` before anything there runs, which is what makes the worktree's
-managed copy of `sync_pr.py` the proved one, and a difference is a failed
-verify. Every later `verify` and `review-diff` passes the same `--head <oid>`,
-because the branch could move before step 2 runs its suites, and step 6's
-`<oid>` is that value, since `pr-state.sh` reads the pull request's current
-`headRefOid` and a push after the proof would otherwise land unproved. One that
-differs is a moved sync, handed back with no merge. After step 6's rebase the
-new `HEAD` is the head, the replay being the session's own. A run that starts
-inside a sync worktree holds no proof, as nothing says what put that tree there:
-attended, it returns to the main checkout to prove the head and comes back to
-compare; under `--dispatched` the dispatcher proved the head and bound the
-worktree before launching, so the run takes `<oid>` as `git rev-parse HEAD`.
+the first proof is not made by the tree it proves.** A `verify` run inside the
+worktree executes that head's own `sync_pr.py`, and a forged head carries one
+that always prints `verified`. So the first proof is made in the main checkout,
+which must be on `main`: on another branch it verifies with that branch's copy,
+so the run reports and ends unmerged. It uses the target's own `sync_pr.py` on
+`<oid>` from `list`, and `--head <oid>` makes the listing and the fetch each
+exactly that oid. In the worktree, `git rev-parse HEAD` must equal `<oid>` and
+`git status --short` must be empty before anything there runs: the commit is not
+the files, and a worktree that already existed on the right commit can hold a
+modified `sync_pr.py` or suite that step 2 would run before any later dirty
+read. Both together are what make the worktree's managed copy of `sync_pr.py`
+the proved one, and a difference is reported and ends unmerged. Every later
+`verify` and `review-diff` passes the same `--head <oid>`, because the branch
+could move before step 2 runs its suites, and step 6's `<oid>` is that value,
+since `pr-state.sh` reads the pull request's current `headRefOid` and a push
+after the proof would otherwise land unproved. One that differs is a moved sync,
+handed back with no merge. After step 6's rebase the new `HEAD` is the head, the
+replay being the session's own. A run that starts inside a sync worktree holds
+no proof, as nothing says what put that tree there: attended, it leaves with
+`ExitWorktree`, which is why the rows that keep a run in its worktree except it,
+proves the head in the main checkout and enters again.
 
 **Under `--dispatched` the group is `sync-<n>` and `issues` is `[]`.** The
 argument carries no `#<group>-<n>` tag for the Report's rule to read, and a sync
@@ -1057,7 +1076,8 @@ dispatcher passes it: the launcher refuses a description that carries
 put the machine to sleep under a night run.
 
 **Nobody is there to ask, so the token's one new decision is when to hand
-back.** Three cases hand the change back unmerged beyond the seven stops,
+back.** Three cases hand the change back unmerged beyond the seven stops and the
+sync section's own,
 and they are the questions `/ship` has no recommended option for:
 
 - *An edit under `.claude/`.* The nested session's own sensitive-file

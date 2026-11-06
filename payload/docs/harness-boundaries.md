@@ -1117,6 +1117,15 @@ sync, which is `sync_pr.py verify`'s to say, and `/ship` runs it before the
 helper. Residual: called directly, the helper opens any branch named like a
 sync, which it checks out and runs nothing in.
 
+**`Bash(py -3.12 -m unittest discover:*)` runs the code of whatever tree it is
+pointed at, and is `/ship`'s alone.** A dispatched sync's step 2 runs the
+target-local suites with it, and a prefix grant cannot pin `-s`, so what bounds
+it is where it runs: only in a worktree whose `HEAD` equals the proved oid and
+whose `git status --short` is empty, which the sync section requires before
+anything in the tree runs. The settings do not allow it, so no other command
+reaches it. Residual: a `/ship` run that skips the comparison runs the head's
+own tests, which is the code the comparison exists to vouch for.
+
 **`gh-issue-harness.sh` files in the harness from a target, and only /ship holds
 it.** `<bug|test-gap|enhancement> <critical|high|medium|low>
 <harness|harness,test>`, with the stdin shape of `gh-issue-create.sh` and the

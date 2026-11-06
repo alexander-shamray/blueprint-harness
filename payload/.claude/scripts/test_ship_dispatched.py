@@ -33,9 +33,10 @@ GRANTS_BEFORE = (
     "Bash(git worktree prune:*)", "Bash(bash .claude/scripts/pr-locality.sh:*)",
     "Bash(bash .claude/scripts/gh-issue-create.sh:*)", "Bash(bash .claude/scripts/system-sleep.sh)",
 )
-# The sync row's two (test_ship_sync.py): a dispatched sync's reads must be named by the run's own grants.
+# The sync row's grants (test_ship_sync.py): a dispatched sync's reads and its one filing must be named by the
+# run's own grants, since an ungranted command is the auto classifier's to refuse.
 SYNC_GRANTS = ("Bash(py -3.12 .claude/scripts/sync_pr.py:*)", "Bash(bash .claude/scripts/git-worktree-sync.sh:*)",
-               "Bash(bash .claude/scripts/gh-issue-harness.sh:*)")
+               "Bash(bash .claude/scripts/gh-issue-harness.sh:*)", "Bash(py -3.12 -m unittest discover:*)")
 BRANCH_GRANTS_BEFORE = (
     "Read", "Grep", "EnterWorktree", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git branch --list:*)",
     "Bash(git branch --show-current)", "Bash(git branch -a)", "Bash(git log:*)", "Bash(git fetch origin:*)",
