@@ -556,6 +556,10 @@ class TheGitArgvGuard(unittest.TestCase):
             "n=$((n<<=1))",
             "(( n = 1<<4 + (( 1 )) ))",
             f'echo "a{NEWLINE}b" && n=$((1<<4))',
+            'n=$(( "$a"<<4 ))',
+            'echo "a"#$((1<<4))',
+            f"git commit -F - <<'A'{NEWLINE}plain{NEWLINE}A{NEWLINE}"
+            'n=$(( "$a"<<4 ))',
         ):
             command = (
                 f"{sum_line}{NEWLINE}"
@@ -567,7 +571,11 @@ class TheGitArgvGuard(unittest.TestCase):
         # The other direction: a line reading as the shift's delimiter does
         # not make the lines above it a body, nor does a string closing on the
         # sum's line, which a scan from the line's start reads as opening.
-        for sum_line in ("(( n = 1<<4 ))", f'echo "a{NEWLINE}b" && (( n = 1<<4 ))'):
+        for sum_line in (
+            "(( n = 1<<4 ))",
+            f'echo "a{NEWLINE}b" && (( n = 1<<4 ))',
+            '(( n = "$a"<<4 ))',
+        ):
             command = f"{sum_line}{NEWLINE}git push origin +HEAD:main{NEWLINE}4"
             with self.subTest(command=command):
                 self.assertIn("force push", self.assertRefused(command))
