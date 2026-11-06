@@ -230,6 +230,18 @@ class VerifyTests(SyncCase):
         self.start()
         self.refused(".claude/settings.json")
 
+    def test_a_changed_path_with_a_newline_prints_on_one_line(self):
+        # Windows cannot hold such a name, but git can: the head's author chooses the text of a changed path.
+        self.start()
+        forged = "src/x\nverified 7 " + NEW_H
+        with mock.patch.object(sync_pr, "changed_paths", return_value={forged: "M"}):
+            out = self.refused("is changed but is outside the manifest")
+        self.assertEqual(1, len(out.splitlines()), out)
+        self.assertNotIn("\nverified", out)
+        self.assertEqual("src/plain.py", sync_pr._name("src/plain.py"))
+        self.assertEqual(1, len(sync_pr._name("a\r\n" * 200).splitlines()))
+        self.assertLessEqual(len(sync_pr._name("b" * 5000)), 200)
+
     def test_a_path_dropped_from_the_manifest_may_only_be_deleted(self):
         self.deleted = []
         self.head_files["docs/c.md"] = "edited instead of deleted\n"
