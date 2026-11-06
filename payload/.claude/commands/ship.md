@@ -318,7 +318,11 @@ target*)
    untracked files, one that does not hold `<branch>`, the branch this run
    forked, and `main`; leave a refused one where it is and name it in the
    report. It first waits for the code-index refresh lock up to the bound it
-   declares; a lock still held removes nothing and exits non-zero.
+   declares; a lock still held removes nothing and exits non-zero. Exit 0
+   means the worktree and its registration are gone, also when git failed
+   only to delete the empty directory it had unregistered and the helper
+   removed that itself; exit 4 means a directory git no longer registers
+   still holds something, named for the owner to remove.
    (why: `docs/harness-boundaries.md`, *Grant inventory and push helpers*)
 
    Then drop the merged **branch**, once its worktree is gone: after
@@ -329,7 +333,8 @@ target*)
    bash .claude/scripts/git-branch-drop.sh <branch>
    ```
 
-   A refused removal keeps its branch, and no drop runs. Any non-zero exit of
+   A refused removal keeps its branch, and no drop runs; exit 4 is one, the
+   directory being still there. Any non-zero exit of
    the drop is reported and is not a stop: on any non-zero exit the branch
    is kept and the merge stands, and exit 6 (no local branch) is simply
    reported.
@@ -606,7 +611,9 @@ target*)
      token /dispatch passes*).
    - Line 9 drops the merged branch: a forked run's once line 7 exits 0, an
      in-place run's after the switch to `main`; a refused removal keeps its
-     branch. Any non-zero exit of the drop is reported and is not a stop, and
+     branch, exit 4 (a directory left holding something) included, and an exit 0
+     is also git failing only to delete the empty directory the helper then
+     removed. Any non-zero exit of the drop is reported and is not a stop, and
      exit 6 (no local branch) is simply reported. Under `--dispatched` the run
      does not drop; `/dispatch` does.
 

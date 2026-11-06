@@ -108,4 +108,31 @@ fi
 # Windows refuses a path past 260 characters unless git asks for long paths:
 # git then refuses a worktree holding files it cannot read, or, failing to
 # delete one, unregisters the worktree anyway and leaves its directory behind.
-git -c core.longpaths=true worktree remove "$path"
+# The status is captured, so the checks below run whatever git exits.
+status=0
+git -c core.longpaths=true worktree remove "$path" || status=$?
+# The directory is checked as well as git's exit, and registration tells the two
+# leftovers apart. A directory git still registers is the dirty-tree refusal,
+# which keeps git's own status and message. One it no longer registers is a
+# failed delete, and a teardown read as done would leave a directory nobody
+# looks at, which the next `/branch` on that slug stops on. Registration is
+# asked by the branch, which a worktree holds alone and which needs no
+# comparison of directory spellings.
+if [ -e "$path" ]; then
+  listed=$(git worktree list --porcelain) ||
+    { echo "cannot read the worktree list, so whether $path is still registered is unknown" >&2
+      exit "$((status == 0 ? 1 : status))"; }
+  if ! grep -Fxq "branch refs/heads/$branch" <<<"$listed"; then
+    # Git can fail after it has deleted the files and the registration, with
+    # only the directory left. `rmdir` refuses one holding anything, so an
+    # empty directory goes and the removal succeeded, and any other is named.
+    if rmdir "$path" 2>/dev/null; then
+      [ "$status" -eq 0 ] ||
+        echo "git exited $status after deleting $path; the empty directory is removed" >&2
+      exit 0
+    fi
+    echo "unregistered but not deleted: $path is still there; remove it by hand" >&2
+    exit 4
+  fi
+fi
+exit "$status"

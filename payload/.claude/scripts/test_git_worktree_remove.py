@@ -4,7 +4,9 @@ The shared harness and the reason it shells out rather than
 re-implementing are `review_helpers.py`'s.
 """
 
+import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -268,6 +270,59 @@ class RemoveShape(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertFalse(self.present(root, "masstransit"))
         self.assertTrue(self.present(root))
+
+    def leftover(self, root, git_exit, content):
+        """Run the helper over a git that does what Git for Windows does when a delete fails: it removes the
+        worktree and its registration, leaves the directory behind, and exits as given. `content` says whether
+        a file is left in it too, as a file another process holds open is."""
+        native = Path(root)
+        shim = native / "shim"
+        shim.mkdir()
+        real = Path(shutil.which("git")).as_posix()
+        (shim / "git").write_bytes((
+            "#!/usr/bin/env bash" + chr(10)
+            + f'"{real}" "$@" || exit' + chr(10)
+            + 'if [ "$3" = worktree ] && [ "$4" = remove ]; then' + chr(10)
+            + '  mkdir -p "$5"; [ -z "$SHIM_FILE" ] || : > "$5/held"; exit "${SHIM_EXIT:-0}"' + chr(10)
+            + "fi" + chr(10)
+        ).encode("utf-8"))
+        os.chmod(shim / "git", 0o755)
+        # On PATH inside bash, not before it: Git's bash launcher puts Git's own directories first, so a shim
+        # placed first from outside came second and the real git ran. In bash's own form, because a drive
+        # colon splits a PATH entry.
+        shim_dir = shim.resolve()
+        if os.name == "nt":
+            shim_dir = "/" + shim_dir.drive[0].lower() + shim_dir.as_posix()[2:]
+        return run_bash('cd "$WHERE" && PATH="$SHIM:$PATH" bash "$REMOVE" .claude/worktrees/probe feat/probe',
+                        WHERE=f"{root}/checkout", REMOVE=str(REMOVE), SHIM=str(shim_dir),
+                        SHIM_EXIT=str(git_exit), SHIM_FILE="1" if content else "")
+
+    def test_a_directory_git_unregistered_but_left_holding_something_is_reported(self):
+        # Git for Windows, failing to delete a file another process holds open, has already unregistered the
+        # worktree. A teardown read as done leaves a directory nobody looks at, and the next /branch on that slug
+        # stops on it. Whether git then exits non-zero, as a failed delete does, or zero.
+        for git_exit in (255, 0):
+            with self.subTest(git_exit=git_exit):
+                root, _ = self.fixture()
+                result = self.leftover(root, git_exit, content=True)
+                self.assertEqual(4, result.returncode, result.stderr)
+                self.assertIn("unregistered but not deleted", result.stderr)
+                self.assertIn(".claude/worktrees/probe", result.stderr)
+                self.assertEqual(0, run_bash('[ -f "$W/held" ]', W=f"{root}/checkout/.claude/worktrees/probe").returncode,
+                                 "what the directory held was removed")
+                self.assertFalse(self.registered(root), "git still registers it")
+
+    def test_an_empty_directory_git_left_behind_is_removed_and_the_removal_succeeded(self):
+        # Only the empty folder is left, as when a process held it while git deleted the files. It is the
+        # helper's to remove with `rmdir`, which refuses anything that holds a file, and the removal then succeeded.
+        for git_exit in (255, 0):
+            with self.subTest(git_exit=git_exit):
+                root, _ = self.fixture()
+                result = self.leftover(root, git_exit, content=False)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(1, run_bash('[ -e "$W" ]', W=f"{root}/checkout/.claude/worktrees/probe").returncode,
+                                 "the empty directory is still there")
+                self.assertFalse(self.registered(root))
 
     def test_the_dirty_refusal_names_gits_own_reason_and_keeps_the_work(self):
         # A worktree git still registers is the dirty-tree refusal, which keeps git's own status and message.
