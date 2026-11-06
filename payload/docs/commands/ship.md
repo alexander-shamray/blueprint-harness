@@ -542,14 +542,16 @@ directory holding anything: an emptied one is gone and the removal succeeded,
 so the helper exits 0 whatever git's status was, and any other is named with
 exit 4 for the owner to remove, the branch kept.
 
-**The helper takes the path and the branch the run forked, and removes only
+**The helper takes the path and the branch forked there, and removes only
 the worktree registered at that path holding that branch.** A path alone made
 registration stand for ownership: a prefix grant with a caller-chosen path
 could remove any clean forked worktree, another run's pull request checkout
 included. `main` is refused, so is a detached worktree, which holds no branch,
 and the directory name need not echo the branch, since `/branch` cuts it to a
 word or two of the change. What remains is a caller that already knows another
-run's path and branch together; `/ship` passes the branch it created at step 1.
+run's path and branch together. Step 6 passes the branch `/ship` created at
+step 1; step 0 may remove a worktree an earlier run forked, so it takes the
+branch from the `git worktree list` it already runs.
 The branch pattern is the one `git-branch-create.sh` and `git-worktree-fork.sh`
 use, which admits parentheses because `/branch` cuts `feat(<scope>)/` names.
 

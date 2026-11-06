@@ -315,9 +315,11 @@ target*)
    ```
 
    The helper runs without `-f` and refuses a worktree holding uncommitted or
-   untracked files, one that does not hold `<branch>`, the branch this run
-   forked, and `main`; leave a refused one where it is and name it in the
-   report. It first waits for the code-index refresh lock up to the bound it
+   untracked files, one that does not hold `<branch>`, and `main`; leave a
+   refused one where it is and name it in the report. Step 0 may remove a
+   worktree an earlier run forked, so `<branch>` is the one the
+   `git worktree list` above shows at that path. Step 6 passes the branch it
+   created. It first waits for the code-index refresh lock up to the bound it
    declares; a lock still held removes nothing and exits non-zero. Exit 0
    means the worktree and its registration are gone, also when git failed
    only to delete the empty directory it had unregistered and the helper
