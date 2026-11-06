@@ -187,8 +187,9 @@ def _refused_by_edit_target(row):
 @contextlib.contextmanager
 def crlf_checkout():
     """A scratch git checkout tracking `crlf.txt`, which holds CRLF endings."""
-    root = tempfile.mkdtemp(prefix="destructive-crlf-")
-    try:
+    # Its cleanup clears the read-only bit git sets on an object, which
+    # `rmtree` would stop at on Windows and leave the directory behind.
+    with tempfile.TemporaryDirectory(prefix="destructive-crlf-") as root:
         with open(os.path.join(root, "crlf.txt"), "wb") as handle:
             handle.write(b"one\r\ntwo\r\n")
         for arguments in (["init", "-q"],
@@ -196,8 +197,6 @@ def crlf_checkout():
             subprocess.run(["git", "-C", root, *arguments], check=True,
                            capture_output=True, timeout=HOOK_TIMEOUT)
         yield root
-    finally:
-        shutil.rmtree(root, ignore_errors=True)
 
 
 def sed_guard():
