@@ -47,9 +47,7 @@ jobs:
   # argument: those modules have branches no Linux runner reaches (junctions,
   # `..` after a link, case folding, `msvcrt.locking`, the guard judging on
   # Windows alone) and need nothing but Python and `git`, where the rest of
-  # the directory needs `bash`, `grep` and `jq` on PATH as well. Those legs
-  # still apply the payload on every run, so a pull request that reaches
-  # nothing they test reports the required check without spending a test step.
+  # the directory needs `bash`, `grep` and `jq` on PATH as well.
   payload-suites:
     strategy:
       fail-fast: false
@@ -71,7 +69,9 @@ jobs:
         with:
           python-version: '3.12'
 
-      # `harness_sync/legs.py` owns the rule and what reaches these legs.
+      # `harness_sync/legs.py` owns the rule and what reaches these legs. They
+      # still apply the payload on every run, so a pull request that reaches
+      # nothing they test reports the required check with its test steps skipped.
       - name: Decide whether this leg tests
         id: reach
         if: matrix.os != 'ubuntu-latest'
