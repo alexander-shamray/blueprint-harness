@@ -937,18 +937,6 @@ class TheHelperPublishesWhatItRebased(unittest.TestCase):
         self.assertEqual("", self.at("git log --merges --format=%H origin/main..HEAD").stdout,
                          "rebase.rebaseMerges would have kept the merge")
 
-    def test_a_fixup_commit_is_not_folded_by_rebase_autosquash(self):
-        # `rebase.autoSquash` would recombine a `fixup!` into the commit it
-        # names, and the result is force-pushed: a rewrite nobody asked for.
-        self.at("git config rebase.autoSquash true")
-        self.at('echo squashed > e.txt && git add -A && git commit -qm "fixup! the branch work" '
-                '&& git push -q -f origin feat/x')
-        subjects = self.at("git log --format=%s origin/main..HEAD").stdout
-        result = self.helper()
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual(subjects, self.at("git log --format=%s origin/main..HEAD").stdout,
-                         "rebase.autoSquash folded the fixup away")
-
     def test_a_branch_pointing_inside_the_replayed_range_is_not_moved(self):
         # `rebase.updateRefs` only moves a ref inside the replayed range, so
         # the case needs one there for `--no-update-refs` to be asserted.

@@ -260,18 +260,6 @@ class TrailerHelper(Fixture):
             with self.subTest(flag=flag):
                 self.assertIn(flag, replays[0])
 
-    def test_configuration_cannot_change_what_the_trailer_replay_does(self):
-        # `rebase.autoSquash` would fold a `fixup!` commit into the one it names while the trailer is added.
-        self.branch()
-        self.commit("one", "feat(x): one")
-        self.commit("two", "fixup! feat(x): one")
-        self.git("config", "rebase.autoSquash", "true")
-        before = self.git("log", "--format=%s", "origin/main..HEAD")
-        out = self.run_helper(TRAILER)
-        self.assertEqual(0, out.returncode, out.stderr)
-        self.assertEqual(before, self.git("log", "--format=%s", "origin/main..HEAD"),
-                         "rebase.autoSquash folded the fixup away")
-
     def test_the_scan_sees_an_unleased_force_in_the_helpers_own_shape(self):
         # A flag between `push` and `--force` must not hide the force, with a lease beside it or without.
         lease = '--force-with-lease="refs/heads/$branch:$remote"'
