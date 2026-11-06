@@ -516,8 +516,9 @@ rollout's anti-goal:
   from each target's denies, so `.github` is refused only where a target denies
   it.
 - **The edit guard's allow-list** becomes a refusal of `~/.ssh`, shell profiles
-  and `~/.gitconfig`, since it refuses sibling checkouts, `run-locally.md` and
-  `~/.claude/CLAUDE.md`. The rows that only served it are `obsolete`.
+  and `~/.gitconfig`, since it refuses sibling checkouts and `run-locally.md`; the control set
+  drops `~/.claude/CLAUDE.md` for the same reason. The rows that only served it
+  are `obsolete`.
 - **The helper-copy `ask`** is out of scope: it meets none of the three criteria
   and would stop a headless `/ship` at every helper in a worktree that differs
   from the hooks' checkout.
@@ -769,8 +770,8 @@ which E's row ports.
 
 | Frontend | Behaviour | Payload | Verdict | Task | Reason and fix | Frontend's test |
 |---|---|---|---|---|---|---|
-| hooks/guard-edit-target.py:451; also docs/harness-boundaries.md:1599 | Target outside every checkout and every scratch root is refused | - | port | 2 | c1, narrowed from frontend's allow-list to a refusal of `~/.ssh`, shell profiles and `~/.gitconfig`. The allow-list refuses sibling checkouts, `run-locally.md` (22 edits), `~/.claude/CLAUDE.md` (6) and needs `.todo/` (628), criterion 3. Invert payload's test for those names only. | test_a_path_outside_every_checkout_and_every_scratch_root_is_refused |
-| hooks/guard-edit-target.py:441 | `~/.claude` credentials, settings, hooks, commands, agents, plugins refused, case-folded | - | port | 2 | c1. Payload denies are project-relative, so user-level control files are open. Port `control_surface` and both CONTROL sets folded. `~/.claude/settings.json` was edited twice, on the owner's request: that route becomes an owner-run script. | test_the_harness_control_surface_is_refused_inside_its_own_root |
+| hooks/guard-edit-target.py:451; also docs/harness-boundaries.md:1599 | Target outside every checkout and every scratch root is refused | - | port | 2 | c1, narrowed from frontend's allow-list to a refusal of `~/.ssh`, shell profiles and `~/.gitconfig`. The allow-list refuses sibling checkouts and `run-locally.md` (22 edits) and needs `.todo/` (628), criterion 3. Invert payload's test for those names only. | test_a_path_outside_every_checkout_and_every_scratch_root_is_refused |
+| hooks/guard-edit-target.py:441 | `~/.claude` credentials, settings, hooks, commands, agents, plugins refused, case-folded | - | port | 2 | c1. Payload denies are project-relative, so user-level control files are open. Port `control_surface` and both CONTROL sets folded, without `CLAUDE.md` and `AGENTS.md`: `~/.claude/CLAUDE.md` was edited 6 times, for the owner's rules. `~/.claude/settings.json` was edited twice, on the owner's request: that route becomes an owner-run script. | test_the_harness_control_surface_is_refused_inside_its_own_root |
 | hooks/guard-edit-target.py:808 | Linked worktree's `.claude` refused wherever the session stands, nested worktrees included | - | port | 2 | c1: payload admits it, boundaries :480 leaves it to a prompt. Port the first-component check into `offence`. 268 such edits since 2026-10-19 predate the payload's rule; Task 2 reads them before the port stands. | test_a_nested_worktree_keeps_its_machinery_refused |
 | hooks/guard-edit-target.py:825; also docs/harness-boundaries.md:209 | Unentered linked worktree's `.github`, `.git`, root files and toolchain refused | - | port | 2 | c1, narrowed: judge an unentered worktree by the target's denies. 718 `.github` edits landed in worktrees where no target denies it. Needs `protected_in_worktree` and `protected_path`; Angular names stay config. | test_a_sibling_worktree_of_this_repository_is_judged_not_refused |
 | hooks/guard-edit-target.py:833 | Link traversal inside an unentered linked worktree is judged and refused | - | port | 2 | c1, the guard's subject. Payload never anchors the sibling. Append it to `checkouts`. |  |
