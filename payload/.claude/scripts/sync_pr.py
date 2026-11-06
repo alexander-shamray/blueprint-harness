@@ -160,14 +160,21 @@ def manifest_at(rev, where):
     return parse_manifest(read(["git", "show", f"{rev}:{MANIFEST}"]), where)
 
 
-def fetch_head(number):
-    """The listed row's head, fetched and confirmed to be the listed oid; every later read is by that oid."""
+def fetch_head(number, pin=None):
+    """The listed row's head, fetched and confirmed to be the listed oid; every later read is by that oid.
+
+    With `pin`, the listing and the fetch must each be that oid: a session that checked a head out proves that one.
+    """
     row = next((r for r in sync_rows() if r["number"] == number), None)
     if row is None:
         raise Refusal(f"#{number} is not a sync pull request: an open, same-repository pull request into main, "
                       f"from a {SYNC_HEAD.pattern} branch, whose body ends with the sync footer")
+    if pin is not None and row["oid"] != pin:
+        raise Refusal(f"#{number}: the listed head {row['oid']} is not the pinned oid {pin}; it moved")
     read(["git", "fetch", "-q", "--no-tags", "origin", f"refs/heads/{row['head']}"], GIT_TIMEOUT)
     fetched = read(["git", "rev-parse", "--verify", "--end-of-options", "FETCH_HEAD^{commit}"]).strip()
+    if pin is not None and fetched != pin:
+        raise Refusal(f"#{number}: the fetched head {fetched} is not the pinned oid {pin}; it moved")
     if fetched != row["oid"]:
         raise Refusal(f"#{number}: the fetched head {fetched} is not the listed oid {row['oid']}; it moved")
     read(["git", "fetch", "-q", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main"], GIT_TIMEOUT)
@@ -262,13 +269,13 @@ def unlisted(payload, paths, local, exclude):
             and not any(glob_match(g, rel) for g in (*local, *exclude))]
 
 
-def prove(number):
+def prove(number, pin=None):
     """(failures, head): one line per failure; none means the checks below hold, not that the sync is whole.
 
     The rendered settings.json and the manifest's hashes are the drift gate's. `head` holds the oid judged.
     """
     try:
-        oid = fetch_head(number)
+        oid = fetch_head(number, pin)
         commit, paths = manifest_at(oid, f"#{number}")
     except Refusal as error:
         return [str(error)], None
@@ -334,9 +341,9 @@ def prove(number):
     return failures, head
 
 
-def verify(number):
+def verify(number, pin=None):
     """(failures, harness commit) of `prove`."""
-    failures, head = prove(number)
+    failures, head = prove(number, pin)
     return failures, head["commit"] if head else None
 
 
@@ -432,14 +439,23 @@ def _number(text):
     return int(text)
 
 
+def _oid(text):
+    if not re.fullmatch(r"[0-9a-f]{40}", text):
+        raise argparse.ArgumentTypeError(f"{text!r} is not a 40-hex commit id")
+    return text
+
+
 def _parser():
     parser = argparse.ArgumentParser(prog="sync_pr.py", description=__doc__.split("\n", 1)[0])
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("list")
-    sub.add_parser("verify").add_argument("number", type=_number)
+    check = sub.add_parser("verify")
+    check.add_argument("number", type=_number)
+    check.add_argument("--head", type=_oid)
     review = sub.add_parser("review-diff")
     review.add_argument("number", type=_number)
     review.add_argument("out")
+    review.add_argument("--head", type=_oid)
     sub.add_parser("local-suites")
     return parser
 
@@ -451,14 +467,14 @@ def main(argv=None):
             rows = sync_rows()
             print(json.dumps({"take": rows[-1] if rows else None, "rest": rows[:-1]}))
         elif args.command == "verify":
-            failures, commit = verify(args.number)
+            failures, commit = verify(args.number, args.head)
             if failures:
                 print("\n".join(failures))
                 return 1
             print(f"verified {args.number} {commit}")
         elif args.command == "review-diff":
             target = review_target(args.out)
-            failures, head = prove(args.number)
+            failures, head = prove(args.number, args.head)
             if failures:
                 print("\n".join(failures))
                 return 1

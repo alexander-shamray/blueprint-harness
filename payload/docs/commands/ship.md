@@ -190,6 +190,20 @@ recheck after a rebase; a sync keeps its one round, because the verify compares
 the new head's managed files by blob id. A failed verify is handed back, as the
 first one is.
 
+**What was proved is what runs and merges, so the proof carries the head.**
+Verified from the main checkout, the head could still move before step 2 runs
+its suites or step 6 merges it: the helper fetches whatever origin's tip is by
+then, and `pr-state.sh` reads the pull request's current `headRefOid`. A push in
+that window would run and land a head nobody proved. So once in the worktree,
+`git rev-parse HEAD` is the head, a verify with `--head <oid>` runs before step
+2 reads anything, and every `verify` and `review-diff` after it names the same
+oid; `sync_pr.py` refuses unless both the listing and the fetch are exactly that
+oid. Step 6's `<oid>` must be it too, and one that differs is a moved sync,
+reported as a failed verify and handed back with no merge. After step 6's rebase
+the new `HEAD` is the head, since the replay is the session's own and the verify
+on it is the proof. The verify before the worktree exists has no head to name;
+it decides only whether to open one.
+
 **Under `--dispatched` the group is `sync-<n>` and `issues` is `[]`.** The
 argument carries no `#<group>-<n>` tag for the Report's rule to read, and a sync
 answers no issue. `/ship` is granted `sync_pr.py` and the worktree helper in its

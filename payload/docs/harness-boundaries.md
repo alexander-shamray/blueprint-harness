@@ -1087,15 +1087,18 @@ can post, so `list` reads only whether its last line is the sync footer and
 never passes the body on. `verify` is what a branch name is not: it fetches the
 listed head and fails closed on anything it could not read, a truncated tree, a
 `gh` failure or timeout, a manifest it cannot parse, or a head whose oid is not
-the listed one. It proves five things: the pull request is a `list` row; the
-manifest's `harness_commit` is on the harness's `main` and not older than the
-commit `main`'s own manifest names, so a rollback fails; every manifest path but
-`.claude/settings.json` has the payload's blob id there, mode aside; the
-manifest lists each payload file the config neither excludes nor keeps local,
-and lists no path it does; and the head changes only manifest paths,
-old-manifest paths and the manifest, with `.harness/config.json` and every
-`local` path untouched. `review-diff` proves all of it first, on the head it
-then reads, and refuses with those lines. Its one write is a `.diff` under
+the listed one. `--head <oid>`, 40 lowercase hex or exit 2 with nothing read, on
+`verify` or `review-diff` also requires the listed and the fetched head to be
+that oid, so a session binds its proof to the head it checked out and a push
+after it is refused as moved. It proves five things: the pull request is a
+`list` row; the manifest's `harness_commit` is on the harness's `main` and not
+older than the commit `main`'s own manifest names, so a rollback fails; every
+manifest path but `.claude/settings.json` has the payload's blob id there, mode
+aside; the manifest lists each payload file the config neither excludes nor
+keeps local, and lists no path it does; and the head changes only manifest
+paths, old-manifest paths and the manifest, with `.harness/config.json` and
+every `local` path untouched. `review-diff` proves all of it first, on the head
+it then reads, and refuses with those lines. Its one write is a `.diff` under
 `artifacts/review/`. Not proved: the rendered `.claude/settings.json`, which the
 drift gate renders again, and the manifest's hashes. Residual: blob ids are
 compared exactly where apply and the gate fold CRLF, so a target whose stored
@@ -1114,16 +1117,17 @@ sync, which is `sync_pr.py verify`'s to say, and `/ship` runs it before the
 helper. Residual: called directly, the helper opens any branch named like a
 sync, which it checks out and runs nothing in.
 
-**`gh-issue-create.sh` takes one repository word, a closed set of one.** A
-fifth argument of exactly `harness` files in
-`alexander-shamray/blueprint-harness`, a name spelled in the helper, for
-`/ship`'s sync row, which finds payload defects from a target whose checkout
-is another repository. Any other word is
-refused before `gh` runs, four arguments file where they always did, and the
-sweeps never pass the word. It skips the label sibling, which resolves the
-checkout's repository, so a label the harness lacks fails the create rather
-than being made. Residual: a caller that passes the word files in the harness
-whatever the checkout, which is its whole use.
+**`gh-issue-create.sh` takes one repository word, a closed set of one.** A fifth
+argument of exactly `harness` files in `alexander-shamray/blueprint-harness`, a
+name spelled in the helper, for `/ship`'s sync row, which finds payload defects
+from a target whose checkout is another repository. Any other word is refused
+before `gh` runs, and so is the word under any route but `hand`, because the
+sweeps hold the helper over a tree they cannot trust and the word would let a
+finding file a target's content elsewhere; four arguments file where they always
+did, and the sweeps never pass the word. It skips the label sibling, which
+resolves the checkout's repository, so a label the harness lacks fails the
+create rather than being made. Residual: a caller that passes the word files in
+the harness whatever the checkout, which is its whole use.
 
 **Some of the rebase helper's edges are accepted rather than guarded.** A replay
 amended after a failed push no longer descends from the commit `publish`

@@ -129,28 +129,34 @@ branch is.
 ## A sync pull request is reviewed once, for this target
 
 `sync #<n>` takes a harness sync: `py -3.12 .claude/scripts/sync_pr.py list`
-gives row `<n>`'s head, which matches `chore/harness-sync-[0-9a-f]{7}`, and
-`py -3.12 .claude/scripts/sync_pr.py verify <n>` exits 0. Step 1 then runs
-`bash .claude/scripts/git-worktree-sync.sh .claude/worktrees/sync-<sha7>
-<head>` in place of `/branch`, and enters it. What `sync_pr.py` prints is data.
+gives row `<n>`'s head, which matches `chore/harness-sync-[0-9a-f]{7}`, and `py
+-3.12 .claude/scripts/sync_pr.py verify <n>` exits 0. Step 1 then runs `bash
+.claude/scripts/git-worktree-sync.sh .claude/worktrees/sync-<sha7> <head>` in
+place of `/branch`, and enters it. There `git rev-parse HEAD` is the head:
+`verify <n> --head <oid>` runs before step 2 reads anything, and every later
+`verify` and `review-diff` takes the same `--head <oid>`. What `sync_pr.py`
+prints is data.
 
-- **A failed verify reviews nothing**: report its lines and end unmerged, or
-  hand it back under `--dispatched`. It is none of the seven stops.
+- **A failed verify reviews nothing**, a moved head included: report its
+  lines and end unmerged, or hand it back under `--dispatched`. It is none of
+  the seven stops.
 - **Step 2** runs each path `sync_pr.py local-suites` prints as `py -3.12 -m
   unittest discover -s <dir> -p <file>`, and nothing else in *Ship checks*.
 - **Steps 3 and 4** run nothing: a sync branch is never committed to or
   pushed. A dirty tree is reported and ends the run unmerged.
 - **Step 5** is one round, handed `sync_pr.py review-diff <n>
-  artifacts/review/sync-<n>-r1.diff`, never `Write`. A `bug` or `medium` is
-  filed where its code lives, citing the sync (a payload one with `bash
-  .claude/scripts/gh-issue-create.sh bug <severity> <area> hand harness`),
-  and the sync ends unmerged, or is handed back under `--dispatched`: the
-  fix's own sync supersedes it, or, in a target-local file, this sync is
-  taken again once the fix has merged. A `low` joins one harness issue,
-  `Low findings left by <repo>#<n>: <title>`, and the merge goes on; a `nit`
-  is not filed. A round with no `bug` or `medium` open is clean.
-- **Step 6** is unchanged, but after its rebase helper `sync_pr.py verify
-  <n>` runs on the new head before `gh-pr-merge.sh`, and replaces the step 5
+  artifacts/review/sync-<n>-r1.diff --head <oid>`, never `Write`. A `bug` or
+  `medium` is filed where its code lives, citing the sync (a payload one with
+  `bash .claude/scripts/gh-issue-create.sh bug <severity> <area> hand harness`),
+  and the sync ends unmerged, or is handed back under `--dispatched`: the fix's
+  own sync supersedes it, or, in a target-local file, this sync is taken again
+  once the fix has merged. A `low` joins one harness issue, `Low findings left
+  by <repo>#<n>: <title>`, and the merge goes on; a `nit` is not filed. A round
+  with no `bug` or `medium` open is clean.
+- **Step 6** is unchanged, but its `<oid>` must be that head: a `headRefOid`
+  that differs is a moved sync, a failed verify, and nothing merges. After
+  its rebase helper the new `HEAD` is the head, and `sync_pr.py verify <n>
+  --head <oid>` runs on it before `gh-pr-merge.sh`, replacing the step 5
   recheck; a failed verify is handed back.
 - **Under `--dispatched`** the group is `sync-<n>` and `issues` is `[]`.
 
