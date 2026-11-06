@@ -176,7 +176,9 @@ line number was read back from the file.
   `docs/commands/bug-sweep.md:90` — "`dotnet test`" as what a build runs.
 - `.github/output-gate/` — the gate itself checks .NET build output against
   `Platform.slnx`; `output_gate.py:18,24` and `README.md:3,5,12,18` name
-  backend's trees and solution. Payload by the brief.
+  backend's trees and solution. Payload by the brief, and delivered only
+  where a .NET build runs: a target without one puts `.github/output-gate/**`
+  under `exclude` in its config, as this repository does.
 - `.claude/scripts/sweep-slices.sh:47` — slices `tools/` as tooling, a
   backend tree; `.claude/scripts/gh-label-ensure.sh:30` — the `code` label's
   description names `src/`, `tests/`, `tools/`, `deploy/`;

@@ -12,5 +12,7 @@
     "harness_sync/**",
     "measure/**"
   ],
-  "exclude": []
+  "exclude": [
+    ".github/output-gate/**"
+  ]
 }
