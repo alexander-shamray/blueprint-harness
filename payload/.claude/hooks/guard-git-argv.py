@@ -507,9 +507,10 @@ def _sums_in_group(command, start):
             body = _opened_body(command, index, pending)
             if body is None:
                 continue
-            # With no close, the next `<<` would search to the end as well.
-            hunting = body[1] is not None
-            if hunting and (not ticked or _closes_inside_backtick(command, index, body[1])):
+            # With no close in reach, the next `<<` would search to the end too.
+            hunting = body[1] is not None and (
+                not ticked or _closes_inside_backtick(command, index, body[1]))
+            if hunting:
                 pending = body[1]
                 bodies.append(body[:2])
     verdicts.update(dict.fromkeys(stack, False))

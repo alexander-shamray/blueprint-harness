@@ -812,8 +812,9 @@ class TheGitArgvGuard(unittest.TestCase):
         for nest in (
             "(( $(" + f"<<4{NEWLINE}" * 100 + ") ))",
             "(( `" + f"<<4{NEWLINE}" * 100 + "` ))",
+            "(( `" + f"<<4{NEWLINE}" * 100 + f"` )){NEWLINE}4",
         ):
-            with self.subTest(nest=nest[:6]):
+            with self.subTest(nest=nest[-8:]):
                 searches.clear()
                 guard.heredoc_spans(nest)
                 self.assertLess(len(searches), 5)
