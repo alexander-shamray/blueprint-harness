@@ -52,6 +52,9 @@ class SyncPrConstants(unittest.TestCase):
     def test_the_pr_body_names_the_diff_the_review_reads(self):
         body = pr.pr_body(COMMIT, [], [], None)
         self.assertIn("sync_pr.py review-diff", re.sub(r"\s+", " ", body))
+        # No payload command takes a sync yet, so the body must not say one does.
+        self.assertNotIn("/dispatch", body)
+        self.assertNotIn("/ship", body)
 
 
 if __name__ == "__main__":
