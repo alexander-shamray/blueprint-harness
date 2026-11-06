@@ -119,7 +119,9 @@ def pr_body(harness_commit: str, written: list[str], deleted: list[str], run_url
         f"released at blueprint-harness [`{_short(harness_commit)}`]({link}), re-renders `.claude/settings.json` "
         "where it changed, and records the commit and every managed file's hash in `.harness/manifest.json` "
         "(shared-harness spec 5.3). The sync workflow wrote it; the managed files were reviewed in the harness "
-        "repository, so the review here is of what is specific to this target.",
+        "repository, so the review here is of what is specific to this target: `/dispatch` or `/ship` on this "
+        "branch takes one round, and what the round reads is `sync_pr.py review-diff`, which names the managed "
+        "paths and leaves out their content.",
         width=80, break_long_words=False, break_on_hyphens=False,
     )
     touch = ", ".join(f"`{rel}`" for rel in sorted({*written, *deleted, MANIFEST}))

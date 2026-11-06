@@ -184,7 +184,7 @@ line number was read back from the file.
   description names `src/`, `tests/`, `tools/`, `deploy/`;
   `.claude/scripts/dispatch_run.py:27` — cites
   `tools/quality-sets/quality_sets.py` as the owner of four counts.
-- `docs/harness-boundaries.md:25,1299,1339-1355,1570` — `dotnet`
+- `docs/harness-boundaries.md:25,1319,1359-1375,1590` — `dotnet`
   and `Platform.slnx`; spec 5.2 splits this document into common boundaries
   and backend's residuals.
 - Test fixtures that use a `dotnet` command line as a sample string
