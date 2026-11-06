@@ -304,6 +304,24 @@ class SyncClose(InRoot):
                 self.assertIn(f"refused: {GID} is {status}, not a sync that ended", run_cli(["sync-close", RUN, GID]))
                 self.assertEqual(status, group_state(RUN, GID)["status"])
 
+    def test_a_sync_whose_worktree_is_gone_can_be_closed(self):
+        # `resume` refuses it, `wake` holds for it and `sync-launch` waits on it, so this is its one way out.
+        for status in dr.ACTIVE:
+            with self.subTest(status=status):
+                record_sync(status=status, worktree="gone/z")
+                os.rmdir("gone/z")
+                self.assertEqual("", run_cli(["sync-close", RUN, GID]))
+                entry = group_state(RUN, GID)
+                self.assertEqual(("closed", status, "its worktree is gone"),
+                                 (entry["status"], entry["closed_from"], entry["reason"]))
+
+    def test_a_gone_worktree_with_a_live_executor_is_not_closed(self):
+        record_sync(worktree="gone/z")
+        os.rmdir("gone/z")
+        (state_dir() / f"{GID}.pid").write_text(f"{os.getpid()}\n", encoding="utf-8")
+        self.assertIn(f"refused: {GID}'s executor is still running", run_cli(["sync-close", RUN, GID]))
+        self.assertEqual("running", group_state(RUN, GID)["status"])
+
     def test_a_group_with_rows_is_not_closed_this_way(self):
         record(RUN, "S1", status="verified")
         self.assertIn("refused: S1 is not a sync group", run_cli(["sync-close", RUN, "S1"]))
@@ -367,6 +385,11 @@ class Resume(InRoot):
                 self.assertIn(f"refused: {GID!r} is not a group id",
                               run_cli(["tasks", action, "--tasks", "todo.md", "--run", RUN, GID]))
         self.assertEqual(FIXTURE, Path("todo.md").read_text(encoding="utf-8"))
+
+    def test_the_gone_worktree_row_closes_a_sync(self):
+        table = flat(DISPATCH.read_text(encoding="utf-8").split("## Resume", 1)[1])
+        row = table.split("refused <g>: its worktree … is gone |", 1)[1].split(" |", 1)[0]
+        self.assertIn("a sync group, sync-close", row)
 
     def test_every_line_a_sync_resumes_on_has_a_row_and_none_leads_to_tasks(self):
         table = DISPATCH.read_text(encoding="utf-8").split("## Resume", 1)[1]
