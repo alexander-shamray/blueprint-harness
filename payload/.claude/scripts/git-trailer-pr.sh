@@ -78,7 +78,10 @@ fi
 # The exec skips a commit that has the trailer, so a rerun after a failed push changes nothing already done.
 if [ "$owned" -lt "$total" ]; then
   exec_cmd="git log -1 --format=%B | git interpret-trailers --parse | grep -qx '$wanted' || git commit --amend --no-edit --trailer '$wanted'"
-  if ! GIT_SEQUENCE_EDITOR=true git rebase --quiet -x "$exec_cmd" "$base_oid"; then
+  # The flags are spelled, as git-rebase-onto-main.sh spells them: each `rebase.*` key behind them changes which
+  # commits are replayed, and the result is force-pushed, so an inherited one is a rewrite nobody asked for.
+  if ! GIT_SEQUENCE_EDITOR=true git rebase --quiet --no-rebase-merges --no-update-refs --no-autosquash \
+      --no-fork-point --no-autostash -x "$exec_cmd" "$base_oid"; then
     git rebase --abort || true
     echo "adding the trailer failed; the branch is as it was" >&2; exit 6
   fi

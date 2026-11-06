@@ -184,6 +184,19 @@ class TheFlagsAreTheScriptsOwn(unittest.TestCase):
                     any("--force" in c or " -f" in c or "+" in c for c in added),
                     f"the scan truncated the command before its flags: {added!r}")
 
+    def test_every_replay_spells_the_flags_that_decide_what_is_replayed(self):
+        # Each `rebase.*` key behind these flags changes WHICH commits are
+        # replayed or what the tree is while they are, and the result is
+        # force-pushed. `--continue` replays what `start` planned and takes
+        # none, so the replays are the rebases that name a base.
+        replays = [c for c in git_commands(self.source)
+                   if c.startswith("git rebase") and "--continue" not in c and "--abort" not in c]
+        self.assertEqual(1, len(replays), replays)
+        for flag in ("--merge", "--no-rebase-merges", "--no-update-refs", "--no-autosquash",
+                     "--no-fork-point", "--no-autostash"):
+            with self.subTest(flag=flag):
+                self.assertIn(flag, replays[0])
+
     def test_the_push_leases_against_the_value_the_guard_approved(self):
         # Re-reading the remote ref in `publish` would lease against whatever a
         # fetch had since made of it, with the whole replay in between — the
@@ -902,6 +915,18 @@ class TheHelperPublishesWhatItRebased(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("", self.at("git log --merges --format=%H origin/main..HEAD").stdout,
                          "rebase.rebaseMerges would have kept the merge")
+
+    def test_a_fixup_commit_is_not_folded_by_rebase_autosquash(self):
+        # `rebase.autoSquash` would recombine a `fixup!` into the commit it
+        # names, and the result is force-pushed: a rewrite nobody asked for.
+        self.at("git config rebase.autoSquash true")
+        self.at('echo squashed > e.txt && git add -A && git commit -qm "fixup! the branch work" '
+                '&& git push -q -f origin feat/x')
+        subjects = self.at("git log --format=%s origin/main..HEAD").stdout
+        result = self.helper()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(subjects, self.at("git log --format=%s origin/main..HEAD").stdout,
+                         "rebase.autoSquash folded the fixup away")
 
     def test_a_branch_pointing_inside_the_replayed_range_is_not_moved(self):
         # `rebase.updateRefs` only moves a ref inside the replayed range, so
