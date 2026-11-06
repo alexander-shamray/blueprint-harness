@@ -241,7 +241,7 @@ groups and new launches can overtake it, perhaps to the end of the night. The
 cost is that those groups run under the settings the sync would replace.
 Holding a slot for it would stall the backlog for a change nobody is waiting
 on, so nothing reserves one: the morning's list shows it, and the next
-`/dispatch` takes it first.
+`/dispatch` that starts with no group active takes it first.
 
 **The proof binds.** The verify at step 0.3 and after each exit runs in the
 main checkout, because the executor runs that head's own copy of `sync_pr.py`,

@@ -458,8 +458,8 @@ class Resume(InRoot):
                 self.assertNotIn("tasks done", rows[name])
 
     def test_a_sync_holds_no_run_open(self):
-        # `start` reopens a reported run only for rows, and a sync has none, whichever way it ended. The list is read
-        # here; the next case is the same with a list that cannot be.
+        # `start` reopens a reported run only for rows, and a sync has none, whichever way it ended. The list is
+        # readable here but not consulted; the next case is the same with a list that cannot be read.
         with open("todo.md", "w", encoding="utf-8", newline="") as handle:
             handle.write(FIXTURE)
         for status in ("closed", "verified", "running", "stopped"):
