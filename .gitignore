@@ -9,5 +9,8 @@ __pycache__/
 # Scratch output of local runs.
 artifacts/
 
+# What Git for Windows' bash leaves behind when it crashes.
+*.stackdump
+
 # Worktrees /branch and /dispatch fork inside the checkout.
 .claude/worktrees/
