@@ -327,8 +327,8 @@ teardown below removes it without `--force`.
 **Prove the root is readable before the fan-out, rather than trusting the add.**
 `Glob` a file the pinned commit is known to carry — `$work/CLAUDE.md`, a
 tracked file every target holds, since each imports `.harness/agent-rules.md`
-from it, as an **absolute** path — and require exactly one hit. A path the shell created is not
-necessarily a path the built-in readers resolve, and the failure is not reliably
+from it, as an **absolute** path — and require exactly one hit. A path the
+shell created is not necessarily a path the built-in readers resolve, and the failure is not reliably
 loud: `Glob` given a `path=` argument reports a directory that does not exist,
 but a *pattern* matching nothing returns `No files found`, which is exactly what
 a clean scope returns. Assert on a named tracked file rather than on a non-empty
