@@ -235,7 +235,7 @@ class SyncLaunch(Bound):
 
     def test_a_sync_this_run_holds_is_never_launched_again(self):
         record_sync(status="closed", closed_from="handed-back", worktree=WORKTREE)
-        self.refused(f"{GID} is already in this run; a sync is never relaunched")
+        self.refused(f"{GID} is already in this run; a new take is a new group")
 
 
 class RunningASync(Bound):
