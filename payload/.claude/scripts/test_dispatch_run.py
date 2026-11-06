@@ -683,6 +683,11 @@ class ClassifyTests(InRoot):
         bare = self.spent(modelUsage=ABSENT, usage=ABSENT)
         self.assertEqual(({}, None), (bare.usage, bare.usage_source))
 
+    def test_a_usage_of_zeros_is_no_source(self):
+        zero = {key: 0 for key in dr.TOKEN_KEYS}
+        ok = self.spent(modelUsage={}, usage=zero)
+        self.assertEqual((zero, None), (ok.usage, ok.usage_source))
+
     def test_a_model_keeps_the_counts_it_has_and_a_malformed_one_is_not_summed(self):
         ok = self.spent(modelUsage={"a": {"inputTokens": 5, "outputTokens": True, "cacheReadInputTokens": -1},
                                     "b": {"inputTokens": 7, "outputTokens": 2}, "c": "not counts"})
@@ -810,6 +815,11 @@ class ResultCommandTests(InRoot):
     def test_counts_recorded_before_the_sources_were_are_the_last_turn_reader(self):
         self.absorb(MERGED_S1, status="relaunch", absorbed="2026-11-01T20:00:00+00:00", usage={"input_tokens": 100})
         self.assertEqual(["usage", "modelUsage"], group_state(RUN, "S1")["usage_sources"])
+
+    def test_a_session_that_spent_nothing_leaves_no_source_on_the_next_sessions_row(self):
+        self.absorb(MERGED_S1, status="relaunch", absorbed="2026-11-01T20:00:00+00:00", usage={"input_tokens": 0},
+                    usage_sources=[])
+        self.assertEqual(["modelUsage"], group_state(RUN, "S1")["usage_sources"])
 
     def test_a_session_with_no_envelope_changes_no_usage_or_source(self):
         self.absorb(MERGED_S1, envelope="not an envelope", status="relaunch",
