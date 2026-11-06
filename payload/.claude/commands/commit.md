@@ -46,7 +46,8 @@ British spelling in prose, identifiers left alone.>
 ```
 
 - Types are `docs:`, `feat(<scope>):`, `fix:`, `chore:`, `refactor:`, `test:`.
-  **Implementing a delivery-plan PR? Use Appendix C's title verbatim** — it is
+  **Implementing a PR on the roadmap `docs/harness-local.md` *Documents*
+  names? Use its title verbatim** — it is
   already written in this form, and matching it is what lets the plan be traced
   against the log.
 - **The subject names what changed and where** — a symbol, a file or a
