@@ -663,6 +663,19 @@ class TheGitArgvGuard(unittest.TestCase):
         ):
             with self.subTest(command=command):
                 self.assertIn("force push", self.assertRefused(command))
+
+        # A `<<` the read cannot settle leaves the group's `((` as sums, whatever
+        # a `)` past it would have made of them, so no later shift opens a body.
+        for command in (
+            f"n=$(( $( ((wc -l <<'EOF') | cat){NEWLINE}){NEWLINE}EOF{NEWLINE}) + (1<<4) )){NEWLINE}"
+            f"git push origin +HEAD:main{NEWLINE}4",
+            f"n=$(( `cat <<'A' ` + $(wc -l <<'B'{NEWLINE}){NEWLINE}B{NEWLINE}) + (1<<4) )){NEWLINE}"
+            f"git push origin +HEAD:main{NEWLINE}4{NEWLINE}A",
+            f"n=$(( `: $((1<<4)); wc -l <<'EOF'{NEWLINE}){NEWLINE}EOF{NEWLINE}` + (1<<4) )){NEWLINE}"
+            f"git push origin +HEAD:main{NEWLINE}4",
+        ):
+            with self.subTest(command=command):
+                self.assertIn("force push", self.assertRefused(command))
         self.assertAdmitted(
             f"n=$(( $(wc -l <<'EOF'{NEWLINE}don't{NEWLINE}EOF{NEWLINE}) + (1<<2) )){NEWLINE}"
             f"git commit -F - <<'B'{NEWLINE}it's{NEWLINE}B"
