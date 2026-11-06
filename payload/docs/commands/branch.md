@@ -38,9 +38,9 @@ line fails the fork rather than the merge gate.
 **Anything that resolves upward from the worktree reaches the main checkout.**
 Claude Code reads every ancestor's `CLAUDE.md`, so a session in a worktree also
 reads `main`'s copy, and a branch that edits `CLAUDE.md` has two versions in
-context: the worktree's is the one the branch changes. MSBuild's
-`Directory.*.props`, `global.json` and the root-marked `.editorconfig` resolve
-in the worktree first and stop there. **Skills resolve the other way:** a
+context: the worktree's is the one the branch changes. A build tool's own
+root files and the root-marked `.editorconfig` resolve in the worktree first
+and stop there. **Skills resolve the other way:** a
 session in the main checkout also discovers each live worktree's
 `.claude/skills/`, so a branch that edits a skill offers that session both
 copies, the branch's under the worktree's path.
@@ -236,7 +236,7 @@ Then switch the session into it with **`EnterWorktree`**, passing the new
 directory as `path` — the worktree exists and `git worktree list` reports
 it, which is what that form of the tool requires. When both steps succeed,
 everything after this command — `/commit`, `/pr`, the review,
-`dotnet test` — runs there. The two paragraphs below are what happens when
+the test run — runs there. The two paragraphs below are what happens when
 either does not.
 
 **If `.claude/worktrees/` is not writable, `git worktree add` fails and the

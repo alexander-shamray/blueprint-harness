@@ -7,8 +7,8 @@ one of those, and a section it names must be a heading that file has.
 What a target holds by itself is `CLAUDE.md`, `docs/harness-local.md` (whose four headings
 `docs/harness-boundaries.md` *Managed files* fixes), its `.harness/config.json` and `.harness/manifest.json`, the
 `.claude/settings.json` rendered from the payload, and the task list its config names. `docs/superpowers/` is the
-superpowers plugin's directory in every repository. And until plan 5 moves the stack into config, a site
-`IMPORT.md` *Stack mentions left verbatim* lists keeps its backend text; that section is read, not copied here.
+superpowers plugin's directory in every repository. And a site `IMPORT.md` *Stack mentions left verbatim* lists
+keeps its backend text until its issue lands; that section is read, not copied here.
 """
 
 import json
@@ -52,6 +52,8 @@ _SECTION = re.compile(r"`?((?:\.claude|\.github|\.harness|docs)/[\w./-]+\.md|CLA
 _CLAUDE_SECTION = re.compile(r"`?CLAUDE\.md" + _LINKED + r"[^*]+\*")
 _HEADING = re.compile(r"^#{1,6} (.+?)\s*#*\s*$", re.MULTILINE)
 _STACK_TOKEN = re.compile(r"`([^`\s]+)`")
+# A name that holds for one stack alone, so a payload line carrying one is wrong in every other target.
+_STACK_NAME = re.compile(r"dotnet|Platform\.slnx|Roslyn|MSBuild")
 # A change contract's section cited by number: backend's sections, which no other target's contract shares.
 _CONTRACT_SECTION = re.compile(r"(?:contract's|the contract) (?:§|section )\d|§\d+'s (?:bullet|kinds|areas)")
 # The headings `docs/harness-boundaries.md` *Managed files* fixes for `docs/harness-local.md`, one bullet each.
@@ -212,6 +214,19 @@ def local_scripts_named(payload: Path, names: set[str], import_text: str) -> lis
     return found
 
 
+def stack_names(payload: Path, import_text: str) -> list[str]:
+    dirs, sites = stack_sites(import_text)
+    found = []
+    for path in payload_files(payload):
+        rel = path.relative_to(payload).as_posix()
+        if any(rel.startswith(d) for d in dirs):
+            continue
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if (rel, number) not in sites:
+                found += [f"{rel}:{number}: {m.group(0)}" for m in _STACK_NAME.finditer(line)]
+    return found
+
+
 def contract_sections_cited(payload: Path) -> list[str]:
     return [f"{p.relative_to(payload).as_posix()}: {m.group(0)}"
             for p in payload_files(payload) for m in _CONTRACT_SECTION.finditer(_collapsed(p))]
@@ -252,6 +267,9 @@ class PayloadReferences(unittest.TestCase):
         names = local_scripts()
         self.assertIn("mutation-run.sh", names, "the local-script list stopped reading the target configs")
         self.assertEqual(local_scripts_named(PAYLOAD, names, IMPORT.read_text(encoding="utf-8")), [])
+
+    def test_stack_name_only_at_a_listed_site(self) -> None:
+        self.assertEqual(stack_names(PAYLOAD, IMPORT.read_text(encoding="utf-8")), [])
 
     def test_contract_section_number_not_cited(self) -> None:
         self.assertEqual(contract_sections_cited(PAYLOAD), [])
@@ -329,6 +347,12 @@ class PlantedCitations(unittest.TestCase):
         stack = "## Stack mentions left verbatim\n\n- `.claude/scripts/drop.sh:2`\n"
         self.assertEqual(local_scripts_named(self.payload, {"mutation-run.sh", "dotnet-test.sh"}, stack),
                          [".claude/scripts/drop.sh:1: mutation-run.sh"])
+
+    def test_stack_name_is_reported_off_a_stack_site(self) -> None:
+        self.plant(".claude/commands/pr.md", "State the dotnet test result.\nGlob Platform.slnx.\n")
+        self.plant(".github/output-gate/README.md", "MSBuild and Roslyn.\n")
+        stack = "## Stack mentions left verbatim\n\n- `.claude/commands/pr.md:2`\n- `.github/output-gate/`\n"
+        self.assertEqual(stack_names(self.payload, stack), [".claude/commands/pr.md:1: dotnet"])
 
     def test_contract_section_number_is_reported(self) -> None:
         self.plant(".claude/commands/pr.md", "as the contract's\n\u00a76 asks, and \u00a76's bullet; the spec's \u00a73 is not.\n")

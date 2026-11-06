@@ -151,10 +151,9 @@ bash .claude/scripts/pr-closure-input.sh <n> |
     py -3.12 .github/closure-gate/closure_gate.py
 ```
 
-Do not include a test-plan section while the repo is in its documentation
-phase — there is nothing to run. Once `Platform.slnx` exists, state the
-`dotnet build` / `dotnet test` result instead, and report it as it actually
-came out.
+Do not include a test-plan section while the repo has nothing to run. Where
+`docs/harness-local.md` *Ship checks* names a build or a test, state its
+result instead, and report it as it actually came out.
 
 ## Before opening
 

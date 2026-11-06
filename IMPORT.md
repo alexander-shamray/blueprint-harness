@@ -153,40 +153,20 @@ right in every target, and `dispatch_board.py` takes the task list as
 
 ## Stack mentions left verbatim
 
-Payload files that name a backend stack value in prose or in a step, kept as
-backend has them because the config schema has no key for a stack command and
-backend's sync diff should be empty (spec 7, step 2). Each needs a config key
-or a rewording before the first sibling's sync (spec 7, step 3). This
-section is an inventory only: the payload text stays as backend has it. It
-was found by grepping `payload/` for `dotnet`, `Platform.slnx`, each
-backend-local command's name and each backend-only document's path, and every
-line number was read back from the file.
+Payload files that still name a backend stack value, each tracked where it
+says. `harness_sync/tests/test_payload_references.py` reads this section and
+refuses a stack name anywhere else in the payload.
 
-- `.claude/commands/bug-sweep.md:108`, `.claude/commands/security-sweep.md:52`
-  — the readable-root proof globs `$work/Platform.slnx`; its argument in the
-  runbooks, `docs/commands/bug-sweep.md:218,260,287-288,328` and
-  `docs/commands/security-sweep.md:75,117,144-145,168`.
-- `.claude/commands/pr.md:150-151` — "once `Platform.slnx` exists, state the
-  `dotnet build` / `dotnet test` result".
-- `.claude/commands/style-pass.md:99,106-108` — `dotnet format` and Roslyn
-  as the formatter, and SQL in C# raw strings with backend's §7.4.
-- `.claude/commands/bug-sweep.md:187`, `docs/commands/bug-sweep.md:576` —
-  backend's §4.1 gateway, BFF and AppHost in the sweep's area rows.
-- `docs/commands/branch.md:239` — "`dotnet test` … runs there";
-  `docs/commands/bug-sweep.md:90` — "`dotnet test`" as what a build runs.
+- `.claude/commands/bug-sweep.md:187`, `docs/commands/bug-sweep.md:577` — the
+  sweep's area rows name backend's §4.1 gateway, BFF and AppHost;
+  `.claude/scripts/sweep-slices.sh:47` slices `tools/` as tooling, a backend
+  tree. All three go with the rows themselves: #73.
 - `.github/output-gate/` — the gate itself checks .NET build output against
-  `Platform.slnx`; `output_gate.py:18,24` and `README.md:3,5,12,18` name
-  backend's trees and solution. Payload by the brief, and delivered only
-  where a .NET build runs: a target without one puts `.github/output-gate/**`
-  under `exclude` in its config, as this repository does.
-- `.claude/scripts/sweep-slices.sh:47` — slices `tools/` as tooling, a
-  backend tree; `.claude/scripts/gh-label-ensure.sh:30` — the `code` label's
-  description names `src/`, `tests/`, `tools/`, `deploy/`;
-  `.claude/scripts/dispatch_run.py:27` — cites
-  `tools/quality-sets/quality_sets.py` as the owner of four counts.
-- `docs/harness-boundaries.md:25,1360,1400-1416,1640` — `dotnet`
-  and `Platform.slnx`; spec 5.2 splits this document into common boundaries
-  and backend's residuals.
+  `Platform.slnx`. Delivered only where a .NET build runs: a target without
+  one puts `.github/output-gate/**` under `exclude` in its config, as this
+  repository does. #85 moves it backend-local.
+- `.github/comment-gate/README.md:24,33` — `MSBuild` as a file kind the gate
+  reads: true in any target.
 - Test fixtures that use a `dotnet` command line as a sample string
   (`test_git_argv_guard.py:241-246`, `test_index_search_hint.py:118`,
   `test_watch_session.py:28-29`, `test_cbx.py:54`) — data, right in any
@@ -231,9 +211,19 @@ Left as they were: `docs/superpowers/`, the superpowers plugin's directory
 in every repository; `.github/locality-gate/classes.yml`, the class map a
 target with a change contract holds as its own; the example paths the
 boundaries and the edit guard invent to show a case; and the sites
-*Stack mentions left verbatim* lists. `issue_form_gate.py` still defaults
-`--contract` to `docs/change-locality.md` and prints its findings against
-that file's "section 6": the gate's code, left to #7 with its parser.
+*Stack mentions left verbatim* lists.
+
+#7 finished the stack half with no config key, which spec 5.2 and the issue
+both expected. A stack command is a check, and `docs/harness-local.md` *Ship
+checks* already names a target's checks, so `pr.md` cites that row; the
+sweeps' readable-root proof needs only a tracked file every target holds,
+which is `CLAUDE.md`; `style-pass.md` and the runbooks say what a build or a
+formatter does without naming one. `issue_form_gate.py` now reads the
+vocabulary from working-rules' own bullet, so the two cases #5 split out to
+backend, which read the gate's default file, came back to the payload's
+suite. Two passages of `docs/harness-boundaries.md` only backend's tree makes
+true, the ninth entry's build grants and the quality sets' scoring runs, went
+to backend's own *Residuals*; blueprint-backend#1773 carries them.
 
 ## Decided after review
 
@@ -346,11 +336,11 @@ One row per candidate file at the pin.
 | `.claude/commands/mutation-sweep.md` | backend-local | drives Stryker.NET through `mutation-run.sh` (spec 8) |
 | `.claude/commands/new-adr.md` | backend-local | blueprint command (spec 8) |
 | `.claude/commands/new-chapter.md` | backend-local | blueprint command (spec 8) |
-| `.claude/commands/pr.md` | payload | harness command; one stack mention left verbatim (see *Stack mentions*) |
+| `.claude/commands/pr.md` | payload | harness command |
 | `.claude/commands/review-branch.md` | backend-local | grants and runs `dotnet-test.sh`, and its `disallowed-tools` enumerates backend's tracked trees and root files, which `test_harness_denies.py` holds it to (ruling: a stack command is backend-local or a config key; the schema has no such key) |
-| `.claude/commands/security-sweep.md` | payload | harness command (spec 8); stack mention left verbatim (see *Stack mentions*) |
+| `.claude/commands/security-sweep.md` | payload | harness command (spec 8) |
 | `.claude/commands/ship.md` | payload | harness command; task list read from config (step 3) |
-| `.claude/commands/style-pass.md` | payload | harness command; stack mention left verbatim (see *Stack mentions*) |
+| `.claude/commands/style-pass.md` | payload | harness command |
 | `.claude/commands/team.md` | payload | harness command; names no stack |
 | `.claude/commands/validate-blueprint.md` | backend-local | blueprint command (spec 8) |
 | `.claude/hooks/guard-edit-target.py` | payload | guard hook, base of spec 5.5 |
@@ -450,7 +440,7 @@ One row per candidate file at the pin.
 | `.github/commit-gate/test_commit_gate.py` | payload | gate suite; passes in payload-suites |
 | `.github/issue-form-gate/README.md` | payload | gate README |
 | `.github/issue-form-gate/issue_form_gate.py` | payload | gate code; its invocation stays in each target's `ci.yml` or comes with its workflow (brief) |
-| `.github/issue-form-gate/test_issue_form_gate.py` | payload, split by #5 | `ThisRepositoryTests` reads the shipped form; backend's `test_issue_form_gate_backend.py` holds the two cases that read `docs/change-locality.md`, the gate's default contract (#7) |
+| `.github/issue-form-gate/test_issue_form_gate.py` | payload | `ThisRepositoryTests` reads the shipped form, helper and working-rules' vocabulary; #5 split two of its cases out and #7 brought them back |
 | `.github/output-gate/README.md` | payload | gate README |
 | `.github/output-gate/output_gate.py` | payload | gate code; its invocation stays in each target's `ci.yml` or comes with its workflow (brief) |
 | `.github/output-gate/test_output_gate.py` | payload, split by #5 | builds every tree it walks; backend's `test_output_gate_backend.py` holds `ThisRepository`, which reads `Platform.slnx` and backend's `src/` ignore rules |
