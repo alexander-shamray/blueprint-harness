@@ -306,6 +306,26 @@ class WhichFilesAreRead(unittest.TestCase):
                 self.assertIs(gate.reader_for(path), reader)
 
 
+class ThePayloadsPaths(unittest.TestCase):
+    def test_a_payload_workflow_is_read_as_the_workflow_it_renders_to(self):
+        found = judged("payload/.github/workflows/w.yml",
+                       "- run: |\n    true\n    # PR-1\n")
+        self.assertEqual([line for _, line, _ in found], [3])
+
+    def test_the_payloads_harness_tree_may_name_its_reviewer(self):
+        text = "# Copilot's login\n"
+        self.assertEqual(judged("payload/.claude/scripts/a.sh", text), [])
+        self.assertEqual(len(judged("payload/deploy/a.sh", text)), 1)
+
+    def test_a_record_in_the_payload_is_not_prose(self):
+        self.assertFalse(gate.is_prose("payload/docs/superpowers/specs/a.md"))
+        self.assertTrue(gate.is_prose("payload/docs/a.md"))
+
+    def test_only_a_leading_payload_directory_renders(self):
+        path = "tools/payload/.github/workflows/w.yml"
+        self.assertIs(gate.reader_for(path), gate.yaml)
+
+
 class ThePatterns(unittest.TestCase):
     def test_each_pattern_fails_a_comment_and_passes_as_code(self):
         samples = ["see #12", "PR-7", "Copilot said so", "found in review",
