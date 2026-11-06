@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from dispatch_board import (BRANCH_NAME, MODEL, Group, Refusal, _blocker, _bodies, _held, _number, _read, _row, _write,
-                            git, group_claim, groups, helper, one_line, parse_tasks, path_which, pick, ready,
+                            git, group_claim, groups, helper, one_line, parse_tasks, path_which, pick, ready, released,
                             row_branch)
 from sync_pr import SYNC_HEAD
 
@@ -93,6 +93,26 @@ def _note_placed(directory, issue):
         save_state(directory, state)
 
 
+def _note_released(directory, lifted):
+    if lifted:
+        state = load_state(directory)
+        state.setdefault("released", {}).update(lifted)
+        save_state(directory, state)
+
+
+def berserk(state):
+    """Whether the run holds --berserk, and the rows it does not lift: a row the night placed waits on OWNER as the
+    cautious value, so lifting it would launch a filed issue nobody read."""
+    if state.get("berserk") is not True:
+        return False, frozenset()
+    return True, frozenset(f"#{number}" for number in state.get("placed") or [] if _number(number))
+
+
+def _released(state):
+    lifted = state.get("released")
+    return lifted if isinstance(lifted, dict) else {}
+
+
 def now():
     return datetime.now().astimezone()
 
@@ -135,13 +155,14 @@ def _start_values(pairs, lang):
         raise Refusal(f"--lang {lang!r} is not a language code")
 
 
-def new_run(root, pairs, lang, now):
+def new_run(root, pairs, lang, now, flag=False):
     _start_values(pairs, lang)
     name = now.strftime("%Y%m%d-%H%M%S")
     directory = run_dir(root, name)
     if directory.exists():
         raise Refusal(f"{directory} already exists")
-    save_state(directory, {"run": name, "pairs": pairs, "lang": lang, "started": now.isoformat(), "groups": {}})
+    save_state(directory, {"run": name, "pairs": pairs, "lang": lang, "berserk": flag, "started": now.isoformat(),
+                           "groups": {}})
     return name
 
 
@@ -252,19 +273,20 @@ def model_flag(model):
     return MODELS[model]
 
 
-def prompt(group, description, run):
+def prompt(group, description, run, flag=False):
     run_dir(".", run)
     if any(row.number is None for row in group.rows):
         raise Refusal(f"{group.id} holds an owed row; only filed issues are dispatched")
     if "".join(description.splitlines()) != description:
         raise Refusal("the description holds a line break")
-    for token in ("--dispatched", "--sleep"):
+    for token in ("--dispatched", "--berserk", "--sleep"):
         if token in description.casefold():
             raise Refusal(f"the description carries {token}, which only the dispatcher passes")
     if not description.strip():
         raise Refusal("the description is empty")
     tag = f"#{group.id}-" + "+".join(str(row.number) for row in group.rows)
-    return f"/ship {tag} {description.strip()} --dispatched artifacts/dispatch/{run}"
+    suffix = " --berserk" if flag else ""
+    return f"/ship {tag} {description.strip()} --dispatched artifacts/dispatch/{run}{suffix}"
 
 
 def sync_prompt(pr: int, run: str) -> str:
@@ -274,14 +296,14 @@ def sync_prompt(pr: int, run: str) -> str:
     return f"/ship sync #{pr} --dispatched artifacts/dispatch/{run}"
 
 
-def _prompt_for(gid, entry, description, run):
+def _prompt_for(gid, entry, description, run, flag=False):
     if entry.get("kind") == "sync":
         if description is not None:
             raise Refusal(f"{gid} is a sync, which takes no --description")
         return sync_prompt(_field(entry, gid, "pr", _number), run)
     if description is None:
         raise Refusal(f"{gid} needs --description")
-    return prompt(_entry_group(gid, entry), description, run)
+    return prompt(_entry_group(gid, entry), description, run, flag)
 
 
 def _same_path(path):
@@ -389,7 +411,8 @@ def run_session(root, run, gid, description):
     never state.json, which only the dispatcher writes, so parallel executors never race one record.
     """
     directory = run_dir(root, run)
-    entry = _entry(load_state(directory), gid)
+    state = load_state(directory)
+    entry = _entry(state, gid)
     if entry.get("status") not in ACTIVE:
         raise Refusal(f"{gid} is {entry.get('status') or 'not launched'}, not waiting for an executor")
     marker = directory / f"{gid}.refused.json"
@@ -398,7 +421,7 @@ def run_session(root, run, gid, description):
     except OSError as error:
         raise Refusal(f"could not remove the stale {marker}: {error}") from None
     try:
-        child, text, started = _launch(root, directory, run, gid, entry, description)
+        child, text, started = _launch(root, directory, run, gid, entry, description, berserk(state)[0])
     except Refusal as refusal:
         # The group holds a slot until `result` reads why nothing launched; state.json stays the dispatcher's.
         try:
@@ -414,7 +437,7 @@ def run_session(root, run, gid, description):
     _write(directory / f"{gid}.session.json", json.dumps(record, ensure_ascii=False, indent=1) + "\n")
 
 
-def _launch(root, directory, run, gid, entry, description):
+def _launch(root, directory, run, gid, entry, description, flag=False):
     """Everything up to a started executor, which is returned with its prompt and start time; a refusal starts none."""
     # A relaunch's earlier session was read, so it goes before the launch checks; a record this removal missed is
     # read as absent beside a marker or a refusal line. Its pid goes too: `result --refused` reads a pid file as an
@@ -423,7 +446,7 @@ def _launch(root, directory, run, gid, entry, description):
     # The owner's stop file ends relaunches too, not only the next wake's launches.
     if (directory / "STOP").exists():
         raise Refusal("stop file: the owner ended the night, so nothing more launches")
-    text = _prompt_for(gid, entry, description, run)
+    text = _prompt_for(gid, entry, description, run, flag)
     flag = model_flag(entry.get("model"))
     worktree = Path(root) / _field(entry, gid, "worktree", _path_text)
     if not worktree.is_dir():
@@ -1231,7 +1254,9 @@ def wake(root, run, tasks_path, today, body_source, open_source, branch_source, 
     bodies = _bodies(tasks, directory, body_source)
     open_set = set(open_source())
     candidates = groups(tasks)
-    ready_map = {g.id: ready(g, open_set, today, bodies) for g in candidates}
+    flag, kept = berserk(state)
+    ready_map = {g.id: ready(g, open_set, today, bodies, flag, kept) for g in candidates}
+    lifted = released(candidates, ready_map, open_set, today, bodies)
     claims = {g.id: group_claim(g, bodies) for g in candidates}
     # A moved group's In progress row has lost its conflicts cell, so the claim its Remaining rows made is kept.
     held_keys = {r.key for r in tasks.in_progress}
@@ -1239,9 +1264,12 @@ def wake(root, run, tasks_path, today, body_source, open_source, branch_source, 
                if "rows" in entry and set(_field(entry, gid, "keys", _texts)) & held_keys]
     claims.update({g.id: group_claim(g, bodies) for g in running})
     taken = [claim for claim, _ in _held(tasks, bodies, branch_source)]
-    chosen = pick(candidates + running, ready_map, claims, [g.id for g in running], taken, slots)
+    chosen = pick(candidates + running, ready_map, claims, [g.id for g in running], taken, slots, lifted)
     if chosen:
-        return out + [f"launch: {' '.join(chosen)}"]
+        named = {gid: lifted[gid] for gid in chosen if gid in lifted}
+        # The report names what the flag released, so it is recorded from the one read that launched it.
+        _note_released(directory, named)
+        return out + [f"released {gid}: {why}" for gid, why in named.items()] + [f"launch: {' '.join(chosen)}"]
     if active:
         return out + ["launch: none"]
     # With nothing running every slot is free, so a ready group left unchosen is held by an In progress row.
@@ -1308,6 +1336,9 @@ REPORT_SECTIONS = ("Merged", "Needs a human", "Interrupted", "Filed overnight", 
 TOKEN_NAMES = ("input", "cache write", "cache read", "output")
 USAGE_SOURCES = {"modelUsage": "from modelUsage", "usage": "from usage, the last turn alone"}
 UNFINISHED = {None: "moved, never launched", "merged-claimed": "merge claimed, not yet verified"}
+DECIDED = "Decided without the owner"
+# How /ship opens a decision the issue left to the owner, so a group the flag did not release is listed for it too.
+OWNER_DECISION = "owner's decision:"
 
 
 def _issues_text(numbers):
@@ -1395,11 +1426,24 @@ def _usage_lines(gid, entry):
     return [f"{gid}: " + ", ".join(parts), *(apart if len(apart) > 1 else [])]
 
 
+def _decided_line(gid, entry):
+    return (f"{gid} {_issues_text(entry.get('issues'))} {_pr_text(entry)}"
+            f"{_decisions_text(entry.get('decisions')) or '; no decision recorded'}; "
+            f"revert: bash .claude/scripts/git-revert-pr.sh {entry.get('pr')}")
+
+
+def _took_owners(entry):
+    decisions = entry.get("decisions")
+    return isinstance(decisions, list) and any(isinstance(d, str) and d.startswith(OWNER_DECISION) for d in decisions)
+
+
 def report(root, run, tasks_path, today, body_source, open_source):
     directory = run_dir(root, run)
     state = load_state(directory)
     entries = {gid: entry for gid, entry in state.get("groups", {}).items() if isinstance(entry, dict)}
-    merged, needs, interrupted, usage, syncs = [], [], [], [], []
+    merged, needs, interrupted, usage, syncs, decided = [], [], [], [], [], []
+    flag, unlifted = berserk(state)
+    lifted = _released(state)
     filed = [n for entry in entries.values() for n in (entry.get("filed") or []) if _number(n)]
     filed += [n for n in state.get("placed") or [] if _number(n)]
     filed = list(dict.fromkeys(filed))
@@ -1409,6 +1453,8 @@ def report(root, run, tasks_path, today, body_source, open_source):
         status = entry.get("status")
         ended = entry.get("closed_from") if status in ("done", "returned") else status
         sync = entry.get("kind") == "sync"
+        if flag and ended == "verified" and not sync and (gid in lifted or _took_owners(entry)):
+            decided.append(_decided_line(gid, entry))
         if status == "closed":
             syncs.append(_sync_line(root, gid, entry))
             if entry.get("closed_from") == "verified" and entry.get("unreviewed"):
@@ -1436,7 +1482,9 @@ def report(root, run, tasks_path, today, body_source, open_source):
         elif ended in HANDED or status == "returned":
             worktree = entry.get("worktree")
             kept = _path_text(worktree) and (Path(root) / worktree).is_dir()
-            needs.append(f"{gid} {ended or 'returned'}: {one_line(entry.get('reason') or 'no reason recorded')}; "
+            failure = f", point of failure on {_issues_text(entry.get('issues'))}" if gid in lifted else ""
+            needs.append(f"{gid} {ended or 'returned'}{failure}: "
+                         f"{one_line(entry.get('reason') or 'no reason recorded')}; "
                          f"worktree {worktree} {'left in place' if kept else 'removed'}"
                          + _decisions_text(entry.get("decisions")))
         elif status in ACTIVE and not (_path_text(entry.get("worktree"))
@@ -1457,14 +1505,17 @@ def report(root, run, tasks_path, today, body_source, open_source):
     open_set = set(open_source())
     left = []
     for group in groups(tasks):
-        ok, why = ready(group, open_set, today, bodies)
+        ok, why = ready(group, open_set, today, bodies, flag, unlifted)
         left.append(f"{group.id} wave {group.wave}: {'ready, not launched before the night ended' if ok else why}")
         needs += [f"#{row.number}: filed overnight, waits on a human" for row in group.rows
                   if row.number in filed and _blocker(row, open_set, today, bodies) == "waits on a human"]
     left.append(f"Tracking: {len(tasks.tracking)} rows and Paused: {len(tasks.paused)} rows, which no night runs")
     spent = (usage or ["executors: no usage read"]) + _weekly_lines(state.get("usage"))
+    sections = list(zip(REPORT_SECTIONS, (merged, needs, interrupted, [_issues_text(filed)], left, spent, syncs)))
+    if flag:
+        sections.insert(1, (DECIDED, decided))
     out = []
-    for name, lines in zip(REPORT_SECTIONS, (merged, needs, interrupted, [_issues_text(filed)], left, spent, syncs)):
+    for name, lines in sections:
         out += [f"## {name}", *(lines or ["none"])]
     return out
 
@@ -1476,6 +1527,7 @@ def add_commands(sub):
     s.add_argument("--pairs", type=int, required=True)
     s.add_argument("--lang", default="en")
     s.add_argument("--tasks", required=True)
+    s.add_argument("--berserk", action="store_true")
     for name in ("launch", "run", "result", "verify", "wait", "sync-close"):
         s = sub.add_parser(name)
         s.add_argument("run")
@@ -1517,8 +1569,17 @@ def command(args: argparse.Namespace, today, bodies_from, open_from, branch_from
             print(existing)
             if why:
                 print(f"kept open: {why}", file=sys.stderr)
+            # The flag is the run's, set once at its start: a later command line neither sets nor clears it.
+            try:
+                held = berserk(load_state(run_dir(root, existing)))[0]
+            except Refusal:
+                # An unreadable state still names a run to resume, so exit 3 stands and no flag is claimed for it.
+                held = args.berserk
+            if held != args.berserk:
+                print(f"kept {'with' if held else 'without'} --berserk: {existing} holds what it started with",
+                      file=sys.stderr)
             return 3
-        print(new_run(root, args.pairs, args.lang, now()))
+        print(new_run(root, args.pairs, args.lang, now(), args.berserk))
     elif args.command == "launch":
         launch(root, args.run, args.group, args.tasks, args.branch, args.worktree)
     elif args.command == "sync-launch":
