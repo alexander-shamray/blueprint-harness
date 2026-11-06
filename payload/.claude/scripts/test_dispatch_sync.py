@@ -18,7 +18,8 @@ from unittest import mock
 import dispatch_board as db
 import dispatch_run as dr
 from test_dispatch_board import FIXTURE, NO_BRANCH, line, tasks_of
-from test_dispatch_run import (FAKE_CLAUDE, NOW, OID, RUN, SUCCESS, InRoot, group_state, record, run_cli, state_dir)
+from test_dispatch_run import (FAKE_CLAUDE, NOW, OID, RUN, SUCCESS, InRoot, finished_pid, group_state, record,
+                               run_cli, state_dir)
 
 ROOT = Path(__file__).resolve().parents[2]
 DISPATCH = ROOT / ".claude" / "commands" / "dispatch.md"
@@ -215,6 +216,22 @@ class SyncLaunch(Bound):
     def test_the_stop_file_launches_no_sync(self):
         (state_dir() / "STOP").write_text("", encoding="utf-8")
         self.refused("stop file: the owner ended the night, so nothing more launches")
+
+    def test_an_earlier_runs_live_executor_holds_its_sync(self):
+        # Its empty keys let that run's report close it, and the head is still open, so a later night would take it.
+        earlier = state_dir("20261031-220000")
+        earlier.mkdir(parents=True)
+        pid = earlier / f"{GID}.pid"
+        pid.write_text(f"{os.getpid()}\n", encoding="utf-8")
+        self.refused(f"{GID}'s executor from run 20261031-220000 is still running")
+        pid.write_text(f"{finished_pid()}\n", encoding="utf-8")
+        self.assertEqual("", self.sync_launch())
+
+    def test_another_syncs_live_executor_does_not_hold_this_one(self):
+        earlier = state_dir("20261031-220000")
+        earlier.mkdir(parents=True)
+        (earlier / "sync-6.pid").write_text(f"{os.getpid()}\n", encoding="utf-8")
+        self.assertEqual("", self.sync_launch())
 
     def test_a_sync_this_run_holds_is_never_launched_again(self):
         record_sync(status="closed", closed_from="handed-back", worktree=WORKTREE)
