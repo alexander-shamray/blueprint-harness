@@ -261,6 +261,21 @@ class ATrackedLinkIsRefusedBeforeAnythingIsMade(unittest.TestCase):
         self.assertIn("my link", result.stderr)
         self.assertEqual([], self.sweep_dirs())
 
+    def test_the_refusal_names_five_links_and_no_more(self):
+        made = run_bash(
+            'cd "$R" && blob=$(printf %s ../../outside | git hash-object -w --stdin) '
+            '&& for n in lnk1 lnk2 lnk3 lnk4 lnk5 lnk6 lnk7 lnk8; do '
+            'git update-index --add --cacheinfo "120000,$blob,$n"; done '
+            '&& git -c user.name=t -c user.email=t@example.invalid commit -q -m many',
+            R=self.repo)
+        self.assertEqual(0, made.returncode, made.stderr)
+        result = self.detach("HEAD")
+        self.assertEqual(5, result.returncode, result.stderr)
+        for named in ("lnk1", "lnk2", "lnk3", "lnk4", "lnk5"):
+            self.assertIn(named, result.stderr)
+        for past in ("lnk6", "lnk7", "lnk8"):
+            self.assertNotIn(past, result.stderr)
+
     def test_the_same_repository_at_a_commit_without_the_link_is_detached(self):
         # The positive control: the refusal is the commit's, not the repository's.
         result = self.detach("HEAD")
