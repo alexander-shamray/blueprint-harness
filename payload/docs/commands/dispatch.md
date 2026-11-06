@@ -158,8 +158,9 @@ with no question to anyone, so asking first holds back work that needed no
 answer. `--berserk` tries those rows to the point of failure instead, for one
 run. It is off by default. `start` stores it in `state.json` and a resume reads
 it from there, never from the arguments, so a later command line neither sets
-nor clears it; `start` names a mismatch with a `kept` line. `board --run` refuses
-it for the same reason; only a dry run, which has no state, takes it on the line.
+nor clears it; `start` names a mismatch with a `kept` line. `board --run`
+refuses it for the same reason; only a dry run, which has no state, takes it on
+the line.
 
 | | Without | With `--berserk` |
 |---|---|---|
@@ -204,8 +205,9 @@ is reported as it is on any night.
 `wake` records what it released, with the reason, from the read that launched
 it, so the report need not re-derive a row that has left the list. **Decided
 without the owner**, the eighth section, comes after *Merged*: one line per
-released group that merged, or any group whose `decisions` holds an entry opening
-`owner's decision:`, with the issue, the options, the PR and the revert line.
+released group that merged, or any group whose `decisions` holds an entry
+opening `owner's decision:`, with the issue, the options, the PR and the revert
+line.
 *Needs a human* gives a released group's `reason` as its point of failure, and
 the dispatcher comments it on each issue, through `issue_decisions.py comment`,
 so the next person starts from there. That is read off the report's line, not
