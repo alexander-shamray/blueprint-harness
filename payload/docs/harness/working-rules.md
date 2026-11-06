@@ -59,10 +59,11 @@ cited from here, never restated.
   the class row.** It declares no class and no touch set and carries no
   `PR:` trailer, so the gates that read them skip it, and a skipped job
   passes a required check. Every other job runs on it, and the owner
-  merges it. The exemption is by author, so a human push to a Dependabot
-  branch rides on it; review such a push as a gate bypass. With no
-  trailer, `git-revert-pr.sh` cannot find its commit, so one is reverted
-  with `git revert` on a branch of its own.
+  merges it. The commit gate stands down only where every commit's author
+  and committer are Dependabot's, so a push by anyone else to a Dependabot
+  branch is judged and fails for its missing trailer until it carries one.
+  With no trailer, `git-revert-pr.sh` cannot find its commit, so one is
+  reverted with `git revert` on a branch of its own.
 - **The class and the touch set** a pull request declares are the change
   contract's that `docs/harness-local.md` *Documents* names; a target
   with none declares none.
