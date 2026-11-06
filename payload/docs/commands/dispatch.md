@@ -227,14 +227,20 @@ process holds.
 
 ## Sync pull requests
 
-A sync changes `.claude/` for every group after it, so it goes first and
-alone: while one runs nothing else launches, and a group launched after its
-merge forks from the new `main` and runs under the new settings. That costs
-one executor's time, about 15 minutes, once a night. `wake` holds the others
-at `launch: none` while a sync group is active, without ending the night, and
-`sync-launch` refuses to start beside a running group, so a sync that opens
-mid-night waits for an exit. The runbook tries it before each `wake`, so a
-`take` is met before `wake` can fill the slots.
+A sync changes `.claude/` for every group after it, so one found at step 0
+goes first and alone: while it runs nothing else launches, and a group launched
+after its merge forks from the new `main` and runs under the new settings. That
+costs one executor's time, about 15 minutes, once a night. `wake` holds the
+others at `launch: none` while a sync group is active, without ending the
+night.
+
+A sync opening mid-night gets neither promise. `sync-launch` refuses to start
+beside a running group, and `wake` goes on launching while no sync is active,
+so it waits for the running groups and new launches can overtake it, perhaps
+to the end of the night. The cost is that those groups run under the settings
+the sync would replace. Holding a slot for it would stall the backlog for a
+change nobody is waiting on, so nothing reserves one: the morning's list shows
+it, and the next `/dispatch` takes it first.
 
 **The proof binds.** The verify at step 0.3 and after each exit runs in the
 main checkout, because the executor runs that head's own copy of `sync_pr.py`,
@@ -272,9 +278,9 @@ reads after an exit are `list` and `verify` as well as the issues.
 `sync-launch` refuses a group this run holds, as a hand-back is never
 relaunched, so a sync that stopped on a closed pull request, or was handed back
 with its pull request still open, cannot loop; a new `take` is a new group. A
-later night's re-take
-finds the worktree and branch the hand-back left, which `git-worktree-sync.sh`
-refuses, so the dispatcher skips the helper and `sync-launch`'s checks decide.
+later night's re-take finds the worktree and branch the hand-back left, which
+`git-worktree-sync.sh` refuses, so the dispatcher skips the helper and
+`sync-launch`'s checks decide.
 
 ## When the night ends
 
