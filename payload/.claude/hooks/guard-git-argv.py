@@ -418,18 +418,9 @@ def _quoting(command, quotes=True, data=()):
 
 
 def _arithmetic_spans(line):
-    """Every outermost `((…))` in `line`, `$((…))` included, in order.
-
-    Bash reads a sum only where the parens close on `))`: `((a) | b)` is two
-    subshells. One pass over a stack, because `_closing_paren` per sum is
-    quadratic and a timeout in this guard fails open.
-
-    A line rather than a whole command: `heredoc_spans` is still finding the
-    bodies, and an apostrophe in an earlier one would put every later sum in
-    quotes. No body shares a line with an opener. A sum spanning lines is not
-    found, nor one hard against the `#` after a string that crossed a line, so
-    its shift reads as an opener, as it did before this existed.
-    """
+    """Every outermost `((…))` in `line`, `$((…))` included, in order."""
+    # A sum closes on `))`: `((a) | b)` is two subshells. One pass over a stack,
+    # because `_closing_paren` per sum is quadratic and a timeout fails open.
     found, stack, previous = [], [], None
     for index, state, escaped in _quoting(line):
         if state or escaped:
@@ -448,10 +439,6 @@ def _arithmetic_spans(line):
 
 def heredoc_spans(command, unclosed=None, openers=None):
     """Every heredoc body in `command`, as `(start, end, expands)`.
-
-    `openers`, when given, receives each span's `<<` position, one for one:
-    a reader pairing bodies with their introducers takes them from here,
-    because anything re-deriving the list disagrees with this scan's skips.
 
     `start` is just past the introducer and `end` just past the closing
     delimiter line, so `command[start:end]` is everything the shell hands over
@@ -478,17 +465,19 @@ def heredoc_spans(command, unclosed=None, openers=None):
     # appends spans that start ahead of it, so the list is sorted by
     # construction and the walk stays monotonic.
     data, spans, pending = [], [], 0
-    # The sums on the line ending at `line_end`, consumed from the end, nearest
-    # first, as the walk passes them. `unquoted` is past the last string that
-    # crossed a line, whose closing quote would read as opening from its line's
-    # start; `pending` tells a string's newline from a body's.
+    # Sums are read a line at a time, because an earlier body's apostrophe would
+    # quote every later one, and no body shares a line with an opener. A sum
+    # spanning lines, or hard against the `#` after a string that crossed one,
+    # is missed, and its shift reads as an opener as it did before.
     sums, line_end, unquoted, crossed = [], 0, 0, False
     for index, in_quotes, in_comment in shell_positions(command, data):
+        # `pending` tells a string's newline from a body's.
         if in_quotes and index >= pending and command[index] == "\n":
             crossed = True
         if in_quotes or in_comment:
             continue
         if crossed and command[index] in "'\"":
+            # From its line's start, this closing quote would read as opening.
             unquoted, crossed = index + 1, False
             continue
         if not command.startswith("<<", index):
@@ -497,6 +486,7 @@ def heredoc_spans(command, unclosed=None, openers=None):
             line_start = max(command.rfind("\n", 0, index) + 1, unquoted)
             line_end = command.find("\n", index)
             line_end = len(command) if line_end == -1 else line_end
+            # Reversed, so the walk pops the nearest as it passes them.
             sums = [(line_start + start, line_start + end) for start, end
                     in _arithmetic_spans(command[line_start:line_end])][::-1]
         # A shift, not an opener. A heredoc in a `$(…)` nested in the sum lands
@@ -562,6 +552,8 @@ def heredoc_spans(command, unclosed=None, openers=None):
         pending = start + closing.end()
         spans.append((start, pending, expands))
         data.append((start, pending))
+        # One for one with `spans`: a reader pairing bodies with openers takes
+        # them here, since re-deriving the list disagrees with this scan's skips.
         if openers is not None:
             openers.append(index)
     return spans
