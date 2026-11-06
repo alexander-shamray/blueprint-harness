@@ -199,10 +199,10 @@ a row whose PR was closed on purpose would be reopened. Every return gets the
 words, an executor having run or not, since the wake after it must not launch
 that row either; they say where the row has been, and an owner who wants it
 tried again removes them. A plain night's hand-back reads `OWNER` alone, which
-is the row the flag is for. `tasks place` writes `OWNER` as the cautious value: lifted,
-whatever opened during the night, or a follow-up an executor filed, would launch
-unread and could feed itself, so a row in `state.json`'s `placed` stays held and
-is reported as it is on any night.
+is the row the flag is for. `tasks place` writes `OWNER` as the cautious value:
+lifted, whatever opened during the night, or a follow-up an executor filed,
+would launch unread and could feed itself, so a row in `state.json`'s `placed`
+stays held and is reported as it is on any night.
 
 `wake` records what it released, with the reason, from the read that launched
 it, so the report need not re-derive a row that has left the list. **Decided
@@ -216,7 +216,8 @@ so the next person starts from there. That is read off the report's line, not
 off `result`, because a group can end unmerged by a crash, a stop or a failed
 `verify`, and the report is the one place every one of them passes through. A
 rewritten report comments again, as a retried `close` does: a second comment
-costs a line, and a skip keyed on anything written first would lose a failed one.
+costs a line, and a skip keyed on anything written first would lose a failed
+one.
 
 ## What an executor returns
 
