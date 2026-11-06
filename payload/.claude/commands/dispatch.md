@@ -264,7 +264,7 @@ each line of
 | Line | Then |
 |---|---|
 | `refused <g>: its executor is still running` | Leave it: it holds its slot, and no task of this session wakes on it |
-| `refused <g>: its worktree … is gone` | Name it in the report |
+| `refused <g>: its worktree … is gone` | Name it in the report; a sync group, `sync-close`, or it holds `wake` |
 | `result <g>: …` | Its exit, as step 2 |
 | `wait <g>: the window resets …` | A background `wait`, then `run`; after `stop file: yes`, `tasks back` |
 | `wait <g>: the week resets …` | Nothing; `wake` ends the night |

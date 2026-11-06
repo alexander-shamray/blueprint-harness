@@ -1012,12 +1012,25 @@ def verify(root, run, gid):
 SYNC_ENDED = ("verified", "window", *HANDED)
 
 
+def _worktree_kept(root, entry):
+    worktree = entry.get("worktree")
+    return _path_text(worktree) and (Path(root) / worktree).is_dir()
+
+
 def sync_close(root, run, gid):
     directory = run_dir(root, run)
-    entry = _entry(load_state(directory), gid)
+    state = load_state(directory)
+    entry = _entry(state, gid)
     if entry.get("kind") != "sync":
         raise Refusal(f"{gid} is not a sync group; tasks done and back close its rows")
-    if entry.get("status") not in SYNC_ENDED:
+    if entry.get("status") in ACTIVE and not _worktree_kept(root, entry):
+        pid = _pid(directory, gid)
+        if pid is not None and alive(pid):
+            raise Refusal(f"{gid}'s executor is still running")
+        # No run can relaunch it and no result will come, and it would hold `wake` and `sync-launch` all night.
+        entry["reason"] = "its worktree is gone"
+        save_state(directory, state)
+    elif entry.get("status") not in SYNC_ENDED:
         raise Refusal(f"{gid} is {entry.get('status') or 'not launched'}, not a sync that ended")
     _close(directory, gid, "closed")
 
@@ -1284,10 +1297,8 @@ def _sync_line(root, gid, entry):
         line = (f"{gid} {_pr_text(entry)} merged as {entry.get('merge_oid')}: {unreviewed}{_review_text(entry)}; "
                 f"filed {_issues_text(entry.get('filed'))}")
     else:
-        worktree = entry.get("worktree")
-        kept = _path_text(worktree) and (Path(root) / worktree).is_dir()
         line = (f"{gid} {_pr_text(entry)} {ended}: {one_line(entry.get('reason') or 'no reason recorded')}; "
-                f"worktree {worktree} {'left in place' if kept else 'removed'}")
+                f"worktree {entry.get('worktree')} {'left in place' if _worktree_kept(root, entry) else 'removed'}")
     return line + _decisions_text(entry.get("decisions"))
 
 
