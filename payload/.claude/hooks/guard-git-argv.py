@@ -550,7 +550,7 @@ class _Sums:
         self.backtick = index if self.backtick is None else None
 
     def is_shift(self, index, pending):
-        """Whether a `<<` at `index` is in a sum, with nothing in it running commands."""
+        """Whether a `<<` at `index` is in a sum and opens no body."""
         pairs, substitutions = self.pairs, self.substitutions
         while pairs:
             if pairs[-1] >= self.read_to:
