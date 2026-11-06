@@ -212,9 +212,9 @@ line.
 the dispatcher comments it on each issue, through `issue_decisions.py comment`,
 so the next person starts from there. That is read off the report's line, not
 off `result`, because a group can end unmerged by a crash, a stop or a failed
-`verify`, and the report is the one place every one of them passes through. The
-file it posts from is the record that it was posted, so a rewritten report does
-not comment twice.
+`verify`, and the report is the one place every one of them passes through. A
+rewritten report comments again, as a retried `close` does: a second comment
+costs a line, and a skip keyed on anything written first would lose a failed one.
 
 ## What an executor returns
 
