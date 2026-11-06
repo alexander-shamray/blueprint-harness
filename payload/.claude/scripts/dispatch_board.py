@@ -40,6 +40,7 @@ ISSUE_REF = re.compile(
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 NUMBER = re.compile(r"(?<![\w-])#?(\d{2,6})(?![\w-])")
 # A task-list group. A sync's is a run's alone, since no row ever holds one, so `tasks` takes only this.
+OWNER = re.compile(r"\bOWNER\b")
 ROW_GROUP = re.compile(r"\b[A-Z]\d+\b")
 GROUP_ID = re.compile(rf"{ROW_GROUP.pattern}|\bsync-[1-9][0-9]*\b")
 SEPARATOR = re.compile(r"\|[\s:|-]+\|")
@@ -338,16 +339,23 @@ def overlaps(a, a_id, a_issues, b, b_id, b_issues):
 
 # Readiness and choice
 
-def _blocker(row, open_issues, today, bodies):
+def _without_owner(depends):
+    """*Depends on* with its OWNER gone, so the rest reads as it would alone; a cell of OWNER and nothing else is none."""
+    rest = OWNER.sub(" ", depends)
+    return depends if rest == depends else rest.strip(" ;,:.—–-") or "none"
+
+
+def _blocker(row, open_issues, today, bodies, berserk=False):
+    """Why a row cannot launch, or None. `berserk` lifts the human wait and the .claude/ reach and nothing else."""
     if row.number is None:
         return "owed, not filed"
     labels = {label.strip() for label in row.cells[LABELS].split(",")}
-    if "question" in labels or re.search(r"\bOWNER\b", f"{row.cells[TASK]} {row.cells[DEPENDS]}"):
+    if not berserk and ("question" in labels or OWNER.search(f"{row.cells[TASK]} {row.cells[DEPENDS]}")):
         return "waits on a human"
     for label in ("paused", "tracking"):
         if label in labels:
             return f"labelled {label}"
-    depends = row.cells[DEPENDS]
+    depends = _without_owner(row.cells[DEPENDS]) if berserk else row.cells[DEPENDS]
     if depends.strip().casefold() != "none":
         dates = DATE.findall(depends)
         numbers = {int(a or b) for a, b in ISSUE_REF.findall(DATE.sub(" ", depends))}
@@ -366,31 +374,39 @@ def _blocker(row, open_issues, today, bodies):
             if due > today:
                 return f"waits until {text}"
     reach = f"{row.cells[TASK]} {row.cells[CONFLICTS]} {bodies.get(row.number, '')}"
-    if CLAUDE_TREE.search(reach.replace("\\", "/")):
+    if not berserk and CLAUDE_TREE.search(reach.replace("\\", "/")):
         return "edits .claude/"
     return None
 
 
-def ready(group, open_issues, today, bodies=None):
+def ready(group, open_issues, today, bodies=None, berserk=False, kept=frozenset()):
+    """Whether every row may launch, and the first that may not. A row in `kept` is one the flag does not lift."""
     for row in group.rows:
-        why = _blocker(row, open_issues, today, bodies or {})
+        why = _blocker(row, open_issues, today, bodies or {}, berserk and row.key not in kept)
         if why:
             return False, why
     return True, ""
+
+
+def released(candidates, ready_map, open_issues, today, bodies):
+    """Each group `ready_map` holds ready that would not be without the flag, with what the flag lifted."""
+    plain = ((g.id, ready(g, open_issues, today, bodies)) for g in candidates if ready_map[g.id][0])
+    return {gid: why for gid, (ok, why) in plain if not ok}
 
 
 def _own_issues(group):
     return {r.number for r in group.rows if r.number is not None}
 
 
-def pick(candidates, ready_map, claims, running, taken, slots):
+def pick(candidates, ready_map, claims, running, taken, slots, lifted=()):
     """Up to `slots` group ids to launch. `candidates` is every group, running ones included, so a running
-    group's issues are known; the earliest wave goes first and table order breaks a tie."""
+    group's issues are known; the earliest wave goes first, within it a group in `lifted` after the rest, so a limit
+    ends the night on the riskier work, and table order breaks a tie."""
     held = [(claims[g.id], g.id, _own_issues(g)) for g in candidates if g.id in running and g.id in claims]
     held += [(claim, claim.ident, set(claim.issues)) for claim in taken]
     unknown = Claim(frozenset(), frozenset(), frozenset(), True)
     chosen = []
-    order = sorted(range(len(candidates)), key=lambda i: (candidates[i].wave, i))
+    order = sorted(range(len(candidates)), key=lambda i: (candidates[i].wave, candidates[i].id in lifted, i))
     for i in order:
         group = candidates[i]
         if len(chosen) >= slots:
@@ -565,16 +581,19 @@ def _held(tasks, bodies, branch_source):
     return claims
 
 
-def board(text, today, bodies, open_issues, branch_source=lambda _branch: frozenset()):
+def board(text, today, bodies, open_issues, branch_source=lambda _branch: frozenset(), berserk=False,
+          kept=frozenset()):
     tasks = parse_tasks(text)
     held = _held(tasks, bodies, branch_source)
     out = []
     for group in groups(tasks):
         claim = group_claim(group, bodies)
-        ok, why = ready(group, open_issues, today, bodies)
+        ok, why = ready(group, open_issues, today, bodies, berserk, kept)
+        lifted = released([group], {group.id: (ok, why)}, open_issues, today, bodies).get(group.id)
         by = next((c.ident or r.key for c, r in held
                    if overlaps(claim, group.id, _own_issues(group), c, c.ident or r.key, set(c.issues))), None)
-        out.append(" | ".join((group.id, f"wave {group.wave}", "ready" if ok else f"not ready: {why}",
+        readiness = f"released: {lifted}" if lifted else "ready" if ok else f"not ready: {why}"
+        out.append(" | ".join((group.id, f"wave {group.wave}", readiness,
                                "free" if by is None else f"taken by {by}", f"{len(claim.paths)} paths")))
     return out or ["no groups in Remaining"]
 
@@ -815,6 +834,7 @@ def main(argv=None, body_source=None, open_source=None, branch_source=None, week
     b.add_argument("--tasks", required=True)
     b.add_argument("--today")
     b.add_argument("--run")
+    b.add_argument("--berserk", action="store_true")
     t = sub.add_parser("tasks")
     actions = t.add_subparsers(dest="action", required=True)
     for action in ("move", "done", "back", "place", "rewrite"):
@@ -856,11 +876,14 @@ def main(argv=None, body_source=None, open_source=None, branch_source=None, week
         if args.command == "board":
             # Only a run `start` opened takes the copy and the bodies, so a mistyped --run creates nothing.
             directory = dispatch_run.run_dir(root, args.run) if args.run else None
+            flag = args.berserk, frozenset()
             if directory is not None:
-                dispatch_run.load_state(directory)
+                if args.berserk:
+                    raise Refusal("--berserk is a dry run's: a run holds its own in state.json")
+                flag = dispatch_run.berserk(dispatch_run.load_state(directory))
             text = _read(args.tasks)
             bodies = _bodies(parse_tasks(text), directory, bodies_from)
-            print("\n".join(board(text, today, bodies, set(open_from()), branch_from)))
+            print("\n".join(board(text, today, bodies, set(open_from()), branch_from, *flag)))
             if directory is not None:
                 # What this board read is the only base `tasks rewrite` accepts a rebuild from.
                 _write(directory / READ_COPY, text)

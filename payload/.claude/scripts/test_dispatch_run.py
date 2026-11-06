@@ -1107,6 +1107,159 @@ class MergeCheckTests(InRoot):
         self.assertIn("refused: S1 is handed-back, not a claimed merge", err.getvalue())
 
 
+class BerserkTests(InRoot):
+    """The flag's run half: where it is stored, what it reaches, and the rows it must not reach."""
+
+    BODIES = {1700: "docs only"}
+
+    def start(self, *extra):
+        return run_cli(["start", "--pairs", "2", "--tasks", "todo.md", *extra])
+
+    def wake(self, text):
+        with open("todo.md", "w", encoding="utf-8", newline="") as handle:
+            handle.write(text)
+        with mock.patch.object(dr, "PROJECTS", self.root / "projects"):
+            return run_cli(["wake", RUN, "--tasks", "todo.md", "--today", "2026-11-01"],
+                           body_source=lambda n: self.BODIES.get(n, ""), open_source=set,
+                           branch_source=NO_BRANCH).splitlines()
+
+    def state(self, **fields):
+        dr.save_state(state_dir(), {"run": RUN, "pairs": 2, "lang": "en", "berserk": True, "groups": {}, **fields})
+
+    def s1(self):
+        return next(g for g in db.groups(db.parse_tasks(FIXTURE)) if g.id == "S1")
+
+    def test_start_stores_the_flag_and_it_is_off_by_default(self):
+        self.start("--berserk")
+        self.assertIs(True, dr.load_state(state_dir())["berserk"])
+        (state_dir() / "report.md").write_text("done", encoding="utf-8")
+        self.clock = NOW + timedelta(hours=1)
+        name = self.start().strip()
+        self.assertIs(False, dr.load_state(state_dir(name))["berserk"])
+
+    def test_a_resume_keeps_the_flag_from_state(self):
+        self.start("--berserk")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(3, db.main(["start", "--pairs", "2", "--tasks", "todo.md"]))
+        self.assertIs(True, dr.load_state(state_dir())["berserk"])
+        self.assertIn("kept with --berserk", err.getvalue())
+
+    def test_a_resume_refuses_the_flag_to_a_run_that_started_without_it(self):
+        self.start()
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(3, db.main(["start", "--pairs", "2", "--tasks", "todo.md", "--berserk"]))
+        self.assertIs(False, dr.load_state(state_dir())["berserk"])
+        self.assertIn("kept without --berserk", err.getvalue())
+
+    def test_the_prompt_carries_berserk_after_dispatched(self):
+        self.assertEqual("/ship #S1-1682+1683 Narrow --dispatched artifacts/dispatch/20261101-220000 --berserk",
+                         dr.prompt(self.s1(), "Narrow", RUN, True))
+        self.assertNotIn("--berserk", dr.prompt(self.s1(), "Narrow", RUN))
+
+    def test_a_description_cannot_carry_berserk(self):
+        for bad in ("Narrow --berserk", "Narrow --BERSERK now"):
+            for flag in (False, True):
+                with self.subTest(bad=bad, flag=flag), self.assertRaisesRegex(db.Refusal, "--berserk"):
+                    dr.prompt(self.s1(), bad, RUN, flag)
+
+    def test_the_run_passes_the_flag_from_state_and_a_sync_never_carries_it(self):
+        self.state()
+        record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
+        run_fake_claude(json.dumps(SUCCESS).encode("utf-8"), description="Narrow")
+        seen = json.loads(Path("fake/seen.json").read_text(encoding="utf-8"))
+        self.assertEqual(f"/ship #S1-1682+1683 Narrow --dispatched artifacts/dispatch/{RUN} --berserk", seen["stdin"])
+        entry = {"kind": "sync", "pr": 106}
+        self.assertEqual(f"/ship sync #106 --dispatched artifacts/dispatch/{RUN}",
+                         dr._prompt_for("sync-106", entry, None, RUN, True))
+
+    def test_wake_releases_a_row_only_in_a_run_that_holds_the_flag(self):
+        text = tasks_of(line(depends="OWNER"))
+        dr.save_state(state_dir(), {"run": RUN, "pairs": 2, "lang": "en", "groups": {}})
+        self.assertEqual("end: drained", self.wake(text)[-1])
+        self.state()
+        lines = self.wake(text)
+        self.assertEqual(["released Z1: waits on a human", "launch: Z1"], lines[-2:])
+        self.assertEqual({"Z1": "waits on a human"}, dr.load_state(state_dir())["released"])
+
+    def test_a_wave_launches_its_ready_groups_before_the_released(self):
+        self.state(pairs=1)
+        text = tasks_of(line(number=1, gid="A1", depends="OWNER", task="Do `a.cs`"),
+                        line(number=2, gid="A2", task="Do `b.cs`"))
+        self.assertEqual("launch: A2", self.wake(text)[-1])
+        self.assertNotIn("released", dr.load_state(state_dir()), "a group not chosen is not recorded")
+
+    def test_a_group_sent_back_is_never_relaunched_by_its_owner_mark(self):
+        # `tasks back` marks a row OWNER so nothing relaunches it unseen; the flag must not turn that mark into a launch.
+        self.state()
+        record(RUN, "Z1", status="returned", closed_from="handed-back", keys=["#1700"],
+               rows=[line(depends="OWNER")], issues=[1700])
+        lines = self.wake(tasks_of(line(depends="OWNER")))
+        self.assertEqual("end: drained", lines[-1], lines)
+
+    def test_a_row_the_night_placed_keeps_its_cautious_owner(self):
+        self.state(placed=[1700])
+        self.assertEqual("end: drained", self.wake(tasks_of(line(depends="OWNER")))[-1])
+
+    def report(self):
+        with open("todo.md", "w", encoding="utf-8", newline="") as handle:
+            handle.write(tasks_of(line(number=9, gid="Z9", labels="paused")))
+        return run_cli(["report", RUN, "--tasks", "todo.md", "--today", "2026-11-01"],
+                       body_source=lambda n: "", open_source=set).splitlines()
+
+    def section(self, lines, name):
+        start = lines.index(name) + 1
+        rest = [i for i, text in enumerate(lines[start:], start) if text.startswith("## ")]
+        return lines[start:rest[0] if rest else len(lines)]
+
+    def test_the_report_lists_a_decision_made_for_the_owner(self):
+        self.state(released={"S1": "waits on a human"})
+        record(RUN, "S1", status="done", closed_from="verified", pr=1690, merge_oid=OID, title="fix: narrow",
+               decisions=["owner's decision: took the narrow grant, rejected the wide one"])
+        lines = self.report()
+        heads = [text for text in lines if text.startswith("## ")]
+        self.assertEqual(["## Merged", "## Decided without the owner", "## Needs a human"], heads[:3])
+        decided = self.section(lines, "## Decided without the owner")
+        self.assertEqual(1, len(decided), decided)
+        for fact in ("S1", "#1682", "#1683", "#1690", "took the narrow grant, rejected the wide one",
+                     "bash .claude/scripts/git-revert-pr.sh 1690"):
+            self.assertIn(fact, decided[0])
+
+    def test_a_ready_group_that_took_an_owners_decision_is_listed_too(self):
+        self.state()
+        record(RUN, "S1", status="done", closed_from="verified", pr=1690, merge_oid=OID,
+               decisions=["owner's decision: took A, rejected B"])
+        record(RUN, "M1", status="done", closed_from="verified", pr=1691, merge_oid=OID, decisions=["took the lint fix"])
+        decided = self.section(self.report(), "## Decided without the owner")
+        self.assertEqual(1, len(decided), decided)
+        self.assertIn("#1690", decided[0])
+
+    def test_a_run_without_the_flag_prints_the_seven_sections(self):
+        dr.save_state(state_dir(), {"run": RUN, "pairs": 2, "lang": "en", "groups": {}})
+        self.assertEqual([f"## {name}" for name in dr.REPORT_SECTIONS],
+                         [text for text in self.report() if text.startswith("## ")])
+
+    def test_needs_a_human_gives_a_released_groups_reason_as_its_point_of_failure(self):
+        self.state(released={"S1": "edits .claude/"})
+        record(RUN, "S1", status="returned", closed_from="handed-back", reason="tried the hook edit; a deny stopped it")
+        record(RUN, "M1", status="returned", closed_from="handed-back", reason="needs a key")
+        needs = self.section(self.report(), "## Needs a human")
+        self.assertTrue(needs[0].startswith("S1 handed-back, point of failure: tried the hook edit; a deny stopped it"),
+                        needs)
+        self.assertTrue(needs[1].startswith("M1 handed-back: needs a key"), needs)
+
+    def test_result_asks_for_a_released_groups_point_of_failure_on_its_issues(self):
+        self.state(released={"S1": "waits on a human"})
+        record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
+        run_fake_claude(json.dumps(SUCCESS).encode("utf-8"))
+        target = Path(WORKTREE) / "artifacts" / "dispatch" / RUN
+        target.mkdir(parents=True, exist_ok=True)
+        (target / "S1.json").write_text(json.dumps(HANDED_S1), encoding="utf-8")
+        lines = run_cli(["result", RUN, "S1"]).splitlines()
+        self.assertEqual("released S1: comment its point of failure on #1682, #1683", lines[1], lines)
+
+
 class WakeTests(InRoot):
     BODIES = {1682: "touches definitions.json", 1683: "deploy/rabbitmq/definitions.json",
               1681: "src/gateway/program.cs", 1685: "a.cs", 1686: "b.cs", 1440: "docs/x.md"}

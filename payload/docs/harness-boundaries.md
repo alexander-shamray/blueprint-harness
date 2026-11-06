@@ -1805,6 +1805,8 @@ passes no skip flag and the command denies `claude` as a shell word, so
 executor as in any session. Beyond the stops `/ship` names, `--dispatched`
 hands a change back unmerged in three cases: an edit under `.claude/`, a
 resource only the owner has, and a decision the issue leaves to the owner.
+`/dispatch --berserk` lifts the third for one run and releases rows that wait
+on the owner or reach `.claude/`; it lifts no deny, guard or stop.
 It also changes the executor: it never tears down its workspace, step 6 runs
 only lines 1 and 8, step 0's finished teardown is skipped, and it never
 writes the task list, not even for an issue it files or closes, which goes
