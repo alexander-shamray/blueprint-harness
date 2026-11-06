@@ -348,7 +348,7 @@ def verify(number, pin=None):
 
 
 def _citations(ref, path, managed):
-    """`file:line: text` for each line of a tracked file outside the manifest that names `path`, as `ref` holds it.
+    """`file:line: text` for each line of a tracked file outside the managed set that names `path`, as `ref` holds it.
 
     `ref` is main's tip, not the head: a sync never changes a local file, and the head is not rebased, so its copy
     can still hold a line the target's own fix has since removed.
@@ -398,7 +398,7 @@ def review_text(number, head):
     lines += ["", f"## Managed paths deleted ({len(deleted)})", ""]
     for path in deleted:
         lines.append(f"- {path}")
-        cites = _citations(MAIN, path, paths) if path != MANIFEST else []
+        cites = _citations(MAIN, path, managed) if path != MANIFEST else []
         lines += [f"    {c}" for c in cites[:CITATIONS]]
         if len(cites) > CITATIONS:
             lines.append(f"    ... and {len(cites) - CITATIONS} more lines name it")

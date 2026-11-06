@@ -520,6 +520,23 @@ class ReviewDiffTests(SyncCase):
         self.assertEqual(Path(self.out_path()), Path(out.strip()))
         return Path(out.strip()).read_text(encoding="utf-8")
 
+    def test_a_managed_file_the_sync_also_deletes_is_not_a_local_citation(self):
+        # docs/d.md goes with docs/c.md and names it: a local file would be the target's to fix, this one is not.
+        self.write({"docs/d.md": "see docs/c.md\n",
+                    ".harness/manifest.json": manifest(OLD_H, ["docs/a.md", "docs/c.md", "docs/d.md",
+                                                               ".claude/settings.json"])})
+        git(self.root, "add", "-A")
+        git(self.root, *SEED, "commit", "-q", "-m", "a second managed file")
+        git(self.root, "push", "-q", "origin", "main")
+        self.main = git(self.root, "rev-parse", "HEAD").strip()
+        self.deleted = ["docs/c.md", "docs/d.md"]
+        self.start()
+        code, out, err = self.cli("review-diff", "7", self.out_path())
+        self.assertEqual(0, code, out + err)
+        text = Path(self.out_path()).read_text(encoding="utf-8")
+        self.assertIn("docs/local.md:2: see docs/c.md for the old rule", text)
+        self.assertNotIn("docs/d.md:1", text)
+
     def test_a_citation_main_has_since_removed_is_not_listed(self):
         # A sync never changes a local file, so main's tree is the true one: the fix that removed the citing line
         # is on main and not on the head, and a re-take would otherwise raise the same finding for ever.

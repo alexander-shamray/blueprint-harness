@@ -1129,7 +1129,7 @@ which is the code the comparison exists to vouch for.
 
 **`gh-issue-harness.sh` files in the harness from a target, and only /ship holds
 it.** `<bug|test-gap|enhancement> <critical|high|medium|low>
-<harness|harness,test|documentation>`, with the stdin shape of
+<harness|harness,test|documentation|code|code,test>`, with the stdin shape of
 `gh-issue-create.sh` and the hand route's last line (an enhancement's is the
 request route's), for the sync row, which finds payload defects from a target
 whose checkout is another repository. The repository is a literal in the helper

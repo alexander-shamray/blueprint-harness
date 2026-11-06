@@ -36,6 +36,6 @@ git check-ignore -q "$path" ||
 # start point below is always the tip just read.
 git fetch -q origin "$branch" ||
   { echo "origin has no such branch: $branch" >&2; exit 4; }
-# `--track` is fixed so the pushes of a rebase land on the branch it came from;
-# the start point is origin's tip and not the local `main` a bare name would be.
+# `--track` sets the upstream, which a sync run reads only as `git status -sb`'s
+# ahead/behind; the start point is origin's tip, not the local `main` a bare name is.
 git worktree add --track -b "$branch" "$path" "origin/$branch"

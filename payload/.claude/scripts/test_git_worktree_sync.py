@@ -102,6 +102,12 @@ class SyncShape(unittest.TestCase):
         branches = run_bash('git -C "$C" branch --list', C=f"{root}/checkout")
         self.assertNotIn("1234567", branches.stdout)
 
+    def test_the_upstream_is_the_only_thing_tracking_is_for(self):
+        # A sync run pulls and pushes nothing through it, so the comment says what it does give and no more.
+        text = SYNC.read_text(encoding="utf-8")
+        self.assertNotIn("pushes of a rebase", text)
+        self.assertIn("ahead/behind", text)
+
     def test_it_runs_only_from_the_main_checkout_root(self):
         root = self.fixture()
         result = self.sync(f"{root}/checkout/src")

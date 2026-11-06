@@ -7,7 +7,7 @@ set -euo pipefail
 
 [ "$#" -eq 3 ] || {
   echo "usage: gh-issue-harness.sh <bug|test-gap|enhancement> <critical|high|medium|low>" \
-       "<harness|harness,test|documentation> < title, blank line, body ending in the trailer" >&2
+       "<harness|harness,test|documentation|code|code,test> < title, blank line, body ending in the trailer" >&2
   exit 2
 }
 kind="$1"; severity="$2"; area="$3"
@@ -21,7 +21,7 @@ case "$severity" in
   *) echo "not a severity this helper will file under: $severity" >&2; exit 2 ;;
 esac
 case "$area" in
-  harness|harness,test|documentation) ;;
+  harness|harness,test|documentation|code|code,test) ;;
   *) echo "not an area this helper will file under: $area" >&2; exit 2 ;;
 esac
 # The sentence of gh-issue-create.sh's hand route, or its request route for an

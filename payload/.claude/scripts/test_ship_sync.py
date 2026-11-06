@@ -105,7 +105,11 @@ class TheSyncRow(unittest.TestCase):
         self.assertIn("a target-local low into the target's own, filed with gh-issue-create.sh", step)
         self.assertNotIn("joins", step)
         self.assertIn("gh-issue-harness.sh bug <severity> <area>", step)
-        self.assertIn("the area by tree: .claude/ is harness, a suite harness,test, other prose documentation", step)
+        self.assertIn("the area by tree: .claude/ is harness, other prose documentation, the rest code, with test "
+                      "beside harness or code for a suite", step)
+        # A target-local low is filed once: the open issues are read first, and a title already open files nothing.
+        self.assertIn("after bash .claude/scripts/gh-issue-list.sh shows no open issue of that title, else nothing is "
+                      "filed and the report says so", step)
 
     def test_no_prose_here_names_what_a_target_does_not_hold(self):
         for text in (flat(section()), flat(ARGUMENT.read_text(encoding="utf-8"))):
@@ -116,6 +120,10 @@ class TheSyncRow(unittest.TestCase):
 
     def test_the_counts_the_section_makes_false_are_qualified(self):
         self.assertIn("three more things, beyond the sync section's own,", flat(ship()))
+        # The seven are a list of what stops the chain, and the sync section ends a run on a failed verify, a failing
+        # suite or a filed finding, none of them among the seven.
+        self.assertIn("**Seven things still stop the chain**, and nothing else does, bar the sync section's own endings",
+                      flat(ship()))
         self.assertIn("beyond the seven stops and the sync section's own", flat(ARGUMENT.read_text(encoding="utf-8")))
 
     def test_the_sync_row_ranks_against_the_rows_it_overlaps(self):
@@ -202,6 +210,10 @@ class TheSyncRow(unittest.TestCase):
         # Step 2 otherwise says to fix what the checks find, and a sync branch is never committed to.
         self.assertIn("a failing suite is a target-local finding: filed in the target with gh-issue-create.sh, the "
                       "sync ends unmerged or is handed back, and no round runs", step)
+        # A re-take keeps HEAD at <oid>, so it reruns the head's old suite: only a later sync from the fixed main clears it.
+        self.assertIn("A re-take of this head does not clear it, since it reruns the head's old copy, so a later sync "
+                      "cut from the fixed main supersedes it", step)
+        self.assertIn("a target-local finding in a local file merges first", bullet("Step 5"))
 
     def test_the_sync_round_reads_review_diff(self):
         step = bullet("Step 5")
@@ -239,7 +251,8 @@ class TheSyncRow(unittest.TestCase):
 
     def test_the_grants_name_every_read_a_dispatched_sync_makes(self):
         grants = [g.strip() for g in frontmatter("allowed-tools").split(",")]
-        for grant in (f"Bash({SYNC_PR}:*)", f"Bash({HELPER}:*)", "Bash(py -3.12 -m unittest discover:*)"):
+        for grant in (f"Bash({SYNC_PR}:*)", f"Bash({HELPER}:*)", "Bash(py -3.12 -m unittest discover:*)",
+                      "Bash(bash .claude/scripts/gh-issue-list.sh)"):
             self.assertIn(grant, grants)
         # The same two reach a session that is not /ship through the settings the sync renders.
         allow = json.loads(BASE.read_text(encoding="utf-8"))["permissions"]["allow"]
