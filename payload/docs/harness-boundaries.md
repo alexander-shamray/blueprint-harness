@@ -1118,28 +1118,31 @@ helper. Residual: called directly, the helper opens any branch named like a
 sync, which it checks out and runs nothing in.
 
 **`Bash(py -3.12 -m unittest discover:*)` runs the code of whatever tree it is
-pointed at, and is `/ship`'s alone.** A dispatched sync's step 2 runs the
-target-local suites with it, and a prefix grant cannot pin `-s`, so what bounds
-it is where it runs: only in a worktree whose `HEAD` equals the proved oid and
-whose `git status --short` is empty, which the sync section requires before
-anything in the tree runs. The settings do not allow it, so no other command
-reaches it. Residual: a `/ship` run that skips the comparison runs the head's
-own tests, which is the code the comparison exists to vouch for.
+pointed at, and is `/ship`'s alone.** A sync's step 2 runs the target-local
+suites with it, and a prefix grant cannot pin `-s`, so what bounds it is where
+it runs: only in a worktree whose `HEAD` equals the proved oid and whose `git
+status --short` is empty, which the sync section requires before anything in the
+tree runs, and a `--dispatched` run holding no proof hands back before anything
+in the tree runs. The settings do not allow it, so no other command reaches it.
+Residual: a `/ship` run that skips the comparison runs the head's own tests,
+which is the code the comparison exists to vouch for.
 
 **`gh-issue-harness.sh` files in the harness from a target, and only /ship holds
 it.** `<bug|test-gap|enhancement> <critical|high|medium|low>
-<harness|harness,test>`, with the stdin shape of `gh-issue-create.sh` and the
-hand route's last line (an enhancement's is the request route's), for the sync
-row, which finds payload defects from a target whose checkout is another
-repository. The repository is a literal in the helper and no word selects it: a
-word `gh-issue-create.sh` took would be the caller's to declare, and the sweeps
-hold that helper over a tree they cannot trust. So the grant is the boundary:
-`/ship`'s frontmatter names the helper, the settings do not allow it, and both
-sweeps deny it by the same key as the force-push helpers, for the day someone
-allows it globally. It skips the label sibling, which resolves the checkout's
-repository, so a label the harness lacks fails the create rather than being
-made. Residual: `/ship` can file any text in the harness with it, which is its
-whole use.
+<harness|harness,test|documentation>`, with the stdin shape of
+`gh-issue-create.sh` and the hand route's last line (an enhancement's is the
+request route's), for the sync row, which finds payload defects from a target
+whose checkout is another repository. The repository is a literal in the helper
+and no word selects it: a word `gh-issue-create.sh` took would be the caller's
+to declare, and the sweeps hold that helper over a tree they cannot trust. So
+the grant is the boundary: `/ship`'s frontmatter names the helper, the settings
+do not allow it, and both sweeps deny it by the same key as the force-push
+helpers, for the day someone allows it globally. It first searches the open
+issues for that exact title and comments on a match instead of creating, every
+`gh` call under a timeout, and a failed search files nothing. It skips the label
+sibling, which resolves the checkout's repository, so a label the harness lacks
+fails the create rather than being made. Residual: `/ship` can file any text in
+the harness with it, which is its whole use.
 
 **Some of the rebase helper's edges are accepted rather than guarded.** A replay
 amended after a failed push no longer descends from the commit `publish`

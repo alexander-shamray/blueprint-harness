@@ -347,9 +347,13 @@ def verify(number, pin=None):
     return failures, head["commit"] if head else None
 
 
-def _citations(oid, path, managed):
-    """`file:line: text` for each line of a tracked file outside the manifest that names `path`."""
-    code, out, err = run(["git", "grep", "--no-color", "-z", "-n", "-I", "-F", "-e", path, oid], timeout=GIT_TIMEOUT)
+def _citations(ref, path, managed):
+    """`file:line: text` for each line of a tracked file outside the manifest that names `path`, as `ref` holds it.
+
+    `ref` is main's tip, not the head: a sync never changes a local file, and the head is not rebased, so its copy
+    can still hold a line the target's own fix has since removed.
+    """
+    code, out, err = run(["git", "grep", "--no-color", "-z", "-n", "-I", "-F", "-e", path, ref], timeout=GIT_TIMEOUT)
     if code not in (0, 1):
         raise Refusal(f"git grep failed: {_line(err)}")
     found = []
@@ -357,7 +361,7 @@ def _citations(oid, path, managed):
         parts = record.split("\0", 2)
         if len(parts) != 3 or not parts[1].isdigit():
             continue
-        name = parts[0][len(oid) + 1:] if parts[0].startswith(f"{oid}:") else parts[0]
+        name = parts[0][len(ref) + 1:] if parts[0].startswith(f"{ref}:") else parts[0]
         if name not in managed and name != MANIFEST:
             found.append(f"{_name(name)}:{parts[1]}: {_line(parts[2], TEXT_CAP)}")
     return found
@@ -394,7 +398,7 @@ def review_text(number, head):
     lines += ["", f"## Managed paths deleted ({len(deleted)})", ""]
     for path in deleted:
         lines.append(f"- {path}")
-        cites = _citations(oid, path, paths) if path != MANIFEST else []
+        cites = _citations(MAIN, path, paths) if path != MANIFEST else []
         lines += [f"    {c}" for c in cites[:CITATIONS]]
         if len(cites) > CITATIONS:
             lines.append(f"    ... and {len(cites) - CITATIONS} more lines name it")

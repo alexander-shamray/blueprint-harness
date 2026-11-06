@@ -5,6 +5,7 @@ cannot have filed a real issue; `review_helpers.py` is the shared harness.
 """
 
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -38,6 +39,15 @@ class HarnessIssueHelperHasNoFreeParameter(unittest.TestCase):
                 #!/usr/bin/env bash
                 printf '%s\\n' "$*" >> {(d / 'argv').as_posix()!r}
                 case "$*" in
+                  *"issue list"*)
+                    [ ! -e {(d / 'listfail').as_posix()!r} ] || {{ echo "stub gh: list failed" >&2; exit 1; }}
+                    cat {(d / 'list').as_posix()!r} 2>/dev/null
+                    exit 0
+                    ;;
+                  *"issue comment"*)
+                    cat > {(d / 'comment').as_posix()!r}
+                    exit 0
+                    ;;
                   *"issue create"*)
                     printf '%s\\n' "${{MSYS2_ARG_CONV_EXCL-unset}}" > {(d / 'conv').as_posix()!r}
                     cat > {(d / 'body').as_posix()!r}
@@ -65,6 +75,13 @@ class HarnessIssueHelperHasNoFreeParameter(unittest.TestCase):
         f = Path(self.dir) / "argv"
         return f.read_text(encoding="utf-8").splitlines() if f.exists() else []
 
+    def creates(self):
+        return [c for c in self.calls() if c.startswith("issue create ")]
+
+    def open_issues(self, *rows):
+        """The open issues the stub's `issue list` answers with, one `number<TAB>title` per row."""
+        Path(self.dir, "list").write_text("".join(f"{n}\t{title}\n" for n, title in rows), encoding="utf-8")
+
     def stdin(self, trailer=None, title="a title"):
         return f"{title}\n\nthe body\n\n{trailer or self.HAND_TRAILER}\n"
 
@@ -78,8 +95,8 @@ class HarnessIssueHelperHasNoFreeParameter(unittest.TestCase):
         title = "`/ship` files a title that begins with a slash"
         result = self.run_helper("bug", "high", "harness", body=self.stdin(title=title))
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual(1, len(self.calls()), self.calls())
-        create = self.calls()[0]
+        self.assertEqual(1, len(self.creates()), self.calls())
+        create = self.creates()[0]
         self.assertTrue(create.startswith(f"issue create --repo {HARNESS_REPO} "), create)
         self.assertIn(f"--title {title}", create)
         for label in ("bug", "high", "harness"):
@@ -93,8 +110,8 @@ class HarnessIssueHelperHasNoFreeParameter(unittest.TestCase):
     def test_no_call_resolves_or_creates_anything_in_the_checkout(self):
         # The harness is not the checkout's repository: no `repo view`, and no label sibling that would act there.
         self.run_helper("test-gap", "low", "harness,test", body=self.stdin())
-        self.assertEqual(["issue create"], [" ".join(c.split()[:2]) for c in self.calls()])
-        create = self.calls()[0]
+        self.assertEqual(["issue list", "issue create"], [" ".join(c.split()[:2]) for c in self.calls()])
+        create = self.creates()[0]
         self.assertIn("--label harness --label test", create)
 
     def test_the_argument_count_is_exactly_three(self):
@@ -114,10 +131,62 @@ class HarnessIssueHelperHasNoFreeParameter(unittest.TestCase):
                 self.refused(self.run_helper("bug", severity, "harness", body=self.stdin()), "not a severity")
 
     def test_an_area_outside_the_two_is_refused(self):
-        for area in ("code", "documentation", "test", "code,test", "harness,code", "Harness", "harness,",
+        for area in ("code", "test", "code,test", "harness,code", "Harness", "harness,", "documentation,test",
+                     "harness,documentation", "documentation,",
                      ",test", "harness,test,test", "harness test", "harness,--repo", "--label bug", ""):
             with self.subTest(area=area):
                 self.refused(self.run_helper("bug", "low", area, body=self.stdin()), "not an area")
+
+    def test_each_area_the_tree_map_gives_is_filed_under_its_own_label(self):
+        # working-rules: `.claude/` is harness, a suite beside it harness,test, other prose documentation.
+        for area, labels in (("harness", ["harness"]), ("harness,test", ["harness", "test"]),
+                             ("documentation", ["documentation"])):
+            with self.subTest(area=area):
+                Path(self.dir, "argv").unlink(missing_ok=True)
+                result = self.run_helper("bug", "low", area, body=self.stdin())
+                self.assertEqual(0, result.returncode, result.stderr)
+                for label in labels:
+                    self.assertIn(f"--label {label}", self.creates()[0])
+                self.assertEqual(len(labels) + 2, self.creates()[0].count("--label "), self.creates()[0])
+
+    def test_an_open_issue_of_that_exact_title_gets_a_comment_and_no_second_issue(self):
+        # A re-take of a sync meets the issue its first round filed: the one low issue is added to, not repeated.
+        self.open_issues((41, "another title"), (42, "a title"))
+        result = self.run_helper("bug", "low", "harness", body=self.stdin())
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([], self.creates(), self.calls())
+        comment = [c for c in self.calls() if c.startswith("issue comment ")]
+        self.assertEqual([f"issue comment 42 --repo {HARNESS_REPO} --body-file -"], comment)
+        self.assertEqual(f"the body\n\n{self.HAND_TRAILER}\n", (Path(self.dir) / "comment").read_text(encoding="utf-8"))
+
+    def test_a_near_title_is_not_a_match(self):
+        self.open_issues((41, "A title"), (42, "a title "), (43, "a title and more"), (44, "x a title"))
+        self.assertEqual(0, self.run_helper("bug", "low", "harness", body=self.stdin()).returncode)
+        self.assertEqual(1, len(self.creates()), self.calls())
+        self.assertEqual([], [c for c in self.calls() if c.startswith("issue comment ")])
+
+    def test_the_search_reads_open_issues_of_the_harness_only(self):
+        self.run_helper("bug", "low", "harness", body=self.stdin())
+        listed = [c for c in self.calls() if c.startswith("issue list ")]
+        self.assertEqual(1, len(listed), self.calls())
+        self.assertIn(f"--repo {HARNESS_REPO}", listed[0])
+        self.assertIn("--state open", listed[0])
+
+    def test_a_search_that_fails_files_nothing(self):
+        # Filing on a failed search would repeat the issue a match would have taken the comment.
+        Path(self.dir, "listfail").write_text("", encoding="utf-8")
+        result = self.run_helper("bug", "low", "harness", body=self.stdin())
+        self.assertEqual(3, result.returncode, result.stderr)
+        self.assertIn("cannot search the harness's open issues", result.stderr)
+        self.assertEqual([], self.creates())
+
+    def test_every_gh_call_is_under_a_timeout(self):
+        text = self.HELPER.read_text(encoding="utf-8")
+        code = [ln.strip() for ln in text.splitlines() if not ln.lstrip().startswith("#")]
+        calls = [ln for ln in code if re.search(r"(^|[^\w-])gh issue ", ln)]
+        self.assertEqual(3, len(calls), "the search, the comment and the filing each call gh")
+        for ln in calls:
+            self.assertRegex(ln, r"timeout [0-9]+ gh ", ln)
 
     def test_the_trailer_is_the_hand_routes_and_no_other(self):
         for trailer in (self.SWEEP_TRAILER, self.REQUEST_TRAILER):
@@ -134,7 +203,7 @@ class HarnessIssueHelperHasNoFreeParameter(unittest.TestCase):
                      "does not end with the trailer")
         result = self.run_helper("enhancement", "low", "harness", body=self.stdin(self.REQUEST_TRAILER))
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("--label enhancement", self.calls()[0])
+        self.assertIn("--label enhancement", self.creates()[0])
 
     def test_the_title_and_body_shape_is_the_issue_helpers(self):
         self.refused(self.run_helper("bug", "low", "harness", body="\n\nthe body\n"), "the title is empty")
@@ -158,12 +227,13 @@ class HarnessIssueHelperHasNoFreeParameter(unittest.TestCase):
         result = subprocess.run([BASH, "-c", script], capture_output=True, text=True, encoding="utf-8", env=env)
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertFalse((d / "pwned").exists())
-        self.assertIn(f"--title {title}", self.calls()[0])
+        self.assertIn(f"--title {title}", self.creates()[0])
 
     def test_the_repository_is_a_literal_and_force_is_never_spelled(self):
         text = self.HELPER.read_text(encoding="utf-8")
         code = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
-        self.assertIn(f"--repo {HARNESS_REPO}", code)
+        self.assertEqual([f"repo={HARNESS_REPO}"], [ln for ln in code.splitlines() if ln.startswith("repo=")])
+        self.assertEqual(3, code.count('--repo "$repo"'), "the search, the comment and the filing")
         self.assertNotIn("repo view", code)
         self.assertNotIn("--force", code)
         self.assertNotIn("$1 ", code.split("--repo", 1)[1].split("\n", 1)[0])

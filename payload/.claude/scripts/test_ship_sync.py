@@ -99,13 +99,20 @@ class TheSyncRow(unittest.TestCase):
     def test_severity_is_mapped_and_a_low_goes_where_its_code_is(self):
         step = bullet("Step 5")
         self.assertIn("a bug as high and a medium as itself", step)
-        self.assertIn("A payload low joins the one harness issue", step)
-        self.assertIn("a target-local low the target's own, filed with gh-issue-create.sh", step)
+        self.assertIn("A payload low goes into the one harness issue", step)
+        # The helper only creates on a first filing: on a re-take it comments on the open issue of that title.
+        self.assertIn("which the helper adds a comment to when one is open under that title", step)
+        self.assertIn("a target-local low into the target's own, filed with gh-issue-create.sh", step)
+        self.assertNotIn("joins", step)
+        self.assertIn("gh-issue-harness.sh bug <severity> <area>", step)
+        self.assertIn("the area by tree: .claude/ is harness, a suite harness,test, other prose documentation", step)
 
     def test_no_prose_here_names_what_a_target_does_not_hold(self):
         for text in (flat(section()), flat(ARGUMENT.read_text(encoding="utf-8"))):
-            for word in ("Review Focus", "Builder's call", "design's section"):
-                self.assertNotIn(word, text)
+            self.assertIsNone(re.search(r"\b(Task|Focus|section|plan) [0-9]|Builder's call|design's section", text))
+        for path in sorted(Path(__file__).parent.glob("*.py")):
+            if path.name.startswith(("test_ship_sync", "test_sync_pr", "test_gh_issue_harness", "test_git_worktree_sync")):
+                self.assertIsNone(re.search(r"\bTask [0-9]", path.read_text(encoding="utf-8")), path.name)
 
     def test_the_counts_the_section_makes_false_are_qualified(self):
         self.assertIn("three more things, beyond the sync section's own,", flat(ship()))
@@ -116,17 +123,27 @@ class TheSyncRow(unittest.TestCase):
         row = flat(next(ln for ln in table.splitlines() if ln.startswith("| On a branch named `chore/harness-sync-")))
         self.assertIn("the closed and merged rows win over it, and it over the dirty and open-PR rows", row)
         failed = bullet("A failed verify reviews nothing")
-        self.assertIn("then pr-for-branch.sh <head> is read, and a closed PR ends as that stop", failed)
+        self.assertIn("then pr-state.sh <n> is read: CLOSED is the closed-unmerged stop (stopped, closed unmerged), "
+                      "MERGED takes step 6's route for a merge another route made", failed)
+        self.assertNotIn("pr-for-branch.sh <head>", failed)
 
     def test_the_rows_that_say_a_run_stays_in_its_worktree_except_the_sync_row(self):
         text = flat(ship())
         self.assertEqual(4, text.count("a sync run's attended resume aside"), text.count("attended resume aside"))
 
     def test_no_clause_says_the_dispatcher_proves_the_head(self):
-        # Task 4 adds that with the code; until then nothing in the runbook or its argument claims it.
+        # The clause is written with the code that makes it true; until then nothing here claims it.
         for text in (flat(ship()), flat(ARGUMENT.read_text(encoding="utf-8"))):
             self.assertNotIn("dispatcher bound", text)
             self.assertNotIn("dispatcher proved", text)
+
+    def test_a_dispatched_run_with_no_proof_is_scoped_in_the_argument_and_the_boundaries(self):
+        boundaries = flat((ROOT / "docs" / "harness-boundaries.md").read_text(encoding="utf-8"))
+        self.assertNotIn("A dispatched sync's step 2 runs", boundaries)
+        self.assertIn("A sync's step 2 runs the target-local suites with it", boundaries)
+        self.assertIn("a --dispatched run holding no proof hands back before anything in the tree runs", boundaries)
+        argued = flat(ARGUMENT.read_text(encoding="utf-8"))
+        self.assertIn("A --dispatched sync run starts inside its worktree and holds no proof, so it hands back", argued)
 
     def test_the_first_proof_is_made_on_main(self):
         lead = flat(section().split("\n- **", 1)[0])
@@ -160,8 +177,13 @@ class TheSyncRow(unittest.TestCase):
 
     def test_a_run_inside_a_sync_worktree_holds_no_proof(self):
         lead = flat(section().split("\n- **", 1)[0])
-        self.assertIn("A run that starts inside a sync worktree holds no proof: attended, it leaves with "
-                      'ExitWorktree({action: "keep"}), proves as above, and enters with EnterWorktree', lead)
+        # ExitWorktree answers an error to a session that did not enter the worktree itself.
+        self.assertIn("A run that starts inside a sync worktree holds no proof: if it entered the worktree this "
+                      'session, it leaves with ExitWorktree({action: "keep"}), proves as above, and enters with '
+                      "EnterWorktree; any other reports and ends unmerged, to be started again from the main checkout",
+                      lead)
+        # A dispatched run always starts inside the worktree, so it has no route to a proof.
+        self.assertIn("a --dispatched run holding no proof hands back before anything in the tree runs", lead)
         table = ship().split("## Resume, don't restart", 1)[1].split("\n## ", 1)[0]
         row = flat(next(ln for ln in table.splitlines() if ln.startswith("| On a branch named `chore/harness-sync-")))
         self.assertIn("its proof first, which a run already in the worktree holds none of", row)
@@ -177,6 +199,9 @@ class TheSyncRow(unittest.TestCase):
         self.assertIn("each path sync_pr.py local-suites prints", step)
         self.assertIn("py -3.12 -m unittest discover -s <dir> -p <file>", step)
         self.assertIn("nothing else in *Ship checks*", step)
+        # Step 2 otherwise says to fix what the checks find, and a sync branch is never committed to.
+        self.assertIn("a failing suite is a target-local finding: filed in the target with gh-issue-create.sh, the "
+                      "sync ends unmerged or is handed back, and no round runs", step)
 
     def test_the_sync_round_reads_review_diff(self):
         step = bullet("Step 5")
@@ -226,7 +251,7 @@ class TheSyncRow(unittest.TestCase):
 
     def test_a_payload_finding_is_filed_by_the_harness_helper(self):
         step = bullet("Step 5")
-        self.assertIn("bash .claude/scripts/gh-issue-harness.sh bug <severity> harness", step)
+        self.assertIn("bash .claude/scripts/gh-issue-harness.sh bug <severity> <area>", step)
         self.assertNotIn("gh-issue-create.sh bug", step)
 
 
