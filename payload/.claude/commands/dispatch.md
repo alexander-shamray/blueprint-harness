@@ -238,7 +238,7 @@ each line of
 | `relaunch <g>` | A background `run`; after the stop file it refuses, and `result` sends the group back |
 | `launch <g>: moved, never launched` | Fork its worktree where none exists, then `launch` and a background `run` |
 | `verify <g>` | As `merged-claimed` |
-| `done <g>: …` | Pull, containment, `tasks done`, removal, then the drop, the branch read from `git worktree list` before it |
+| `done <g>: …` | Pull, containment, `tasks done`, removal, then the drop, the branch read from `git worktree list` before the removal |
 | `back <g>: …` | `tasks back` |
 
 Then run step 2 from `wake`. (why: docs/commands/dispatch.md, *Resume*)
