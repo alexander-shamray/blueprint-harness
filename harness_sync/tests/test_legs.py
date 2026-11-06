@@ -19,6 +19,12 @@ def _code_lines(path: Path) -> list[str]:
     return [line for line in path.read_text(encoding="utf-8").splitlines() if not line.lstrip().startswith("#")]
 
 
+def _leg_suites() -> list[str]:
+    """Each leg suite's payload path, from the `-s` and `-p` of the step that runs it."""
+    steps = re.findall(r'-s (\S+) -p "(test_\w+\.py)"', "\n".join(_code_lines(CI)))
+    return [f"payload/{directory}/{suite}" for directory, suite in steps]
+
+
 class PullRequestTests(unittest.TestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
@@ -93,19 +99,20 @@ class WhatTheFilterLooksAtTests(unittest.TestCase):
         self.assertEqual([entry for entry in REACH if not (ROOT / entry).exists()], [])
 
     def test_every_suite_the_legs_run_is_reached(self) -> None:
-        suites = re.findall(r'-p "(test_\w+\.py)"', "\n".join(_code_lines(CI)))
+        suites = _leg_suites()
         self.assertTrue(suites, "ci.yml names no suite for the legs")
-        for suite in suites:
-            with self.subTest(suite=suite):
-                rel = f"payload/.claude/scripts/{suite}"
+        self.assertEqual(len(suites), len(re.findall(r'-p "test_', "\n".join(_code_lines(CI)))))
+        for rel in suites:
+            with self.subTest(suite=rel):
                 self.assertTrue((ROOT / rel).is_file())
                 self.assertTrue(reaches([rel]))
 
     def test_every_file_a_leg_suite_reads_beside_it_is_reached(self) -> None:
-        for suite in re.findall(r'-p "(test_\w+\.py)"', "\n".join(_code_lines(CI))):
-            text = (ROOT / "payload/.claude/scripts" / suite).read_text(encoding="utf-8")
+        for suite in _leg_suites():
+            text = (ROOT / suite).read_text(encoding="utf-8")
             chains = re.findall(r'SCRIPTS\.parent((?:\s*/\s*"[^"]+")+)', text)
-            self.assertTrue(chains, f"{suite} no longer spells what it reads off SCRIPTS.parent")
+            self.assertEqual(bool(chains), "SCRIPTS.parent" in text,
+                             f"{suite} no longer spells what it reads off SCRIPTS.parent")
             for chain in chains:
                 rel = "/".join(re.findall(r'"([^"]+)"', chain))
                 with self.subTest(suite=suite, rel=rel):
@@ -114,7 +121,8 @@ class WhatTheFilterLooksAtTests(unittest.TestCase):
                     self.assertTrue(reaches([path]))
 
     def test_every_leg_step_obeys_the_decision(self) -> None:
-        conditions = [line.strip() for line in _code_lines(CI) if "matrix.os != 'ubuntu-latest'" in line]
+        conditions = [line.strip() for line in _code_lines(CI)
+                      if re.search(r"matrix\.os (?:!= 'ubuntu-latest'|== 'windows-latest')", line)]
         gated = [line for line in conditions if "steps.reach.outputs.test != 'false'" in line]
         self.assertEqual(len(gated), len(re.findall(r'-p "test_', "\n".join(_code_lines(CI)))))
         self.assertEqual(len(conditions), len(gated) + 1, "only the decision itself is ungated")

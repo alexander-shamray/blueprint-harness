@@ -15,6 +15,7 @@ REACH = (
     "payload/.claude/hooks/",
     "payload/.claude/scripts/",
     "payload/.claude/skills/codebase-index/examples/",
+    "payload/.github/comment-gate/",
     "payload/.harness/",
     "targets/",
 )
