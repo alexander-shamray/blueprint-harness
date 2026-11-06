@@ -28,6 +28,19 @@ commit="$1"
 git rev-parse --verify --quiet "$commit^{commit}" >/dev/null ||
   { echo "no such commit: $commit" >&2; exit 3; }
 
+# A commit carrying a tracked symbolic link is refused, before any worktree is
+# dropped or made. A worktree keeps links, so `$work/leak -> ~/.ssh/id_rsa` is
+# a path under `$work` whose target is not, and `Read`, `Grep` and `Glob`, the
+# three tools an auditor holds, all follow it: the sweeps' rule about the
+# spelling of a path cannot see it. Asked of the pinned commit, which is what
+# the worktree materialises, not of `main`. Refused rather than pruned, as a
+# sweep over a tree with a file removed would report a clean audit of
+# something that is not the branch.
+links=$(git ls-tree -r "$commit" | awk '$1 == "120000" { print $4 }' | head -5)
+[ -z "$links" ] ||
+  { echo "$commit carries tracked symbolic links, and a sweep's reads follow them out of the worktree: $(printf '%s ' $links)" >&2
+    exit 5; }
+
 # A sweep stopped before its teardown leaves its worktree registered, and no
 # later run's name meets it again. A day old marks one no sweep still runs in;
 # every candidate goes through git-worktree-drop.sh, whose shape checks and
