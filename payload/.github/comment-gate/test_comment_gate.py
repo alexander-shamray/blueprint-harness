@@ -1,8 +1,7 @@
 """The comment gate's subject: what it must find, and what it must not judge.
 
 Each reader's class pairs the comments it must find with the literals it must
-leave alone, because a literal is code, and each rule's class pairs a finding
-with its innocent neighbour.
+leave alone, and each rule's class pairs a finding with its innocent neighbour.
 """
 
 import os
