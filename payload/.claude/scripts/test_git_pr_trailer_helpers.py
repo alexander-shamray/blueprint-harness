@@ -222,7 +222,7 @@ class TrailerHelper(Fixture):
         export = code.find("GIT_CONFIG_KEY_")
         self.assertGreaterEqual(export, 0, "the hooks path is not set")
         self.assertIn("core.hooksPath", code)
-        self.assertIn("mktemp -d", code, "the path is an empty directory made for the run")
+        self.assertRegex(code, r"mktemp\s+-d", "the path is an empty directory made for the run")
         for command in ("git status", "git fetch", "git rebase", "git push"):
             with self.subTest(command=command):
                 self.assertLess(export, code.find(command))

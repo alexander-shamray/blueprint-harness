@@ -532,7 +532,7 @@ class TheHostsHooksNeverRunInAReplay(unittest.TestCase):
         export = text.find("GIT_CONFIG_KEY_")
         self.assertGreaterEqual(export, 0, "the hooks path is not set")
         self.assertIn("core.hooksPath", text)
-        self.assertIn("mktemp -d", text, "the path is an empty directory made for the run")
+        self.assertRegex(text, r"mktemp\s+-d", "the path is an empty directory made for the run")
         for command in ("git fetch origin", "git rebase", "git push"):
             with self.subTest(command=command):
                 self.assertIn(command, text)
