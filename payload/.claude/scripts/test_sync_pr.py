@@ -347,6 +347,79 @@ class VerifyTests(SyncCase):
                 self.refused("manifest path")
 
 
+class PinnedHeadTests(SyncCase):
+    """`--head <oid>` binds a verify or a review to the head a session checked out, not to origin's tip now."""
+
+    def out_path(self):
+        return str(self.root / "artifacts/review/sync-7-r1.diff")
+
+    def commands(self, oid):
+        return (("verify", "7", "--head", oid), ("review-diff", "7", self.out_path(), "--head", oid))
+
+    def moved_on_origin(self):
+        """Push another commit to the sync branch while the listing still names the first."""
+        self.head_files["docs/b.md"] = PAYLOAD["docs/b.md"] + "moved\n"
+        return self.publish_head()
+
+    def test_the_pinned_head_verifies_and_reviews(self):
+        oid = self.start()
+        self.assertEqual((0, f"verified 7 {NEW_H}\n", ""), self.cli("verify", "7", "--head", oid))
+        code, out, err = self.cli("review-diff", "7", self.out_path(), "--head", oid)
+        self.assertEqual(0, code, out + err)
+        self.assertIn(oid, Path(self.out_path()).read_text(encoding="utf-8"))
+
+    def test_a_listing_that_names_another_head_is_refused(self):
+        self.start()
+        for argv in self.commands("c" * 40):
+            with self.subTest(argv=argv[0]):
+                code, out, err = self.cli(*argv)
+                self.assertEqual(1, code, out + err)
+                self.assertIn("#7: the listed head", out)
+                self.assertIn("is not the pinned oid " + "c" * 40, out)
+        self.assertFalse(Path(self.out_path()).exists())
+
+    def test_a_branch_that_moved_after_the_pin_is_refused_though_the_listing_is_stale(self):
+        pinned = self.start()
+        moved = self.moved_on_origin()
+        self.assertNotEqual(pinned, moved)
+        # Without the pin the listing still agrees with the first head and the fetched tip is refused as moved.
+        self.refused("is not the listed oid")
+        for argv in self.commands(moved):
+            with self.subTest(argv=argv[0], pin="the new tip"):
+                self.assertIn("is not the pinned oid", self.cli(*argv)[1])
+        for argv in self.commands(pinned):
+            with self.subTest(argv=argv[0], pin="the first head"):
+                code, out, err = self.cli(*argv)
+                self.assertEqual(1, code, out + err)
+                self.assertIn(f"the fetched head {moved} is not the pinned oid {pinned}", out)
+        self.assertFalse(Path(self.out_path()).exists())
+
+    def test_a_pin_other_than_the_agreeing_listing_and_fetch_is_refused(self):
+        self.start()
+        moved = self.moved_on_origin()
+        self.gh.prs[0]["headRefOid"] = moved
+        for argv in self.commands("d" * 40):
+            with self.subTest(argv=argv[0]):
+                self.assertEqual(1, self.cli(*argv)[0])
+        # The listing and the fetch agree on `moved`, so a pin on it passes the pin; its edited file does not verify.
+        out = self.cli("verify", "7", "--head", moved)[1]
+        self.assertNotIn("pinned oid", out)
+        self.assertIn("docs/b.md", out)
+
+    def test_a_pin_that_is_not_40_lowercase_hex_is_a_refusal_with_nothing_read(self):
+        self.start()
+        for bad in ("", "abc", "A" * 40, "g" * 40, "a" * 41, "a" * 39, "HEAD", "-f", "a" * 40 + "\n"):
+            for argv in self.commands(bad):
+                with self.subTest(argv=argv[0], pin=bad):
+                    self.assertEqual(2, self.cli(*argv)[0])
+        self.assertEqual([], self.gh.calls)
+        self.assertFalse(Path(self.out_path()).exists())
+
+    def test_without_the_pin_nothing_changes(self):
+        self.start()
+        self.assertEqual((0, f"verified 7 {NEW_H}\n", ""), self.cli("verify", "7"))
+
+
 class LocalPathTests(SyncCase):
     def test_a_changed_local_path_is_refused(self):
         self.head_files["docs/local.md"] = "overwritten by a forged sync\n"

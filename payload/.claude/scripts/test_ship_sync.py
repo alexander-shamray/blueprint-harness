@@ -74,10 +74,20 @@ class TheSyncRow(unittest.TestCase):
         lead = flat(section().split("\n- **", 1)[0])
         self.assertIn(f"{SYNC_PR} verify <n> exits 0", lead)
         failed = bullet("A failed verify reviews nothing")
+        self.assertIn("a moved head included", failed)
         self.assertIn("report its lines and end unmerged, or hand it back under --dispatched", failed)
         self.assertIn("none of the seven stops", failed)
         # The verify comes before the worktree is opened, so a head that fails it is never checked out.
         self.assertLess(lead.index("verify <n>"), lead.index(HELPER))
+
+    def test_the_head_in_the_worktree_is_what_every_later_read_is_pinned_to(self):
+        lead = flat(section().split("\n- **", 1)[0])
+        self.assertIn("There git rev-parse HEAD is the head", lead)
+        # The verify in the worktree runs before step 2 reads anything, and the pre-worktree verify has no pin.
+        self.assertIn("verify <n> --head <oid> runs before step 2 reads anything", lead)
+        self.assertIn("every later verify and review-diff takes the same --head <oid>", lead)
+        self.assertIn("sync-<n>-r1.diff --head <oid>", bullet("Step 5"))
+        self.assertLess(lead.index(HELPER), lead.index("--head <oid> runs before step 2"))
 
     def test_step_1_opens_the_worktree_on_the_existing_branch(self):
         lead = flat(section().split("\n- **", 1)[0])
@@ -104,9 +114,13 @@ class TheSyncRow(unittest.TestCase):
 
     def test_step_6_verifies_again_after_a_rebase(self):
         step = bullet("Step 6")
-        self.assertIn("after its rebase helper sync_pr.py verify <n> runs on the new head before gh-pr-merge.sh", step)
-        self.assertIn("replaces the step 5 recheck", step)
+        self.assertIn("After its rebase helper the new HEAD is the head, and sync_pr.py verify <n> --head <oid> "
+                      "runs on it before gh-pr-merge.sh", step)
+        self.assertIn("replacing the step 5 recheck", step)
         self.assertIn("a failed verify is handed back", step)
+        # Step 6 merges the head that was proved: a differing headRefOid is a moved sync and merges nothing.
+        self.assertIn("its <oid> must be that head: a headRefOid that differs is a moved sync, a failed verify, "
+                      "and nothing merges", step)
         # And no round follows: the recheck the step otherwise re-enters is named only to be replaced.
         self.assertNotIn("re-enter", step)
 

@@ -390,6 +390,24 @@ class IssueHelperHasNoFreeParameter(unittest.TestCase):
         self.assert_refused_before_gh(
             self.run_helper("bug", "high", "harness", "hand", "harness", "harness", body=self.HAND_STDIN))
 
+    def test_the_harness_word_files_under_the_hand_route_alone(self):
+        # A sweep reads an injectable tree and holds this helper, so under its routes the word would let a finding
+        # file a target's content in another repository. Each route's own trailer is on the body, so the refusal is
+        # the pairing and not the trailer.
+        for route, body in (("sweep", self.STDIN), ("mutation", self.MUTATION_STDIN)):
+            with self.subTest(route=route):
+                Path(self.dir, "argv").unlink(missing_ok=True)
+                kind = "test-gap" if route == "mutation" else "bug"
+                refused = self.run_helper(kind, "high", "harness", route, "harness", body=body)
+                self.assert_refused_before_gh(refused)
+                self.assertIn("the harness word files under the hand route alone", refused.stderr)
+        Path(self.dir, "argv").unlink(missing_ok=True)
+        refused = self.run_helper("enhancement", "low", "harness", "request", "harness", body=self.REQUEST_STDIN)
+        self.assert_refused_before_gh(refused)
+        self.assertIn("the harness word files under the hand route alone", refused.stderr)
+        # The same sweep call without the word still files, so the refusal is the word's.
+        self.assertEqual(0, self.run_helper("bug", "high", "harness", "sweep", body=self.STDIN).returncode)
+
     def test_four_arguments_still_file_in_the_checkouts_repository(self):
         result = self.run_helper("bug", "high", "harness", "hand", body=self.HAND_STDIN)
         self.assertEqual(0, result.returncode, result.stderr)
