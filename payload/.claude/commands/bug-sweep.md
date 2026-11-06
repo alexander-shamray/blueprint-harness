@@ -13,8 +13,8 @@ if empty, the whole repo.
 ## What this command hunts, and what it hands over
 
 **A defect is code that is wrong on its own terms** — against its own evident
-intent, not against a document. If explaining it requires quoting a chapter, it
-is not this command's finding.
+intent, not against a document. If explaining it requires quoting one, it is
+not this command's finding.
 
 | | |
 |---|---|

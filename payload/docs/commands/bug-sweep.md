@@ -17,7 +17,7 @@ round is looking for — those three sections are where the thinking is.
 **A defect is code that is wrong on its own terms** — wrong against its own
 evident intent, not against a document. An inverted condition, a guard that
 admits, a retry that double-applies, a test that a do-nothing implementation
-would satisfy. If explaining the problem requires quoting a chapter, it is not
+would satisfy. If explaining the problem requires quoting one, it is not
 this command's finding.
 
 Three commands sit next to this one, and the boundaries are worth stating
