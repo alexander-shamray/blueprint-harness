@@ -1110,8 +1110,8 @@ cannot read the argument.
 
 `/dispatch` forks a worktree per task-list group and starts `/ship` in it as
 a headless session, with the group's tag first and
-`--dispatched <run-dir>` last; the list of what the token changes is the
-dispatch design's §6.2
+`--dispatched <run-dir>` last, but for `--berserk`, which follows it on a
+flagged run; the list of what the token changes is the dispatch design's §6.2
 (`docs/superpowers/specs/2026-11-01-dispatch-design.md`), and the runbook
 carries that list and three consequences the design left unspelt: step 6's
 lines 3 to 6 go with the worktree's removal, step 0 skips its teardown of a

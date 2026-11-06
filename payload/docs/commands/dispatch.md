@@ -13,7 +13,7 @@ tests and spawn its own `branch-reviewer`. A subagent can do none of that,
 for the three reasons the spec's §3 gives, so each executor is a headless
 session, `claude -p`, running `/ship` unchanged but for the one token
 `docs/commands/ship.md`'s *Dispatched: the one token /dispatch passes*
-argues.
+argues, and `--berserk` beside it on a flagged run.
 
 The dispatcher itself is the session the owner started, because two of its
 jobs are judgement — the interview, and placing a filed issue in a wave and
