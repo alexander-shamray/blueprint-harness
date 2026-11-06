@@ -194,7 +194,7 @@ class ReadyTests(unittest.TestCase):
 
 
 class BerserkTests(unittest.TestCase):
-    """--berserk lifts the question and nothing else: each case names a row the flag must or must not release."""
+    """--berserk lifts the human wait and the .claude/ reach: each case names a row it must or must not release."""
 
     def ready(self, row, open_issues=frozenset(), today=TODAY, bodies=None, berserk=True):
         return db.ready(group_of(row), set(open_issues), today, bodies, berserk)
