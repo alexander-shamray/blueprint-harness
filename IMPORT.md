@@ -716,7 +716,7 @@ which E's row ports.
 
 | Frontend | Behaviour | Payload | Verdict | Task | Reason and fix | Frontend's test |
 |---|---|---|---|---|---|---|
-| docs/commands/ship.md:364 | Teardown runs git log origin/main..HEAD so ahead-of-origin main is actually read | .claude/commands/ship.md:291 | port | 2 | Payload names no read; after ExitWorktree nothing reads main's ahead state before the pull. Restore the line. |  |
+| docs/commands/ship.md:364 | Teardown runs git log origin/main..HEAD so ahead-of-origin main is actually read | .claude/commands/ship.md:291 | port | 2 | Payload names no read; after ExitWorktree nothing reads main's ahead state before the pull. Name `git status -sb`, not frontend's line: `RETIRED_READS` in test_ship_landing_method.py refuses it. |  |
 | docs/commands/branch.md:53 | Worktree needs npm ci; node_modules walks up to main (also :354) | - | local |  | npm stack fact; belongs with local npm-checks.sh, decisions.md:18. |  |
 | docs/commands/branch.md:197 | Frontend branch-type table names Capacitor, native and npm root files | - | local |  | Frontend tree facts. |  |
 | docs/commands/branch.md:240 | Branch name derives from plan Task heading under docs/superpowers/plans | .claude/commands/branch.md:90 | local |  | Frontend's plan path; payload reads the roadmap harness-local names. |  |
