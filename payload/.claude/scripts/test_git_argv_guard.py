@@ -572,6 +572,16 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertIn("force push", self.assertRefused(command))
 
+        # A heredoc in a substitution nested in a sum is skipped with the shifts,
+        # so its body is judged as commands: the push is refused, not hidden.
+        self.assertIn(
+            "force push",
+            self.assertRefused(
+                f"n=$(( $(bash <<'EOF') + 1 )){NEWLINE}"
+                f"git push origin +HEAD:main{NEWLINE}EOF"
+            ),
+        )
+
         # What is not a sum keeps its heredoc: these parens close on `) |`, not
         # on `))`, so bash reads subshells, and a quoted body in them is data.
         # A quoted `))` closes nothing either.
