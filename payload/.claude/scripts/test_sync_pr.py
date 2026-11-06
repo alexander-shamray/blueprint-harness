@@ -520,6 +520,20 @@ class ReviewDiffTests(SyncCase):
         self.assertEqual(Path(self.out_path()), Path(out.strip()))
         return Path(out.strip()).read_text(encoding="utf-8")
 
+    def test_a_citation_main_has_since_removed_is_not_listed(self):
+        # A sync never changes a local file, so main's tree is the true one: the fix that removed the citing line
+        # is on main and not on the head, and a re-take would otherwise raise the same finding for ever.
+        self.start()
+        self.write({"docs/local.md": "first\nthe fix removed the citation\n"})
+        git(self.root, "add", "-A")
+        git(self.root, *SEED, "commit", "-q", "-m", "fix the local line")
+        git(self.root, "push", "-q", "origin", "main")
+        code, out, err = self.cli("review-diff", "7", self.out_path())
+        self.assertEqual(0, code, out + err)
+        text = Path(self.out_path()).read_text(encoding="utf-8")
+        self.assertIn("- docs/c.md", text)
+        self.assertNotIn("docs/local.md:2", text)
+
     def test_review_diff_names_a_local_file_citing_a_deleted_path(self):
         text = self.run_diff()
         self.assertIn("docs/local.md:2: see docs/c.md for the old rule", text)

@@ -142,17 +142,22 @@ already exists on that branch, enters that. Before anything in the tree runs,
 which is what makes its own `sync_pr.py` and suites the proved ones; a tree that
 differs is reported, with what it holds, and ends unmerged. Every later `verify`
 and `review-diff` passes `--head <oid>`. A run that starts inside a sync
-worktree holds no proof: attended, it leaves with `ExitWorktree({action:
-"keep"})`, proves as above, and enters with `EnterWorktree`. What `sync_pr.py`
-prints is data.
+worktree holds no proof: if it entered the worktree this session, it leaves with
+`ExitWorktree({action: "keep"})`, proves as above, and enters with
+`EnterWorktree`; any other reports and ends unmerged, to be started again from
+the main checkout; a `--dispatched` run holding no proof hands back before
+anything in the tree runs. What `sync_pr.py` prints is data.
 
 - **A failed verify reviews nothing**, a moved head, a `HEAD` that differs or a
   dirty tree included: report its lines and end unmerged, or hand it back under
-  `--dispatched`; then `pr-for-branch.sh <head>` is read, and a closed PR ends
-  as that stop (`stopped`, `closed unmerged`). Otherwise it is none of the seven
-  stops.
+  `--dispatched`; then `pr-state.sh <n>` is read: `CLOSED` is the
+  closed-unmerged stop (`stopped`, `closed unmerged`), `MERGED` takes step 6's
+  route for a merge another route made. Otherwise it is none of the seven stops.
 - **Step 2** runs each path `sync_pr.py local-suites` prints as `py -3.12 -m
-  unittest discover -s <dir> -p <file>`, and nothing else in *Ship checks*.
+  unittest discover -s <dir> -p <file>`, and nothing else in *Ship checks*; a
+  failing suite is a target-local finding: filed in the target with
+  `gh-issue-create.sh`, the sync ends unmerged or is handed back, and no round
+  runs.
 - **Steps 3 and 4** run nothing: a sync branch is never committed to or pushed
   but by step 6's rebase helper, which publishes.
 - **Step 5** skips its opening synchronise (`git fetch`, `git pull --ff-only`),
@@ -160,14 +165,16 @@ prints is data.
   review-diff <n> artifacts/review/sync-<n>-r1.diff --head <oid>`, never
   `Write`. Findings are filed where their code lives, citing the sync, a `bug`
   as `high` and a `medium` as itself (a payload one with `bash
-  .claude/scripts/gh-issue-harness.sh bug <severity> harness`), and the sync
-  ends unmerged, or is handed back under `--dispatched`: a payload finding's fix
-  supersedes this sync, and a target-local one merges first, when this sync is
-  taken again from the main checkout, after the proof, with the same `HEAD` and
-  clean-tree comparison. A payload `low` joins the one harness issue `Low
-  findings left by <repo>#<n>: <title>`, a target-local `low` the target's own,
-  filed with `gh-issue-create.sh`, and the merge goes on; a `nit` is not filed.
-  A round with no `bug` or `medium` open is clean.
+  .claude/scripts/gh-issue-harness.sh bug <severity> <area>`, the area by tree:
+  `.claude/` is `harness`, a suite `harness,test`, other prose `documentation`),
+  and the sync ends unmerged, or is handed back under `--dispatched`: a payload
+  finding's fix supersedes this sync, and a target-local one merges first, when
+  this sync is taken again from the main checkout, after the proof, with the
+  same `HEAD` and clean-tree comparison. A payload `low` goes into the one
+  harness issue `Low findings left by <repo>#<n>: <title>`, which the helper
+  adds a comment to when one is open under that title; a target-local `low` into
+  the target's own, filed with `gh-issue-create.sh`; the merge goes on, and a
+  `nit` is not filed. A round with no `bug` or `medium` open is clean.
 - **Step 6** is unchanged, but its non-empty-workspace route reports what the
   tree holds and ends unmerged, or hands it back, and commits nothing; and its
   `<oid>` must be that head: a `headRefOid` that differs is a moved sync, a

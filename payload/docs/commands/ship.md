@@ -143,12 +143,14 @@ is.** Any same-repository branch can be named `chore/harness-sync-xxxxxxx`;
 worktree exists, and a head that fails it is neither checked out nor reviewed,
 because the review that follows would be of a diff nobody proved. That is not
 one of the seven stops, which are things that failed while the chain ran and
-here nothing ran, but for one case: a PR closed under the run fails the verify
-as not a sync, and a closed PR is a stop, so `pr-for-branch.sh <head>` is read
-and the ending is `stopped` with reason `closed unmerged`, which a later
-superseding sync depends on. A session reports the verify's lines and ends
-unmerged; an executor hands the change back with them as the reason, since
-nobody is there to read a report.
+here nothing ran, but for two cases: a PR closed or merged under the run fails
+the verify as not a sync, so `pr-state.sh <n>` is read. `CLOSED` is the
+closed-unmerged stop, ending `stopped` with reason `closed unmerged`, which a
+later superseding sync depends on, and `MERGED` takes step 6's route for a merge
+another route made, since reporting it unmerged would be untrue. A PR closed
+before `list` has no head to read, which is why the state is read by number. A
+session reports the verify's lines and ends unmerged; an executor hands the
+change back with them as the reason, since nobody is there to read a report.
 
 **The worktree is opened on the branch that exists, not forked from `main`.**
 `/branch` would name a new branch, and a sync's commits are the harness's: the
@@ -167,7 +169,11 @@ harness never runs is the target-local test a payload change can trip
 <dir> -p <file>`, because it imports its siblings from its own directory and a
 dotted module name cannot be formed from `.claude/` or `.github/comment-gate/`.
 The command is granted in the frontmatter, since a dispatched run's reads must
-be named by its own grants.
+be named by its own grants. A failing suite has no ending of its own, since step
+2 otherwise says to fix what the checks find and a sync branch is never
+committed to: it is a target-local finding, filed in the target, and the sync
+ends unmerged or is handed back with no round run, because the code under test
+is the target's and a review of the managed files cannot clear it.
 
 **Steps 3 and 4 do nothing, because a sync branch is never committed to.** A
 commit would make the head something `verify` never proved and the next sync
@@ -196,9 +202,18 @@ the checkout's repository, so a payload finding is filed with
 holds: a route or repository word to `gh-issue-create.sh` would be declared by
 the caller, and the sweeps hold that helper over a tree they cannot trust. A
 `low` goes where its code is, as the user-level filing rule sends it: a payload
-one into the one harness issue, a target-local one into the target's own one,
-and the merge goes on; a `nit` is not filed. A hand-back for a low would be a
-stop, and the rule already sends lows to an issue.
+one into the one harness issue, and a target-local one into the target's own
+one; the merge goes on, and a `nit` is not filed. The harness filer only creates
+on a first filing: a re-taken sync meets the issue its first round filed, so it
+first searches the open issues for that exact title, with every call under a
+timeout, and comments on a match, and a failed search files nothing. Its area is
+the finding's tree, as `docs/harness/working-rules.md` maps it: `.claude/` is
+`harness`, a suite beside it `harness,test`, other prose `documentation`. A
+re-take that cannot find the citing line it raised gets the review diff's
+citations from main's tip and not the head's, because a sync never changes a
+local file and the head is not rebased, so its copy still holds a line the
+target's own fix removed. A hand-back for a low would be a stop, and the rule
+already sends lows to an issue.
 
 **Step 6 verifies again after a rebase, and that replaces the recheck.** A
 rebase rewrites the head, so what was proved is gone, and `verify` on the new
@@ -226,9 +241,13 @@ since `pr-state.sh` reads the pull request's current `headRefOid` and a push
 after the proof would otherwise land unproved. One that differs is a moved sync,
 handed back with no merge. After step 6's rebase the new `HEAD` is the head, the
 replay being the session's own. A run that starts inside a sync worktree holds
-no proof, as nothing says what put that tree there: attended, it leaves with
-`ExitWorktree`, which is why the rows that keep a run in its worktree except it,
-proves the head in the main checkout and enters again.
+no proof, as nothing says what put that tree there: if it entered the worktree
+this session it leaves with `ExitWorktree`, which is why the rows that keep a
+run in its worktree except it, proves the head in the main checkout and enters
+again. A session that did not enter it gets an error from `ExitWorktree`, so it
+reports and ends unmerged, to be started again from the main checkout. A
+`--dispatched` sync run starts inside its worktree and holds no proof, so it
+hands back before anything in the tree runs.
 
 **Under `--dispatched` the group is `sync-<n>` and `issues` is `[]`.** The
 argument carries no `#<group>-<n>` tag for the Report's rule to read, and a sync
@@ -1120,7 +1139,9 @@ through the result's `filed`, which the dispatcher places.
 
 **The workspace is the worktree the session starts in**, and nothing new
 makes it so: the branch there is clean and holds nothing `origin/main` lacks,
-which is step 0's *unused* row, so step 0 stays and step 1 skips `/branch`.
+which is step 0's *unused* row, so step 0 stays and step 1 skips `/branch`. A
+sync is the exception: its branch holds the sync's commits and the run holds no
+proof, so it hands back as the sync section says.
 
 **The worktree outlives the session, and the dispatcher tears it down.** A
 session started inside a worktree it did not enter has no `EnterWorktree`

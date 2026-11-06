@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # File one issue in the harness repository from a target, for /ship's sync row,
 # and nowhere else: closed-set kind, severity and area, title and body as bytes
-# on stdin with the hand route's fixed last line. It is granted to /ship alone,
-# since a word to gh-issue-create.sh would be the caller's to declare.
+# on stdin with the hand route's last line. An open issue of that exact title
+# takes the body as a comment, so a re-taken sync adds to its issue.
 set -euo pipefail
 
 [ "$#" -eq 3 ] || {
   echo "usage: gh-issue-harness.sh <bug|test-gap|enhancement> <critical|high|medium|low>" \
-       "<harness|harness,test> < title, blank line, body ending in the trailer" >&2
+       "<harness|harness,test|documentation> < title, blank line, body ending in the trailer" >&2
   exit 2
 }
 kind="$1"; severity="$2"; area="$3"
@@ -21,7 +21,7 @@ case "$severity" in
   *) echo "not a severity this helper will file under: $severity" >&2; exit 2 ;;
 esac
 case "$area" in
-  harness|harness,test) ;;
+  harness|harness,test|documentation) ;;
   *) echo "not an area this helper will file under: $area" >&2; exit 2 ;;
 esac
 # The sentence of gh-issue-create.sh's hand route, or its request route for an
@@ -50,14 +50,26 @@ last=$(printf '%s' "$body" | sed -e 's/\r$//' -e '/^[[:space:]]*$/d' | tail -n 1
 [ "$last" = "$trailer" ] ||
   { echo "the body does not end with the trailer line; a heredoc closed early or the line was left off" >&2; exit 2; }
 
-# The repository is a literal. Labels are not ensured: the sibling resolves the
-# checkout's repository, and the harness holds the vocabulary, so a label it
-# lacks fails the create.
+# The repository is a literal, and every gh call is under a timeout. Labels are
+# not ensured: the sibling resolves the checkout's repository, and the harness
+# holds the vocabulary, so a label it lacks fails the create.
+repo=alexander-shamray/blueprint-harness
+# A failed search files nothing, since filing would repeat what a match takes.
+open=$(timeout 60 gh issue list --repo "$repo" --state open --limit 200 --search "in:title $title" \
+  --json number,title --jq '.[] | "\(.number)\t\(.title)"') ||
+  { echo "cannot search the harness's open issues" >&2; exit 3; }
+while IFS=$'\t' read -r number existing; do
+  existing="${existing%$'\r'}"
+  if [ "$existing" = "$title" ] && [[ "$number" =~ ^[0-9]+$ ]]; then
+    printf '%s' "$body" | timeout 60 gh issue comment "$number" --repo "$repo" --body-file -
+    exit 0
+  fi
+done <<<"$open"
 area_labels=()
 IFS=, read -r -a areas <<<"$area"
 for label in "${areas[@]}"; do area_labels+=(--label "$label"); done
-printf '%s' "$body" | MSYS2_ARG_CONV_EXCL='*' gh issue create \
-  --repo alexander-shamray/blueprint-harness \
+printf '%s' "$body" | MSYS2_ARG_CONV_EXCL='*' timeout 60 gh issue create \
+  --repo "$repo" \
   --title "$title" \
   --label "$kind" \
   --label "$severity" \
