@@ -417,23 +417,25 @@ def _quoting(command, quotes=True, data=()):
         index += 1
 
 
-def _arithmetic_spans(command):
-    """Every outermost `((…))` in `command`, `$((…))` included, in order.
+def _arithmetic_spans(line):
+    """Every outermost `((…))` in `line`, `$((…))` included, in order.
 
     Bash reads a sum only where the parens close on `))`: `((a) | b)` is two
     subshells. One pass over a stack, because `_closing_paren` per sum is
     quadratic and a timeout in this guard fails open.
 
-    Heredoc bodies are read as shell text here, since finding them is what
-    this serves, so an apostrophe in one can lose a later sum or invent one.
+    A line rather than a whole command: `heredoc_spans` is still finding the
+    bodies, and an apostrophe in an earlier one would put every later sum in
+    quotes. No body shares a line with an opener. A sum spanning lines is not
+    found, so its shift reads as an opener, as it did before this existed.
     """
     found, stack, previous = [], [], None
-    for index, state, escaped in _quoting(command):
+    for index, state, escaped in _quoting(line):
         if state or escaped:
             continue
-        if command[index] == "(":
+        if line[index] == "(":
             stack.append(index)
-        elif command[index] == ")" and stack:
+        elif line[index] == ")" and stack:
             start = stack.pop()
             if previous == (start + 1, index - 1):
                 while found and found[-1][0] > start:
@@ -475,13 +477,20 @@ def heredoc_spans(command, unclosed=None, openers=None):
     # appends spans that start ahead of it, so the list is sorted by
     # construction and the walk stays monotonic.
     data, spans, pending = [], [], 0
-    # Consumed from the end, nearest first, as the walk passes them.
-    sums = _arithmetic_spans(command)[::-1] if "<<" in command else []
+    # The sums on the line ending at `line_end`, consumed from the end, nearest
+    # first, as the walk passes them.
+    sums, line_end = [], 0
     for index, in_quotes, in_comment in shell_positions(command, data):
         if in_quotes or in_comment:
             continue
         if not command.startswith("<<", index):
             continue
+        if index >= line_end:
+            line_start = command.rfind("\n", 0, index) + 1
+            line_end = command.find("\n", index)
+            line_end = len(command) if line_end == -1 else line_end
+            sums = [(line_start + start, line_start + end) for start, end
+                    in _arithmetic_spans(command[line_start:line_end])][::-1]
         # A shift, not an opener.
         while sums and sums[-1][1] <= index:
             sums.pop()
