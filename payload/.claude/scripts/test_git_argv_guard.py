@@ -523,6 +523,28 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertIn("substitution", self.assertRefused(command))
 
+    def test_arithmetic_expansion_runs_no_program(self):
+        # `$((…))` shares its opening with `$(…)`, and its body is a sum: a
+        # guard that reads that body as a command refuses a poll loop's counter.
+        for command in (
+            "n=$((n+1))",
+            "n=0; n=$((n+1)); echo $n",
+            "echo $((1+2))",
+            "git log -n $((1+2))",
+            "n=0; until gh pr view 1 | grep -q x; do n=$((n+1)); done",
+        ):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
+        # The bound on that: a real substitution nested in a sum still runs.
+        for command in (
+            "x=$(( $(git push origin +HEAD:main) + 1 ))",
+            "x=$(( `git push origin +HEAD:main` + 1 ))",
+            "git log -n $(( $(git log -1 --output=/tmp/x) + 1 ))",
+        ):
+            with self.subTest(command=command):
+                self.assertIn("substitution", self.assertRefused(command))
+
     def test_the_fallback_scan_also_treats_a_heredoc_body_as_data(self):
         # The two paths have to agree: a fallback that scans the raw command
         # refuses a heredoc body naming a forbidden flag the moment anything
