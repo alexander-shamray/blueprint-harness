@@ -196,7 +196,7 @@ def head_blobs(oid):
     for entry in read(["git", "ls-tree", "-r", "-z", oid], GIT_TIMEOUT).split("\0"):
         meta, _, path = entry.partition("\t")
         parts = meta.split()
-        if len(parts) == 3 and parts[1] == "blob":
+        if len(parts) == 3 and parts[1] == "blob" and OID.fullmatch(parts[2]):
             found[path] = parts[2]  # the blob id alone: apply writes no mode, so 100755 arrives as 100644
     return found
 
@@ -210,8 +210,10 @@ def payload_blobs(commit):
     found = {}
     for entry in tree["tree"]:
         path = entry.get("path") if isinstance(entry, dict) else None
-        if isinstance(path, str) and path.startswith("payload/") and entry.get("type") == "blob":
-            found[path[len("payload/"):]] = entry.get("sha")
+        sha = entry.get("sha") if isinstance(entry, dict) else None
+        if (isinstance(path, str) and path.startswith("payload/") and entry.get("type") == "blob"
+                and isinstance(sha, str) and OID.fullmatch(sha)):
+            found[path[len("payload/"):]] = sha
     return found
 
 
@@ -255,7 +257,7 @@ def unlisted(payload, paths, local, exclude):
     """Failures for each payload file apply would have delivered that the manifest does not list: drift_gate's rule."""
     if payload is None or local is None:
         return []  # an unread tree or config is already a failure
-    return [f"{rel} is a payload file but the manifest does not list it" for rel in sorted(payload)
+    return [f"{_name(rel)} is a payload file but the manifest does not list it" for rel in sorted(payload)
             if rel not in (SETTINGS, MANIFEST, CONFIG) and rel not in paths
             and not any(glob_match(g, rel) for g in (*local, *exclude))]
 
@@ -469,7 +471,8 @@ def main(argv=None):
             target.write_text(text, encoding="utf-8", newline="\n")
             print(args.out)
         else:
-            print("\n".join(local_suites()))
+            if suites := local_suites():
+                print("\n".join(suites))
     except Refusal as error:
         print(f"sync_pr.py: {error}", file=sys.stderr)
         return 2
