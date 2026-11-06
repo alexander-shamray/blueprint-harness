@@ -54,12 +54,13 @@ named() {
   tr -d '\r' < "$1" | tr '[:upper:]' '[:lower:]'
 }
 
-# What holds the branch, in words, or nothing; 12 when that cannot be read.
+# What holds the branch, in words, or nothing; 12 when that cannot be read. Every
+# caller tests it, which turns `set -e` off inside it, so each read says `return`.
 holder() {
   # `update-ref` does not ask, as `branch -D` would, whether a worktree has the
   # branch checked out, so this is the only check. Folded, so a worktree on
   # `Feat/x` keeps `feat/x` on a filesystem where the two are one ref.
-  local worktrees held common gitdir state started
+  local worktrees held common gitdir state text
   worktrees=$(git worktree list --porcelain) || return 12
   held=$(printf '%s\n' "$worktrees" | tr -d '\r' | tr '[:upper:]' '[:lower:]' |
     grep -cxF -- "branch refs/heads/$lowered" || true)
@@ -74,20 +75,25 @@ holder() {
   for gitdir in "$common" "$common"/worktrees/*; do
     [ -d "$gitdir" ] || continue
     for state in rebase-merge rebase-apply; do
-      if [ -f "$gitdir/$state/head-name" ] && [ "$(named "$gitdir/$state/head-name")" = "refs/heads/$lowered" ]; then
-        echo "being rebased in a worktree ($gitdir/$state)"; return 0
+      if [ -f "$gitdir/$state/head-name" ]; then
+        text=$(named "$gitdir/$state/head-name") || return 12
+        if [ "$text" = "refs/heads/$lowered" ]; then
+          echo "being rebased in a worktree ($gitdir/$state)"; return 0
+        fi
       fi
     done
     # `rebase --update-refs` names each stacked branch it will move here, one
     # line per ref name followed by its before and after oids, so a whole-line
     # match on the name is the test; an oid line never reads as a ref name.
-    if [ -f "$gitdir/rebase-merge/update-refs" ] &&
-       named "$gitdir/rebase-merge/update-refs" | grep -qxF -- "refs/heads/$lowered"; then
-      echo "to be updated by a rebase in a worktree ($gitdir/rebase-merge)"; return 0
+    if [ -f "$gitdir/rebase-merge/update-refs" ]; then
+      text=$(named "$gitdir/rebase-merge/update-refs") || return 12
+      if grep -qxF -- "refs/heads/$lowered" <<<"$text"; then
+        echo "to be updated by a rebase in a worktree ($gitdir/rebase-merge)"; return 0
+      fi
     fi
     if [ -f "$gitdir/BISECT_START" ]; then
-      started=$(named "$gitdir/BISECT_START")
-      if [ "$started" = "$lowered" ] || [ "$started" = "refs/heads/$lowered" ]; then
+      text=$(named "$gitdir/BISECT_START") || return 12
+      if [ "$text" = "$lowered" ] || [ "$text" = "refs/heads/$lowered" ]; then
         echo "being bisected in a worktree ($gitdir)"; return 0
       fi
     fi
@@ -96,7 +102,7 @@ holder() {
 
 # Last before the delete, and once more after it.
 why=$(holder) ||
-  { echo "cannot read the worktrees, so whether $branch is in use is unknown; it is kept" >&2; exit 12; }
+  { echo "cannot read the worktrees or their state, so whether $branch is in use is unknown; it is kept" >&2; exit 12; }
 [ -z "$why" ] || { echo "$branch is $why: it is in use, and kept" >&2; exit 4; }
 
 git update-ref --no-deref -d "refs/heads/$branch" "$tip" ||
@@ -112,7 +118,7 @@ if [ "$code" -ne 0 ] || [ -n "$why" ]; then
     { echo "$branch was deleted while a worktree took it, and could not be put back: git branch $branch $tip" >&2
       exit 4; }
   [ "$code" -eq 0 ] ||
-    { echo "cannot read the worktrees, so whether $branch is in use is unknown; it is kept" >&2; exit 12; }
+    { echo "cannot read the worktrees or their state, so whether $branch is in use is unknown; it is kept" >&2; exit 12; }
   echo "$branch is $why: it is in use, and kept" >&2; exit 4
 fi
 git config --remove-section "branch.$branch" 2>/dev/null || true

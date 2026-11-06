@@ -219,6 +219,28 @@ class TheHelperKeepsWhatHasNotLanded(Fixture):
         self.assertIn(f"git branch feat/x {tip}", result.stderr)
         self.assertFalse(self.exists())
 
+    def test_a_state_file_that_cannot_be_read_keeps_the_branch(self):
+        # A `tr` that fails on the marked text stands for an unreadable file, on
+        # every platform: chmod stops no read on Windows, nor for root anywhere.
+        stub = Path(self.bin, "tr")
+        stub.write_text(
+            "#!/usr/bin/env bash\n"
+            "PATH=${PATH#*:}\n"
+            "input=$(cat)\n"
+            'if [ "$input" = unreadable ]; then exit 1; fi\n'
+            "printf '%s\\n' \"$input\" | tr \"$@\"\n",
+            encoding="utf-8", newline="\n")
+        stub.chmod(0o755)
+        for name in ("BISECT_START", "rebase-merge/head-name", "rebase-merge/update-refs"):
+            with self.subTest(name=name):
+                self.at(f'mkdir -p .git/rebase-merge && echo unreadable > ".git/{name}"')
+                result = self.helper()
+                self.assertEqual(12, result.returncode, result.stderr)
+                self.assertIn("it is kept", result.stderr)
+                self.assertTrue(self.exists())
+                self.at(f'rm ".git/{name}"')
+        self.assertEqual(0, self.helper().returncode, "the helper dropped nothing once the files had gone")
+
     def test_a_branch_under_a_conflicted_rebase_elsewhere_is_kept(self):
         # What git-rebase-onto-main.sh start leaves: HEAD detached mid-replay,
         # so `git worktree list` says `detached`, and the branch's name is
