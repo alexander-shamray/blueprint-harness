@@ -31,7 +31,6 @@ MAIN_FILES = {
 PAYLOAD = {
     "docs/a.md": "A new\n",
     "docs/b.md": "BODY-OF-B\n",
-    ".claude/settings.json": "payload settings, rendered per target\n",
 }
 
 
@@ -222,8 +221,9 @@ class VerifyTests(SyncCase):
         self.refused(".harness/config.json is edited")
 
     def test_settings_json_is_not_compared_with_the_payload(self):
-        # The payload's copy is a template (the head's differs from it and verifies); the drift gate renders the
-        # real one. Check 4 still counts it as a manifest path: changed but unlisted, it is outside the manifest.
+        # The payload holds no settings.json (its template is .harness/settings.base.json), so this manifest path
+        # has nothing to match and the head's copy differs freely; the drift gate renders the real one. Check 4
+        # still counts it as a manifest path: changed but unlisted, it is outside the manifest.
         self.start()
         self.assertEqual(0, self.cli("verify", "7")[0])
         self.head_files[".harness/manifest.json"] = manifest(NEW_H, ["docs/a.md", "docs/b.md"])
@@ -407,6 +407,30 @@ class ReviewDiffTests(SyncCase):
         # The one managed file whose content is wanted: the rendered settings.
         self.assertIn('-{"old": true}', text)
         self.assertIn('+{"new": true}', text)
+
+    def test_review_diff_survives_an_odd_compare_and_counts_what_it_leaves_out(self):
+        self.gh.compare_old = {"status": "ahead", "total_commits": 253, "commits": [
+            "junk", {"sha": "zz\nforged", "commit": {"message": "fix: x"}},
+            {"sha": "c" * 40, "commit": {"message": "fix: y"}}]}
+        text = self.run_diff()
+        self.assertIn("- ccccccc fix: y", text)
+        self.assertNotIn("forged", text)
+        self.assertIn("- (no sha) fix: x", text)
+        self.assertIn("250 more commits not listed", text)  # 253 in all, 3 returned
+
+    def test_review_diff_greps_without_colour(self):
+        self.start()
+        greps = []
+        real = self.gh
+
+        def spy(argv, cwd=None, timeout=60):
+            if argv[:2] == ["git", "grep"]:
+                greps.append(argv)
+            return real(argv, cwd, timeout)
+
+        with mock.patch.object(sync_pr, "run", spy):
+            self.assertEqual(0, self.cli("review-diff", "7", self.out_path())[0])
+        self.assertTrue(greps and all("--no-color" in argv for argv in greps))
 
     def test_review_diff_refuses_a_head_that_does_not_verify(self):
         self.head_files["src/hidden.py"] = "x = 1\n"

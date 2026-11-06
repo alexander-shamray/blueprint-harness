@@ -319,7 +319,7 @@ def verify(number):
 
 def _citations(oid, path, managed):
     """`file:line: text` for each line of a tracked file outside the manifest that names `path`."""
-    code, out, err = run(["git", "grep", "-z", "-n", "-I", "-F", "-e", path, oid], timeout=GIT_TIMEOUT)
+    code, out, err = run(["git", "grep", "--no-color", "-z", "-n", "-I", "-F", "-e", path, oid], timeout=GIT_TIMEOUT)
     if code not in (0, 1):
         raise Refusal(f"git grep failed: {_line(err)}")
     found = []
@@ -350,11 +350,16 @@ def review_text(number, head):
         if not isinstance(commits, list):
             raise Refusal("the harness compare returned no commits")
         lines += [f"From: {old_commit}", f"To:   {commit}", "", "Subjects between them:"]
-        for entry in commits:
-            body = entry.get("commit") if isinstance(entry, dict) else None
+        for entry in (e for e in commits if isinstance(e, dict)):
+            body = entry.get("commit")
             message = body.get("message") if isinstance(body, dict) else None
             subject = message.split("\n", 1)[0] if isinstance(message, str) else "(no subject)"
-            lines.append(f"- {str(entry.get('sha', ''))[:7]} {_line(subject, TEXT_CAP)}")
+            sha = entry.get("sha")
+            lines.append(f"- {sha[:7] if isinstance(sha, str) and OID.fullmatch(sha) else '(no sha)'} "
+                         f"{_line(subject, TEXT_CAP)}")
+        total = compare.get("total_commits")
+        if isinstance(total, int) and total > len(commits):
+            lines.append(f"... and {total - len(commits)} more commits not listed (compare returns at most 250)")
     lines += ["", f"## Managed paths written ({len(written)}), by name only", ""] + [f"- {p}" for p in written]
     lines += ["", f"## Managed paths deleted ({len(deleted)})", ""]
     for path in deleted:
