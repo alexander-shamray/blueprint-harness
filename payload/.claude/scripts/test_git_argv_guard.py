@@ -3574,7 +3574,10 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                       "sed -i s/a/b/ staging/.claude/settings.json")
 
     def test_a_tree_is_protected_only_where_a_target_denies_it(self):
-        self.admitted("ls > .github/workflows/ci.yml", "ls > package.json")
+        # Asked of a copy denying nothing: the rendering target's own denies
+        # may name either, as frontend's config names `package.json`.
+        self.admitted("ls > .github/workflows/ci.yml", "ls > package.json",
+                      hook=self.hook_denying())
         hook = self.hook_denying(".github/**", "./.github/**", "package.json")
         self.refused("ls > .github/workflows/ci.yml", "ls > PACKAGE.JSON",
                      "cp /tmp/a ./package.json", hook=hook)
