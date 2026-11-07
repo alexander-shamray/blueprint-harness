@@ -325,9 +325,14 @@ class CbxWrapper(unittest.TestCase):
             self.assertNotIn("MODULE", out.stdout)
 
     def test_a_fallback_on_another_version_is_not_taken_behind_a_312_gate(self):
-        """`py -3.12` lacking the package passes the gate, and a `python3`
-        holding the package is a 3.11: only the fallback's version check
-        stops it from being run."""
+        """`py -3.12` lacking the package passes the gate, and a `python3` or
+        `python` holding the package is a 3.11: only that fallback's version
+        check stops it from being run."""
+        for name in ("python3", "python"):
+            with self.subTest(name):
+                self.fallback_on_another_version(name)
+
+    def fallback_on_another_version(self, name):
         with tempfile.TemporaryDirectory(prefix="cbx-py-mixed-") as fake:
             launcher = Path(fake) / "py"
             launcher.write_text(
@@ -341,7 +346,7 @@ class CbxWrapper(unittest.TestCase):
                 "fi\n"
                 "exit 1\n",
                 encoding="utf-8")
-            older = Path(fake) / "python3"
+            older = Path(fake) / name
             older.write_text(
                 "#!/bin/sh\n"
                 "while [ \"$1\" = \"-P\" ] || [ \"$1\" = \"-I\" ]; do shift; done\n"
