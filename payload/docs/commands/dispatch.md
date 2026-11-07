@@ -98,7 +98,8 @@ night before starting one.
 
 Every issue waiting on a human is asked about before the night, because
 nobody answers at night and an executor that would have asked hands back
-instead (spec §5, §7). The list of who is asked is the spec's §5;
+instead (spec §5, §7). The list of who is asked is the spec's §5 and a
+stranger's row, which this file adds below;
 `OWNER` in *Depends on* is how step 0 records it once, so the helper's
 ready test never has to judge a wait written in prose. The test looks for
 the bare word `OWNER` in the *Task* cell too, where a row filed as an
@@ -141,7 +142,9 @@ it in another terminal, so watching costs this session nothing.
 ## Ready and free
 
 A group is ready by the spec's §6.1, judged mechanically by `board` and
-`wake` from the list and the open issues. A ready group is free when no
+`wake` from the list and the open issues, and behind one gate the spec does
+not have: every row's issue is the owner's, which they read from
+`gh-issue-owned.sh`. A ready group is free when no
 running group may touch a path it may touch; the spec leaves the extraction
 to the builder as long as it errs towards exclusive, and it does: a claim
 with no paths at all overlaps everything and runs alone, and a conflicts
