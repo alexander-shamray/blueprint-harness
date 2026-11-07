@@ -959,7 +959,7 @@ class StateOutOfReach(Base):
         self.assertNotEqual(*pending)
         self.assertEqual(
             self.mod.pending_path(worktree),
-            self.mod.pending_path(Path(str(worktree) + os.sep)))
+            self.mod.pending_path(worktree.parent / ".." / worktree.parent.name / worktree.name))
 
     def test_a_python_without_isjunction_still_judges_a_link(self):
         """`os.path.isjunction` is Python 3.12's, and `git-worktree-fork.sh`
