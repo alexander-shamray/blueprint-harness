@@ -138,11 +138,9 @@ Each round is the review done once, end to end:
    bash .claude/scripts/sweep-slices.sh security "$posix"      # `full` as a third argument when asked
    ```
 
-   The rows are the checkout's own: those `.harness/sweep-rows.tsv` names
-   for `security`, with what each holds, the first matching line winning.
-   The `samples` row is read for its fenced code alone — a credential or an
-   unsafe default an adopter copies — and the closed records are owned and
-   not read.
+   The rows are those `.harness/sweep-rows.tsv` names for `security`, with
+   what each holds, the first matching line winning; `samples` is read for
+   its fenced code alone, and the closed records are owned and not read.
 
    A tracked path no row owns makes the helper exit 3 naming it: a round
    error under *Never fail open*, never a gap to widen by hand.
@@ -160,9 +158,8 @@ Each round is the review done once, end to end:
    bytes, unless one file is larger. Read the lists only to `Grep` for a path
    a scope hint names, keeping the slices that hold it or the slices of the
    rows it names; the summary says which it dropped. **Read the binary list
-   whole**: no auditor reads a file on it, and a NUL byte is all it takes to
-   make a script one, so the summary names each path on it that is not an
-   asset — an image, a font, an archive.
+   whole**: no auditor reads it, and a NUL byte makes a script binary, so the
+   summary names each path on it that is not an asset.
 
    **Round 1 is one auditor per slice; every later round follows leads**: one
    auditor per row that produced a new candidate in the round before, handed
