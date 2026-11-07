@@ -1230,6 +1230,22 @@ was the door found last**: `--json reviews,comments` returns every pull
 request's review bodies at once, and three commands kept it for the
 harmless job of finding a branch's PR.
 
+**`pr-for-branch.sh` answers three questions before its caller reads a row.**
+Its listing asks `gh` for `--limit 1000`, because the default page of 30 is cut
+before the fork filter and the landed row can vanish; a response of exactly the
+limit may be a prefix and is refused with exit 4. Only rows into `main` are
+listed, since every pull request this chain opens targets `main`, and a newer
+one into another base would otherwise mask it. A `MERGED` row is dropped when
+the row's merge commit is an ancestor of the local branch: that branch was
+recreated from a `main` holding the merge, so the row is an earlier
+incarnation of a reused name. A branch with commits added after its merge does
+not carry the merge commit, and keeps the row. With no local branch, or a merge
+commit not fetched, the row stays, since stopping is the answer when the drop
+cannot be shown. The merge commit is requested and not published. Residual: a
+landing that leaves the branch on the merge commit itself, such as a
+fast-forward, loses its row, which keeps a workspace standing rather than
+removing one.
+
 **The gate that pins this is an ALLOW-list of `gh` subcommands, and it is the
 second one in this repository to be rewritten that way.** Its first version
 banned `gh pr view` by name and passed while three files still granted
