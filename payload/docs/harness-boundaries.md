@@ -1540,8 +1540,10 @@ its deny, because nothing pushes after it. A target whose *Ship checks* run a
 command of its own names it in `CHAINED_BEFORE_A_PUSH` in a `local_commands.py`
 of its own beside the suites, listed under `local`: that case holds it to
 denying no push, and `ACommandThatDoesNotPublishCannotPush` stops asking it to
-deny one. A subclass in the target's own suite could do neither, because
-`unittest discover` runs the payload's class as written beside it.
+deny one. A subclass in the target's own suite could do the first and not the
+second: `unittest discover` still runs the payload's
+`ACommandThatDoesNotPublishCannotPush` as written, which asks every command it
+does not exempt to deny push.
 
 ## Output deny and shell-expansion residuals
 
