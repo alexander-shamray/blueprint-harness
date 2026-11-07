@@ -64,11 +64,18 @@ def entries_running_the_hook(settings: Path) -> dict:
     return running
 
 
-class _Completed:
-    """`subprocess.run`'s answer, with only the field the hook reads."""
+class _Child:
+    """A process `Popen` started, finished at once with a status."""
 
-    def __init__(self, returncode):
+    def __init__(self, returncode, pid=4242):
         self.returncode = returncode
+        self.pid = pid
+
+    def wait(self, timeout=None):
+        return self.returncode
+
+    def kill(self):
+        pass
 
 
 class _Stdin:
@@ -103,17 +110,18 @@ class Base(unittest.TestCase):
         # interpreter's own: a test that needs to start a real process has to
         # hold the real function rather than the stand-in.
         self.start_process = subprocess.Popen
-        self.patch(mock.patch.object(
-            self.mod.subprocess, "Popen",
-            side_effect=lambda *a, **k: self.spawned.append((a, k))))
         self.run_status = 0
         self.patch(mock.patch.object(
-            self.mod.subprocess, "run", side_effect=self.record_run))
+            self.mod.subprocess, "Popen", side_effect=self.record_start))
 
-    def record_run(self, *arguments, **keywords):
-        """The update as the hook meets it: recorded, and answered."""
+    def record_start(self, *arguments, **keywords):
+        """A worker as the hook starts it, or an update as the worker does:
+        recorded, and the update answered."""
+        if "--worker" in arguments[0]:
+            self.spawned.append((arguments, keywords))
+            return _Child(0)
         self.ran.append((arguments, keywords))
-        return _Completed(self.run_status)
+        return _Child(self.run_status)
 
     def patch(self, patcher):
         patcher.start()
@@ -623,10 +631,10 @@ class OneRefreshAtATime(Base):
             self.ran.append(("refresh", {}))
             if len(self.ran) == 1:
                 self.mod.request(root)
-            return _Completed(0)
+            return _Child(0)
 
         self.patch(mock.patch.object(
-            self.mod.subprocess, "run", side_effect=refresh_and_edit))
+            self.mod.subprocess, "Popen", side_effect=refresh_and_edit))
 
         self.mod.work(root)
 
@@ -678,10 +686,10 @@ class OneRefreshAtATime(Base):
 
         def fail_once(*arguments, **keywords):
             self.ran.append((arguments, keywords))
-            return _Completed(1 if len(self.ran) == 1 else 0)
+            return _Child(1 if len(self.ran) == 1 else 0)
 
         self.patch(mock.patch.object(
-            self.mod.subprocess, "run", side_effect=fail_once))
+            self.mod.subprocess, "Popen", side_effect=fail_once))
 
         self.mod.work(root)
 
@@ -884,10 +892,10 @@ class TheWorkerJudgesItsRoot(Base):
                     self.ran.append((arguments, keywords))
                     change(root)
                     self.mod.request(root)
-                    return _Completed(0)
+                    return _Child(0)
 
                 self.patch(mock.patch.object(
-                    self.mod.subprocess, "run", side_effect=update_and_change))
+                    self.mod.subprocess, "Popen", side_effect=update_and_change))
                 self.mod.request(root)
                 self.mod.work(root)
 
@@ -979,7 +987,7 @@ def note(what):
         print(me, what, file=out)
 
 
-def held_refresh(_root):
+def held_refresh(_root, _handle=None):
     note("in")
     if me == "{holder}":
         deadline = time.time() + 30
@@ -992,6 +1000,133 @@ def held_refresh(_root):
 mod.refresh = held_refresh
 sys.exit(mod.work(root))
 """
+
+
+class TheIndexerAKilledWorkerLeftBehind(Base):
+    """The lock is the worker's, and ends with it, but the indexer it started
+    is a process of its own: a worker killed mid-run leaves one still writing
+    the cache, and the next edit would start a second beside it. So the lock
+    file records the indexer's pid, and a worker that takes the lock and finds
+    that process running leaves the tree to it."""
+
+    def child(self):
+        """A process that runs until it is told not to, stopped by cleanup."""
+        child = self.start_process(
+            [sys.executable, "-c", "import sys; sys.stdin.read()"], stdin=subprocess.PIPE)
+
+        def stop():
+            # Kill before waiting: a failing assertion must not leave the
+            # suite waiting on a child nothing has told to stop.
+            child.kill()
+            child.wait(timeout=30)
+            child.stdin.close()
+
+        self.addCleanup(stop)
+        return child, stop
+
+    def record(self, root, text):
+        """What a worker killed mid-update left in the lock file."""
+        path = self.mod.lock_path(root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="ascii")
+
+    def test_an_indexer_left_running_by_a_killed_worker_keeps_the_tree(self):
+        root = self.checkout("main")
+        child, stop = self.child()
+        self.record(root, str(child.pid))
+        self.mod.request(root)
+
+        with mock.patch.object(self.mod, "refresh") as refresh:
+            self.mod.work(root)
+        refresh.assert_not_called()
+        self.assertTrue(self.mod.pending_path(root).exists())
+
+        stop()
+        with mock.patch.object(self.mod, "refresh") as refresh:
+            self.mod.work(root)
+        refresh.assert_called_once()
+
+    def test_a_record_naming_nothing_alive_keeps_nothing(self):
+        root = self.checkout("main")
+        gone = self.start_process([sys.executable, "-c", "pass"])
+        gone.wait(timeout=60)
+        for text in ("", "not a pid", str(gone.pid)):
+            with self.subTest(record=text):
+                self.record(root, text)
+                self.mod.request(root)
+                with mock.patch.object(self.mod, "refresh") as refresh:
+                    self.mod.work(root)
+                refresh.assert_called_once()
+
+    def test_a_running_process_is_alive_and_a_finished_one_is_not(self):
+        child, stop = self.child()
+        self.assertTrue(self.mod.alive(child.pid))
+        self.assertTrue(self.mod.alive(os.getpid()))
+        stop()
+        self.assertFalse(self.mod.alive(child.pid))
+        self.assertFalse(self.mod.alive(0))
+
+    def test_the_worker_claims_the_record_before_the_child_exists(self):
+        """A worker killed between starting the indexer and writing its pid
+        would leave one nobody could name, so its own pid holds the record
+        until the indexer's is known, and the record is empty once it ends."""
+        root = self.checkout("main")
+        notes = []
+        child = mock.Mock(pid=4242)
+        child.wait.return_value = 0
+        handle = self.hold(root)
+        self.patch(mock.patch.object(
+            self.mod, "note", side_effect=lambda _handle, text: notes.append(text)))
+        self.patch(mock.patch.object(self.mod, "console_script", lambda _root: None))
+        self.patch(mock.patch.object(self.mod.subprocess, "Popen", return_value=child))
+
+        self.assertTrue(self.mod.refresh(root, handle))
+
+        self.assertEqual([str(os.getpid()), "4242", ""], notes)
+
+    def test_a_timed_out_child_is_killed_and_reaped_before_the_record_is_cleared(self):
+        """`kill` only asks: a record cleared while the process is still
+        exiting lets the next update start beside it."""
+        root = self.checkout("main")
+        order = []
+        child = mock.Mock(pid=4242)
+        waits = []
+
+        def wait(timeout=None):
+            waits.append(timeout)
+            if len(waits) == 1:
+                raise subprocess.TimeoutExpired("codebase-index", timeout)
+            order.append("reaped")
+            return 0
+
+        child.wait.side_effect = wait
+        child.kill.side_effect = lambda: order.append("killed")
+        handle = self.hold(root)
+        self.patch(mock.patch.object(
+            self.mod, "note", side_effect=lambda _handle, text: order.append(f"note {text!r}")))
+        self.patch(mock.patch.object(self.mod, "console_script", lambda _root: None))
+        self.patch(mock.patch.object(self.mod.subprocess, "Popen", return_value=child))
+
+        self.assertFalse(self.mod.refresh(root, handle))
+
+        self.assertEqual(["killed", "reaped"], order[order.index("killed"):][:2])
+        self.assertEqual("note ''", order[-1])
+
+    def test_a_child_that_outlives_the_kill_stays_on_the_record(self):
+        root = self.checkout("main")
+        notes = []
+        child = mock.Mock(pid=4242)
+        child.wait.side_effect = subprocess.TimeoutExpired("codebase-index", 1)
+        handle = self.hold(root)
+        self.patch(mock.patch.object(
+            self.mod, "note", side_effect=lambda _handle, text: notes.append(text)))
+        self.patch(mock.patch.object(self.mod, "console_script", lambda _root: None))
+        self.patch(mock.patch.object(self.mod.subprocess, "Popen", return_value=child))
+
+        self.assertFalse(self.mod.refresh(root, handle))
+
+        child.kill.assert_called_once()
+        self.assertEqual([str(os.getpid()), "4242"], notes)
 
 
 class Refreshing(Base):
@@ -1048,10 +1183,10 @@ class Refreshing(Base):
             if command[0] == script:
                 raise OSError("no such executable")
             self.ran.append(((command,), keywords))
-            return _Completed(0)
+            return _Child(0)
 
         self.patch(mock.patch.object(
-            self.mod.subprocess, "run", side_effect=absent_script))
+            self.mod.subprocess, "Popen", side_effect=absent_script))
 
         self.mod.refresh(self.checkout("main"))
 
@@ -1063,7 +1198,7 @@ class Refreshing(Base):
     def test_neither_form_running_is_silent(self):
         """An index that cannot refresh is not a reason to fail the edit."""
         self.patch(mock.patch.object(
-            self.mod.subprocess, "run", side_effect=OSError("nothing runnable")))
+            self.mod.subprocess, "Popen", side_effect=OSError("nothing runnable")))
 
         self.assertFalse(self.mod.refresh(self.checkout("main")))
         self.assertEqual([], self.ran)
@@ -1153,15 +1288,12 @@ class NothingIsFoundInTheWorkingDirectory(Base):
         self.mod.os.environ.pop(NO_CWD_SEARCH, None)
         self.patch(mock.patch.object(self.mod, "console_script", lambda _root: None))
 
-        def really(command, timeout=None, check=False, **keywords):
-            return _Completed(self.start_process(command, **keywords).wait(timeout=timeout))
-
-        self.patch(mock.patch.object(self.mod.subprocess, "run", really))
+        self.patch(mock.patch.object(self.mod.subprocess, "Popen", self.start_process))
         answer = root / "answer.txt"
 
         # The control: without the variable the plant is what Windows finds.
-        really([sys.executable, "-P", "-m", "codebase_index"], timeout=60, cwd=str(root),
-               env=dict(self.mod.os.environ))
+        self.start_process([sys.executable, "-P", "-m", "codebase_index"], cwd=str(root),
+                           env=dict(self.mod.os.environ)).wait(timeout=60)
         self.assertIn("planted", answer.read_text(encoding="utf-8"), "no plant to refuse")
         answer.unlink()
 
