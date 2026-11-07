@@ -867,6 +867,10 @@ row is therefore a spelling the deny list does not match.
 | Edit the skills | `Edit(.claude/skills/codebase-index/SKILL.md)` | `deny` | `test_destructive_classes.py` |
 | Edit the settings | `Edit(.claude/settings.json)` | `deny` | `test_destructive_classes.py` |
 | Edit the local settings | `Edit(.claude/settings.local.json)` | `deny` | `test_destructive_classes.py` |
+| Edit inside the git directory | `Edit(.git/config)` | `deny` | `test_destructive_classes.py` |
+| Edit the git directory itself | `Edit(.git)` | `deny` | `test_destructive_classes.py` |
+| Edit the MCP server definitions | `Edit(.mcp.json)` | `deny` | `test_destructive_classes.py` |
+| Edit the index's ignore list | `Edit(.codeindexignore)` | `deny` | `test_destructive_classes.py` |
 | Edit a hook through a link | `Edit(linked/hooks/guard-git-argv.py)` | `guard-edit-target` | `test_destructive_classes.py` |
 | Edit the settings through a link | `Edit(linked/claude/settings.json)` | `guard-edit-target` | `test_destructive_classes.py` |
 | Edit the agent notes through a link | `Edit(linked/remember/notes.md)` | `guard-edit-target` | `test_destructive_classes.py` |
