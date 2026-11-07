@@ -92,9 +92,10 @@ be a guess. A plan PR is no exception, and *A plan is reviewed once, for
 contradiction* says what its re-run costs.
 
 **One call to `pr-for-branch.sh`, four outcomes, and it exits 0 for every one
-of them.** Empty means no PR into `main` has ever existed for this branch;
-otherwise the newest row reads `OPEN`, `CLOSED` or `MERGED`, and those are
-precisely the four cases the runbook's resume table distinguishes.
+of them.** Empty means no PR into `main` other than earlier
+incarnations dropped for a reused name; otherwise the newest row reads
+`OPEN`, `CLOSED` or `MERGED`, and those are precisely the four cases the
+runbook's resume table distinguishes.
 
 **`pr-state.sh` cannot be that read, and the reason is an exit
 code rather than a preference.** With no PR for the current branch it exits
@@ -333,10 +334,11 @@ holds nothing the landing lacked, so keeping it is wrong — the safe way: a
 directory somebody removes by hand, named in the report. Admitting it
 takes the landed head's object in this checkout, which a deleted remote
 branch no longer serves, and a second pair of ancestry reads that are only
-sound where the helper returns exactly one row, with a stale merged row
-dropped. This repository's helper returns every row the branch name has
-ever had, so the form taken is the one read, and step 5's fast-forward is
-what keeps the state rare.
+sound where the helper returns exactly one row. This repository's helper
+returns every row of the branch name into `main` but a merged one whose
+merge commit the local branch carries, so it can return several, and the
+form taken is the one read, and step 5's fast-forward is what keeps the state
+rare.
 
 **The row count is why the read says *a* row, not *the* row.** A branch
 name used twice has two `MERGED` rows, and equality against either head is
