@@ -4,6 +4,7 @@ The shared harness and the reason it shells out rather than
 re-implementing are `review_helpers.py`'s.
 """
 
+import importlib.util
 import os
 import re
 import shutil
@@ -22,6 +23,7 @@ from review_helpers import (
 
 
 REMOVE = SCRIPTS / "git-worktree-remove.sh"
+HOOK = SCRIPTS.parent / "hooks" / "refresh-index.py"
 SHIP = SCRIPTS.parent / "commands" / "ship.md"
 
 # A checkout with origin/main and one /branch worktree at .claude/worktrees/probe
@@ -51,13 +53,15 @@ long -C "$C" worktree add -q --no-track -b feat/deep .claude/worktrees/deep orig
 
 # A refresh-index.py worker in miniature: it starts after a delay, takes the
 # lock and the outstanding request, says so through a marker file, and lets go
-# after the given number of seconds.
+# after the given number of seconds. The two paths are the hook's own.
 HOLDER = """
 import os, sys, time
-cache, delay, seconds, ready = sys.argv[1], float(sys.argv[2]), float(sys.argv[3]), sys.argv[4]
-put_back, give_up = "put-back" in sys.argv[5:], "give-up" in sys.argv[5:]
+lock, pending = sys.argv[1], sys.argv[2]
+delay, seconds, ready = float(sys.argv[3]), float(sys.argv[4]), sys.argv[5]
+put_back, give_up = "put-back" in sys.argv[6:], "give-up" in sys.argv[6:]
 time.sleep(delay)
-handle = open(os.path.join(cache, "refresh.lock"), "a+b")
+os.makedirs(os.path.dirname(lock), exist_ok=True)
+handle = open(lock, "a+b")
 if sys.platform == "win32":
     import msvcrt
     def grab():
@@ -79,13 +83,13 @@ for _ in range(1 if give_up else 100):
 else:
     sys.exit(0 if give_up else "the lock never came free")
 try:
-    os.remove(os.path.join(cache, "refresh.pending"))
+    os.remove(pending)
 except FileNotFoundError:
     pass
 open(ready, "w").close()
 time.sleep(seconds)
 if put_back:
-    open(os.path.join(cache, "refresh.pending"), "w").close()
+    open(pending, "w").close()
 """
 
 
@@ -116,18 +120,26 @@ class RemoveShape(unittest.TestCase):
         listed = run_bash('git -C "$C" worktree list --porcelain', C=f"{root}/checkout")
         return "feat/probe" in listed.stdout
 
-    def cache(self, native):
-        cache = native / "checkout" / ".claude" / "worktrees" / "probe" / ".claude" / "cache" / "codebase-index"
-        cache.mkdir(parents=True, exist_ok=True)
-        return cache
+    def state(self, native):
+        """The lock and the marker the hook keeps for the probe worktree, as
+        the hook itself names them: the helper has to look where it does."""
+        spec = importlib.util.spec_from_file_location("refresh_index", HOOK)
+        hook = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(hook)
+        hook.home = lambda: native / "checkout"
+        probe = native / "checkout" / ".claude" / "worktrees" / "probe"
+        return hook.lock_path(probe), hook.pending_path(probe)
 
     def request(self, native):
         """What the hook leaves before it starts a worker."""
-        (self.cache(native) / "refresh.pending").write_text("", encoding="utf-8")
+        pending = self.state(native)[1]
+        pending.parent.mkdir(parents=True, exist_ok=True)
+        pending.write_text("", encoding="utf-8")
 
     def hold(self, native, seconds, delay=0.0, wait=True, put_back=False, give_up=False, ready="ready"):
         ready = native / ready
-        holder = subprocess.Popen([sys.executable, "-c", HOLDER, str(self.cache(native)), str(delay),
+        lock, pending = self.state(native)
+        holder = subprocess.Popen([sys.executable, "-c", HOLDER, str(lock), str(pending), str(delay),
                                    str(seconds), str(ready), *(["put-back"] if put_back else []),
                                    *(["give-up"] if give_up else [])])
         self.addCleanup(holder.wait)

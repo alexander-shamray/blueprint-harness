@@ -90,8 +90,12 @@ class Base(unittest.TestCase):
         self.mod = _load()
         self.spawned = []
         self.ran = []
+        self.owner = None
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        # The checkout the hook file sits in: the first one a case makes.
+        self.patch(mock.patch.object(
+            self.mod, "home", side_effect=lambda: self.owner or self.tmp / "no-owner"))
         # Kept before the patch below, because the hook's `subprocess` is the
         # interpreter's own: a test that needs to start a real process has to
         # hold the real function rather than the stand-in.
@@ -119,7 +123,31 @@ class Base(unittest.TestCase):
         (root / ".git").mkdir(parents=True)
         if indexed:
             (root / CACHE).mkdir(parents=True)
+        self.owner = self.owner or root
         return root
+
+    def linked(self, main, name="probe"):
+        git_dir = main / ".git" / "worktrees" / name
+        git_dir.mkdir(parents=True)
+        (git_dir / "commondir").write_text("../..\n", encoding="utf-8")
+        root = main / ".claude" / "worktrees" / name
+        root.mkdir(parents=True)
+        (root / ".git").write_text(f"gitdir: {git_dir}\n", encoding="utf-8")
+        return root
+
+    def link_dir(self, link, destination):
+        """A directory link, by whichever primitive this platform grants."""
+        try:
+            os.symlink(destination, link, target_is_directory=True)
+        except (OSError, NotImplementedError) as refused:
+            if sys.platform != "win32":
+                self.skipTest(f"no symbolic link here: {refused}")
+            # The real `Popen`, which `setUp` replaces.
+            junction = self.start_process(
+                ["cmd", "/c", "mklink", "/J", str(link), str(destination)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if junction.wait(timeout=30) != 0:
+                self.skipTest("no directory link here")
 
     def run_hook(self, body, project_dir=None):
         self.patch(mock.patch.dict(self.mod.os.environ, {}, clear=False))
@@ -140,7 +168,9 @@ class Base(unittest.TestCase):
 
     def hold(self, root):
         """Hold the lock the way a worker does, for as long as the test runs."""
-        handle = open(root / self.mod.LOCK, "a+b")
+        path = self.mod.lock_path(root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        handle = open(path, "a+b")
         self.addCleanup(handle.close)
         self.assertTrue(self.mod.grab(handle), "the lock was already held")
         return handle
@@ -288,15 +318,6 @@ class SeedingAWorktree(Base):
             self.database(root / CACHE / "index.sqlite", "main")
         return root
 
-    def linked(self, main, name="probe"):
-        git_dir = main / ".git" / "worktrees" / name
-        git_dir.mkdir(parents=True)
-        (git_dir / "commondir").write_text("../..\n", encoding="utf-8")
-        root = main / ".claude" / "worktrees" / name
-        root.mkdir(parents=True)
-        (root / ".git").write_text(f"gitdir: {git_dir}\n", encoding="utf-8")
-        return root
-
     @staticmethod
     def database(path, marker):
         with sqlite3.connect(str(path)) as connection:
@@ -335,7 +356,7 @@ class SeedingAWorktree(Base):
         self.mod.work(worktree)
 
         names = {path.name for path in (worktree / CACHE).iterdir()}
-        self.assertEqual({"index.sqlite", "refresh.lock"}, names)
+        self.assertEqual({"index.sqlite"}, names)
 
     def test_a_wal_left_by_an_earlier_seed_is_not_replayed(self):
         main = self.main()
@@ -500,7 +521,7 @@ class OneRefreshAtATime(Base):
         self.mod.work(root)
 
         self.assertEqual(1, len(self.ran))
-        self.assertFalse((root / self.mod.PENDING).exists())
+        self.assertFalse(self.mod.pending_path(root).exists())
 
     def test_a_failed_update_keeps_its_request(self):
         """A request marked served by an update that failed is an edit that
@@ -514,7 +535,7 @@ class OneRefreshAtATime(Base):
         self.assertEqual(0, self.mod.work(root))
 
         self.assertEqual(self.mod.REFRESH_ATTEMPTS, len(self.ran))
-        self.assertTrue((root / self.mod.PENDING).exists())
+        self.assertTrue(self.mod.pending_path(root).exists())
 
     def test_a_retry_that_works_serves_the_request(self):
         """Contention is transient, which is the whole reason to try again."""
@@ -532,7 +553,7 @@ class OneRefreshAtATime(Base):
         self.mod.work(root)
 
         self.assertEqual(2, len(self.ran))
-        self.assertFalse((root / self.mod.PENDING).exists())
+        self.assertFalse(self.mod.pending_path(root).exists())
 
     def test_the_attempts_are_spaced_and_the_last_is_not_followed(self):
         """An update that answered a contended index answers the same one if
@@ -558,7 +579,7 @@ class OneRefreshAtATime(Base):
         self.assertEqual(0, self.mod.work(root))
 
         self.assertEqual([], self.ran)
-        self.assertTrue((root / self.mod.PENDING).exists())
+        self.assertTrue(self.mod.pending_path(root).exists())
 
     def test_a_held_lock_is_reported_busy_and_starts_no_worker(self):
         root = self.checkout("main")
@@ -568,7 +589,7 @@ class OneRefreshAtATime(Base):
 
         self.assertEqual(0, self.run_event({"cwd": str(root)}))
         self.assertEqual([], self.spawned)
-        self.assertTrue((root / self.mod.PENDING).exists())
+        self.assertTrue(self.mod.pending_path(root).exists())
 
     def test_an_unheld_lock_is_not_busy(self):
         root = self.checkout("main")
@@ -588,7 +609,7 @@ class OneRefreshAtATime(Base):
         child = self.tmp / "child.py"
         child.write_text(
             CHILD.format(hook=HOOK, root=root, ledger=ledger, release=release,
-                         holder=HOLDER),
+                         holder=HOLDER, owner=self.owner),
             encoding="utf-8")
 
         def recorded():
@@ -622,7 +643,67 @@ class OneRefreshAtATime(Base):
             depth += 1 if line.endswith(" in") else -1
             self.assertLessEqual(depth, 1, lines)
         self.assertEqual(2, sum(1 for line in lines if line.endswith(" in")), lines)
-        self.assertFalse((root / self.mod.PENDING).exists(), lines)
+        self.assertFalse(self.mod.pending_path(root).exists(), lines)
+
+
+class StateOutOfReach(Base):
+    """The lock and the marker are the hook's own writes, so they live where
+    no branch can aim them: a tracked link under the checkout's cache is
+    followed by `open`, and the write lands wherever it points."""
+
+    def aimed(self):
+        elsewhere = self.tmp / "aimed-at"
+        elsewhere.mkdir()
+        return elsewhere
+
+    def test_a_linked_cache_receives_none_of_the_hooks_state(self):
+        root = self.checkout("main", indexed=False)
+        elsewhere = self.aimed()
+        (elsewhere / "codebase-index").mkdir()
+        (root / ".claude").mkdir()
+        self.link_dir(root / ".claude" / "cache", elsewhere)
+
+        self.run_event({"cwd": str(root)})
+        self.mod.request(root)
+        self.mod.busy(root)
+
+        self.assertEqual([], os.listdir(elsewhere / "codebase-index"))
+
+    def test_the_state_is_in_the_git_directory_under_a_name_for_the_root(self):
+        main = self.checkout("main")
+        worktree = self.linked(main)
+
+        for root in (main, worktree):
+            self.mod.request(root)
+        pending = [self.mod.pending_path(root) for root in (main, worktree)]
+
+        for path in pending:
+            self.assertEqual(main / ".git" / "index-refresh", path.parent)
+            self.assertTrue(path.is_file(), path)
+        self.assertNotEqual(*pending)
+        self.assertEqual(
+            self.mod.pending_path(worktree),
+            self.mod.pending_path(Path(str(worktree) + os.sep)))
+
+    def test_a_link_at_the_state_directory_refreshes_nothing(self):
+        root = self.checkout("main")
+        elsewhere = self.aimed()
+        self.link_dir(root / ".git" / "index-refresh", elsewhere)
+
+        self.assertIsNone(self.mod.lock_path(root))
+        self.assertEqual(0, self.run_event({"cwd": str(root)}))
+        self.mod.request(root)
+
+        self.assertEqual([], self.spawned)
+        self.assertEqual([], os.listdir(elsewhere))
+
+    def test_no_git_directory_is_no_state(self):
+        root = self.tmp / "loose"
+        root.mkdir()
+        self.owner = root
+
+        self.assertIsNone(self.mod.lock_path(root))
+        self.assertFalse(self.mod.busy(root))
 
 
 HOLDER = "w0"
@@ -637,6 +718,7 @@ import importlib.util, pathlib, sys, time
 spec = importlib.util.spec_from_file_location("refresh_index", r"{hook}")
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
+mod.home = lambda: pathlib.Path(r"{owner}")
 
 root = pathlib.Path(r"{root}")
 ledger = pathlib.Path(r"{ledger}")
