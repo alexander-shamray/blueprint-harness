@@ -83,12 +83,13 @@ To run the comment gate over a branch, which it reads as committed:
 py -3.12 .github/comment-gate/comment_gate.py --base origin/main --head HEAD
 ```
 
-The payload's suites run in a scratch clone that starts with this
-repository's own rendered root and has backend's config applied over it; the
+The payload's suites run in a tree that starts with this repository's own
+rendered root and has backend's config applied over it; the
 `payload-suites` job in `.github/workflows/ci.yml` is the reference, gate
-suites included. Its first steps, locally (Git Bash; `bash`, `grep`, `git`
-and `jq` on PATH). A clone rather than a worktree, because the settings deny
-`git worktree remove`, whose `-f` discards work:
+suites included, and applies the payload to a worktree of the commit. Its
+first steps, locally (Git Bash; `bash`, `grep`, `git` and `jq` on PATH), take
+a scratch clone instead, because the settings deny `git worktree remove`,
+whose `-f` discards work, and a clone needs none to clear away:
 
 ```bash
 rm -rf ../rendered
