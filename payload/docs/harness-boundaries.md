@@ -1322,7 +1322,14 @@ class cell is one letter A–E, two distinct letters joined by `+`, or
 `A+D+E`; a touch-set cell is a comma-separated list of path tokens, bare or
 in balanced backticks, of path and glob characters, each carrying a `/` or a
 `.` and each repository-relative — no leading `/`, no `./`, no `..`, brace
-alternatives included. A row that fails its grammar exits 3 naming the row
+alternatives included. A token may hold `@` and `+` as a changed path may,
+the `+` read as a character and not as a quantifier, in the class map's items
+as in a row; an empty brace alternative is refused, because GNU and BSD `grep`
+read an empty alternative differently and one set would judge a path `inside`
+on one machine and `outside` on another. The verdicts come from one `grep`
+per pattern over every changed path, and a path is checked by `case`, so no
+process is spawned per path: on Windows a spawn per path and pattern made
+the helper look hung. A row that fails its grammar exits 3 naming the row
 and not its content, and so does a class map that is absent, names a class
 twice, leaves one without items, or holds a line or a token outside its
 grammar: the gate refuses that map, so a verdict half-read from it is an
