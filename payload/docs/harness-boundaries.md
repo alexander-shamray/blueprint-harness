@@ -208,14 +208,16 @@ component of `.claude/cache/codebase-index/`, and `open` follows a link there
 and truncates what it finds, so a state kept in the tree would be written
 wherever the branch aimed it. Git tracks nothing under its own directory. The
 directory is the one the hook file's own checkout reports, never the target's,
-and where it, or the path into it, is a link there is no state and so no
-refresh. `git-worktree-remove.sh` computes the same name from the worktree it
-removes, and `test_git_worktree_remove.py` takes the hook's own for the lock
-it holds, so a name that drifts in either fails there. It takes the name
-while the path still stats and deletes the pair once the removal succeeded,
-because the inode a later worktree is given would inherit the file and the pid
-in it; a file that will not go does not change the helper's exit, and a
-worktree that never had a pair is not given one.
+and where it, or the state directory in it, is itself a link there is no
+state and so no refresh. Only those two names are looked at, so a link higher
+up the path to the git directory is not seen. `git-worktree-remove.sh`
+computes the same name from the worktree it removes, and
+`test_git_worktree_remove.py` takes the hook's own for the lock it holds, so a
+name that drifts in either fails there. It takes the name while the path still
+stats and deletes the pair once the removal succeeded, because the inode a
+later worktree is given would inherit the file and the pid in it; a file that
+will not go does not change the helper's exit, and a worktree that never had a
+pair is not given one.
 
 **The hook refreshes a checkout of its own repository that holds an index,
 and nothing else.** The repository is the one the hook file's own checkout
