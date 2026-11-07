@@ -1815,6 +1815,30 @@ stale as those change, and the PR that lifts a deny to edit a helper is not
 refused by the guard on its way past. A test pins that control: a denied tree
 spelled as itself is **admitted** here.
 
+**Two things a path deny cannot reach are judged here all the same, and
+neither takes a copy of a list.** Every rule anchors at the session's
+permission root, so a linked worktree of this repository that the session has
+not entered is reached by none of them: its `.claude/scripts/x` and its `.git`
+are judged by this target's own `Edit(...)` denies, read from
+`.claude/settings.json` through `guard-git-argv.py`'s `denied_path`, anchored at
+that worktree's root and folded for case, and a link inside it is judged as in
+any checkout. `.github` there is refused only where a target denies it, and
+the worktree the session stands in is the project, not this rule. A worktree is
+one only if git's backlink agrees, so a `.git` file alone makes none, and a
+checkout of another repository is not one, because this target's denies say
+nothing about what it protects.
+
+**Outside every checkout the guard refuses by name and admits the rest.**
+`~/.ssh`, the shell profiles and `~/.gitconfig` run at login under every
+session, and `~/.claude`'s credentials, settings, hooks, commands, agents,
+plugins, scripts, skills and sandbox apply to every project, judged on the
+first component only, so a name below `projects` is a session's own state. An
+allow-list of roots is the stronger form and it was measured against what
+sessions write: it refuses sibling checkouts, `run-locally.md` and the task
+list, a false refusal under *The guards' threat model*. `~/.claude/CLAUDE.md`
+stays writable because it is the owner's rules rather than a grant, and a
+change to `~/.claude/settings.json` is the owner's to run from a script.
+
 ## Edit guard path resolution
 
 **Two properties of the resolution are load-bearing and were each found by
@@ -1971,12 +1995,11 @@ normalising.
 
 **Its residual is the half the harness itself needs, stated rather than
 rounded up.** The subject is a target spelled *inside* a checkout the session
-is standing in; a path spelled entirely outside one is not judged, because
-the session's memory and scratch state are written that way by absolute path
-and refusing them would take both with it. Nothing in the exposure this
-closes can spell one, so what is owed is a rule about
-which out-of-tree paths are legitimate, which is a different argument from
-this one. The residual is a passing test, not a paragraph alone.
+is standing in; a path spelled entirely outside one is judged only for the
+home directory's named files (*The edit-target guard*), because the session's
+memory and scratch state are written that way by absolute path and an
+allow-list would take both with it. The residual is a passing test, not a
+paragraph alone.
 **The sweeps' item 5 (#75) closed by the same shape** — a second read-only
 dispatch returns a verdict, the parent opens nothing in `$work`, and
 `gh-issue-create.sh` leaves `gh issue create` with no free parameter — so

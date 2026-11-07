@@ -2,8 +2,11 @@
 """Judge an edit target by the file it resolves to, not by the path it spells.
 
 A link inside an allowed tree is a write no path deny sees, so a target that is not the file its path spells is refused;
-the argument is `docs/harness-boundaries.md`'s (*Edit guard path resolution*)."""
+the argument is `docs/harness-boundaries.md`'s (*Edit guard path resolution*). No permission rule reaches outside the
+project, so a worktree the session has not entered is judged by the target's denies, and the home directory's keys,
+profiles and control files are refused by name (*The edit-target guard*)."""
 
+import importlib.util
 import json
 import os
 import sys
@@ -20,6 +23,24 @@ EDITING_TOOLS = ("Edit", "Write", "NotebookEdit", "MultiEdit")
 # carrying neither is refused rather than waved through — a write whose target
 # this file cannot see is one it has established nothing about.
 PATH_KEYS = ("file_path", "notebook_path")
+
+# Named rather than bounded by an allow-list, which would refuse sibling
+# checkouts and the task list. `CLAUDE.md` and `AGENTS.md` stay out of the
+# control set: they are the owner's rules, not a grant.
+HOME_TREES = frozenset({".ssh"})
+HOME_FILES = frozenset({
+    ".bash_login", ".bash_logout", ".bash_profile", ".bashrc", ".gitconfig",
+    ".profile", ".zlogin", ".zprofile", ".zshenv", ".zshrc",
+})
+CONTROL_DIRECTORIES = frozenset({
+    "agents", "commands", "hooks", "plugins", "sandbox", "scripts", "skills",
+})
+CONTROL_FILES = frozenset({
+    ".credentials.json", "settings.json", "settings.local.json",
+})
+
+GIT_GUARD = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "guard-git-argv.py")
 
 # Windows names the same file in more than one alphabet, and a permission rule
 # reads only one of them. Every spelling beginning `\\` is the other: the
@@ -160,6 +181,108 @@ def checkout_root(path):
         current = parent
 
 
+def verified_gitdir(root):
+    """The admin directory `root`'s `.git` file names, once git's backlink agrees.
+
+    `None` for a main checkout, whose `.git` is a directory, and for a `.git`
+    file the admin directory does not point back at.
+    """
+    marker = os.path.join(root, ".git")
+    if not os.path.isfile(marker):
+        return None
+    try:
+        with open(marker, encoding="utf-8") as handle:
+            text = handle.read().strip()
+        if not text.startswith("gitdir:"):
+            return None
+        gitdir = os.path.realpath(text.split(":", 1)[1].strip())
+        with open(os.path.join(gitdir, "gitdir"), encoding="utf-8") as handle:
+            backlink = handle.read().strip()
+    except (OSError, ValueError):
+        return None
+    if os.path.normcase(os.path.realpath(backlink)) != os.path.normcase(
+            os.path.realpath(marker)):
+        return None
+    return gitdir
+
+
+def linked_worktree(path, checkouts):
+    """`path`'s checkout root, when it is a linked worktree of an anchor's repo.
+
+    Read from the `.git` file rather than by running git, which a hook on every
+    write cannot afford. A checkout of another repository is not one: this
+    target's denies say nothing about what that repository protects.
+    """
+    root = checkout_root(path)
+    if root is None:
+        return None
+    gitdir = verified_gitdir(root)
+    if gitdir is None:
+        return None
+    for spelled_root, real_root, traits in checkouts:
+        for base in (spelled_root, real_root):
+            if under(gitdir, os.path.join(base, ".git"), traits):
+                return root
+    return None
+
+
+def protected_in_worktree(path, root):
+    """Which `Edit(...)` deny of this target holds `path` beneath `root`, or `None`.
+
+    Asked of `guard-git-argv.py`, which owns reading them. A deny list that
+    cannot be read names itself, so the write is refused rather than admitted.
+    """
+    try:
+        relative = os.path.relpath(path, root)
+    except ValueError:
+        return None
+    try:
+        spec = importlib.util.spec_from_file_location("guard_git_argv", GIT_GUARD)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.denied_path(relative)
+    except (OSError, ValueError, TypeError, AttributeError):
+        return "this target's deny list, which cannot be read"
+
+
+def home_offence(spelled, lexical, resolved):
+    """The reason to refuse a target outside every checkout, or `None`.
+
+    Both the spelling and the resolution are judged, so a link into `~/.ssh` is
+    held. Only the first component under `~/.claude` is control: a name below
+    `projects` is a session's own state.
+    """
+    home = os.path.abspath(os.path.expanduser("~"))
+    traits = traits_of(home)
+
+    def named(name):
+        return name.lower() if traits[0] else name
+
+    for path in (lexical, resolved):
+        for root in (home, os.path.realpath(home)):
+            if not under(path, root, traits) or same(path, root, traits):
+                continue
+            parts = os.path.relpath(path, root).replace("\\", "/").split("/")
+            if named(parts[0]) in HOME_TREES or (
+                    len(parts) == 1 and named(parts[0]) in HOME_FILES):
+                return (
+                    f"guard-edit-target: {spelled} resolves to {resolved}, "
+                    "which is outside every checkout and is a key, a shell "
+                    "profile or git's own configuration: what runs at login, "
+                    "under every session (docs/harness-boundaries.md)."
+                )
+            if named(parts[0]) == ".claude" and len(parts) > 1 and (
+                    named(parts[1]) in CONTROL_DIRECTORIES
+                    or (len(parts) == 2 and named(parts[1]) in CONTROL_FILES)):
+                return (
+                    f"guard-edit-target: {spelled} resolves to {resolved}, "
+                    f"inside the harness's own control surface: `{parts[1]}` "
+                    "applies to every project, and a change to it is the "
+                    "owner's to run (docs/harness-boundaries.md)."
+                )
+    return None
+
+
 def anchors(event):
     """The checkouts this guard is standing in: spelling, resolution, traits.
 
@@ -256,6 +379,23 @@ def offence(event):
     lexical = os.path.normpath(os.path.abspath(joined))
     resolved = os.path.realpath(joined)
 
+    # A worktree the session has not entered is reached by no permission rule,
+    # so the target's denies judge it, and it becomes an anchor so that a link
+    # inside it is judged. The one the session stands in is the project.
+    sibling = linked_worktree(lexical, checkouts)
+    if sibling is not None and not any(
+            same(sibling, root, traits) for root, _, traits in checkouts):
+        machinery = protected_in_worktree(lexical, sibling)
+        if machinery is not None:
+            return (
+                f"guard-edit-target: {spelled} is held by {machinery} in a "
+                "linked worktree this session is not standing in, where none "
+                "of its permission rules apply. Move into the worktree to "
+                "edit it (docs/harness-boundaries.md)."
+            )
+        checkouts = checkouts + [
+            (sibling, os.path.realpath(sibling), traits_of(sibling))]
+
     # Every anchor containing the target must agree, so an extra anchor cannot
     # excuse what another refuses — the property `anchors` rests its trust in
     # `CLAUDE_PROJECT_DIR` on.
@@ -312,8 +452,8 @@ def offence(event):
     # inside a checkout under a name the anchors do not match, such as an 8.3
     # alias of the whole prefix. Whatever the spelling, if it resolves into a
     # checkout that did not recognise it, the matcher judged a string that is
-    # not this file. A target resolving outside every anchor still falls
-    # through, which keeps the session's own memory and scratch writes working.
+    # not this file. A target resolving outside every anchor is asked only for
+    # what `home_offence` names, which keeps memory and scratch writes working.
     if not judged:
         for _, real_root, traits in checkouts:
             if under(resolved, real_root, traits):
@@ -324,10 +464,9 @@ def offence(event):
                     "given, so a name the rules cannot place is a write "
                     "nothing has judged (#181, docs/harness-boundaries.md)."
                 )
+        return home_offence(spelled, lexical, resolved)
 
-    # Reached when every anchor containing the target agreed, or when the
-    # target is outside every one of them — the residual the module docstring
-    # states.
+    # Reached when every anchor containing the target agreed.
     return None
 
 
