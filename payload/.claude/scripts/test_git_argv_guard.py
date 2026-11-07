@@ -3606,7 +3606,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
 
     def test_a_scratch_checkout_the_session_is_not_in_is_not_this_targets(self):
         # Mutation proofs copy into one and `sed -i` there, and no deny of this
-        # target is about it: eight commands in the replay did.
+        # target is about it: 6 commands, 7 uses, in the replay did.
         scratch = temp_root(self)
         os.makedirs(os.path.join(scratch, ".git"))
         place = Path(scratch, ".claude", "scripts").as_posix()
