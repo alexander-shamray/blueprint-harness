@@ -244,7 +244,11 @@ a full `index` inside the agent's turn: 230 s here, where copying the main
 checkout's `index.sqlite` took 0.4 s and the `update` after it 5 s. The
 worker seeds under the refresh lock before it updates, through SQLite's
 backup rather than a file copy, because the main checkout's index may be
-mid-`update` and a copied file can tear. Only `index.sqlite` crosses — the
+mid-`update` and a copied file can tear. The copy is made beside the index
+under a name for the worker's process and renamed in only once its header
+says WAL, the mode the package's readers need, and the next seed, which holds
+the same lock, removes the partial and the files SQLite opened beside it that
+a killed worker left. Only `index.sqlite` crosses — the
 main checkout's memory and configuration are its own state — and only from a
 regular file at the main checkout's own index path. The worktree is told
 from the files git writes, a `gitdir:` pointer whose `commondir` leads to a
