@@ -1688,8 +1688,8 @@ class TheDetachedWorkerReallyRuns(unittest.TestCase):
         self.assertFalse(self.hook.pending_path(self.worktree).exists())
 
 
-class RestoresWhatItPatched(unittest.TestCase):
-    """The canary, and it sorts after the suites above on purpose.
+class WhatWasPatchedIsRestored(unittest.TestCase):
+    """The canary, and its name sorts after every suite on purpose.
 
     A leaked patch is invisible to the file that leaks it and fatal to every
     file loaded after it, so the suite that notices has to run later.
