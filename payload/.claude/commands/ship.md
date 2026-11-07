@@ -114,9 +114,9 @@ bash .claude/scripts/pr-for-branch.sh <branch>
 ```
 
 It exits 0 for all four outcomes: empty means no PR into `main` has ever
-existed for this branch; otherwise the newest row reads `OPEN`, `CLOSED` or `MERGED`. Never
-use `pr-state.sh` for this read: it exits non-zero with no PR. (why:
-docs/commands/ship.md, *Resume, don't restart*)
+existed for this branch; otherwise the newest row reads `OPEN`, `CLOSED` or
+`MERGED`. Never use `pr-state.sh` for this read: it exits non-zero with no PR.
+(why: docs/commands/ship.md, *Resume, don't restart*)
 
 ## A plan is reviewed once, for contradiction
 
