@@ -30,9 +30,9 @@ INDEX = CACHE / "index.sqlite"
 
 # The operating system holds it, on an open descriptor, and releases it when
 # the worker exits however it exits, so the lock itself needs no staleness
-# rule and no takeover. The pid recorded in the file is data, and has one: an
-# update is killed within REFRESH_TIMEOUT plus REAP_TIMEOUT, so an older
-# record names a pid something else now holds.
+# rule and no takeover. The pid recorded in the file is data, and has one: a
+# record older than REFRESH_TIMEOUT plus REAP_TIMEOUT names nothing, so a
+# reused pid holds workers off that long at most, and an orphan no longer.
 
 # The marker beside the lock is how an edit arriving mid-run reaches the
 # worker running. Both live in the git directory, one pair per checkout: no
@@ -553,11 +553,13 @@ def refresh(root: Path, handle=None) -> bool:
                 child.kill()
             except OSError:
                 pass
-        # Reaped before the record is cleared, and left on it if the child
-        # outlives the wait: the next worker stands off until it is gone.
+        # Reaped before the record is cleared. A child that outlives the wait
+        # stays on it, written again so its age runs from now, and the next
+        # worker stands off while that lasts.
         try:
             child.wait(timeout=REAP_TIMEOUT)
         except (OSError, subprocess.SubprocessError):
+            note(handle, str(child.pid))
             return finished
         note(handle, "")
         return finished

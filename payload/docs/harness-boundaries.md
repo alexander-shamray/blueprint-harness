@@ -244,10 +244,13 @@ code on Windows, where `os.kill` would end the process. Where it cannot be
 told, the process counts as running: one skipped refresh, never two indexers.
 The look is made before every attempt, a retry included, since an attempt
 overwrites the record. The record is read with its age, the file's
-modification time: an update is killed within 630 seconds, `REFRESH_TIMEOUT`
-plus `REAP_TIMEOUT`, so an older record names a pid something else now holds,
-and the worker takes the tree rather than stand off for as long as that
-process lives.
+modification time, so that a pid something else now holds cannot hold workers
+off for ever: past 630 seconds, `REFRESH_TIMEOUT` plus `REAP_TIMEOUT`, a record
+names nothing. A worker that finds its indexer outliving the kill writes the
+record again, so the bound runs from that moment and not from the start of an
+update that has already used it up. The cost is a residual: nothing kills the
+orphan of a killed worker, so once its record is that old a worker may start an
+update beside it.
 
 **The CLI is found on `PATH` alone, and the answer is a full path, so the
 operating system searches nothing.** A `PATH` entry naming a checkout is the
