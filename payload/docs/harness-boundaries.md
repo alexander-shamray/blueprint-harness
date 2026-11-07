@@ -847,10 +847,11 @@ command through its config. It runs the five guards and nothing else.
   `python3` is the Store alias, which is why `py` comes first. One `exec`
   then runs the guard. A `||` chain would run it twice whenever the first
   refused, judging the event a second time. No candidate passing exits 2.
-- **The probe is paid once per host.** The first call that finds the first
-  candidate working leaves an empty directory,
-  `.claude/cache/run-guard.<candidate>`, and a later call that finds it skips
-  the probe. The mark is never opened: a session can make one, so it holds
+- **The probe is paid once per checkout.** The first call that finds the
+  first candidate working leaves an empty directory,
+  `.claude/cache/run-guard.<candidate>`, beside the launcher of the checkout
+  `CLAUDE_PROJECT_DIR` names, and a later call that finds it skips the probe;
+  a session started in a new worktree pays its own first probe. The mark is never opened: a session can make one, so it holds
   nothing that could name a program, and a forged one buys a skipped probe of
   the program the probe would have run. Only the candidate probed first is
   remembered, so a host whose first candidate fails pays the probe every call.
