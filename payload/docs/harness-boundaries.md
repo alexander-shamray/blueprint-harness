@@ -211,7 +211,11 @@ directory is the one the hook file's own checkout reports, never the target's,
 and where it, or the path into it, is a link there is no state and so no
 refresh. `git-worktree-remove.sh` computes the same name from the worktree it
 removes, and `test_git_worktree_remove.py` takes the hook's own for the lock
-it holds, so a name that drifts in either fails there.
+it holds, so a name that drifts in either fails there. It takes the name
+while the path still stats and deletes the pair once the removal succeeded,
+because the inode a later worktree is given would inherit the file and the pid
+in it; a file that will not go does not change the helper's exit, and a
+worktree that never had a pair is not given one.
 
 **The hook refreshes a checkout of its own repository that holds an index,
 and nothing else.** The repository is the one the hook file's own checkout

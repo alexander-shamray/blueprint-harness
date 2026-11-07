@@ -423,6 +423,48 @@ class RemoveShape(unittest.TestCase):
         self.assertTrue(self.present(root))
         self.assertTrue(self.registered(root))
 
+    def test_the_worktrees_lock_and_marker_are_removed_with_it(self):
+        """A directory inode a later worktree is given would inherit a lock
+        file left under the old one's name, and the pid recorded in it."""
+        root, native = self.fixture()
+        lock, pending = self.state(native)
+        self.request(native)
+        self.hold(native, 1)
+        self.assertTrue(lock.exists())
+        result = self.remove(f"{root}/checkout")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertFalse(self.present(root))
+        self.assertFalse(lock.exists())
+        self.assertFalse(pending.exists())
+
+    def test_a_worktree_that_never_had_a_lock_is_not_given_one(self):
+        root, native = self.fixture()
+        lock, _ = self.state(native)
+        neighbour = lock.with_name("neighbour.lock")
+        neighbour.parent.mkdir(parents=True, exist_ok=True)
+        neighbour.write_text("", encoding="utf-8")
+        result = self.remove(f"{root}/checkout")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertFalse(lock.exists())
+        self.assertTrue(neighbour.exists(), "another worktree's lock went")
+
+    def test_a_state_file_that_will_not_go_does_not_change_the_exit(self):
+        root, native = self.fixture()
+        lock, _ = self.state(native)
+        self.hold(native, 1)
+        shim = native / "shim"
+        shim.mkdir()
+        (shim / "rm").write_bytes(("#!/usr/bin/env bash" + chr(10) + "exit 1" + chr(10)).encode("utf-8"))
+        os.chmod(shim / "rm", 0o755)
+        shim_dir = shim.resolve()
+        if os.name == "nt":
+            shim_dir = "/" + shim_dir.drive[0].lower() + shim_dir.as_posix()[2:]
+        result = run_bash('cd "$WHERE" && PATH="$SHIM:$PATH" bash "$REMOVE" .claude/worktrees/probe feat/probe',
+                          WHERE=f"{root}/checkout", REMOVE=str(REMOVE), SHIM=str(shim_dir))
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertFalse(self.present(root))
+        self.assertTrue(lock.exists(), "the shim did not stop the removal of the state file")
+
 
 class TheGrant(unittest.TestCase):
     def test_ship_grants_the_helper_and_not_the_raw_command(self):
