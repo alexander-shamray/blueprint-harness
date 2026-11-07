@@ -27,9 +27,9 @@ esac
 out="$resolved.slices"
 [ ! -e "$out" ] || { echo "slices already cut: $out" >&2; exit 3; }
 
-# The checkout running the sweep, never the swept tree, says which row owns a
-# path: a commit under audit that could rewrite them could put a script in the
-# samples row, where a file with no fence is counted and not read.
+# The rows are this checkout's, as the helper is, and trusted as it is: a line
+# moving a script into samples, where a file with no fence is not read, changes
+# what a sweep reads, and is reviewed as a change to the helper would be.
 rows="$(dirname "${BASH_SOURCE[0]}")/../../.harness/sweep-rows.tsv"
 [ -r "$rows" ] || { echo "the row file cannot be read: .harness/sweep-rows.tsv" >&2; exit 3; }
 # Tab-separated `kind pattern row holds`, `#` opening a comment line; a line of
