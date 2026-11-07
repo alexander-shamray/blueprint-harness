@@ -47,6 +47,8 @@ ROW_GROUP = re.compile(r"\b[A-Z]\d+\b")
 GROUP_ID = re.compile(rf"{ROW_GROUP.pattern}|\bsync-[1-9][0-9]*\b")
 SEPARATOR = re.compile(r"\|[\s:|-]+\|")
 OWED = "owed (not filed)"
+# The text cells of a row `tasks place` adds, read from a file under the run.
+PLACED = ("task", "labels", "depends", "model", "conflicts")
 BRANCH_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/()-]*")
 CHILD_TIMEOUT = 120
 # The checkout this file is in, whose directory names say which backticked slash tokens are paths.
@@ -634,6 +636,20 @@ def rewrite(live, read, rebuilt):
     return rebuilt
 
 
+def _placement(directory, issue):
+    """The cells `<run>/place-<n>.json` gives a new row, none without the file: an issue's text never reaches a shell."""
+    path = Path(directory) / f"place-{issue}.json"
+    if not path.is_file():
+        return {}
+    try:
+        cells = json.loads(_read(path))
+    except (OSError, ValueError) as error:
+        raise Refusal(f"could not read {path}: {error}") from None
+    if not isinstance(cells, dict) or set(cells) - set(PLACED) or not all(isinstance(v, str) for v in cells.values()):
+        raise Refusal(f"{path} is not an object holding {', '.join(PLACED)} as text")
+    return cells
+
+
 def _tasks_command(args, today):
     # The run's state.json is dispatch_run's, which imports this module, so it is reached at call time.
     from dispatch_run import _close, _field, _note_placed, _record_move, _texts, berserk, load_state, run_dir
@@ -653,8 +669,7 @@ def _tasks_command(args, today):
         tasks = parse_tasks(text)
         if args.action == "place":
             after.append(lambda: _note_placed(directory, args.issue))
-            return place(text, args.wave, args.group, args.issue, args.task, args.labels, args.depends,
-                         args.model, args.conflicts)
+            return place(text, args.wave, args.group, args.issue, **_placement(directory, args.issue))
         if args.action == "move":
             group = next((g for g in groups(tasks) if g.id == args.group), None)
             if group is None:
@@ -858,8 +873,6 @@ def main(argv=None, body_source=None, open_source=None, branch_source=None, week
             s.add_argument("wave", type=int)
             s.add_argument("group")
             s.add_argument("issue", type=int)
-            for option in ("task", "labels", "depends", "model", "conflicts"):
-                s.add_argument(f"--{option}")
         else:
             s.add_argument("group")
         if action == "move":

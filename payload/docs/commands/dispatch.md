@@ -293,6 +293,19 @@ that ran: a hand-back, the cautious side. Recording either writes
 still holds the slot; what this separates is a marker that only another
 process holds.
 
+## Issue text stays off the command line
+
+A group's task and a placed row's cells come from issue titles, and anyone can
+write one. On a command line that text meets a shell, which runs a backtick
+pair or a `$(…)` inside double quotes, on a line a prefix grant has already
+approved. So it reaches the helpers as files under the run, written with the
+`artifacts/dispatch/` grant: `run` reads `<g>.task.txt` and takes no text
+argument, which also keeps a relaunch's task the first launch's, and `tasks
+place` reads `place-<n>.json`. `--refused` carries the helper's own line, in
+single quotes. `guard-helper-argv.py` is the backstop for a session that spells
+any of them otherwise (`docs/harness-boundaries.md`, *Prefix grants and
+wildcard denies*).
+
 ## Sync pull requests
 
 A sync changes `.claude/` for every group after it, so on a night that starts
@@ -448,8 +461,8 @@ branch-drop helpers and `git pull --ff-only`. `sync_pr.py` is granted for
 write, which the guard hook refuses in every spelling but one the shell
 computes at run time, as `docs/harness-boundaries.md`'s *Output deny and
 shell-expansion residuals* states; the dispatcher's reads never pass it.
-`Edit(artifacts/dispatch/**)` is for the question, answer, rebuild and
-report files; it also reaches the helper-owned `state.json` and
+`Edit(artifacts/dispatch/**)` is for the question, answer, rebuild, task,
+placement and report files; it also reaches the helper-owned `state.json` and
 `tasks.read.md`, which the session never edits, a gap outside the guards'
 threat model (`docs/harness-boundaries.md`, *The guards' threat model*).
 `pr-state.sh` is not granted: `verify` reads it inside the helper. Nothing
