@@ -215,8 +215,8 @@ class ASmallRepository(unittest.TestCase):
         self.assertIn("tools/d.py", listed(parse(result.stdout)[1]))
 
     def test_the_rows_are_the_running_checkouts_not_the_swept_trees(self):
-        # A swept commit that rewrote the rows could put a script in the samples
-        # row, where a file with no fence is counted and not read.
+        # One row file per run, the running checkout's, as the helper is: a
+        # copy in the swept tree is never a second source of rows.
         self.commit(".harness/sweep-rows.tsv", "*\t^.*$\tsamples\teverything\n")
         result = self.sweep().slices("bug")
         self.assertEqual(0, result.returncode, result.stderr)

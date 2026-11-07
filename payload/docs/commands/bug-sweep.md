@@ -564,10 +564,12 @@ this command exists to find.
 slices**: `.harness/sweep-rows.tsv` holds each row's paths and what it
 holds, because which trees a repository has is that repository's fact, and
 a table in the managed helper partitioned one target's tree and refused
-every other's. The file is read from the checkout running the sweep, never
-from the swept tree: a commit under audit that could rewrite the rows could
-move a script into `samples`, where a file with no fence is counted and not
-read.
+every other's. The file is read from the checkout running the sweep, as
+the helpers are, and trusted as they are. That is no defence against the
+commit under audit, which is usually that checkout's own `HEAD` and wrote
+both: a line moving a script into `samples`, where a file with no fence is
+counted and not read, changes what every sweep reads, so it is reviewed as
+a change to the helper would be.
 **The rows have to partition the repository, not merely sample it.** A row is
 an auditor's **reporting** ownership, so a path no row owns is not a path
 without defects — it is a path nobody was answerable for, reported as a clean
