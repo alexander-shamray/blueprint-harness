@@ -92,9 +92,9 @@ be a guess. A plan PR is no exception, and *A plan is reviewed once, for
 contradiction* says what its re-run costs.
 
 **One call to `pr-for-branch.sh`, four outcomes, and it exits 0 for every one
-of them.** Empty means no PR into `main` has ever existed for this branch; otherwise the
-newest row reads `OPEN`, `CLOSED` or `MERGED`, and those are precisely the
-four cases the runbook's resume table distinguishes.
+of them.** Empty means no PR into `main` has ever existed for this branch;
+otherwise the newest row reads `OPEN`, `CLOSED` or `MERGED`, and those are
+precisely the four cases the runbook's resume table distinguishes.
 
 **`pr-state.sh` cannot be that read, and the reason is an exit
 code rather than a preference.** With no PR for the current branch it exits

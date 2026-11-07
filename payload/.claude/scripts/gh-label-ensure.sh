@@ -43,6 +43,7 @@ repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner) ||
 # grep -x afterwards: searching for `low` also returns `slow` if one ever
 # exists, and a helper that concluded "already there" from a near miss would
 # leave the sweep filing against a label that does not exist.
+
 # Each listing is bounded with --limit, and one of exactly the limit may be a
 # prefix, so it is refused: gh's default 30 rows read as the whole set would
 # take an existing label for absent.
