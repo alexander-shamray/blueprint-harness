@@ -740,7 +740,8 @@ or a leading space both suppress the conversion and a bare `/` does not.
 **The helper closes it, and it is the one thing a helper can do that the
 grant could not.** `gh-issue-create.sh`, which `gh-issue-sweep.sh` execs,
 sets `MSYS2_ARG_CONV_EXCL` for its own `gh` child, so the conversion never
-sees the title; the command's grant is on the entry point and is unchanged. Writing the subject in backticks —
+sees the title; the command's grant is on the entry point and is
+unchanged. Writing the subject in backticks —
 `` `/bug-sweep` `` — is still the house form for a title that names a command,
 because a reader of the tracker deserves it, not because the filing needs
 it.
@@ -896,10 +897,11 @@ helper.** Each is recorded because the reasoning generalises:
 - **`gh-issue-sweep.sh`, not `Bash(gh issue create:*)`.** A prefix grant pins
   no repository, so "always `--repo` for this repository" would be prose. The
   helper it execs, `gh-issue-create.sh`, resolves the repository from the
-  checkout, closes the label vocabulary, takes the title and the body on stdin so neither crosses this
-  shell's command line, and sets `MSYS2_ARG_CONV_EXCL` for its own child — the
-  title defect a prefix match cannot close. The route is the entry point, not
-  an argument: `gh-issue-sweep.sh` can file under the sweep route alone, and
+  checkout, closes the label vocabulary, takes the title and the body on
+  stdin so neither crosses this shell's command line, and sets
+  `MSYS2_ARG_CONV_EXCL` for its own child — the title defect a
+  prefix match cannot close. The route is the entry point, not an argument:
+  `gh-issue-sweep.sh` can file under the sweep route alone, and
   `gh-issue-create.sh`, which takes the route, is denied by name.
 - **`gh-label-ensure.sh`, not `Bash(gh label create:*)`, because "create"
   understates what that grant reaches.** `gh label create <existing> --force`
