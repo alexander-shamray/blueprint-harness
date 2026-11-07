@@ -83,20 +83,21 @@ To run the comment gate over a branch, which it reads as committed:
 py -3.12 .github/comment-gate/comment_gate.py --base origin/main --head HEAD
 ```
 
-The payload's suites run in a worktree that starts with this repository's own
-rendered root and has backend's config applied over it; the
+The payload's suites run in a scratch clone that starts with this
+repository's own rendered root and has backend's config applied over it; the
 `payload-suites` job in `.github/workflows/ci.yml` is the reference, gate
 suites included. Its first steps, locally (Git Bash; `bash`, `grep`, `git`
-and `jq` on PATH):
+and `jq` on PATH). A clone rather than a worktree, because the settings deny
+`git worktree remove`, whose `-f` discards work:
 
 ```bash
-git worktree remove --force ../rendered 2>/dev/null || true
-git worktree add --detach ../rendered HEAD
+rm -rf ../rendered
+git clone --quiet . ../rendered
 mkdir -p ../rendered/.harness
 cp targets/blueprint-backend.config.json ../rendered/.harness/config.json
 py -3.12 -m harness_sync apply --payload payload --target ../rendered --commit "$(git rev-parse HEAD)"
 (cd ../rendered && py -3.12 -m unittest discover -s .claude/scripts)
-git worktree remove --force ../rendered
+rm -rf ../rendered
 ```
 
 Two things the jobs do not cover or cannot promise:

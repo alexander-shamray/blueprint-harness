@@ -72,6 +72,8 @@
       "Bash(git branch --delete:*)",
       "Bash(git branch --move:*)",
       "Bash(git branch --force:*)",
+      "Bash(git worktree remove:*)",
+      "Bash(gh pr merge:*)",
       "Bash(git *--output*)",
       "Bash(git *--upload-pack*)",
       "Bash(git *--receive-pack*)",
