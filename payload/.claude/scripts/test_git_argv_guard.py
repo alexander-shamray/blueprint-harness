@@ -3374,6 +3374,25 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
 
+    def test_a_subcommand_that_exists_to_run_something_is_refused_whole(self):
+        for command in (
+            "git filter-branch --msg-filter cat",
+            "git send-email --to-cmd=./tools/x a.patch",
+            "git instaweb --httpd=./tools/x", "git daemon --base-path=.",
+            "git http-backend", "git web--browse ./tools/x",
+            "git -C sub filter-branch --msg-filter cat",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command)
+        # The allow-list stays out: what it would have refused stays admitted.
+        for command in (
+            "git ls-remote origin", "git config user.name", "git stash list",
+            "git reflog -5", "git update-index --refresh", "git apply a.patch",
+            "git cherry-pick abc123", "echo git daemon", "git log -- daemon",
+        ):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
     def test_the_hook_directory_is_a_control_surface_and_is_denied(self):
         # It grants nothing, but it RUNS on every Bash call, so a session able
         # to rewrite it could delete its own guard and then act. `CLAUDE.md`
