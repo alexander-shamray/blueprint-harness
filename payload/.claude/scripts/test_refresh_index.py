@@ -871,8 +871,8 @@ class TheWorkerJudgesItsRoot(Base):
 
     def test_a_root_that_stops_qualifying_mid_drain_is_not_updated_again(self):
         """Each request is a full update, and a worker can serve many: a
-        link, a checkout of another repository or a removed index landing
-        after the first is caught before the second."""
+        checkout of another repository or a removed index landing after the
+        first is caught before the second."""
         def lose_the_index(root):
             (root / INDEX).unlink()
 
