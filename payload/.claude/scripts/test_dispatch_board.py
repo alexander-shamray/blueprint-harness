@@ -735,8 +735,28 @@ class WriteTests(unittest.TestCase):
     def test_the_cli_places_a_row(self):
         self.start()
         self.write(FIXTURE)
-        self.assertEqual((0, ""), self.cli("place", "1", "S3", "1700", "--depends", "none"))
-        self.assertEqual([1681, 1700], [r.number for r in db.groups(db.parse_tasks(self.read()))[1].rows])
+        (self.run_dir / "place-1700.json").write_text('{"task": "Read `$(id)` as text", "depends": "none"}',
+                                                      encoding="utf-8")
+        self.assertEqual((0, ""), self.cli("place", "1", "S3", "1700"))
+        rows = db.groups(db.parse_tasks(self.read()))[1].rows
+        self.assertEqual([1681, 1700], [r.number for r in rows])
+        self.assertEqual(("Read `$(id)` as text", "none"), (rows[1].cells[db.TASK], rows[1].cells[db.DEPENDS]))
+
+    def test_placing_with_no_file_leaves_the_cautious_row(self):
+        self.start()
+        self.write(FIXTURE)
+        self.assertEqual((0, ""), self.cli("place", "1", "S3", "1700"))
+        row = db.groups(db.parse_tasks(self.read()))[1].rows[1]
+        self.assertEqual("OWNER", row.cells[db.DEPENDS])
+
+    def test_a_placement_file_of_another_shape_writes_nothing(self):
+        self.start()
+        self.write(FIXTURE)
+        for body in ("not json", "[]", '{"task": 1}', '{"wave": "1"}'):
+            with self.subTest(body=body):
+                (self.run_dir / "place-1700.json").write_text(body, encoding="utf-8")
+                self.assertEqual(2, self.cli("place", "1", "S3", "1700")[0])
+                self.assertEqual(FIXTURE, self.read())
 
     def board(self):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):

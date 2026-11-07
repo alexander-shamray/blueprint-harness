@@ -296,14 +296,18 @@ def sync_prompt(pr: int, run: str) -> str:
     return f"/ship sync #{pr} --dispatched artifacts/dispatch/{run}"
 
 
-def _prompt_for(gid, entry, description, run, flag=False):
+def _task_text(directory, gid):
+    # A file, never the command line: the text comes from issue titles, and a shell would run a backtick in them.
+    try:
+        return _read(Path(directory) / f"{gid}.task.txt").strip()
+    except (OSError, ValueError) as error:
+        raise Refusal(f"could not read {gid}'s task text: {error}") from None
+
+
+def _prompt_for(directory, gid, entry, run, flag=False):
     if entry.get("kind") == "sync":
-        if description is not None:
-            raise Refusal(f"{gid} is a sync, which takes no --description")
         return sync_prompt(_field(entry, gid, "pr", _number), run)
-    if description is None:
-        raise Refusal(f"{gid} needs --description")
-    return prompt(_entry_group(gid, entry), description, run, flag)
+    return prompt(_entry_group(gid, entry), _task_text(directory, gid), run, flag)
 
 
 def _same_path(path):
@@ -404,7 +408,7 @@ def sync_launch(root, run, pr, branch, worktree, oid):
     save_state(directory, state)
 
 
-def run_session(root, run, gid, description):
+def run_session(root, run, gid):
     """The dispatcher's background task for one executor, returning when the session ends.
 
     It writes only its own <group>.pid and <group>.session.json, or <group>.refused.json when it launches nothing,
@@ -421,7 +425,7 @@ def run_session(root, run, gid, description):
     except OSError as error:
         raise Refusal(f"could not remove the stale {marker}: {error}") from None
     try:
-        child, text, started = _launch(root, directory, run, gid, entry, description, berserk(state)[0])
+        child, text, started = _launch(root, directory, run, gid, entry, berserk(state)[0])
     except Refusal as refusal:
         # The group holds a slot until `result` reads why nothing launched; state.json stays the dispatcher's.
         try:
@@ -437,7 +441,7 @@ def run_session(root, run, gid, description):
     _write(directory / f"{gid}.session.json", json.dumps(record, ensure_ascii=False, indent=1) + "\n")
 
 
-def _launch(root, directory, run, gid, entry, description, flag=False):
+def _launch(root, directory, run, gid, entry, flag=False):
     """Everything up to a started executor, which is returned with its prompt and start time; a refusal starts none."""
     # A relaunch's earlier session was read, so it goes before the launch checks; a record this removal missed is
     # read as absent beside a marker or a refusal line. Its pid goes too: `result --refused` reads a pid file as an
@@ -446,7 +450,7 @@ def _launch(root, directory, run, gid, entry, description, flag=False):
     # The owner's stop file ends relaunches too, not only the next wake's launches.
     if (directory / "STOP").exists():
         raise Refusal("stop file: the owner ended the night, so nothing more launches")
-    text = _prompt_for(gid, entry, description, run, flag)
+    text = _prompt_for(directory, gid, entry, run, flag)
     flag = model_flag(entry.get("model"))
     worktree = Path(root) / _field(entry, gid, "worktree", _path_text)
     if not worktree.is_dir():
@@ -1535,8 +1539,6 @@ def add_commands(sub):
         if name == "launch":
             for option in ("tasks", "branch", "worktree"):
                 s.add_argument(f"--{option}", required=True)
-        if name == "run":
-            s.add_argument("--description")
         if name == "result":
             s.add_argument("--refused")
     s = sub.add_parser("sync-launch")
@@ -1587,7 +1589,7 @@ def command(args: argparse.Namespace, today, bodies_from, open_from, branch_from
     elif args.command == "sync-close":
         sync_close(root, args.run, args.group)
     elif args.command == "run":
-        run_session(root, args.run, args.group, args.description)
+        run_session(root, args.run, args.group)
     elif args.command == "result":
         print("\n".join(absorb(root, args.run, args.group, args.refused)))
     elif args.command == "verify":
