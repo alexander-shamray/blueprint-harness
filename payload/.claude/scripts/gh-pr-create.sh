@@ -1,20 +1,8 @@
 #!/usr/bin/env bash
-# Open a pull request on this repository, from the branch checked out, into
-# main, and nothing else: `/pr`'s one create, and so `/ship`'s.
-#
-# A raw `gh pr create` grant is a prefix match, and each of the four things
-# that decide what is opened is a trailing flag: `--repo`, `--head`, `--base`
-# and `--body-file` choose a repository, a branch, a base and a body the
-# command never derived. All four are fixed here: the repository and the
-# branch are read from the checkout and the base is the literal `main`.
-#
-# The title and the body arrive as two files the caller wrote with `Write`,
-# never as text on the command line, where a house title's backticked name ran
-# in the calling shell before anything could refuse it. `--body-file`
-# publishes whatever it reads, so each input must sit under this checkout's
-# `artifacts/`, not be a symbolic link or reached through one, and be ignored
-# by git: an ignored file is untracked, so the branch under review never wrote
-# its own pull request, and no target needs a `.gitignore` line for it.
+# Open this checkout's branch as a pull request into main: /pr's one create. A raw `gh pr create` grant is a prefix
+# match, so a trailing `--repo`, `--head`, `--base` or `--body-file` would choose what is opened; this helper fixes all
+# four, and takes the title and body as files git ignores under `artifacts/`, never as text on the command line, since
+# `--body-file` publishes what it reads (`docs/harness-boundaries.md`, *Grant inventory and push helpers*).
 set -euo pipefail
 [ "$#" -eq 2 ] ||
   { echo "usage: gh-pr-create.sh <title-file> <body-file>, both under artifacts/" >&2; exit 2; }
