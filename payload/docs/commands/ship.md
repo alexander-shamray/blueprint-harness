@@ -752,7 +752,7 @@ path and git refuses the revision, so this is the spelling that runs on every
 platform the harness job covers. The copy is still written by this session, so
 the reviewer cannot tell a branch-edited copy apart by reading it; it names
 the bar path in its `bar` field and `read` list, fails closed on an empty one
-or one without *What counts as a finding*, and the report names the revision.
+or one without *What counts as a finding*.
 Its `skipped` holds `locality` or `bar` and nothing else, because this chain
 stops on any other entry: a vocabulary the profile writes and the runbook does
 not read is a round that read everything and stopped the chain (measured in
@@ -798,8 +798,7 @@ report, since the person reading it needs the words, not a paraphrase.
 **A fix in a tree a deny covers cannot be made here, and it is filed at
 once.** Outside `--dispatched` nothing else routes it, so the finding would
 stay open to the ceiling, spend rounds carrying itself, and reach step 6 as
-open work nobody could do. The settings deny edits under `.claude/` and `/ship`
-states denies of its own, so such a finding is filed as the ceiling files it,
+open work nobody could do. The settings deny edits under `.claude/`, so such a finding is filed as the ceiling files it,
 the report says so, and the run continues.
 
 **Why a full pass rather than a recheck** when a fix closed a `bug`-severity
@@ -908,7 +907,7 @@ those commits have been fetched — and the other session's work would still be
 gone, so the refusal is the helper's own rather than git's.
 
 **A head no round reviewed is not merged.** The log read is `git log
-<headRefOid>..HEAD`, empty when this checkout is at or ahead of the remote's
+<headRefOid>..HEAD`, empty when this checkout is at or behind the remote's
 head: a remote head ahead of this checkout passes it with commits no round
 read. Each round records the head its input was written from, so step 6
 compares `headRefOid` with those records and, on a miss, re-enters step 5
