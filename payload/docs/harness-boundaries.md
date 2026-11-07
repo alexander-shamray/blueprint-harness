@@ -148,6 +148,18 @@ extra command runs, write redirections, and `graph` / `clean` / `init` /
 The `cbx` wrapper is the other half — whitelist and
 `CBX_NO_SKILL_AUTO_UPDATE=1` — and is not a substitute for the hook.
 
+**The helper grants have the same gap and a guard of their own.**
+`Bash(py -3.12 .claude/scripts/dispatch_board.py:*)` and `Bash(gh pr create:*)`
+match the typed string too, and both take text a model composes from issue
+titles, where a backticked name is the house style. So the text stays off the
+command line, in the files `/dispatch` *Issue text stays off the command line*
+names, and a pull request's title goes in single quotes.
+`.claude/hooks/guard-helper-argv.py` is what holds when a session spells it
+otherwise: it refuses a command substitution on a line that runs a `.py` under
+`.claude/scripts/` or `gh pr create`. It leaves the `.sh` helpers, whose
+arguments are numbers and names, and it judges substitutions alone: a second
+command on such a line is the grant's own matching, not this hook's.
+
 **`CBX_NO_SKILL_AUTO_UPDATE=1` is also in `.claude/settings.json`'s `env`,
 because the wrapper is not the only way the CLI runs.** A bare
 `codebase-index` call from a checkout, which the argv guard admits, replaced
@@ -593,8 +605,8 @@ defeatable rather than theoretically so.
 
 **The guard hooks catch an agent's honest mistakes; they are not a sandbox
 against a session that sets out to defeat them.** `guard-git-argv.py`,
-`guard-edit-target.py`, `guard-index-argv.py` and `guard-sed-crlf.py` are
-written against a session that types a dangerous command by accident or by
+`guard-edit-target.py`, `guard-index-argv.py`, `guard-helper-argv.py` and
+`guard-sed-crlf.py` are written against a session that types a dangerous command by accident or by
 a plausible shortcut — a forced push, a write into a denied tree, a removal
 of a parent of the checkout, a `sed -i` over a CRLF file — in any spelling
 a shell user writes in ordinary work: quoting, `-C` and `--work-tree`,

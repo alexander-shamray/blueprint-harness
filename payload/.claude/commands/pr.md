@@ -169,8 +169,12 @@ Write the body to a scratchpad file and pass it with `--body-file`; heredocs
 through `gh` mangle the wrapping. Then:
 
 ```bash
-gh pr create --base main --title "<title>" --body-file <path>
+gh pr create --base main --title '<title>' --body-file <path>
 ```
+
+The title goes in single quotes, each one inside it written `'\''`: a house
+title often holds a backticked name, which double quotes hand to the shell
+to run (`docs/harness-boundaries.md`, *Prefix grants and wildcard denies*).
 
 Then stamp the number `gh pr create` printed on the branch's commits,
 before anything reviews them:
