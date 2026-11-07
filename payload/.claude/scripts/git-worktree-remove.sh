@@ -53,12 +53,14 @@ keyed=
 if [ -d "$state" ]; then
   python=python3
   command -v py >/dev/null 2>&1 && python="py -3.12"
-  keyed=$($python -I -c '
+  # Only the hex crosses the pipe: Windows writes a path in the ANSI code page,
+  # which bash does not read back as the path it passed in.
+  key=$($python -I -c '
 import hashlib, os, sys
-info = os.stat(sys.argv[2])
-key = hashlib.sha256(f"{info.st_dev}:{info.st_ino}".encode()).hexdigest()[:32]
-print(sys.argv[1] + "/" + key)' "$state" "$path" | tr -d '\r') ||
+info = os.stat(sys.argv[1])
+print(hashlib.sha256(f"{info.st_dev}:{info.st_ino}".encode()).hexdigest()[:32])' "$path" | tr -d '\r') ||
     { echo "nothing removed: $path; its refresh lock cannot be named" >&2; exit 5; }
+  keyed="$state/$key"
 fi
 if [ -n "$keyed" ] && { [ -e "$keyed.lock" ] || [ -e "$keyed.pending" ]; }; then
   if ! $python -I - "$keyed" <<'PY'; then

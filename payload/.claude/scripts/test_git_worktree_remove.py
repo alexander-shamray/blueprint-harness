@@ -94,8 +94,11 @@ if put_back:
 
 
 class RemoveShape(unittest.TestCase):
-    def fixture(self):
+    def fixture(self, inside=""):
         root = temp_root(self)
+        if inside:
+            root = f"{root}/{inside}"
+            os.mkdir(root)
         made = run_bash(FIXTURE, root=root)
         self.assertEqual(0, made.returncode, made.stderr)
         return root, Path(root)
@@ -350,6 +353,17 @@ class RemoveShape(unittest.TestCase):
         root, _ = self.fixture()
         result = self.remove(f"{root}/checkout", ".claude/worktrees/absent")
         self.assertEqual(3, result.returncode, result.stderr)
+
+    def test_a_refresh_is_waited_for_in_a_checkout_whose_path_is_not_ascii(self):
+        """The name crosses a pipe from Python, which on Windows writes the
+        ANSI code page: only the key may cross, and the path is bash's own."""
+        root, native = self.fixture("\u043f\u0440\u043e\u0435\u043a\u0442")
+        self.hold(native, 3)
+        started = time.monotonic()
+        result = self.remove(f"{root}/checkout")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertGreaterEqual(time.monotonic() - started, 2)
+        self.assertFalse(self.present(root))
 
     def test_a_refresh_that_ends_is_waited_for(self):
         root, native = self.fixture()
