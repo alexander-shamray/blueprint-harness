@@ -218,9 +218,31 @@ def linked_worktree(path, checkouts):
         return None
     for spelled_root, real_root, traits in checkouts:
         for base in (spelled_root, real_root):
-            if under(gitdir, os.path.join(base, ".git"), traits):
+            common = common_git_dir(base)
+            if under(gitdir, os.path.join(base, ".git"), traits) or (
+                    common is not None and under(gitdir, common, traits)):
                 return root
     return None
+
+
+def common_git_dir(root):
+    """The repository's `.git` directory behind checkout `root`, or `None`.
+
+    A linked worktree names it in its admin directory's `commondir`, read only
+    once git's backlink agrees, so a session in one still knows its siblings.
+    """
+    marker = os.path.join(root, ".git")
+    if os.path.isdir(marker):
+        return os.path.realpath(marker)
+    gitdir = verified_gitdir(root)
+    if gitdir is None:
+        return None
+    try:
+        with open(os.path.join(gitdir, "commondir"), encoding="utf-8") as handle:
+            common = os.path.realpath(os.path.join(gitdir, handle.read().strip()))
+    except (OSError, ValueError):
+        return None
+    return common if os.path.isdir(common) else None
 
 
 def protected_in_worktree(path, root):
