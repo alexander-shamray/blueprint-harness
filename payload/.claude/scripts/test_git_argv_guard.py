@@ -3354,6 +3354,26 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
 
+    def test_the_options_that_hand_a_file_to_a_program_are_refused(self):
+        for command in (
+            "git diff --ext-diff", "git diff --ext-d", "git log --textconv",
+            "git show --textconv HEAD", "git difftool --extcmd=./tools/m",
+            "git difftool --extc=./tools/m",
+            "git grep --open-files-in-pager=./tools/x foo",
+            "git grep --open-files-in-pager ./tools/x foo",
+            "git grep --open-files=./tools/x foo",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command)
+        # `--no-index` stays out: typed 49 times, and its deny is config.
+        for command in (
+            "git diff --no-ext-diff", "git diff --no-textconv", "git diff --text",
+            "git grep --text foo", "git diff --no-index a b",
+            'git commit -m "--ext-diff is refused"',
+        ):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
     def test_the_hook_directory_is_a_control_surface_and_is_denied(self):
         # It grants nothing, but it RUNS on every Bash call, so a session able
         # to rewrite it could delete its own guard and then act. `CLAUDE.md`

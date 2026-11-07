@@ -68,7 +68,13 @@ from bisect import bisect_left
 # Flags that write or execute rather than inspect. Matched on a prefix, so
 # `--exec-path=<dir>` — a directory of binaries for git to run — is the same act
 # as `--exec`.
-FORBIDDEN_FLAGS = ("--output", "--upload-pack", "--receive-pack", "--exec")
+FORBIDDEN_FLAGS = ("--output", "--upload-pack", "--receive-pack", "--exec",
+                   "--ext-diff", "--textconv", "--extcmd",
+                   "--open-files-in-pager")
+
+# Options of their own that the abbreviation test would read as a forbidden
+# flag cut short: `git diff --text` is not `--textconv`.
+WHOLE_OPTIONS = {"--text"}
 
 # Judged against a whole element, and only on a subcommand that takes a
 # repository — a branch name, a path or a commit body may carry the sequence
@@ -2689,7 +2695,8 @@ def _offence(command, depth, judged):
             # harmless that prefixes one of these is refused too, which is the
             # direction to be wrong in.
             name = element.split("=", 1)[0]
-            abbreviation = name.startswith("--") and len(name) > 2
+            abbreviation = (name.startswith("--") and len(name) > 2
+                            and name not in WHOLE_OPTIONS)
             for flag in FORBIDDEN_FLAGS + EXECUTING_LONG_FLAGS.get(subcommand, ()):
                 whole = (element.startswith(flag) if flag in FORBIDDEN_FLAGS
                          else name == flag)
