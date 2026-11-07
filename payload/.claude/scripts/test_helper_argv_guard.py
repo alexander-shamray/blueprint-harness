@@ -92,6 +92,11 @@ class TheRunbooksKeepIssueTextFromTheShell(unittest.TestCase):
                 with self.subTest(line=found):
                     self.assertNotRegex(found, r'"[^"]*<')
 
+    def test_the_task_text_is_written_before_anything_a_resume_would_read_it_after(self):
+        text = (COMMANDS / "dispatch.md").read_text(encoding="utf-8")
+        launch = text[text.index("**Launch a group**"):text.index("**On an executor's exit**")]
+        self.assertLess(launch.index("<g>.task.txt"), launch.index("tasks move"))
+
     def test_the_inline_refused_flag_is_single_quoted(self):
         text = " ".join((COMMANDS / "dispatch.md").read_text(encoding="utf-8").split())
         self.assertIn("--refused '<", text)
