@@ -207,9 +207,8 @@ def verified_gitdir(root):
 def linked_worktree(path, checkouts):
     """`path`'s checkout root, when it is a worktree of an anchor's repository.
 
-    Read from the `.git` file, or a main checkout's `.git` directory, since no
-    hook on every write can run git. An anchor reached by a link is that anchor,
-    and another repository's protections are not this target's to judge.
+    Read from `.git`, since no hook on every write can run git. An anchor reached
+    by a link is that anchor; another repository's protections are not judged.
     """
     root = checkout_root(path)
     if root is None:
