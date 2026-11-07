@@ -138,12 +138,9 @@ Each round is the review done once, end to end:
    bash .claude/scripts/sweep-slices.sh security "$posix"      # `full` as a third argument when asked
    ```
 
-   | | |
-   |---|---|
-   | `tooling` | CI, the harness and its `.harness/`, and the command and agent definitions |
-   | `source` | the services, the building blocks and the suites that stand up their hosts |
-   | `deploy` | deployment and configuration, and **every tracked file at the repository root** |
-   | `samples` | fenced code in `docs/` — a credential or an unsafe default an adopter copies; the closed records are owned and not read |
+   The rows are those `.harness/sweep-rows.tsv` names for `security`, with
+   what each holds, the first matching line winning; `samples` is read for
+   its fenced code alone, and the closed records are owned and not read.
 
    A tracked path no row owns makes the helper exit 3 naming it: a round
    error under *Never fail open*, never a gap to widen by hand.
@@ -155,11 +152,14 @@ Each round is the review done once, end to end:
    in-tree comment calls deliberate is **reported, not dropped**.
 
    The helper prints the round's plan: `pinned`, `mode full` or
-   `mode since <sha>`, one `tracked` line, and one
+   `mode since <sha>`, one `tracked` line, a `binary <files> <list>` line
+   when it skipped a binary file, and one
    `slice <n> <row> <files> <bytes> <list>` line per slice — at most 240,000
    bytes, unless one file is larger. Read the lists only to `Grep` for a path
    a scope hint names, keeping the slices that hold it or the slices of the
-   rows it names; the summary says which it dropped.
+   rows it names; the summary says which it dropped. **Read the binary list
+   whole**: no auditor reads it, and a NUL byte makes a script binary, so the
+   summary names each path on it that is not an asset.
 
    **Round 1 is one auditor per slice; every later round follows leads**: one
    auditor per row that produced a new candidate in the round before, handed
