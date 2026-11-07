@@ -147,6 +147,12 @@ extra command runs, write redirections, and `graph` / `clean` / `init` /
 `watch` are refused.
 The `cbx` wrapper is the other half — whitelist and
 `CBX_NO_SKILL_AUTO_UPDATE=1` — and is not a substitute for the hook.
+`cbx.ps1` runs in its caller's process, so the two variables it sets
+(`CBX_NO_SKILL_AUTO_UPDATE` and `PYTHONSAFEPATH`) are put back in a `finally`,
+and the one `exit` after it is the only way out: left set, `PYTHONSAFEPATH`
+takes the script's directory off `sys.path` for every later `python` the
+session starts. `test_cbx.py` runs it with `&`, in a session that reports its
+environment afterwards, and skips where PowerShell is not installed.
 
 **`CBX_NO_SKILL_AUTO_UPDATE=1` is also in `.claude/settings.json`'s `env`,
 because the wrapper is not the only way the CLI runs.** A bare
