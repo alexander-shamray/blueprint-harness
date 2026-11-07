@@ -6,9 +6,7 @@ re-implementing are `review_helpers.py`'s.
 
 import json
 import os
-import shutil
 import subprocess
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -17,6 +15,7 @@ from review_helpers import (
     BASH,
     GIT,
     setUpModule,
+    temp_root,
 )
 
 
@@ -48,7 +47,7 @@ class OnlyThisCheckoutsPullRequestsSurvive(unittest.TestCase):
     ]"""
 
     def setUp(self):
-        self.bin = Path(tempfile.mkdtemp(prefix="ghstub-"))
+        self.bin = Path(temp_root(self))
         stub = self.bin / "gh"
         stub.write_text(
             "#!/usr/bin/env bash\n"
@@ -57,9 +56,6 @@ class OnlyThisCheckoutsPullRequestsSurvive(unittest.TestCase):
             'echo "unexpected gh call: $*" >&2; exit 9\n',
             encoding="utf-8", newline="\n")
         stub.chmod(0o755)
-
-    def tearDown(self):
-        shutil.rmtree(self.bin, ignore_errors=True)
 
     def run_helper(self, owner=None, rows=None, cwd=None, branch="some-branch"):
         # The rows travel in a file: a thousand of them overrun an environment block.
@@ -88,9 +84,7 @@ class OnlyThisCheckoutsPullRequestsSurvive(unittest.TestCase):
         return [r["number"] for r in json.loads(result.stdout)]
 
     def make_repo(self):
-        holder = tempfile.TemporaryDirectory(prefix="prlist-repo-")
-        self.addCleanup(holder.cleanup)
-        path = holder.name
+        path = temp_root(self)
 
         def git(*args):
             return subprocess.run(
