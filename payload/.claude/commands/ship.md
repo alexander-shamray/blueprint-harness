@@ -297,6 +297,7 @@ target*)
    ```bash
    git worktree prune                      # registrations whose directories are gone
    git worktree list                       # what is actually still there
+   git status -sb                          # on `main`: ahead of origin/main?
    git pull --ff-only                      # ONLY on a clean main that is not
                                            # ahead of origin/main — see below
    ```
