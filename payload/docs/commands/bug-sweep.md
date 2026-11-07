@@ -560,9 +560,14 @@ push entries*. The other sweeps' read-only profiles belong on it too,
 because `security-auditor` run here can miss the logic and execution defects
 this command exists to find.
 
-**The rows are `sweep-slices.sh`'s, which cuts them into slices**: its
-`row_of` holds each row's paths, and the runbook's table in *The round*
-says why each row exists.
+**The rows are the checkout's, and `sweep-slices.sh` cuts them into
+slices**: `.harness/sweep-rows.tsv` holds each row's paths and what it
+holds, because which trees a repository has is that repository's fact, and
+a table in the managed helper partitioned one target's tree and refused
+every other's. The file is read from the checkout running the sweep, never
+from the swept tree: a commit under audit that could rewrite the rows could
+move a script into `samples`, where a file with no fence is counted and not
+read.
 **The rows have to partition the repository, not merely sample it.** A row is
 an auditor's **reporting** ownership, so a path no row owns is not a path
 without defects — it is a path nobody was answerable for, reported as a clean
@@ -573,10 +578,11 @@ class the bar ranks critical when it finds it in someone else's code.
 so `.git` and anything ignored were never its subject, and a tracked path
 no row owns exits 3 naming it: a round error under *Never fail open*, not a
 gap to widen by hand. Rows written as remainders survive the repository
-growing — all of `src/**` but `BuildingBlocks`, and every tracked file at
-the root, so §4.1's `src/Gateway` is owned the day it lands — while a new
-top-level tree refuses the run until the helper, and the suite that runs
-it over this tree, give it a row.
+growing — a line for a whole tree after the lines for its parts, and one
+for every tracked file at the root, so a new service or build file is owned
+the day it lands — while a new top-level tree refuses the run until a line
+of the row file gives it a row; the payload's suite partitions each
+checkout's own tree, so that refusal reaches CI first.
 
 **A row bounds what an auditor reports, never what it may read**, and
 collapsing those two loses real defects quietly. Reachability is evidence a

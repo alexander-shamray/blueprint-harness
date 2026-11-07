@@ -181,14 +181,10 @@ Each round is the review done once, end to end:
    bash .claude/scripts/sweep-slices.sh bug "$posix"      # `full` as a third argument when asked
    ```
 
-   | | |
-   |---|---|
-   | `building-blocks` | the dispatcher and its behaviours, the outbox, the Redis helpers, the web middleware |
-   | `services` | the rest of `src/` — the services, and §4.1's gateway, BFF and AppHost as they land |
-   | `suites` | where the cannot-fail class lives, and the only area whose defects are all of one kind |
-   | `tooling` | Python, shell, CI, the command and agent definitions, and the harness's `.harness/` |
-   | `deploy` | deployment and configuration, and **every tracked file at the repository root** — the build files, the dotfiles, `CLAUDE.md` and `README.md` alike |
-   | `samples` | fenced code in `docs/`, audited as code but excerpt-aware; the closed records are owned and not read |
+   The rows are the checkout's own: those `.harness/sweep-rows.tsv` names
+   for `bug`, with what each holds, the first matching line winning. The
+   `samples` row is read for its fenced code alone, and the closed records
+   are owned and not read.
 
    A tracked path no row owns makes the helper exit 3 naming it: a round
    error under *Never fail open*, never a gap to widen by hand. **A row

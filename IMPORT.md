@@ -155,10 +155,6 @@ Payload files that still name a backend stack value, each with why it stays.
 the four names its `_STACK_NAME` holds anywhere else in the payload, its suites
 aside. A shape those names cannot see, such as a C# sample, rests on review.
 
-- `.claude/commands/bug-sweep.md:187`, `docs/commands/bug-sweep.md:577` — the
-  sweep's area rows name backend's §4.1 gateway, BFF and AppHost;
-  `.claude/scripts/sweep-slices.sh:47` slices `tools/` as tooling, a backend
-  tree. All three go with the rows themselves: #73.
 - `.github/output-gate/` — the gate itself checks .NET build output against
   `Platform.slnx`. Delivered only where a .NET build runs: a target without
   one puts `.github/output-gate/**` under `exclude` in its config, as this
@@ -414,7 +410,7 @@ One row per candidate file at the pin.
 | `.claude/scripts/test_root_ignore_covers_nested.py` | payload | suite of payload code; passes in payload-suites |
 | `.claude/scripts/test_ship_dispatched.py` | payload | suite of payload code; passes in payload-suites |
 | `.claude/scripts/test_ship_landing_method.py` | payload | suite of payload code; passes in payload-suites |
-| `.claude/scripts/test_sweep_slices.py` | payload, split by #5 | partitions repositories it builds; backend's `test_sweep_slices_backend.py` holds `TheRealTree`, since the rows partition backend's tree and fail on a path no row owns here (`harness_sync/__init__.py`, #73) |
+| `.claude/scripts/test_sweep_slices.py` | payload, split by #5 | partitions repositories it builds, and since #73 each checkout's own tree by its own `.harness/sweep-rows.tsv`; backend's `test_sweep_slices_backend.py` holds `TheRealTree` until a backend pull request drops it, once the sync carrying that case has landed there |
 | `.claude/scripts/test_system_sleep.py` | payload | suite of payload code; passes in payload-suites |
 | `.claude/scripts/test_team_board.py` | payload | suite of payload code; passes in payload-suites |
 | `.claude/scripts/test_watch_session.py` | payload | suite of payload code; passes in payload-suites |

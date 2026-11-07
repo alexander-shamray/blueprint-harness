@@ -395,9 +395,14 @@ read-only profiles belong on it too, because `bug-auditor` reports bugs
 rather than security findings, so a sweep run through it can return a clean
 *security* round having looked for something else.
 
-**The rows are `sweep-slices.sh`'s, which cuts them into slices**: its
-`row_of` holds each row's paths, and the runbook's table in *The round*
-says why each row exists.
+**The rows are the checkout's, and `sweep-slices.sh` cuts them into
+slices**: `.harness/sweep-rows.tsv` holds each row's paths and what it
+holds, because which trees a repository has is that repository's fact, and
+a table in the managed helper partitioned one target's tree and refused
+every other's. The file is read from the checkout running the sweep, never
+from the swept tree: a commit under audit that could rewrite the rows could
+move a script into `samples`, where a file with no fence is counted and not
+read.
 
 **The rows have to partition the repository, not merely sample it.** A row
 is an auditor's **reporting** ownership, so a path no row owns is not a
@@ -408,10 +413,10 @@ as a clean sweep.
 so `.git` and anything ignored were never its subject, and a tracked path
 no row owns exits 3 naming it: a round error under *Never fail open*, not a
 gap to widen by hand. Rows written as remainders survive the repository
-growing — every tracked file at the root is the deployment row's, so a new
-build file is owned the day it lands — while a new top-level tree refuses
-the run until the helper, and the suite that runs it over this tree, give
-it a row.
+growing — a line for every tracked file at the root, so a new build file is
+owned the day it lands — while a new top-level tree refuses the run until a
+line of the row file gives it a row; the payload's suite partitions each
+checkout's own tree, so that refusal reaches CI first.
 
 Give each the same contract: **root every path under `$work`** (the pinned
 worktree, per the rule above — an agent left to default to the caller's
