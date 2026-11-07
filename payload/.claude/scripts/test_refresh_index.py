@@ -11,6 +11,7 @@ import os
 import shlex
 import shutil
 import sqlite3
+import stat
 import subprocess
 import sys
 import tempfile
@@ -42,6 +43,14 @@ def _load():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def git(*arguments, cwd):
+    """Run git in `cwd`, with nothing in the environment aiming it elsewhere."""
+    environment = {name: value for name, value in os.environ.items()
+                   if not name.upper().startswith("GIT_")}
+    subprocess.run(["git", *arguments], cwd=str(cwd), env=environment, check=True,
+                   capture_output=True)
 
 
 def entries_running_the_hook(settings: Path) -> dict:
@@ -101,8 +110,9 @@ class Base(unittest.TestCase):
         self.spawned = []
         self.ran = []
         self.owner = None
-        self.tmp = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        holder = tempfile.TemporaryDirectory()
+        self.addCleanup(holder.cleanup)
+        self.tmp = Path(holder.name)
         # The checkout the hook file sits in: the first one a case makes.
         self.patch(mock.patch.object(
             self.mod, "home", side_effect=lambda: self.owner or self.tmp / "no-owner"))
@@ -113,6 +123,11 @@ class Base(unittest.TestCase):
         self.run_status = 0
         self.patch(mock.patch.object(
             self.mod.subprocess, "Popen", side_effect=self.record_start))
+        # These checkouts are laid out by hand, so git has nothing to say about
+        # them; `IgnoredPaths` asks a real repository.
+        self.ignored = True
+        self.patch(mock.patch.object(
+            self.mod, "index_ignored", side_effect=lambda _root: self.ignored))
 
     def record_start(self, *arguments, **keywords):
         """A worker as the hook starts it, or an update as the worker does:
@@ -149,6 +164,7 @@ class Base(unittest.TestCase):
         root = at or main / ".claude" / "worktrees" / name
         root.mkdir(parents=True)
         (root / ".git").write_text(f"gitdir: {git_dir}\n", encoding="utf-8")
+        (git_dir / "gitdir").write_text(f"{root / '.git'}\n", encoding="utf-8")
         return root
 
     @staticmethod
@@ -922,6 +938,754 @@ class TheWorkerJudgesItsRoot(Base):
         self.assertFalse(self.mod.pending_path(root).exists())
 
 
+class OnlyARegisteredCheckout(Base):
+    """A checkout's `.git` is a claim it makes about itself, so the hook takes
+    it only where git made it: the main checkout's own directory, or a file
+    with one name whose admin directory is this repository's and names it."""
+
+    def admitted(self, root):
+        return self.mod.admitted(root)
+
+    def test_a_forged_git_file_is_refused(self):
+        main = self.checkout("main")
+        real = self.checkout("feature")
+        forged = self.tmp / "forged"
+        forged.mkdir()
+        (forged / ".git").write_text((real / ".git").read_text(encoding="utf-8"),
+                                     encoding="utf-8")
+        self.index(forged)
+
+        self.assertFalse(self.admitted(forged))
+        self.assertTrue(self.admitted(real))
+        self.assertTrue(self.admitted(main))
+
+    def test_an_admin_directory_outside_the_repository_is_refused(self):
+        """The backlink agrees with the marker, and the commondir names this
+        repository: only containment under `<common>/worktrees/` refuses it."""
+        main = self.checkout("main")
+        forged = self.tmp / "forged-admin"
+        admin = self.tmp / "elsewhere" / "worktrees" / "forged"
+        forged.mkdir()
+        admin.mkdir(parents=True)
+        (forged / ".git").write_text(f"gitdir: {admin}\n", encoding="utf-8")
+        (admin / "gitdir").write_text(f"{forged / '.git'}\n", encoding="utf-8")
+        (admin / "commondir").write_text(f"{main / '.git'}\n", encoding="utf-8")
+        self.index(forged)
+
+        self.assertTrue(self.mod.same_repository(forged), "the forgery is the premise")
+        self.assertFalse(self.mod.registered(forged))
+        self.assertEqual(0, self.run_event({"cwd": str(forged)}))
+        self.assertEqual([], self.spawned)
+
+    def test_a_hard_linked_git_file_is_refused(self):
+        """It shares the real file's inode and so its backlink; git never makes
+        a second name for a `.git` file, and while one exists the real
+        worktree is refused too, which is the cost of telling them apart."""
+        self.checkout("main")
+        real = self.checkout("feature")
+        forged = self.tmp / "forged-hardlink"
+        forged.mkdir()
+        try:
+            os.link(real / ".git", forged / ".git")
+        except (OSError, NotImplementedError) as refused:
+            self.skipTest(f"no hard link here: {refused}")
+        self.index(forged)
+
+        self.assertFalse(self.mod.registered(forged))
+        self.assertFalse(self.mod.registered(real))
+        (forged / ".git").unlink()
+        self.assertTrue(self.mod.registered(real))
+
+    def test_a_git_directory_is_only_ever_the_owners_checkout(self):
+        main = self.checkout("main")
+        linked = self.tmp / "linked"
+        linked.mkdir()
+        self.link_dir(linked / ".git", main / ".git")
+        self.index(linked)
+
+        self.assertFalse(self.mod.registered(linked))
+        self.assertTrue(self.mod.registered(main))
+
+    def test_a_relative_backlink_is_read_from_the_admin_directory(self):
+        """`worktree.useRelativePaths` writes it relative to that directory."""
+        main = self.checkout("main")
+        worktree = self.checkout("feature")
+        admin = main / ".git" / "worktrees" / "feature"
+        (admin / "gitdir").write_text(
+            os.path.relpath(worktree / ".git", admin) + "\n", encoding="utf-8")
+
+        self.assertTrue(self.mod.registered(worktree))
+
+    def test_a_backlink_naming_another_checkout_is_refused(self):
+        self.checkout("main")
+        worktree = self.checkout("feature")
+        admin = self.owner / ".git" / "worktrees" / "feature"
+        (admin / "gitdir").write_text(f"{self.tmp / 'somewhere' / '.git'}\n", encoding="utf-8")
+
+        self.assertFalse(self.mod.registered(worktree))
+        self.assertEqual(0, self.run_event({"cwd": str(worktree)}))
+        self.assertEqual([], self.spawned)
+
+
+class NeverASweepsCheckout(Base):
+    """Both sweeps detach their worktrees under `secsweep-`, and the tree one
+    holds is input to an audit, never something to index."""
+
+    def test_a_sweep_checkout_is_refused_in_any_case(self):
+        self.checkout("main")
+        for name in ("secsweep-abc123", "SECSWEEP-XYZ789"):
+            with self.subTest(name):
+                sweep = self.checkout(name)
+                self.assertTrue(self.mod.swept(sweep))
+                self.assertEqual(0, self.run_event({"cwd": str(sweep)}))
+                self.assertEqual([], self.spawned)
+        self.assertFalse(self.mod.swept(self.checkout("feature")))
+
+    def test_a_sweep_worktree_reached_through_an_alias_is_refused(self):
+        self.checkout("main")
+        sweep = self.checkout("secsweep-abc123")
+        alias = self.tmp / "ordinary-name"
+        self.link_dir(alias, sweep)
+
+        self.assertTrue(self.mod.swept(alias))
+        self.assertFalse(self.mod.admitted(alias))
+
+    def test_a_sweeps_main_checkout_seeds_nothing(self):
+        main = self.checkout("secsweep-main")
+        worktree = self.linked(main)
+
+        self.assertIsNone(self.mod.seed_source(worktree))
+        self.assertEqual(0, self.run_event({"cwd": str(worktree)}))
+        self.assertEqual([], self.spawned)
+
+
+class OnlyAnIndexAtRest(Base):
+    """The first connection to a rollback-mode database replays a journal it
+    finds beside it, and SQLite opens each sidecar by name, so a branch that
+    force-tracks either decides what a write does."""
+
+    def journal(self, root):
+        path = Path(str(root / INDEX) + "-journal")
+        path.write_bytes(b"branch-written")
+        return path
+
+    def rollback(self, index):
+        connection = sqlite3.connect(str(index), isolation_level=None)
+        try:
+            connection.execute("pragma journal_mode=delete")
+        finally:
+            connection.close()
+
+    def test_only_an_index_at_rest_in_wal_mode_may_be_opened(self):
+        root = self.checkout("main", indexed=False)
+        self.assertTrue(self.mod.index_openable(root))
+        self.index(root)
+        self.assertTrue(self.mod.index_openable(root))
+        journal = self.journal(root)
+        self.assertFalse(self.mod.index_openable(root))
+        self.assertEqual(0, self.run_event({"cwd": str(root)}))
+        self.assertEqual([], self.spawned)
+        with mock.patch.object(self.mod.sqlite3, "connect") as connect:
+            self.assertFalse(self.mod.compact(root))
+        connect.assert_not_called()
+        journal.unlink()
+        self.rollback(root / INDEX)
+        self.assertFalse(self.mod.index_openable(root))
+
+    def test_an_index_a_first_build_has_not_written_is_admitted(self):
+        root = self.checkout("main", indexed=False)
+        (root / CACHE).mkdir(parents=True)
+        (root / INDEX).write_bytes(b"")
+        self.assertTrue(self.mod.index_openable(root))
+        self.assertFalse(self.mod.written(root))
+        self.journal(root)
+        self.assertFalse(self.mod.index_openable(root))
+
+    def test_a_target_whose_cache_path_is_redirected_is_refused(self):
+        root = self.checkout("main", indexed=False)
+        aimed = self.tmp / "aimed-at"
+        aimed.mkdir()
+        (root / ".claude").mkdir()
+        self.link_dir(root / ".claude" / "cache", aimed)
+        (root / CACHE).mkdir()
+        self.database(root / INDEX, "main")
+
+        self.assertFalse(self.mod.index_openable(root))
+        self.assertEqual(0, self.run_event({"cwd": str(root)}))
+        self.assertEqual([], self.spawned)
+
+    def test_a_target_whose_index_or_sidecar_is_a_link_is_refused(self):
+        root = self.checkout("main")
+        aimed = self.tmp / "aimed-at.sqlite"
+        self.database(aimed, "elsewhere")
+        kept = aimed.read_bytes()
+        moved = self.tmp / "index.sqlite"
+        for name in ("index.sqlite", "index.sqlite-wal", "index.sqlite-shm",
+                     "index.sqlite-journal"):
+            with self.subTest(name):
+                path = root / CACHE / name
+                if name == "index.sqlite":
+                    path.rename(moved)
+                try:
+                    os.symlink(aimed, path)
+                except (OSError, NotImplementedError) as refused:
+                    self.skipTest(f"no file link here: {refused}")
+                try:
+                    self.assertFalse(self.mod.index_openable(root))
+                finally:
+                    path.unlink()
+                    if name == "index.sqlite":
+                        moved.rename(path)
+        self.assertEqual(kept, aimed.read_bytes())
+        self.assertTrue(self.mod.index_openable(root))
+
+    def test_a_seed_source_with_a_journal_or_a_rollback_header_seeds_nothing(self):
+        main = self.checkout("main")
+        worktree = self.linked(main)
+        journal = self.journal(main)
+        self.assertIsNone(self.mod.seed_source(worktree))
+        journal.unlink()
+        self.rollback(main / INDEX)
+        self.assertIsNone(self.mod.seed_source(worktree))
+        (worktree / CACHE).mkdir(parents=True)
+        self.mod.seed(worktree)
+        self.assertFalse((worktree / INDEX).exists())
+
+    def test_a_seed_into_a_redirected_cache_is_refused(self):
+        main = self.checkout("main")
+        worktree = self.linked(main)
+        aimed = self.tmp / "aimed-at"
+        (aimed / "codebase-index").mkdir(parents=True)
+        (worktree / ".claude").mkdir()
+        self.link_dir(worktree / ".claude" / "cache", aimed)
+
+        self.mod.seed(worktree)
+
+        self.assertEqual([], os.listdir(aimed / "codebase-index"))
+
+    def test_a_file_already_at_the_index_path_is_never_replaced(self):
+        """Shorter than a header it is no index, and may be one a branch
+        tracks: the main checkout's text never lands on top of it."""
+        main = self.checkout("main")
+        worktree = self.linked(main)
+        (worktree / CACHE).mkdir(parents=True)
+        (worktree / INDEX).write_bytes(b"placeholder")
+
+        self.assertIsNone(self.mod.seed_source(worktree))
+        self.mod.seed(worktree)
+        self.assertEqual(b"placeholder", (worktree / INDEX).read_bytes())
+
+    def test_a_path_the_branch_stopped_ignoring_is_never_seeded(self):
+        main = self.checkout("main")
+        worktree = self.linked(main)
+        self.ignored = False
+
+        self.assertIsNone(self.mod.seed_source(worktree))
+        self.assertFalse(self.mod.refreshable(worktree))
+        self.assertEqual(0, self.run_event({"cwd": str(worktree)}))
+        self.assertEqual([], self.spawned)
+        self.assertFalse(os.path.lexists(worktree / INDEX))
+
+    def test_each_update_is_judged_again_before_it_runs(self):
+        """A worker refreshes for as long as edits keep coming, and a checkout
+        between two updates can put a journal where the CLI opens the index."""
+        root = self.checkout("main")
+
+        def update_and_journal(*arguments, **keywords):
+            self.ran.append((arguments, keywords))
+            if not Path(str(root / INDEX) + "-journal").exists():
+                self.journal(root)
+            # Bounded, so a worker that never looks again fails rather than hangs.
+            if len(self.ran) < 5:
+                self.mod.request(root)
+            return _Child(0)
+
+        self.patch(mock.patch.object(self.mod.subprocess, "Popen", side_effect=update_and_journal))
+        self.mod.request(root)
+        self.mod.work(root)
+
+        self.assertEqual(1, len(self.ran))
+
+
+class IgnoredPaths(unittest.TestCase):
+    """A seed leaves the main checkout's indexed text at a path only
+    `.gitignore` keeps out of a commit, and a branch can drop that line, so
+    git is asked of a real repository whether the path is ignored."""
+
+    def setUp(self):
+        self.mod = _load()
+        self.base = Path(tempfile.mkdtemp())
+        self.addCleanup(remove_tree, self.base)
+        self.main = self.base / "main"
+        self.main.mkdir()
+        git("init", "-q", cwd=self.main)
+        (self.main / ".gitignore").write_text(".claude/cache/\n", encoding="utf-8")
+        git("add", ".gitignore", cwd=self.main)
+        git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "root",
+            cwd=self.main)
+        self.worktree = self.base / "feature"
+        git("worktree", "add", "-q", "--detach", str(self.worktree), cwd=self.main)
+        self.mod.home = lambda: self.main
+
+    def test_an_ignored_path_is_ignored(self):
+        self.assertTrue(self.mod.index_ignored(self.worktree))
+
+    def test_a_path_the_branch_stopped_ignoring_is_not(self):
+        (self.worktree / ".gitignore").write_text("", encoding="utf-8")
+        self.assertFalse(self.mod.index_ignored(self.worktree))
+
+    def test_an_answer_is_remembered_past_the_git_budget(self):
+        """The worker asks at its entry and seeds later, when the budget it
+        started with may be spent."""
+        self.assertTrue(self.mod.index_ignored(self.worktree))
+        self.mod._DEADLINE = time.monotonic() - 1
+        self.assertTrue(self.mod.index_ignored(self.worktree))
+
+    def test_an_answer_git_did_not_give_is_a_no_and_is_not_remembered(self):
+        self.mod._DEADLINE = time.monotonic() - 1
+        self.assertFalse(self.mod.index_ignored(self.worktree))
+        self.mod._DEADLINE = time.monotonic() + 30
+        self.assertTrue(self.mod.index_ignored(self.worktree))
+
+    def test_git_is_not_aimed_at_another_repository_by_the_environment(self):
+        other = self.base / "other"
+        other.mkdir()
+        git("init", "-q", cwd=other)
+        (self.worktree / ".gitignore").write_text("", encoding="utf-8")
+        with mock.patch.dict(os.environ, {"GIT_DIR": str(other / ".git"),
+                                          "GIT_WORK_TREE": str(self.main)}):
+            self.assertFalse(self.mod.index_ignored(self.worktree))
+
+    def test_the_budget_is_started_once_from_git_budget(self):
+        before = time.monotonic()
+        first = self.mod.deadline()
+        self.assertGreaterEqual(first, before + self.mod.GIT_BUDGET)
+        self.assertLessEqual(first, time.monotonic() + self.mod.GIT_BUDGET)
+        self.assertEqual(first, self.mod.deadline())
+
+
+class TheIndexIsCompactedAfterARefresh(unittest.TestCase):
+    """The package never compacts the file it writes, so every `update` leaves
+    full-text segments and free pages behind. Against a real SQLite file in
+    the package's shape, a `chunks` table and an external-content FTS5 table
+    over it; automerge is off in the fixture, the quickest way to segments."""
+
+    def setUp(self):
+        self.mod = _load()
+        holder = tempfile.TemporaryDirectory()
+        self.addCleanup(holder.cleanup)
+        self.root = Path(holder.name)
+        # The copy lives in the hook's state directory, under the git directory.
+        (self.root / ".git").mkdir()
+        self.mod.home = lambda: self.root
+        self.index = self.root / INDEX
+        self.index.parent.mkdir(parents=True)
+        self.assertGreaterEqual(sqlite3.sqlite_version_info, (3, 37, 0),
+                                "the compaction cases need SQLite 3.37 or later")
+
+    def build(self, *, segments=False, free=False):
+        connection = sqlite3.connect(str(self.index), isolation_level=None)
+        try:
+            connection.execute("PRAGMA journal_mode=WAL")
+            connection.execute("CREATE TABLE chunks (id INTEGER PRIMARY KEY, content TEXT)")
+            connection.execute("CREATE VIRTUAL TABLE fts_chunks USING fts5("
+                               "content, content='chunks', content_rowid='id')")
+            connection.execute("INSERT INTO fts_chunks(fts_chunks, rank) VALUES('automerge', 0)")
+            connection.execute(
+                "INSERT INTO fts_chunks(fts_chunks, rank) VALUES('crisismerge', 1000)")
+            connection.execute("BEGIN")
+            for i in range(1, 11):
+                connection.execute("INSERT INTO chunks VALUES (?, ?)", (i, f"chunk {i} alpha"))
+                connection.execute("INSERT INTO fts_chunks(rowid, content) VALUES (?, ?)",
+                                   (i, f"chunk {i} alpha"))
+            connection.execute("COMMIT")
+            if segments:
+                # A delete and an insert per transaction, each its own segment.
+                for n in range(200):
+                    i = n % 10 + 1
+                    old = connection.execute("SELECT content FROM chunks WHERE id = ?",
+                                             (i,)).fetchone()[0]
+                    new = f"chunk {i} alpha round {n}"
+                    connection.execute("INSERT INTO fts_chunks(fts_chunks, rowid, content) "
+                                       "VALUES('delete', ?, ?)", (i, old))
+                    connection.execute("UPDATE chunks SET content = ? WHERE id = ?", (new, i))
+                    connection.execute("INSERT INTO fts_chunks(rowid, content) VALUES (?, ?)",
+                                       (i, new))
+            if free:
+                # Pages a dropped table gave back, which nothing reclaims.
+                connection.execute("CREATE TABLE filler (b BLOB)")
+                connection.execute("INSERT INTO filler VALUES (zeroblob(2000000))")
+                connection.execute("DROP TABLE filler")
+        finally:
+            connection.close()
+
+    def measure(self):
+        connection = sqlite3.connect(str(self.index))
+        try:
+            return {
+                "pages": connection.execute("PRAGMA page_count").fetchone()[0],
+                "free": connection.execute("PRAGMA freelist_count").fetchone()[0],
+                "rows": connection.execute("SELECT count(*) FROM fts_chunks_data").fetchone()[0],
+                "hits": connection.execute("SELECT count(*) FROM fts_chunks "
+                                           "WHERE fts_chunks MATCH 'alpha'").fetchone()[0],
+            }
+        finally:
+            connection.close()
+
+    def snapshot(self):
+        return self.index.read_bytes(), os.stat(self.index).st_mtime_ns
+
+    def owned_files(self):
+        directory = self.mod.state_dir()
+        if not directory.is_dir():
+            return []
+        return sorted(name for name in os.listdir(directory) if "compact" in name)
+
+    def cache_files(self):
+        return sorted(os.listdir(self.index.parent))
+
+    def integrity(self):
+        connection = sqlite3.connect(str(self.index))
+        try:
+            connection.execute("INSERT INTO fts_chunks(fts_chunks) VALUES('integrity-check')")
+        finally:
+            connection.close()
+
+    def test_a_bloated_index_is_compacted(self):
+        self.build(segments=True, free=True)
+        before = os.path.getsize(self.index)
+        self.assertTrue(self.mod.compact(self.root))
+        after = self.measure()
+        self.assertLess(os.path.getsize(self.index), before / 4)
+        self.assertEqual(0, after["free"])
+        self.assertLessEqual(after["rows"], 10)
+        # Merged, not lost: every chunk is still found, and FTS5 agrees.
+        self.assertEqual(10, after["hits"])
+        self.integrity()
+
+    def test_free_pages_alone_are_enough(self):
+        self.build(free=True)
+        before = self.measure()
+        self.assertGreater(before["free"], before["pages"] * self.mod.FREE_SHARE)
+        self.assertLessEqual(before["rows"], self.mod.ROWS_PER_CHUNK * 10)
+        self.assertTrue(self.mod.compact(self.root))
+        self.assertEqual(0, self.measure()["free"])
+
+    def test_segment_rows_alone_are_enough(self):
+        self.build(segments=True)
+        before = self.measure()
+        self.assertLessEqual(before["free"], before["pages"] * self.mod.FREE_SHARE)
+        self.assertGreater(before["rows"], self.mod.ROWS_PER_CHUNK * 10)
+        self.assertTrue(self.mod.compact(self.root))
+        self.assertLessEqual(self.measure()["rows"], 10)
+
+    def test_a_lean_index_is_left_as_it_is(self):
+        self.build()
+        before = self.snapshot()
+        self.assertFalse(self.mod.compact(self.root))
+        self.assertEqual(before, self.snapshot())
+
+    def test_an_index_of_another_shape_is_left_as_it_is(self):
+        connection = sqlite3.connect(str(self.index))
+        try:
+            connection.execute("PRAGMA journal_mode=WAL")
+            connection.execute("CREATE TABLE other (x)")
+        finally:
+            connection.close()
+        before = self.snapshot()
+        self.assertFalse(self.mod.compact(self.root))
+        self.assertEqual(before, self.snapshot())
+
+    def test_no_index_is_not_created(self):
+        self.assertFalse(self.mod.compact(self.root))
+        self.assertFalse(self.index.exists())
+
+    def test_a_connection_held_open_on_the_index_refuses_the_compaction(self):
+        """A reader leaves a `-wal` and a `-shm`, and a rename over the index
+        then would put a stale log beside a new database."""
+        self.build(segments=True, free=True)
+        reader = sqlite3.connect(str(self.index), isolation_level=None)
+        self.addCleanup(reader.close)
+        reader.execute("BEGIN")
+        reader.execute("SELECT count(*) FROM chunks").fetchone()
+        self.assertTrue(os.path.lexists(str(self.index) + "-wal"))
+        with mock.patch.object(self.mod.sqlite3, "connect") as connect:
+            self.assertFalse(self.mod.compact(self.root))
+        connect.assert_not_called()
+        reader.execute("COMMIT")
+
+    def test_a_stale_log_beside_the_index_is_never_replayed(self):
+        self.build(segments=True, free=True)
+        log = Path(str(self.index) + "-wal")
+        log.write_bytes(b"\x37\x7f\x06\x82" + b"\0" * 28)
+        before = self.snapshot()
+        self.assertFalse(self.mod.compact(self.root))
+        self.assertEqual(before, self.snapshot())
+        self.assertTrue(os.path.lexists(log))
+
+    def test_a_compaction_past_its_deadline_is_interrupted(self):
+        """In a thread, so a regression fails this case rather than hanging
+        the suite; the interrupted `VACUUM` gives no page back."""
+        self.build(segments=True, free=True)
+        connection = sqlite3.connect(str(self.index), isolation_level=None)
+        try:
+            connection.execute("INSERT INTO chunks(content) SELECT 'padding ' || value FROM "
+                               "(WITH RECURSIVE r(value) AS (SELECT 1 UNION ALL "
+                               "SELECT value + 1 FROM r LIMIT 5000) SELECT value FROM r)")
+        finally:
+            connection.close()
+        result = []
+        worker = threading.Thread(
+            target=lambda: result.append(self.mod.compact(self.root)), daemon=True)
+        with mock.patch.object(self.mod, "COMPACT_TIMEOUT", -1):
+            worker.start()
+            worker.join(timeout=30)
+        self.assertFalse(worker.is_alive(), "compaction ran past its deadline")
+        self.assertEqual([False], result)
+        self.assertGreater(self.measure()["free"], 0)
+        self.integrity()
+
+    def test_the_copy_is_interrupted_between_its_steps(self):
+        self.build(segments=True, free=True)
+        before = self.snapshot()
+        with mock.patch.object(self.mod, "late",
+                               side_effect=sqlite3.OperationalError("deadline")) as late:
+            self.assertFalse(self.mod.compact(self.root))
+        late.assert_called()
+        self.assertEqual(before, self.snapshot())
+        self.assertEqual([], self.owned_files())
+
+    def test_a_sqlite_that_cannot_distrust_the_schema_compacts_nothing(self):
+        self.build(segments=True, free=True)
+        before = self.snapshot()
+        real_connect = sqlite3.connect
+
+        class Old(sqlite3.Connection):
+            def execute(self, sql, *args):
+                if sql == "PRAGMA trusted_schema":
+                    return super().execute("SELECT 1 WHERE 0")
+                return super().execute(sql, *args)
+
+        with mock.patch.object(self.mod.sqlite3, "connect",
+                               lambda *a, **k: real_connect(*a, factory=Old, **k)):
+            self.assertFalse(self.mod.compact(self.root))
+        self.assertEqual(before, self.snapshot())
+
+    def test_triggers_that_will_not_switch_off_compact_nothing(self):
+        self.build(segments=True, free=True)
+        before = self.snapshot()
+        real_connect = sqlite3.connect
+
+        class Stuck(sqlite3.Connection):
+            def setconfig(self, *args):
+                return None
+
+        with mock.patch.object(self.mod.sqlite3, "connect",
+                               lambda *a, **k: real_connect(*a, factory=Stuck, **k)):
+            self.assertFalse(self.mod.compact(self.root))
+        self.assertEqual(before, self.snapshot())
+
+    def test_a_sqlite_without_table_list_compacts_nothing(self):
+        self.build(segments=True, free=True)
+        before = self.snapshot()
+        real_connect = sqlite3.connect
+
+        class Old(sqlite3.Connection):
+            def execute(self, sql, *args):
+                if sql == "PRAGMA main.table_list":
+                    return super().execute("SELECT 1 WHERE 0")
+                return super().execute(sql, *args)
+
+        with mock.patch.object(self.mod.sqlite3, "connect",
+                               lambda *a, **k: real_connect(*a, factory=Old, **k)):
+            self.assertFalse(self.mod.compact(self.root))
+        self.assertEqual(before, self.snapshot())
+
+    def test_a_file_of_another_shape_runs_none_of_its_schema(self):
+        """A plain `fts_chunks` table can carry a trigger the `optimize` insert
+        would fire, and the shape check refuses it before any statement."""
+        connection = sqlite3.connect(str(self.index), isolation_level=None)
+        try:
+            connection.execute("PRAGMA journal_mode=WAL")
+            connection.execute("CREATE TABLE chunks (id INTEGER PRIMARY KEY, content TEXT)")
+            connection.execute("CREATE TABLE fts_chunks_data (id INTEGER PRIMARY KEY, block BLOB)")
+            connection.execute("CREATE TABLE fts_chunks (fts_chunks TEXT /* using fts5 */)")
+            connection.execute("CREATE TABLE fired (n INTEGER)")
+            connection.execute("CREATE TRIGGER planted AFTER INSERT ON fts_chunks "
+                               "BEGIN INSERT INTO fired VALUES (1); END")
+            connection.execute("INSERT INTO fts_chunks_data SELECT value, NULL FROM "
+                               "(WITH RECURSIVE r(value) AS (SELECT 1 UNION ALL "
+                               "SELECT value + 1 FROM r LIMIT 50) SELECT value FROM r)")
+        finally:
+            connection.close()
+        self.assertFalse(self.mod.compact(self.root))
+        connection = sqlite3.connect(str(self.index))
+        try:
+            self.assertEqual(0, connection.execute("SELECT count(*) FROM fired").fetchone()[0])
+        finally:
+            connection.close()
+
+    def test_a_trigger_in_the_file_never_runs(self):
+        for spelling in ("fts_chunks_data", "FTS_CHUNKS_DATA"):
+            with self.subTest(spelling=spelling):
+                for suffix in ("", "-wal", "-shm"):
+                    Path(str(self.index) + suffix).unlink(missing_ok=True)
+                self.build(segments=True, free=True)
+                connection = sqlite3.connect(str(self.index), isolation_level=None)
+                try:
+                    connection.execute("CREATE TABLE fired (n INTEGER)")
+                    connection.execute(f"CREATE TRIGGER planted AFTER INSERT ON {spelling} "
+                                       "BEGIN INSERT INTO fired VALUES (1); END")
+                finally:
+                    connection.close()
+                self.assertTrue(self.mod.compact(self.root))
+                connection = sqlite3.connect(str(self.index))
+                try:
+                    self.assertEqual(
+                        0, connection.execute("SELECT count(*) FROM fired").fetchone()[0])
+                finally:
+                    connection.close()
+
+    def test_a_view_or_a_name_outside_ascii_is_refused(self):
+        for change in ("DROP TABLE chunks; CREATE VIEW chunks AS SELECT 1 AS id",
+                       "CREATE VIEW fts_chunks_extra AS SELECT 1 AS x",
+                       'CREATE TABLE "chunKs_elsewhere" (x)'):
+            with self.subTest(change):
+                for suffix in ("", "-wal", "-shm"):
+                    Path(str(self.index) + suffix).unlink(missing_ok=True)
+                self.build(segments=True, free=True)
+                connection = sqlite3.connect(str(self.index), isolation_level=None)
+                try:
+                    connection.executescript(change)
+                finally:
+                    connection.close()
+                before = self.snapshot()
+                self.assertFalse(self.mod.compact(self.root))
+                self.assertEqual(before, self.snapshot())
+
+    def test_nothing_that_writes_opens_the_index(self):
+        """The index is read through an immutable, read-only URI and the
+        compaction runs on a copy outside the tree."""
+        self.build(segments=True, free=True)
+        real_connect = sqlite3.connect
+        opened = []
+
+        def spy(target, *args, **kwargs):
+            opened.append((str(target), kwargs.get("uri", False)))
+            return real_connect(target, *args, **kwargs)
+
+        with mock.patch.object(self.mod.sqlite3, "connect", spy):
+            self.assertTrue(self.mod.compact(self.root))
+        reads = [target for target, uri in opened if uri]
+        self.assertEqual(1, len(reads), opened)
+        self.assertIn("mode=ro", reads[0])
+        self.assertIn("immutable=1", reads[0])
+        cache = os.path.normcase(str(self.index.parent))
+        writers = [target for target, uri in opened if not uri]
+        self.assertTrue(writers, opened)
+        for target in writers:
+            self.assertFalse(os.path.normcase(target).startswith(cache), target)
+
+    def test_a_compaction_leaves_no_copy_and_no_sidecar_behind(self):
+        self.build(segments=True, free=True)
+        self.assertTrue(self.mod.compact(self.root))
+        self.assertEqual([], self.owned_files())
+        self.assertEqual(["index.sqlite"], self.cache_files())
+
+    def test_a_refused_compaction_leaves_no_copy_behind(self):
+        self.build(segments=True, free=True)
+        real = self.mod.locked_down
+        calls = []
+
+        def second_fails(connection, limit):
+            calls.append(connection)
+            return real(connection, limit) and len(calls) < 2
+
+        with mock.patch.object(self.mod, "locked_down", second_fails):
+            self.assertFalse(self.mod.compact(self.root))
+        self.assertEqual(2, len(calls))
+        self.assertEqual([], self.owned_files())
+
+    def test_a_copy_a_killed_worker_left_is_removed(self):
+        self.build(segments=True, free=True)
+        partial = self.mod.state_path(self.root, "compact.sqlite")
+        partial.parent.mkdir(parents=True, exist_ok=True)
+        for suffix in ("", "-wal"):
+            Path(str(partial) + suffix).write_bytes(b"left by a worker that was killed")
+        self.assertTrue(self.mod.compact(self.root))
+        self.assertEqual([], self.owned_files())
+
+    def test_a_sidecar_that_appears_during_the_copy_discards_it(self):
+        self.build(segments=True, free=True)
+        before = self.snapshot()
+        real = self.mod.shaped
+
+        def appears(connection):
+            Path(str(self.index) + "-shm").write_bytes(b"")
+            return real(connection)
+
+        with mock.patch.object(self.mod, "shaped", appears):
+            self.assertFalse(self.mod.compact(self.root))
+        self.assertEqual(before, self.snapshot())
+        self.assertEqual([], self.owned_files())
+
+    def test_an_index_written_during_the_copy_is_not_replaced(self):
+        self.build(segments=True, free=True)
+        real = self.mod.shaped
+
+        def written_meanwhile(connection):
+            with open(self.index, "ab") as handle:
+                handle.write(b"\0")
+            return real(connection)
+
+        with mock.patch.object(self.mod, "shaped", written_meanwhile):
+            self.assertFalse(self.mod.compact(self.root))
+        self.assertEqual([], self.owned_files())
+        self.assertEqual(["index.sqlite"], self.cache_files())
+
+    def test_a_rename_the_platform_refuses_leaves_the_index_alone(self):
+        self.build(segments=True, free=True)
+        before = self.snapshot()
+        with mock.patch.object(self.mod.os, "replace", side_effect=PermissionError("in use")):
+            self.assertFalse(self.mod.compact(self.root))
+        self.assertEqual(before, self.snapshot())
+        self.assertEqual([], self.owned_files())
+
+    def test_the_compacted_index_is_in_wal_mode_and_is_still_openable(self):
+        self.build(segments=True, free=True)
+        self.assertTrue(self.mod.compact(self.root))
+        with open(self.index, "rb") as handle:
+            self.assertEqual(b"\x02\x02", handle.read(100)[18:20])
+        self.assertTrue(self.mod.index_openable(self.root))
+
+    def refreshed_with(self, finished):
+        self.build()
+        with mock.patch.object(self.mod, "refresh", return_value=finished), \
+                mock.patch.object(self.mod.time, "sleep"), \
+                mock.patch.object(self.mod, "compact") as compact:
+            self.mod.refreshed(self.root)
+        return compact
+
+    def test_a_refresh_that_succeeded_is_compacted(self):
+        self.refreshed_with(True).assert_called_once_with(self.root)
+
+    def test_a_failed_update_compacts_nothing(self):
+        self.refreshed_with(False).assert_not_called()
+
+    def test_compaction_runs_under_the_roots_lock(self):
+        """The worker's lock keeps this hook's next update off the file while
+        it is rewritten, so the rewrite happens inside it."""
+        self.build()
+        seen = []
+        self.mod.request(self.root)
+        with mock.patch.object(self.mod, "refresh", return_value=True), \
+                mock.patch.object(self.mod, "index_ignored", return_value=True), \
+                mock.patch.object(self.mod, "compact",
+                                  side_effect=lambda root: seen.append(self.mod.busy(root))):
+            self.mod.work(self.root)
+        self.assertEqual([True], seen)
+
+
 class StateOutOfReach(Base):
     """The lock and the marker are the hook's own writes, so they live where
     no branch can aim them: a tracked link under the checkout's cache is
@@ -1603,10 +2367,15 @@ pathlib.Path("cli-ran").write_text(
 def remove_tree(path: Path) -> None:
     """Remove a tree a process may still be leaving, for as long as it takes
     and then loudly, since Windows refuses a directory something stands in."""
+    def writable(function, name, _error):
+        # Git writes its objects read-only, which Windows will not delete.
+        os.chmod(name, stat.S_IWRITE)
+        function(name)
+
     deadline = time.monotonic() + 60
     while True:
         try:
-            return shutil.rmtree(path)
+            return shutil.rmtree(path, onexc=writable)
         except OSError:
             if time.monotonic() > deadline:
                 raise
@@ -1624,18 +2393,21 @@ class TheDetachedWorkerReallyRuns(unittest.TestCase):
         self.base = Path(tempfile.mkdtemp())
         self.addCleanup(remove_tree, self.base)
         self.owner = self.base / "owner"
-        (self.owner / ".git").mkdir(parents=True)
+        self.owner.mkdir()
+        # A repository git made, since the worker asks git whether the index
+        # path is ignored before it seeds.
+        git("init", "-q", cwd=self.owner)
+        (self.owner / ".gitignore").write_text(".claude/cache/\n", encoding="utf-8")
+        git("add", ".gitignore", cwd=self.owner)
+        git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "root",
+            cwd=self.owner)
         hooks = self.owner / ".claude" / "hooks"
         hooks.mkdir(parents=True)
         shutil.copyfile(HOOK, hooks / HOOK.name)
         self.hook = _load()
         self.hook.home = lambda: self.owner
         self.worktree = self.owner / ".claude" / "worktrees" / "feature"
-        admin = self.owner / ".git" / "worktrees" / "feature"
-        admin.mkdir(parents=True)
-        (admin / "commondir").write_text("../..\n", encoding="utf-8")
-        self.worktree.mkdir(parents=True)
-        (self.worktree / ".git").write_text(f"gitdir: {admin}\n", encoding="utf-8")
+        git("worktree", "add", "-q", "--detach", str(self.worktree), cwd=self.owner)
         index = self.owner / CACHE / "index.sqlite"
         index.parent.mkdir(parents=True)
         connection = sqlite3.connect(str(index))
