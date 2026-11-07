@@ -240,6 +240,7 @@ class EachCommandFilesUnderOneRoute(unittest.TestCase):
             with self.subTest(command=name):
                 self.assertIn(self.SWEEP, allowed)
                 self.assertNotIn(self.HAND, allowed)
+                self.assertNotIn(self.MUTATION, allowed)
                 self.assertIn(self.CREATE, denied)
                 self.assertIn(self.HAND, denied)
                 self.assertIn(self.MUTATION, denied)
@@ -250,6 +251,7 @@ class EachCommandFilesUnderOneRoute(unittest.TestCase):
             with self.subTest(command=name):
                 self.assertIn(self.HAND, allowed)
                 self.assertNotIn(self.SWEEP, allowed)
+                self.assertNotIn(self.MUTATION, allowed)
                 if name != "ship.md":
                     # /ship states no deny list: a deny on a command it chains outlasts the step.
                     self.assertIn(self.SWEEP, denied)
