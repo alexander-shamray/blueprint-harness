@@ -720,7 +720,7 @@ class AWorktreeTheSessionHasNotEntered(GuardCase):
                       (".git", "config")):
             with self.subTest(parts=parts):
                 reason = self.assertRefused(os.path.join(worktree, *parts))
-                self.assertIn("linked worktree", reason)
+                self.assertIn("worktree of this repository", reason)
 
     def test_a_nested_worktree_is_judged_the_same(self):
         beside = os.path.join(self.root, ".claude", "worktrees")
@@ -760,6 +760,15 @@ class AWorktreeTheSessionHasNotEntered(GuardCase):
         self.assertRefused(os.path.join(sibling, ".claude", "settings.json"),
                            cwd=here, project=here)
         self.assertAdmitted(os.path.join(sibling, "docs", "note.md"),
+                            cwd=here, project=here)
+
+    def test_the_main_checkout_is_judged_from_inside_a_worktree(self):
+        # Its `.git` is a directory, so no gitdir names it; it is the common
+        # git dir of the worktree the session stands in.
+        here = self.linked("here")
+        self.assertRefused(os.path.join(self.root, ".claude", "settings.json"),
+                           cwd=here, project=here)
+        self.assertAdmitted(os.path.join(self.root, "docs", "note.md"),
                             cwd=here, project=here)
 
     def test_the_worktree_the_session_stands_in_is_not_this_rule(self):
