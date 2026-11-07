@@ -3272,6 +3272,26 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
 
+    def test_a_reserved_word_in_front_does_not_hide_the_printer(self):
+        for command in (
+            "if echo 'git push origin +HEAD:main' | bash; then echo ok; fi",
+            "! echo 'git push origin +HEAD:main' | bash",
+            "while echo 'git push origin +HEAD:main' | sh; do break; done",
+            "if true; then echo 'git push origin +HEAD:main' | bash; fi",
+            "for x in a; do echo 'git push origin +HEAD:main' | bash; done",
+            "if bash <<<'git push origin +HEAD:main'; then echo ok; fi",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command)
+        for command in (
+            "if git diff --quiet; then echo same; fi",
+            "if ! git status | grep -q clean; then echo dirty; fi",
+            "if echo hello | grep -q h; then echo ok; fi",
+            "! git status | grep -q x",
+        ):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
     def test_the_hook_directory_is_a_control_surface_and_is_denied(self):
         # It grants nothing, but it RUNS on every Bash call, so a session able
         # to rewrite it could delete its own guard and then act. `CLAUDE.md`

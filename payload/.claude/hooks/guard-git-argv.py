@@ -1713,18 +1713,23 @@ def program_name(token):
 # of `X+=1 printf 'git p%ssh origin +HEAD:main' u | bash`.
 ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\[[^\]]*\])?\+?=")
 
+# Reserved words the next word of a run is a command word after. `done`, `fi`
+# and `}` end a construct and lead nothing.
+COMMAND_PREFIX_WORDS = frozenset({"!", "{", "do", "elif", "else", "if", "then",
+                                  "until", "while"})
+
 
 def leading_command(run):
-    """The command word of `run`, past any assignment prefix.
+    """The command word of `run`, past any assignment or reserved word.
 
     `X=1 bash` is a run led by `bash`, so
     `X=1 bash <<<'git push origin +HEAD:main'` reads its here-string as a
-    script. The same reading is owed to the printer half — `X=1 echo … | bash`
-    — and to the data-only exemption, which is why this is one function rather
-    than a test repeated at each site.
+    script. The same reading is owed to the printer half — `X=1 echo … | bash`,
+    `if echo … | bash; then` — and to the data-only exemption, which is why
+    this is one function rather than a test repeated at each site.
     """
     for token in run:
-        if not ASSIGNMENT.match(token):
+        if not ASSIGNMENT.match(token) and token not in COMMAND_PREFIX_WORDS:
             return token
     return ""
 
