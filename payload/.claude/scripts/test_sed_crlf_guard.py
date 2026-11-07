@@ -13,6 +13,9 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
+
+import dispatch_board
 
 SCRIPTS = Path(__file__).resolve().parent
 HOOK = SCRIPTS.parent / "hooks" / "guard-sed-crlf.py"
@@ -342,10 +345,65 @@ class WhatTheHookCannotPlaceFailsOpen(ACheckout):
         self.assertAdmitted("printf '%s\\n' \"sed -i 's/one/uno/' crlf.txt\" | bash")
 
     def test_no_git_admits(self):
-        original = GUARD.shutil.which
-        GUARD.shutil.which = lambda name: None
-        self.addCleanup(setattr, GUARD.shutil, "which", original)
+        original = GUARD.path_which
+        GUARD.path_which = lambda name: None
+        self.addCleanup(setattr, GUARD, "path_which", original)
         self.assertAdmitted("sed -i 's/one/uno/' crlf.txt")
+
+
+class AGitPlantedWhereTheHookStands(ACheckout):
+    """A planted git answers 0 to everything and leaves a mark, so it would refuse the untracked `loose.txt`."""
+
+    def setUp(self):
+        super().setUp()
+        self.mark = os.path.join(self.root, "planted-git-ran")
+        self.addCleanup(os.chdir, os.getcwd())
+        os.chdir(self.root)
+        # A Claude Code shell sets this, which stops Windows searching the current directory, and a hook cannot rely
+        # on that: a case that inherited it would pass over the search it is here to judge.
+        environment = mock.patch.dict(os.environ)
+        environment.start()
+        self.addCleanup(environment.stop)
+        os.environ.pop("NoDefaultCurrentDirectoryInExePath", None)
+
+    def executable(self, folder, name, text):
+        os.makedirs(folder, exist_ok=True)
+        path = os.path.join(folder, name + (".cmd" if os.name == "nt" else ""))
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.chmod(path, 0o755)
+
+    def plant(self, folder):
+        lines = [f'@echo ran> "{self.mark}"', "@exit /b 0"] if os.name == "nt" else [
+            "#!/bin/sh", f"echo ran > '{self.mark}'"]
+        self.executable(folder, "git", "".join(line + chr(10) for line in lines))
+
+    def test_it_is_not_run_and_the_git_on_path_answers(self):
+        self.plant(self.root)
+        real = os.path.dirname(GIT)
+        for path in (real, os.pathsep.join(["", ".", real])):
+            with self.subTest(path=path), mock.patch.dict(os.environ, {"PATH": path}):
+                self.assertAdmitted("sed -i 's/one/uno/' loose.txt")
+                self.assertRefused("sed -i 's/one/uno/' crlf.txt", "crlf.txt")
+                self.assertFalse(os.path.exists(self.mark), "the planted git ran")
+
+    def test_a_git_at_or_below_the_working_directory_reads_as_no_git(self):
+        tools = os.path.join(self.root, "tools")
+        self.plant(self.root)
+        self.plant(tools)
+        with mock.patch.dict(os.environ, {"PATH": os.pathsep.join(["", ".", self.root, tools])}):
+            self.assertAdmitted("sed -i 's/one/uno/' crlf.txt")
+            self.assertFalse(os.path.exists(self.mark), "the planted git ran")
+
+    def test_the_copy_answers_as_the_dispatcher_does(self):
+        with tempfile.TemporaryDirectory() as other:
+            for folder in (self.root, other):
+                self.executable(folder, "tool", "x")
+            for path in ("", os.pathsep.join(["", ".", self.root]), os.pathsep.join([self.root, other]), other):
+                with self.subTest(path=path), mock.patch.dict(os.environ, {"PATH": path}):
+                    self.assertEqual(dispatch_board.path_which("tool"), GUARD.path_which("tool"))
+            with mock.patch.dict(os.environ, {"PATH": other}):
+                self.assertIsNotNone(GUARD.path_which("tool"))
 
 
 class TheHookAsTheHarnessRunsIt(ACheckout):
