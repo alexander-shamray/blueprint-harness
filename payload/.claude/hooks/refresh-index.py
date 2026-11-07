@@ -402,7 +402,7 @@ def seed_source(root: Path) -> Path | None:
     into an empty path git ignores, and only from a written index at rest in
     a registered main checkout that is no sweep's, a regular file at its own
     index path, so a link planted there cannot point the copy elsewhere."""
-    if os.path.lexists(root / INDEX) or not index_ignored(root):
+    if os.path.lexists(root / INDEX):
         return None
     main = main_checkout(root)
     if main is None or not registered(main) or swept(main):
@@ -412,7 +412,8 @@ def seed_source(root: Path) -> Path | None:
         return None
     if source.is_symlink() or not source.is_file():
         return None
-    return source
+    # Last, so git runs only where a seed could otherwise happen.
+    return source if index_ignored(root) else None
 
 
 def refreshable(root: Path) -> bool:
