@@ -57,7 +57,7 @@ if [ "$mode" != full ] && last=$(g rev-parse --verify --quiet "refs/sweeps/$kind
   if g merge-base --is-ancestor "$last" "$pinned"; then since="$last"; fi
 fi
 # The swept tree's .gitattributes would decide what `grep -I` calls binary, so
-# they are read from the empty tree instead; a git older than 2.42 refuses the
+# they are read from the empty tree instead; a git older than 2.41 refuses the
 # option, and the run fails rather than trusting them.
 empty=$(g hash-object -t tree --stdin </dev/null)
 
