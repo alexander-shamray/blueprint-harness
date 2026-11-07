@@ -282,16 +282,20 @@ class IssueHelperHasNoFreeParameter(unittest.TestCase):
             capture_output=True, text=True, encoding="utf-8", input=body, env=env,
         )
 
-    def test_neither_entry_point_takes_a_route_at_all(self):
-        # A route word, or any fourth word, is refused by arity before `gh` runs, so a command granted an entry
-        # point cannot name another route's trailer.
-        for name in ("gh-issue-sweep.sh", "gh-issue-hand.sh"):
+    # Each entry point with the words it takes: the mutation route's holds the kind as well as the route.
+    ENTRY_POINTS = (("gh-issue-sweep.sh", ("bug", "low", "code")),
+                    ("gh-issue-hand.sh", ("bug", "low", "code")),
+                    ("gh-issue-mutation.sh", ("low", "code")))
+
+    def test_no_entry_point_takes_a_route_at_all(self):
+        # A route word, or any word past its own, is refused by arity before `gh` runs, so a command granted an
+        # entry point cannot name another route's trailer.
+        for name, words in self.ENTRY_POINTS:
             for route in ("sweep", "hand", "mutation", "request", "-R other/repo", ""):
                 with self.subTest(entry=name, route=route):
-                    self.assert_refused_before_gh(
-                        self.run_entry(name, "bug", "low", "code", route, body=self.STDIN))
+                    self.assert_refused_before_gh(self.run_entry(name, *words, route, body=self.STDIN))
             with self.subTest(entry=name, args="short"):
-                self.assert_refused_before_gh(self.run_entry(name, "bug", "low", body=self.STDIN))
+                self.assert_refused_before_gh(self.run_entry(name, *words[:-1], body=self.STDIN))
 
     def test_the_entry_points_offer_no_kind_they_cannot_file(self):
         # An enhancement files under the request route alone, which neither entry point spells.
@@ -302,25 +306,45 @@ class IssueHelperHasNoFreeParameter(unittest.TestCase):
                 self.assertIn(f"usage: {name} <security|bug|test-gap>", result.stderr)
                 self.assertNotIn("enhancement", result.stderr)
 
-    def test_each_entry_point_files_one_route_and_refuses_the_other_trailer(self):
+    def test_the_mutation_entry_offers_no_kind_at_all(self):
+        # Its route's sentence says a mutant went undetected, which is a test gap and nothing else.
+        result = self.run_entry("gh-issue-mutation.sh")
+        self.assertEqual(2, result.returncode)
+        self.assertIn("usage: gh-issue-mutation.sh <critical|high|medium|low>", result.stderr)
+        self.assertNotIn("test-gap", result.stderr)
+        self.assertNotIn("enhancement", result.stderr)
+        self.assert_refused_before_gh(
+            self.run_entry("gh-issue-mutation.sh", "bug", "low", "code", body=self.MUTATION_STDIN))
+
+    def test_each_entry_point_files_one_route_and_refuses_the_other_trailers(self):
         # The positive controls come first in each pair: an entry point that refused everything would satisfy
         # the refusals.
-        for name, own, other in (("gh-issue-sweep.sh", self.STDIN, self.HAND_STDIN),
-                                 ("gh-issue-hand.sh", self.HAND_STDIN, self.STDIN)):
+        for (name, words), own in zip(self.ENTRY_POINTS, (self.STDIN, self.HAND_STDIN, self.MUTATION_STDIN)):
             with self.subTest(entry=name):
                 created = len([c for c in self.calls() if c.startswith("issue create ")])
-                result = self.run_entry(name, "bug", "low", "code", body=own)
+                result = self.run_entry(name, *words, body=own)
                 self.assertEqual(0, result.returncode, result.stderr)
                 self.assertEqual(created + 1, len([c for c in self.calls() if c.startswith("issue create ")]))
-                before = len(self.calls())
-                self.assertEqual(2, self.run_entry(name, "bug", "low", "code", body=other).returncode)
-                self.assertEqual(before, len(self.calls()))
+                for other in {self.STDIN, self.HAND_STDIN, self.MUTATION_STDIN} - {own}:
+                    before = len(self.calls())
+                    self.assertEqual(2, self.run_entry(name, *words, body=other).returncode)
+                    self.assertEqual(before, len(self.calls()))
 
-    def test_the_entry_points_do_not_file_a_trailer_of_the_routes_nothing_files_under(self):
-        for name in ("gh-issue-sweep.sh", "gh-issue-hand.sh"):
-            for body, kind in ((self.MUTATION_STDIN, "test-gap"), (self.REQUEST_STDIN, "enhancement")):
-                with self.subTest(entry=name, kind=kind):
-                    self.assert_refused_before_gh(self.run_entry(name, kind, "low", "code", body=body))
+    def test_the_mutation_entry_files_as_the_test_gap_it_spells(self):
+        result = self.run_entry("gh-issue-mutation.sh", "low", "code,test", body=self.MUTATION_STDIN)
+        self.assertEqual(0, result.returncode, result.stderr)
+        create = [c for c in self.calls() if c.startswith("issue create ")]
+        self.assertEqual(1, len(create), self.calls())
+        for label in ("test-gap", "low", "code", "test"):
+            self.assertIn(f"--label {label} ", create[0] + " ")
+        self.assertEqual(f"the body\n\n{self.MUTATION_TRAILER}\n",
+                         (Path(self.dir) / "body").read_text(encoding="utf-8"))
+
+    def test_the_entry_points_do_not_file_the_request_trailer_nothing_files_under(self):
+        for name, words in self.ENTRY_POINTS:
+            with self.subTest(entry=name):
+                kind = ("enhancement",) if len(words) == 3 else ()
+                self.assert_refused_before_gh(self.run_entry(name, *kind, *words[-2:], body=self.REQUEST_STDIN))
 
     def test_a_body_without_the_trailer_is_refused(self):
         # The detector for an early heredoc close: a body cut short by a
