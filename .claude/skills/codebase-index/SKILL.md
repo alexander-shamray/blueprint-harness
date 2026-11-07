@@ -12,6 +12,9 @@ The wrappers need the `codebase-index` package on the interpreter
 `.harness/agent-rules.md`, *Hard rules*, pins
 (`py -3.12 -m pip install codebase-index`).
 If they exit 127, the index is unavailable this session; use Grep/Glob.
+`cbx` exits 3 when the index is one the refresh hook would refuse to open,
+and 4 when no Python 3.12 can judge it; use Grep/Glob then too, and report
+the exit 3 message, which names what a branch tracked under the cache.
 
 The operating principle is **Find → Trace → Verify → Predict**:
 
