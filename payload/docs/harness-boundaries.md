@@ -13,7 +13,7 @@ the whole is about 31k. `Grep -n "^## <title>"` gives its first line.
 | Index hint hooks and hook wiring | Query, search and MCP-root hooks, MCP_TIMEOUT, and why hook commands run without a shell. |
 | Settings self-lock and permission root | The settings.json self-lock and its delay, settings.local.json, how EnterWorktree moves rules, and the hooks deny. |
 | Grant semantics | allowed-tools as auto-approval rather than whitelist, and a deny as the only refusal; where the external reviewers' machinery went. |
-| Prefix grants and wildcard denies | Table of over-wide git grants, the reset-grant lesson, mid-pattern deny wildcards and the quoting bypass. |
+| Prefix grants and wildcard denies | Table of over-wide git grants, the reset-grant lesson, mid-pattern deny wildcards, the quoting bypass and the helper argv guard. |
 | The guards' threat model | What the guard hooks are written against, which guard findings are filed, and which are recorded as out of scope. |
 | Destructive classes | One table of what the harness refuses, the layer that refuses each, and the test that holds the table to the deny list and the hooks. |
 | Git argv guard hook | How guard-git-argv.py resolves the executed argv, its successive bypasses, git -c and stated residuals. |
@@ -147,18 +147,6 @@ extra command runs, write redirections, and `graph` / `clean` / `init` /
 `watch` are refused.
 The `cbx` wrapper is the other half — whitelist and
 `CBX_NO_SKILL_AUTO_UPDATE=1` — and is not a substitute for the hook.
-
-**The helper grants have the same gap and a guard of their own.**
-`Bash(py -3.12 .claude/scripts/dispatch_board.py:*)` and `Bash(gh pr create:*)`
-match the typed string too, and both take text a model composes from issue
-titles, where a backticked name is the house style. So the text stays off the
-command line, in the files `/dispatch` *Issue text stays off the command line*
-names, and a pull request's title goes in single quotes.
-`.claude/hooks/guard-helper-argv.py` is what holds when a session spells it
-otherwise: it refuses a command substitution on a line that runs a `.py` under
-`.claude/scripts/` or `gh pr create`. It leaves the `.sh` helpers, whose
-arguments are numbers and names, and it judges substitutions alone: a second
-command on such a line is the grant's own matching, not this hook's.
 
 **`CBX_NO_SKILL_AUTO_UPDATE=1` is also in `.claude/settings.json`'s `env`,
 because the wrapper is not the only way the CLI runs.** A bare
@@ -600,6 +588,18 @@ concatenation is now MEASURED**, where this paragraph used to say it was not:
 the earlier probe was refused by the classifier layer — a second net worth
 noting and not evidence. It is evidence now, and it says the deny was genuinely
 defeatable rather than theoretically so.
+
+**The helper grants have the index grants' gap, and a guard of their own.**
+`Bash(py -3.12 .claude/scripts/dispatch_board.py:*)` and `Bash(gh pr create:*)`
+match the typed string too, and both take text a model composes from issue
+titles, where a backticked name is the house style. So the text stays off the
+command line, in the files `/dispatch` *Issue text stays off the command line*
+names, and a pull request's title goes in single quotes.
+`.claude/hooks/guard-helper-argv.py` is what holds when a session spells it
+otherwise: it refuses a command substitution on a line that runs a `.py` under
+`.claude/scripts/` or `gh pr create`. It leaves the `.sh` helpers, whose
+arguments are numbers and names, and it judges substitutions alone: a second
+command on such a line is the grant's own matching, not this hook's.
 
 ## The guards' threat model
 
