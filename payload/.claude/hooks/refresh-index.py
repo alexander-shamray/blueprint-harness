@@ -490,7 +490,7 @@ def alive(pid: int) -> bool:
                 return code.value == 259
             finally:
                 kernel32.CloseHandle(process)
-        except (OSError, AttributeError, ValueError):
+        except (ImportError, OSError, AttributeError, ValueError):
             return True
     try:
         os.kill(pid, 0)
@@ -567,13 +567,13 @@ def refresh(root: Path, handle=None) -> bool:
     return False
 
 
-def refreshed(root: Path, handle=None) -> bool:
-    """One request's update, tried again while it keeps failing.
-
-    The pause is what makes a retry worth anything: an update that answered
-    a contended index answers the same one immediately afterwards.
-    """
+def refreshed(root: Path, handle=None) -> bool | None:
+    """One request's update, tried again while it keeps failing; None when
+    the root stopped qualifying. The pause is what makes a retry worth
+    anything, and the root is judged again after it: an index can go."""
     for attempt in range(REFRESH_ATTEMPTS):
+        if not (same_repository(root) and written(root)):
+            return None
         # An indexer that outlived its kill is on the record, and an attempt
         # would overwrite that and start a second beside it.
         if running_indexer(handle) is not None:
@@ -601,9 +601,10 @@ def drain(root: Path, handle=None) -> bool | None:
             return None
         if not taken:
             return True
-        if not (same_repository(root) and written(root)):
+        done = refreshed(root, handle)
+        if done is None:
             return False
-        if not refreshed(root, handle):
+        if not done:
             request(root)
             return False
 
