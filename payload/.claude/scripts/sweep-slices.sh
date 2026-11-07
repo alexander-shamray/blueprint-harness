@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 # Cut a sweep's worktree into slices of at most BUDGET bytes, one list per slice
-# beside the worktree, and print a summary; /bug-sweep and /security-sweep.
-# The rows are the checkout's own, in .harness/sweep-rows.tsv beside this
-# script's checkout, so a tracked path no row owns refuses the run rather than
-# going unswept. For bash 3.2, /bin/bash on macOS, which has no `mapfile` and no
-# associative array: the classification is one awk pass over newline lists.
+# beside it, by the rows of this checkout's .harness/sweep-rows.tsv; a tracked
+# path no row owns refuses the run. Bash 3.2, /bin/bash on macOS, has no
+# `mapfile` and no associative array, so the rows are one awk pass over lists.
 set -euo pipefail
 usage="usage: sweep-slices.sh <bug|security> <worktree> [full]"
 [ "$#" -ge 2 ] && [ "$#" -le 3 ] || { echo "$usage" >&2; exit 2; }
