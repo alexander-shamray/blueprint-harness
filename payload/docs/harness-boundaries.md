@@ -192,7 +192,10 @@ a directory of the main checkout, would let a merged file stand in for the
 CLI, which is started by the full path a PATH-only lookup found instead. The
 CLI's own run still holds files in the checkout while it lasts, and the worker
 holds the lock for that whole run, which is why `/ship`'s
-`git-worktree-remove.sh` takes the lock before it removes. The worker is
+`git-worktree-remove.sh` takes the lock before it removes. The lock covers a
+worker and not the survivor its record names after a kill, which the helper
+does not wait for: on Windows such a removal can leave part of the tree, and
+the helper's exit 4 reports that. The worker is
 started in a session of its own on POSIX, and on Windows with
 `CREATE_NO_WINDOW` and a new process group, never `DETACHED_PROCESS`: a worker
 started with that flag was measured to exit 0 without its child ever running,
