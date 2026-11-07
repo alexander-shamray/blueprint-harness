@@ -1290,10 +1290,11 @@ mutation sweep, so no payload command holds it. Each execs
 `gh-issue-create.sh` with the route spelled, so the kind, severity, area, stdin
 and trailer checks stay in one place. A grant on one entry point withholds
 nothing from another, so each command denies the entries it does not hold by
-name, and `gh-issue-create.sh` besides; `/ship` states no deny list, because a
-deny on a command it chains outlasts the step. `test_command_grants.py` walks
-every command in the tree it runs in, a target's local ones too, so whether a
-route needs an entry point is a question about every target, not the payload.
+name, and `gh-issue-create.sh` besides; `/ship` denies agent types and no tool a
+command it chains uses, because a deny on one of those outlasts the step.
+`test_command_grants.py` walks every command in the tree it runs in, a target's
+local ones too, so whether a route needs an entry point is a question about
+every target, not the payload.
 The `request` route has none, since no command in any target files under it; it
 stays reachable by calling `gh-issue-create.sh` directly, and a command that
 comes to need it gets its own entry point of the same shape. Residual: a prefix
@@ -1590,16 +1591,35 @@ alternative fails open on a wrapper nobody listed.
 ## Agent-type and push entries
 
 **A seventh thing is a gap in the mechanism rather than in a grant.** Pinning a
-command to one subagent type is a **deny list of every other type**, because the
-harness has no "only this type" allow — so `security-sweep.md`,
-`bug-sweep.md` and `team.md` each deny every registered type but the one
-they grant, and **a newly added agent under `.claude/agents/` is admitted by
-default** until someone adds it to every list; `test_command_grants.py` fails
-a granting command that does not. That is the shape this repository already
-knows rots; it is taken here because the alternative on offer is prose. **It
-rotted once already on the day a third agent arrived**: `review-adjudicator`
-was added for #149 and every command then holding a list had to name it,
-which is the enumeration's cost paid in the change that proves it.
+command to one subagent type is a **deny list of every other type**, because
+the harness has no "only this type" allow — so `security-sweep.md`,
+`bug-sweep.md`, `team.md` and `ship.md` each deny every registered type but the
+one they grant (`ship.md` also leaves `general-purpose`, which step 2
+dispatches its audits as), and **a newly added agent under `.claude/agents/` is
+admitted by default** until someone adds it to every list;
+`test_command_grants.py` fails a granting command that does not. That is the
+shape this repository already knows rots; it is taken here because the
+alternative on offer is prose. **It rotted once already on the day a third
+agent arrived**: `review-adjudicator` was added for #149 and every command then
+holding a list had to name it, which is the enumeration's cost paid in the
+change that proves it.
+
+**A command that does not publish denies `git push`, and one that holds `Edit`
+or `Write` is held off the repository's machinery by the settings.** The
+settings allow `git push origin`, so a command that neither grants nor denies
+push reaches it; `ACommandThatDoesNotPublishCannotPush` in
+`test_command_grants.py` derives the commands from their frontmatter, so a new
+one fails until it decides. `branch.md` and `commit.md` are the exemption:
+`/ship` runs them before it pushes, and a frontmatter deny outlasts the step.
+`Edit` and `Write` carry no path scope, so `.git`, `.mcp.json` and
+`.codeindexignore` are denied in the base settings in both spellings, for
+every command at once, because the grant is per command and a new editing
+command should arrive behind the deny; `test_harness_denies.py` checks it
+against each command that holds either tool. No payload command edits any of
+the three, so the deny costs none. A target whose own command must edit one
+changes the base in `blueprint-harness`, because a deny beats every allow.
+Residual, as for the rest of the list: `Bash` redirection still writes what
+`Edit` refuses.
 
 **The eighth was the push deny-list (#23), and it closed the way the sixth
 did.** Two broad allows — `Bash(git push origin:*)` and the `-u` form — paired
