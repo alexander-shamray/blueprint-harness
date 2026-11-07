@@ -226,6 +226,7 @@ class EachCommandFilesUnderOneRoute(unittest.TestCase):
     CREATE = "Bash(bash .claude/scripts/gh-issue-create.sh:*)"
     SWEEP = "Bash(bash .claude/scripts/gh-issue-sweep.sh:*)"
     HAND = "Bash(bash .claude/scripts/gh-issue-hand.sh:*)"
+    MUTATION = "Bash(bash .claude/scripts/gh-issue-mutation.sh:*)"
     BY_HAND = ("ship.md", "team.md", "dispatch.md")
     BY_SWEEP = ("bug-sweep.md", "security-sweep.md")
 
@@ -241,6 +242,7 @@ class EachCommandFilesUnderOneRoute(unittest.TestCase):
                 self.assertNotIn(self.HAND, allowed)
                 self.assertIn(self.CREATE, denied)
                 self.assertIn(self.HAND, denied)
+                self.assertIn(self.MUTATION, denied)
 
     def test_a_command_that_files_by_hand_cannot_reach_the_sweep_route(self):
         for name in self.BY_HAND:
@@ -252,6 +254,7 @@ class EachCommandFilesUnderOneRoute(unittest.TestCase):
                     # /ship states no deny list: a deny on a command it chains outlasts the step.
                     self.assertIn(self.SWEEP, denied)
                     self.assertIn(self.CREATE, denied)
+                    self.assertIn(self.MUTATION, denied)
 
     def test_no_command_grants_the_helper_that_takes_a_route(self):
         for path in sorted(COMMANDS.glob("*.md")):

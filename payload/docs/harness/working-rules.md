@@ -177,7 +177,7 @@ keeping the guide's *Comments* rules be reworded, completed or expanded.
   included, `documentation` for prose and samples elsewhere, `code` for the
   rest — with `test` beside `harness` or `code` for a test suite.
   `gh-issue-hand.sh` and `gh-issue-sweep.sh` take the area as their third
-  argument; a label
+  argument and `gh-issue-mutation.sh` as its second; a label
   outside its set, `tracking`, `paused` or `flaky`, is added by
   `gh issue edit` after filing. A severity in the body and the label both
   say it. `documentation` is an issue's kind only on one that carries no
