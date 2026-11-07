@@ -731,14 +731,18 @@ class AWorktreeTheSessionHasNotEntered(GuardCase):
 
     def test_what_no_deny_names_stays_admitted(self):
         # 718 `.github` edits landed in worktrees where no target denies it.
+        # Those two are asked of a copy denying nothing, since the rendering
+        # target's own denies may name either.
         worktree = self.linked()
         for parts in (("docs", "plugins.md"),
-                      (".github", "workflows", "ci.yml"),
-                      ("package.json",),
                       (".claude", "cache", "x"),
                       ("payload", ".claude", "hooks", "x.py")):
             with self.subTest(parts=parts):
                 self.assertAdmitted(os.path.join(worktree, *parts))
+        hook = self.hook_denying()
+        for parts in ((".github", "workflows", "ci.yml"), ("package.json",)):
+            with self.subTest(parts=parts):
+                self.assertAdmitted(os.path.join(worktree, *parts), hook=hook)
 
     def test_a_target_that_denies_github_has_it_refused(self):
         hook = self.hook_denying(".github/**", "./.github/**", "package.json")
