@@ -5,7 +5,7 @@
 set -euo pipefail
 
 [ "$#" -eq 3 ] || {
-  echo "usage: gh-issue-sweep.sh <security|bug|test-gap|enhancement>" \
+  echo "usage: gh-issue-sweep.sh <security|bug|test-gap>" \
        "<critical|high|medium|low> <harness|code|documentation|harness,test|code,test>" \
        "< title, blank line, body ending in the trailer" >&2
   exit 2
