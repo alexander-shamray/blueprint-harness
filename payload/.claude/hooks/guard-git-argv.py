@@ -88,6 +88,20 @@ REPOSITORY_SUBCOMMANDS = {
     "archive", "bundle",
 }
 
+# The short spelling of a flag that runs a command, by subcommand, because a
+# letter means something else on another: `cherry-pick -x` records a trailer.
+# `archive -o` and `format-patch -o` only write a named file, so stay admitted.
+EXECUTING_SHORT_FLAGS = {
+    "rebase": "xs", "pull": "s", "difftool": "x", "clone": "u",
+    "ls-remote": "u", "grep": "O",
+}
+
+# Letters after which the rest of a word is a value, so `-Xours` holds no `-s`.
+GLUED_VALUE_LETTERS = {
+    "rebase": "X", "pull": "Xo", "difftool": "t", "clone": "bcjo",
+    "grep": "efABCm", "fetch": "jo",
+}
+
 # Git's own options, which sit before the subcommand, taken from git's synopsis.
 # The list trails git's globals; it is load-bearing only for locating a
 # subcommand, never for the push check, which does not ask where the subcommand
@@ -111,6 +125,7 @@ VALUE_FLAGS_BY_SUBCOMMAND = {
     "revert": {"-m", "--mainline", "-S"},
     "cherry-pick": {"-m", "--mainline", "-S"},
     "branch": {"-u", "--set-upstream-to", "--contains", "--sort"},
+    "grep": {"-e", "-f", "-A", "-B", "-C", "-m"},
 }
 
 SEPARATORS = {"&&", "||", ";", "|", "&", "(", ")", "{", "}", "\n"}
@@ -2404,6 +2419,19 @@ def unchecked_push_pipeline(tokens):
     return False
 
 
+def short_flag(element, subcommand, letters):
+    """Which of `letters` the short option word `element` carries, or `None`."""
+    if not element.startswith("-") or element.startswith("--"):
+        return None
+    stops = GLUED_VALUE_LETTERS.get(subcommand, "")
+    for letter in element[1:]:
+        if letter in letters:
+            return letter
+        if letter in stops:
+            return None
+    return None
+
+
 def trap_offence(segment):
     """The refusal for a git command whose text shows it losing work, or None."""
     stripped = after_global_options(segment)
@@ -2654,6 +2682,14 @@ def _offence(command, depth, judged):
                         "only the unquoted spelling. This hook compares the "
                         "resolved argv, and any unambiguous abbreviation of it."
                     )
+            letter = short_flag(element, subcommand,
+                                EXECUTING_SHORT_FLAGS.get(subcommand, ""))
+            if letter is not None:
+                return (
+                    f"`git {subcommand} -{letter}` is the short spelling of a "
+                    "flag that runs a command, bundled or not, and the long "
+                    "spelling is refused too."
+                )
             if subcommand not in REPOSITORY_SUBCOMMANDS:
                 continue
             for substring in FORBIDDEN_SUBSTRINGS:
