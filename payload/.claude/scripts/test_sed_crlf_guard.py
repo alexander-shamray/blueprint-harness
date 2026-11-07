@@ -415,6 +415,8 @@ class AGitPlantedWhereTheHookStands(ACheckout):
     def test_a_relative_path_entry_is_not_searched(self):
         self.executable(self.elsewhere, EXECUTABLE)
         self.assertIsNone(self.found(os.path.relpath(self.elsewhere, self.root)))
+        if os.name == "nt":
+            self.assertIsNone(self.found(os.path.splitdrive(self.elsewhere)[1]), "a rooted entry has no drive")
 
     def test_a_batch_file_is_not_git_wherever_it_sits(self):
         # `cmd.exe` would read an `&` in the operand as its own, which `subprocess` does not quote.

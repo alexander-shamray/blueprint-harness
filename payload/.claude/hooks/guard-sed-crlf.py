@@ -12,6 +12,7 @@ import re
 import shlex
 import subprocess
 import sys
+from pathlib import Path
 
 # What a refusal names as the forms that keep the file's endings. `--binary` is admitted: measured under Git Bash's
 # GNU sed 4.9, `sed --binary -i` writes the CR back where a plain `-i` drops it.
@@ -375,7 +376,8 @@ def git_on_path(cwd):
     names = ("git.exe", "git.com") if os.name == "nt" else ("git",)
     for entry in os.environ.get("PATH", "").split(os.pathsep):
         directory = entry.strip('"')
-        if not os.path.isabs(directory) or any(inside(resolved(directory), tree) for tree in fenced):
+        # `Path`, not `os.path.isabs`: before Python 3.13 that calls `\tools`, which has no drive, absolute on Windows.
+        if not Path(directory).is_absolute() or any(inside(resolved(directory), tree) for tree in fenced):
             continue
         for name in names:
             path = os.path.join(directory, name)
