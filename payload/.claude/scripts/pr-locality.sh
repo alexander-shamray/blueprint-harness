@@ -97,7 +97,9 @@ done
 # run, because the gate refuses that map and a verdict read from it is no one's.
 map="$(dirname "${BASH_SOURCE[0]}")/../../.github/locality-gate/classes.yml"
 [ -r "$map" ] || refuse "the class map .github/locality-gate/classes.yml cannot be read"
-declare -A seen=()
+# Space-delimited sets of the class letters named and of those given an item:
+# bash 3.2, /bin/bash on macOS, has no associative array.
+named=" " stocked=" "
 class_patterns=(); member=""
 while IFS= read -r raw || [ -n "$raw" ]; do
   raw=${raw%$'\r'}
@@ -105,8 +107,8 @@ while IFS= read -r raw || [ -n "$raw" ]; do
   case "$t" in ''|'#'*) continue ;; esac
   if [[ "$raw" =~ ^([A-E]):[[:space:]]*$ ]]; then
     member=${BASH_REMATCH[1]}
-    [ -z "${seen[$member]+set}" ] || refuse "classes.yml names class $member twice"
-    seen[$member]=0
+    case "$named" in *" $member "*) refuse "classes.yml names class $member twice" ;; esac
+    named="$named$member "
     continue
   fi
   [[ "$raw" =~ ^\ \ -\ \'([^\']+)\'[[:space:]]*$ ]] && [ -n "$member" ] ||
@@ -133,11 +135,11 @@ while IFS= read -r raw || [ -n "$raw" ]; do
   case "$item" in
     *'{}'*|*'{,'*|*',,'*|*',}'*) refuse "classes.yml has an item with an empty brace alternative" ;;
   esac
-  seen[$member]=$((seen[$member] + 1))
+  case "$stocked" in *" $member "*) : ;; *) stocked="$stocked$member " ;; esac
   case "+$class+" in *"+$member+"*) class_patterns+=("$(to_regex "$item")") ;; esac
 done <"$map"
 for member in A B C D E; do
-  [ "${seen[$member]:-0}" -gt 0 ] || refuse "classes.yml gives class $member no tree set"
+  case "$stocked" in *" $member "*) : ;; *) refuse "classes.yml gives class $member no tree set" ;; esac
 done
 # The changed paths are the diff's own, and each gets the one word this
 # script chooses for it: `filename`, and a rename's `previous_filename`, since a
