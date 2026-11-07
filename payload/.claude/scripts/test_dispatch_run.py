@@ -16,7 +16,7 @@ from unittest import mock
 
 import dispatch_board as db
 import dispatch_run as dr
-from test_dispatch_board import FIXTURE, NO_BRANCH, REMAINING_ROWS, line, stub, tasks_of
+from test_dispatch_board import FIXTURE, OWNED, NO_BRANCH, REMAINING_ROWS, line, stub, tasks_of
 
 # The run half: a run directory under a scratch root the test changes into, as the dispatcher runs from the
 # main checkout.
@@ -109,6 +109,7 @@ def make_worktree(path):
 
 def run_cli(argv, **sources):
     out = io.StringIO()
+    sources.setdefault("owned_source", OWNED)
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
         db.main(argv, **sources)
     return out.getvalue()
@@ -1867,6 +1868,65 @@ class TranscriptTests(unittest.TestCase):
                 with mock.patch.object(dr, "_created", lambda path: created[Path(path).name]):
                     self.assertEqual(str(folder / "new.jsonl"), dr.transcript_path(worktree, None, 200.0))
                     self.assertIsNone(dr.transcript_path(worktree, None, 250.0))
+
+
+class StrangersIssues(InRoot):
+    """`wake`, `launch` and `report` over a row the repository owner did not open, each through its command line."""
+
+    def wake(self, *flags, owned=frozenset()):
+        with open("todo.md", "w", encoding="utf-8", newline="") as handle:
+            handle.write(tasks_of(line(depends="OWNER" if flags else "none")))
+        run_cli(["start", "--pairs", "2", "--tasks", "todo.md", *flags])
+        name = dr.open_run(".", "todo.md")[0]
+        with mock.patch.object(dr, "PROJECTS", self.root / "projects"):
+            return run_cli(["wake", name, "--tasks", "todo.md"], body_source=lambda n: "", open_source=set,
+                           branch_source=NO_BRANCH, owned_source=lambda: owned).splitlines()
+
+    def test_wake_launches_none_of_them_and_the_owners_as_ever(self):
+        self.assertEqual("end: drained", self.wake()[-1])
+        shutil.rmtree("artifacts")
+        self.assertEqual("launch: Z1", self.wake(owned=frozenset({1700}))[-1])
+
+    def test_wake_under_berserk_launches_none_of_them(self):
+        self.assertEqual("end: drained", self.wake("--berserk")[-1])
+        shutil.rmtree("artifacts")
+        self.assertEqual("launch: Z1", self.wake("--berserk", owned=frozenset({1700}))[-1])
+
+    def test_a_failed_read_of_the_authors_launches_nothing(self):
+        def failed():
+            raise db.Refusal("gh-issue-owned.sh exited 3")
+        with open("todo.md", "w", encoding="utf-8", newline="") as handle:
+            handle.write(tasks_of(line()))
+        run_cli(["start", "--pairs", "2", "--tasks", "todo.md"])
+        name = dr.open_run(".", "todo.md")[0]
+        with mock.patch.object(dr, "PROJECTS", self.root / "projects"):
+            printed = run_cli(["wake", name, "--tasks", "todo.md"], body_source=lambda n: "", open_source=set,
+                              branch_source=NO_BRANCH, owned_source=failed)
+        self.assertIn("refused: gh-issue-owned.sh exited 3", printed)
+        self.assertNotIn("launch:", printed)
+
+    def test_launch_refuses_a_group_wake_never_named(self):
+        with open("todo.md", "w", encoding="utf-8", newline="") as handle:
+            handle.write(FIXTURE)
+        dr.save_state(state_dir(), {"run": RUN, "pairs": 2, "lang": "en", "groups": {}})
+        self.assertEqual("", run_cli(["tasks", "move", "--tasks", "todo.md", "--run", RUN, "S1",
+                                      "--branch", BRANCH, "--worktree", WORKTREE]))
+        make_worktree(WORKTREE)
+        porcelain = f"worktree {self.root / WORKTREE}\nHEAD {HEAD}\nbranch refs/heads/{BRANCH}\n\n"
+        argv = ["launch", RUN, "S1", "--tasks", "todo.md", "--branch", BRANCH, "--worktree", WORKTREE]
+        with mock.patch.object(dr, "git", lambda root, *args: porcelain):
+            refused = run_cli(argv, owned_source=lambda: frozenset({1682}))
+            self.assertIn(f"refused: S1 is not launched: #1683 {db.NOT_OWNERS}", refused)
+            self.assertNotIn("status", dr.load_state(state_dir())["groups"]["S1"])
+            self.assertEqual("", run_cli(argv, owned_source=lambda: frozenset({1682, 1683})))
+
+    def test_the_morning_report_names_what_it_left(self):
+        dr.save_state(state_dir(), {"run": RUN, "pairs": 2, "lang": "en", "groups": {}})
+        with open("todo.md", "w", encoding="utf-8", newline="") as handle:
+            handle.write(tasks_of(line()))
+        lines = run_cli(["report", RUN, "--tasks", "todo.md", "--today", "2026-11-01"], body_source=lambda n: "",
+                        open_source=set, owned_source=frozenset).splitlines()
+        self.assertIn(f"Z1 wave 1: #1700 {db.NOT_OWNERS}", lines)
 
 
 class TaskTextIsAFile(InRoot):

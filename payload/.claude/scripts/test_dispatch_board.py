@@ -17,6 +17,16 @@ RUN = "20261101-220000"
 NO_BRANCH = lambda _branch: frozenset()  # noqa: E731
 
 
+class EveryIssue:
+    """What `gh-issue-owned.sh` reads as here: the cases that are not about authorship run on the owner's issues."""
+
+    def __contains__(self, number):
+        return True
+
+
+OWNED = EveryIssue
+
+
 def stub(root, name, body):
     """A stand-in for one of the repository's helper scripts under `root`, LF-only, as bash needs."""
     scripts = Path(root) / ".claude" / "scripts"
@@ -419,7 +429,8 @@ class PathTests(unittest.TestCase):
                   1440: "docs/x.md", 1690: "no files named"}
         asked = []
         lines = db.board(text, TODAY, bodies, set(),
-                         lambda branch: asked.append(branch) or frozenset({"src/gateway/program.cs"}))
+                         lambda branch: asked.append(branch) or frozenset({"src/gateway/program.cs"}),
+                         owned=OWNED())
         self.assertEqual(["fix/other"], asked)
         self.assertIn("S3 | wave 1 | ready | taken by #1690", lines[1])
         self.assertIn("S1 | wave 1 | ready | free", lines[0])
@@ -591,7 +602,7 @@ class WriteTests(unittest.TestCase):
             return "a.cs"
         with contextlib.redirect_stdout(io.StringIO()):
             db.main(["board", "--tasks", str(self.path), "--today", "2026-11-01"],
-                    body_source=fetch, open_source=set, branch_source=NO_BRANCH)
+                    body_source=fetch, open_source=set, branch_source=NO_BRANCH, owned_source=OWNED)
         events = []
         real_read, real_write = db._read, db._write
         with mock.patch.object(db, "_read", lambda p: events.append(("read", Path(p).name)) or real_read(p)), \
@@ -761,7 +772,8 @@ class WriteTests(unittest.TestCase):
     def board(self):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             return db.main(["board", "--tasks", str(self.path), "--today", "2026-11-01", "--root", str(self.dir),
-                            "--run", RUN], body_source=lambda n: "", open_source=set, branch_source=NO_BRANCH)
+                            "--run", RUN], body_source=lambda n: "", open_source=set, branch_source=NO_BRANCH,
+                           owned_source=OWNED)
 
     def start(self):
         dr.save_state(self.run_dir, {"run": RUN, "pairs": 2, "lang": "en", "groups": {}})
@@ -912,7 +924,8 @@ class WriteTests(unittest.TestCase):
                 err = io.StringIO()
                 with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
                     code = db.main(["board", "--tasks", str(self.path), "--root", str(self.dir), "--run", run],
-                                   body_source=fetched.append, open_source=set, branch_source=NO_BRANCH)
+                                   body_source=fetched.append, open_source=set, branch_source=NO_BRANCH,
+                                   owned_source=OWNED)
                 self.assertEqual(2, code)
                 self.assertIn("is not a yyyymmdd-hhmmss timestamp", err.getvalue())
         self.assertEqual([], fetched)
@@ -973,7 +986,8 @@ class BoardTests(unittest.TestCase):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             code = db.main(["board", "--tasks", str(self.path), "--today", "2026-11-01", *extra],
-                           body_source=fetch, open_source=lambda: {1440}, branch_source=NO_BRANCH)
+                           body_source=fetch, open_source=lambda: {1440}, branch_source=NO_BRANCH,
+                           owned_source=OWNED)
         return code, out.getvalue().splitlines()
 
     def test_board_prints_one_line_per_group(self):
@@ -1020,7 +1034,7 @@ class BoardTests(unittest.TestCase):
         self.run_board(again, ("--root", self.tmp.name, "--run", RUN))
         self.assertEqual([], again)
 
-    def test_board_reads_bodies_and_the_open_set_through_the_helpers(self):
+    def test_board_reads_bodies_the_open_set_and_the_authors_through_the_helpers(self):
         # No source injected: the real ones run the repository's helpers through Git's bash, here stubs.
         root = Path(self.tmp.name)
         bodies = {1682: "touches definitions.json", 1683: "deploy/rabbitmq/definitions.json",
@@ -1031,6 +1045,7 @@ class BoardTests(unittest.TestCase):
         listed = [{"number": 1440, "title": "t", "state": "OPEN", "labels": []},
                   {"number": 1682, "title": "t", "state": "CLOSED", "labels": []}]
         stub(root, "gh-issue-list.sh", f"echo '{json.dumps(listed)}'\n")
+        stub(root, "gh-issue-owned.sh", f"echo '{json.dumps(sorted(set(bodies) - {1681}))}'\n")
         run = root / "artifacts" / "dispatch" / RUN
         dr.save_state(run, {"run": RUN, "pairs": 2, "lang": "en", "groups": {}})
         out, err = io.StringIO(), io.StringIO()
@@ -1040,6 +1055,7 @@ class BoardTests(unittest.TestCase):
         self.assertEqual(0, code, err.getvalue())
         lines = out.getvalue().splitlines()
         self.assertTrue(lines[0].startswith("S1 | wave 1 | ready | free | "), lines[0])
+        self.assertIn(f"not ready: #1681 {db.NOT_OWNERS}", lines[1])
         self.assertIn("t\ntouches definitions.json", (run / "bodies" / "1682.txt").read_text("utf-8"))
         self.assertEqual({1440}, db.open_issues(str(root)))
 
@@ -1048,6 +1064,43 @@ class BoardTests(unittest.TestCase):
         stub(root, "gh-issue-text.sh", "echo 'gh: not logged in' >&2\nexit 4\n")
         with self.assertRaisesRegex(db.Refusal, "gh-issue-text.sh 1682 exited 4: gh: not logged in"):
             db.issue_body(str(root), 1682)
+
+
+class OnlyTheOwnersIssuesRun(unittest.TestCase):
+    """The gate is what a stranger's issue meets, whatever the row says about itself."""
+
+    def test_a_strangers_issue_never_runs(self):
+        group = group_of(line(number=1700))
+        self.assertEqual((False, f"#1700 {db.NOT_OWNERS}"), db.runnable(group, frozenset({1}), set(), TODAY))
+        self.assertEqual((True, ""), db.runnable(group, frozenset({1700}), set(), TODAY))
+
+    def test_berserk_lifts_nothing_of_it(self):
+        group = group_of(line(number=1700, depends="OWNER"))
+        self.assertEqual((True, ""), db.ready(group, set(), TODAY, None, True), "the control: the flag lifts OWNER")
+        self.assertEqual((False, f"#1700 {db.NOT_OWNERS}"), db.runnable(group, frozenset(), set(), TODAY, None, True))
+
+    def test_one_strangers_row_holds_its_group(self):
+        rows = (line(number=1700), line(number=1701))
+        group = db.groups(db.parse_tasks(tasks_of(*rows)))[0]
+        self.assertEqual("#1701", db.stranger(group, frozenset({1700})).key)
+        self.assertIsNone(db.stranger(group, frozenset({1700, 1701})))
+
+    def test_an_owed_row_has_no_author_and_keeps_its_own_reason(self):
+        group = group_of(line().replace("| 1700 |", "| owed (not filed) |"))
+        self.assertEqual((False, "owed, not filed"), db.runnable(group, frozenset(), set(), TODAY))
+
+    def test_the_board_names_the_issue_and_a_dry_run_cannot_release_it(self):
+        lines = db.board(tasks_of(line(number=1700)), TODAY, {1700: "docs/a.md"}, set(), berserk=True, owned=frozenset())
+        self.assertIn(f"not ready: #1700 {db.NOT_OWNERS}", lines[0])
+        self.assertNotIn("released", lines[0])
+
+    def test_a_listing_that_is_not_numbers_is_refused(self):
+        for printed in ("nothing", "{}", '["ada"]', "[1, true]", "[0]"):
+            with self.subTest(printed=printed), mock.patch.object(db, "helper", lambda *a: printed), \
+                    self.assertRaises(db.Refusal):
+                db.owned_issues(".")
+        with mock.patch.object(db, "helper", lambda *a: "[7, 9]\n"):
+            self.assertEqual(frozenset({7, 9}), db.owned_issues("."))
 
 
 if __name__ == "__main__":

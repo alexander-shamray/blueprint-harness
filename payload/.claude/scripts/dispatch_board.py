@@ -47,6 +47,7 @@ ROW_GROUP = re.compile(r"\b[A-Z]\d+\b")
 GROUP_ID = re.compile(rf"{ROW_GROUP.pattern}|\bsync-[1-9][0-9]*\b")
 SEPARATOR = re.compile(r"\|[\s:|-]+\|")
 OWED = "owed (not filed)"
+NOT_OWNERS = "was not opened by the repository owner"
 # The text cells of a row `tasks place` adds, read from a file under the run.
 PLACED = ("task", "labels", "depends", "model", "conflicts")
 BRANCH_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/()-]*")
@@ -394,6 +395,17 @@ def ready(group, open_issues, today, bodies=None, berserk=False, kept=frozenset(
     return True, ""
 
 
+def stranger(group, owned):
+    """The first row whose issue the repository owner did not open, or None."""
+    return next((row for row in group.rows if row.number is not None and row.number not in owned), None)
+
+
+def runnable(group, owned, open_issues, today, bodies=None, berserk=False, kept=frozenset()):
+    """`ready`, behind the one gate no flag lifts: on a public repository an issue is a work order only from the owner."""
+    held = stranger(group, owned)
+    return (False, f"{held.key} {NOT_OWNERS}") if held else ready(group, open_issues, today, bodies, berserk, kept)
+
+
 def released(candidates, ready_map, open_issues, today, bodies):
     """Each group `ready_map` holds ready that would not be without the flag, with what the flag lifted."""
     plain = ((g.id, ready(g, open_issues, today, bodies)) for g in candidates if ready_map[g.id][0])
@@ -594,13 +606,13 @@ def _held(tasks, bodies, branch_source):
 
 
 def board(text, today, bodies, open_issues, branch_source=lambda _branch: frozenset(), berserk=False,
-          kept=frozenset()):
+          kept=frozenset(), *, owned):
     tasks = parse_tasks(text)
     held = _held(tasks, bodies, branch_source)
     out = []
     for group in groups(tasks):
         claim = group_claim(group, bodies)
-        ok, why = ready(group, open_issues, today, bodies, berserk, kept)
+        ok, why = runnable(group, owned, open_issues, today, bodies, berserk, kept)
         lifted = released([group], {group.id: (ok, why)}, open_issues, today, bodies).get(group.id)
         by = next((c.ident or r.key for c, r in held
                    if overlaps(claim, group.id, _own_issues(group), c, c.ident or r.key, set(c.issues))), None)
@@ -849,9 +861,20 @@ def open_issues(root):
             if isinstance(item, dict) and item.get("state") == "OPEN" and _number(item.get("number"))}
 
 
+def owned_issues(root):
+    """The issues the repository owner opened, which a failed read leaves refused rather than empty or assumed."""
+    try:
+        data = json.loads(helper(root, "gh-issue-owned.sh"))
+    except ValueError:
+        raise Refusal("gh-issue-owned.sh did not print JSON") from None
+    if not isinstance(data, list) or not all(_number(number) for number in data):
+        raise Refusal("gh-issue-owned.sh did not print a list of issue numbers")
+    return frozenset(data)
+
+
 # Command line
 
-def main(argv=None, body_source=None, open_source=None, branch_source=None, weekly_source=None):
+def main(argv=None, body_source=None, open_source=None, branch_source=None, weekly_source=None, owned_source=None):
     import dispatch_run
     parser = argparse.ArgumentParser(prog="dispatch_board.py")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -887,6 +910,7 @@ def main(argv=None, body_source=None, open_source=None, branch_source=None, week
     bodies_from = body_source or (lambda number: issue_body(root, number))
     open_from = open_source or (lambda: open_issues(root))
     branch_from = branch_source or (lambda branch: branch_paths(root, branch))
+    owned_from = owned_source or (lambda: owned_issues(root))
     try:
         # A group names files under the run, so only a group letter and number, or a sync's, may reach a path.
         known = ROW_GROUP if args.command == "tasks" else GROUP_ID
@@ -906,14 +930,14 @@ def main(argv=None, body_source=None, open_source=None, branch_source=None, week
                 flag = dispatch_run.berserk(dispatch_run.load_state(directory))
             text = _read(args.tasks)
             bodies = _bodies(parse_tasks(text), directory, bodies_from)
-            print("\n".join(board(text, today, bodies, set(open_from()), branch_from, *flag)))
+            print("\n".join(board(text, today, bodies, set(open_from()), branch_from, *flag, owned=owned_from())))
             if directory is not None:
                 # What this board read is the only base `tasks rewrite` accepts a rebuild from.
                 _write(directory / READ_COPY, text)
         elif args.command == "tasks":
             _tasks_command(args, today)
         else:
-            return dispatch_run.command(args, today, bodies_from, open_from, branch_from, weekly_source)
+            return dispatch_run.command(args, today, bodies_from, open_from, branch_from, weekly_source, owned_from)
     except Refusal as refusal:
         print(f"refused: {refusal}", file=sys.stderr)
         return 2

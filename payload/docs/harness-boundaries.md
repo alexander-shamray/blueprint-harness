@@ -1914,8 +1914,19 @@ After `verify`, the dispatcher pulls with `--ff-only`, checks
 containment with `git merge-base --is-ancestor`, runs `tasks done` and
 removes the worktree with `git-worktree-remove.sh`.
 
-**What an executor reports is not trusted.** A prompt-injected issue body
-reaches an executor as it reaches any `/ship`. Its result file is checked
+**An issue is a work order only from the repository owner.** The repositories
+are public, so anyone can open an issue, and a row the night launches merges
+with nobody watching. `dispatch_board.py` takes `gh-issue-owned.sh`'s numbers in
+code, never from the session: `board`, `wake` and `report` hold back a row whose
+issue is not among them, `launch` refuses one, `--berserk` lifts neither, and a
+failed read refuses rather than reading as empty. The test is authorship, as
+`gh-issue-suppresses.sh`'s is, and not a label: a label stays on an issue its
+author then rewrites. Work the owner wants from such an issue is filed as their
+own, in their words, which the interview offers.
+
+**What an executor reports is not trusted.** A prompt-injected body, which is
+now text an owner's issue quotes, reaches an executor as it reaches any
+`/ship`. Its result file is checked
 against `dispatch_run.py`'s schema by `result`, and a claimed merge is read
 from GitHub by `verify` before it counts; a missing or mis-shaped file is a
 crash, never a success.
@@ -1934,6 +1945,10 @@ crash, never a success.
   `state.json`. No step edits it, so an honest mistake does not reach it,
   and a session setting out to defeat the helper's checks is what *The
   guards' threat model* puts outside what the guards defend.
+- A stranger's issue still reaches the dispatcher as data: its row is added
+  and held, and the rebuild and the interview read its text. A collaborator's
+  is held like a stranger's, and under a repository an organisation owns every
+  row is, since no author is the organisation's login: the cautious side.
 
 ## Managed files
 

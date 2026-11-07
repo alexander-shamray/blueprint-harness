@@ -125,6 +125,14 @@ because an issue body is text anyone can write and the dispatcher acts on
 the answers. A decision that surfaces during the night goes in the report,
 never into a second interview (spec §5).
 
+A stranger's issue gets a row, so it is seen, and that row never launches:
+`docs/harness-boundaries.md`, *Headless dispatched sessions*, argues the gate.
+It is the interview's because only the owner can take the work on, and no
+answer lifts it, since an answer attaches to an issue whose author can rewrite
+it afterwards. So the owner files the work as their own, in their own words,
+and closes the original; on a `--berserk` run, which asks nothing, the row
+stays where it is and *Left in the backlog* names it.
+
 When the night starts the owner is told how to stop it, that no other
 session may write the task list, and how to watch an executor: `wake` and
 `result` print each one's transcript path, and `watch_session.py` follows
@@ -170,6 +178,7 @@ the line.
 | A decision the issue reserves | Handed back | Recommended option taken, named in `decisions` and the PR body |
 | A resource only the owner has, a needed edit under `.claude/` | Handed back | The same, after every part that needs neither |
 | `paused`, `tracking`, an `owed (not filed)` row | Not run | Not run |
+| An issue the repository owner did not open | Not run | Not run |
 | A date, an open issue or free text in *Depends on* | Not run | Not run: `OWNER` is dropped and the rest reads as it did |
 | A sync | First and alone | The same, and its prompt never carries the token |
 
