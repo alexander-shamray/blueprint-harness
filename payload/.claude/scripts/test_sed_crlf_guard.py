@@ -405,7 +405,7 @@ class AGitPlantedWhereTheHookStands(ACheckout):
             self.plant(folder)
             self.executable(folder, EXECUTABLE)
         path = os.pathsep.join(["", ".", self.root, tools])
-        self.assertIsNone(self.found(path))
+        self.assertIsNone(self.found(path, cwd=self.elsewhere), "the working directory is not fenced")
         os.chdir(self.elsewhere)
         self.assertIsNone(self.found(path, cwd=self.root), "the event's cwd is not fenced")
         with mock.patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": self.root}):
