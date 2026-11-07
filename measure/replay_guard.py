@@ -146,7 +146,7 @@ def main(argv=None):
             refused += row["count"]
             print(json.dumps({**row, "reason": detail}))
         else:
-            crashed += 1
+            crashed += row["count"]
             print(json.dumps({**row, "crash": detail}))
     if crashed:
         print(json.dumps({"crashed": crashed}))
