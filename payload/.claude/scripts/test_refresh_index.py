@@ -1094,10 +1094,26 @@ class TheIndexerAKilledWorkerLeftBehind(Base):
         self.assertFalse(self.mod.alive(child.pid))
         self.assertFalse(self.mod.alive(0))
 
+    def test_a_note_written_under_a_real_lock_is_read_back_by_the_next_worker(self):
+        """Every other case mocks `note` or writes the file itself, and `note`
+        swallows what fails: this one writes through a real handle under a real
+        lock, lets go, and reads the record as the next worker does."""
+        root = self.checkout("main")
+        child, _stop = self.child()
+        first = self.hold(root)
+        self.mod.note(first, str(child.pid))
+        first.close()
+
+        second = self.hold(root)
+        self.assertEqual(child.pid, self.mod.running_indexer(second))
+        self.mod.note(second, "")
+        self.assertIsNone(self.mod.running_indexer(second))
+        second.seek(0)
+        self.assertEqual(b"", second.read())
+
     def test_the_worker_claims_the_record_before_the_child_exists(self):
-        """A worker killed between starting the indexer and writing its pid
-        would leave one nobody could name, so its own pid holds the record
-        until the indexer's is known, and the record is empty once it ends."""
+        """The order of the notes: the worker's own pid, then the indexer's
+        once it exists, then an empty record once the indexer is gone."""
         root = self.checkout("main")
         notes = []
         child = mock.Mock(pid=4242)
