@@ -1,12 +1,7 @@
 """gh-pr-create.sh: the one pull request `/pr` opens, with the repository, head and base fixed.
 
-Ported from blueprint-frontend's helper (plan 5, Task 3), with the title and the body taken as two paths under the
-checkout's `artifacts/` rather than as fixed files at its root, so no target needs a `.gitignore` line for them.
-
-A stub `gh` sits first on PATH for every case. The refusals exit before `gh repo view`, so the stub records no call,
-and that is what proves it: a validation that regressed would otherwise reach a real `gh` and open a real pull request.
-The positive control answers the two calls the helper makes and records the argv, the environment and the body that
-`gh pr create` read, from the directory it ran in.
+A stub `gh` sits first on PATH, so a refusal that regressed records a call rather than opening a real pull request;
+the positive control records the argv, the environment and the body `gh pr create` read, from where it ran.
 """
 
 import os
