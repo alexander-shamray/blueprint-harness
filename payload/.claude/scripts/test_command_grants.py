@@ -54,12 +54,13 @@ def profiles():
     return found
 
 
-def undenied_agents(text, profiles):
-    """The agent types a command that grants some neither grants nor denies, or None if it grants none."""
+def undenied_agents(text, profiles, exempt=()):
+    """The agent types a command that grants some neither grants, denies nor is excused, or None if it grants none."""
     granted = {m for t in frontmatter_list(text, "allowed-tools")
                for m in re.findall(r"^Agent\((.+)\)$", t)}
     if not granted:
         return None
+    granted |= set(exempt)
     denied = set(frontmatter_list(text, "disallowed-tools"))
     return sorted(n for n in (profiles | BUILT_IN_AGENTS) - granted if f"Agent({n})" not in denied)
 
@@ -100,24 +101,34 @@ class AnAgentIsGrantedByExactType(unittest.TestCase):
             ["Agent(branch-reviewer)"],
             [t for t in allowed if t == "Agent" or t.startswith("Agent(")])
 
+    # What a command leaves undenied on purpose: /ship's step 2 dispatches its audits as `general-purpose`.
+    EXCUSED = {"ship.md": ("general-purpose",)}
+
     def test_every_other_exact_agent_grant_denies_every_other_profile(self):
         # The profiles are read from `.claude/agents/` each run, so one added tomorrow fails every command that
-        # grants a type and does not deny it. /ship states no deny list: it grants one type, the reviewer above.
+        # grants a type and does not deny it, /ship included, which an allow cannot narrow to its reviewer.
         names = profiles()
         self.assertIn("branch-reviewer", names)
         granting = 0
         for path in sorted(COMMANDS.glob("*.md")):
-            if path.name == "ship.md":
-                continue
-            missing = undenied_agents(path.read_text(encoding="utf-8"), names)
+            missing = undenied_agents(path.read_text(encoding="utf-8"), names, self.EXCUSED.get(path.name, ()))
             if missing is None:
                 continue
             granting += 1
             with self.subTest(command=path.name):
                 self.assertEqual([], missing, "granted an agent type, and these others are neither granted nor denied")
-        # The two sweeps and /team: fewer means the grant pattern stopped matching and the loop passed over
+        # The two sweeps, /team and /ship: fewer means the grant pattern stopped matching and the loop passed over
         # nothing.
-        self.assertGreaterEqual(granting, 3)
+        self.assertGreaterEqual(granting, 4)
+
+    def test_ship_keeps_general_purpose_for_its_audits_and_denies_the_other_profiles(self):
+        ship = (COMMANDS / "ship.md").read_text(encoding="utf-8")
+        denied = set(frontmatter_list(ship, "disallowed-tools"))
+        self.assertNotIn("Agent(general-purpose)", denied)
+        self.assertIn("`general-purpose`", flat(COMMANDS / "ship.md"))
+        for name in ("bug-auditor", "security-auditor", "team-peer", "Explore", "fork"):
+            with self.subTest(agent=name):
+                self.assertIn(f"Agent({name})", denied)
 
 
 def flat(path):
@@ -333,7 +344,7 @@ class EachCommandFilesUnderOneRoute(unittest.TestCase):
                 self.assertNotIn(self.SWEEP, allowed)
                 self.assertNotIn(self.MUTATION, allowed)
                 if name != "ship.md":
-                    # /ship states no deny list: a deny on a command it chains outlasts the step.
+                    # /ship denies agent types alone: a deny on a tool a command it chains uses outlasts the step.
                     self.assertIn(self.SWEEP, denied)
                     self.assertIn(self.CREATE, denied)
                     self.assertIn(self.MUTATION, denied)
@@ -370,6 +381,32 @@ class NoCommandGrantsABareBashOrALeadingWildcard(unittest.TestCase):
             with self.subTest(entry=entry):
                 self.assertIsNotNone(self.BROAD_BASH.fullmatch(entry))
         self.assertIsNone(self.BROAD_BASH.fullmatch("Bash(bash .claude/scripts/gh-issue-list.sh)"))
+
+
+class ACommandThatDoesNotPublishCannotPush(unittest.TestCase):
+    """The settings allow `git push origin`, so a command that neither grants nor denies it reaches the push."""
+
+    PUBLISHING = ("pr.md", "ship.md")
+    CHAINED_BEFORE_A_PUSH = ("branch.md", "commit.md")
+    PUSH = "git push origin fix/a-branch"
+
+    def test_every_other_command_denies_push_or_the_shell(self):
+        seen = 0
+        for path in sorted(COMMANDS.glob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            granted = "Bash(git push" in ", ".join(frontmatter_list(text, "allowed-tools"))
+            with self.subTest(command=path.name):
+                if path.name in self.PUBLISHING:
+                    self.assertTrue(granted, "a publishing command is expected to grant push")
+                    continue
+                self.assertFalse(granted, "only the publishing commands may grant push")
+                if path.name in self.CHAINED_BEFORE_A_PUSH:
+                    continue
+                seen += 1
+                denied = frontmatter_list(text, "disallowed-tools")
+                self.assertTrue(any(bash_deny_matches(rule, self.PUSH) for rule in denied),
+                                "neither grants nor denies push, so the settings allow reaches it")
+        self.assertGreaterEqual(seen, 4, "found almost no command that does not publish")
 
 
 class NothingShipChainsDeniesPush(unittest.TestCase):

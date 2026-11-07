@@ -15,12 +15,12 @@ ARGUMENTS = COMMANDS.parent.parent / "docs" / "commands"
 # each landed size and about a tenth: a runbook past it has regrown its argument.
 # The payload's split commands; a target's own carry their ceilings in a suite of its own.
 CEILINGS = {
-    "ship.md": 45800,
+    "ship.md": 46000,
     "bug-sweep.md": 19000,
     "security-sweep.md": 14900,
     "branch.md": 9000,
     "team.md": 6300,
-    "dispatch.md": 18500,
+    "dispatch.md": 18600,
 }
 
 ROOT = COMMANDS.parent.parent
