@@ -1009,7 +1009,9 @@ model* files. An expansion's readings, which exist to find a hidden program,
 place no file. The list of verbs trails the programs that write: `curl -o`,
 `rsync`, `tar -x`, `patch` and an interpreter's own writes are not on it, and
 that is a residual. A worktree removed from disk is still judged as one by its
-place under `.claude/worktrees/`.
+place under `.claude/worktrees/`, and a checkout under the temp root that the
+session is not standing in is not this target's: mutation proofs write there,
+which the replay of backend's transcripts found.
 
 **Five lists reach what the flag check above did not.** The short spellings of
 the flags that run a command, keyed by subcommand because a letter means
@@ -1021,8 +1023,8 @@ option it is; and `filter-branch`, `send-email`, `instaweb`, `daemon`,
 allow-list of subcommands, which would refuse `git ls-remote`, `git config` and
 `git stash`, typed hundreds of times. `xargs` is refused only in front of a
 push, whose destination it supplies unseen; a fetch is refused its `-f`, `-u`
-and `+` refspec, which discard local commits under a read's grant, and `git
-pull --ff-only` any option that overrides it.
+and a `+` refspec onto a branch, which discard local commits under a read's
+grant, and `git pull --ff-only` any option that overrides it.
 
 **Three refusals are traps, not attacks**: the command does what it says,
 and what it says loses work. They are the honest mistakes *The guards'

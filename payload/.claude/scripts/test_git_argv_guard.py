@@ -3433,6 +3433,10 @@ class TheGitArgvGuard(unittest.TestCase):
             "git fetch origin main:main", "git fetch -q origin main",
             "git fetch --prune origin", "git fetch --all", "git fetch -p origin",
             "git fetch --update-shallow origin",
+            # Typed by a dependabot rebase: a remote-tracking ref holds no work.
+            "git fetch -q origin +refs/heads/x:refs/remotes/origin/x",
+            'git fetch -q origin "+refs/heads/$B:refs/remotes/origin/$B"',
+            "git fetch origin +refs/tags/v1:refs/tags/v1", "git fetch origin +main",
         ):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
@@ -3592,6 +3596,18 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         gone = os.path.join(self.root, ".claude", "worktrees", "gone")
         self.refused("ls > .claude/settings.json", cwd=gone)
         self.admitted("ls > docs/out.md", cwd=gone)
+
+    def test_a_scratch_checkout_the_session_is_not_in_is_not_this_targets(self):
+        # Mutation proofs copy into one and `sed -i` there, and no deny of this
+        # target is about it: eight commands in the replay did.
+        scratch = tempfile.mkdtemp(prefix="argv-scratch-")
+        self.addCleanup(shutil.rmtree, scratch, ignore_errors=True)
+        os.makedirs(os.path.join(scratch, ".git"))
+        place = Path(scratch, ".claude", "scripts").as_posix()
+        self.admitted(f"cp notes/x {place}/", f"ls > {place}/x.sh",
+                      f"cd {place} && sed -i s/a/b/ x.sh", f"cd {place} && cp x.sh ../../mut.sh")
+        # The checkout the session stands in is judged wherever it is.
+        self.refused("ls > .claude/scripts/x.sh", f"ls > {place}/x.sh", cwd=scratch)
 
     def test_a_literal_cd_is_resolved_and_never_refused_for_standing_there(self):
         self.refused("cd .claude && ls > settings.json",
