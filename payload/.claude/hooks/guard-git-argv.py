@@ -96,6 +96,10 @@ EXECUTING_SHORT_FLAGS = {
     "ls-remote": "u", "grep": "O",
 }
 
+# Subcommands that run the operand they are handed, which no flag check sees.
+EXECUTING_FORMS = {"bisect": "run", "submodule": "foreach",
+                   "submodule--helper": "foreach"}
+
 # Letters after which the rest of a word is a value, so `-Xours` holds no `-s`.
 GLUED_VALUE_LETTERS = {
     "rebase": "X", "pull": "Xo", "difftool": "t", "clone": "bcjo",
@@ -2656,6 +2660,12 @@ def _offence(command, depth, judged):
                 )
 
         subcommand = subcommand_of(segment)
+        operand = EXECUTING_FORMS.get(subcommand)
+        if operand is not None and operand in after_global_options(segment)[1:]:
+            return (
+                f"`git {subcommand} {operand}` runs the command it is given, "
+                "which no flag check can see, and nothing here runs it."
+            )
         value_flags = VALUE_FLAGS_BY_SUBCOMMAND.get(subcommand, frozenset())
         skip = False
         for element in segment:
