@@ -1107,7 +1107,7 @@ already unregistered; it first waits, to a bound it declares, for the
 worktree's code-index refresh lock, because Windows will not delete a file a
 running refresh holds (#516).
 
-A third, shared by `/pr` and `/ship`, is closed the same way:
+Another, shared by `/pr` and `/ship`, is closed the same way:
 `Bash(gh pr create:*)` admitted a trailing `--repo`, `--head`, `--base` or
 `--body-file`, which choose a repository, a branch, a base and a body the
 command never derived, and the last publishes any file it can read. It is
