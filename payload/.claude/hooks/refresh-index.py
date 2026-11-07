@@ -114,7 +114,9 @@ def common_dir(root: Path) -> Path | None:
 
 
 def linked(path: Path) -> bool:
-    return path.is_symlink() or os.path.isjunction(path)
+    # `isjunction` is Python 3.12's, and an older `python3` may run the hook.
+    isjunction = getattr(os.path, "isjunction", None)
+    return path.is_symlink() or (isjunction is not None and isjunction(path))
 
 
 def state_dir() -> Path | None:
