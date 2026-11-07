@@ -341,7 +341,14 @@ spawns nothing and leaves with 0 whatever happened: exit 2 under this event
 blocks the prompt and erases it, which is also why it is started the way the
 paragraph on hook commands below says. `test_index_query_hint.py` holds
 every command it emits to a row of the route table and a prefix the skill
-approves.
+approves. **The term in each command is single-quoted**, here, in the skill's
+table and references, and in the search hint's refusal: inside double quotes
+bash still runs a `$(…)`, a backtick or a `$VAR` the term carries, and a term
+copied from a log or a branch's file can carry one. `guard-index-argv.py`
+refuses the first two and not the third, so `cbx refs "$event"` asks about
+nothing and says so to no one. A single quote inside a term is written
+`'\''`, and `test_index_query_hint.py` holds every `cbx` line of the skill's
+markdown free of a double quote.
 
 **`PreToolUse` runs `.claude/hooks/index-search-hint.py` before `Grep` and
 both shell tools, because the prompt is not where the code questions are.**
