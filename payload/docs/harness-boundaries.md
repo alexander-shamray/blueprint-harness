@@ -125,6 +125,20 @@ its prompt, not its tools — the sweeps' residual for the same tool set. The re
 is the parent's: it holds the shell the reviewer was denied, so a finding
 written to steer an edit is caught by that verification or not at all.
 
+**The residual is that the chain has no outside reader, and no grant expresses
+it.** What reviews a branch before it merges is the same model family that
+wrote it, with its own context and its own blind spots, and `/ship` merges
+unattended. Nothing in the harness can close that: independence of judgement is
+not a tool grant. It is accepted, the external reviewers being archived (*Grant
+semantics* says where they are held; blueprint-frontend recorded the decision
+in its #117), and the control is procedural and stated: a full pass, a recheck
+of every fix with a full pass again after a `bug`-severity or large one, a
+seventh-round ceiling whose open findings are filed as issues rather than
+dropped, and CI, which judges the branch by rules the model did not choose. It
+is recorded because a reader who learns only that the reviewer is read-only has
+been told the safe half. Restoring an outside reader starts from
+`archive/external-reviewers`.
+
 **`team-peer` rests on it too, over a wider input.** `/team`'s peers hold
 the same three tools and read a board other peers wrote, so a line planted
 in the code can reach a second peer as a claim. The residual is that
@@ -1302,6 +1316,22 @@ grant on a helper lets its holder choose that helper's own arguments, which here
 are the severity, the area and, on every entry but the mutation one, the kind,
 all in closed sets.
 
+**The replay's provenance and its divergence baseline are files under `.git`,
+and that is a stated limit.** The helper keeps a record in the git directory
+(`claude-rebase-pending`, naming the branch, the lease and the replayed
+commit), writes a marker into the rebase state (`started-by-this-helper`), and
+reads git's own `orig-head` for where a replay began. `continue` takes the
+marker as proof that the helper started the rebase and `publish` forces over
+the lease the record names, so anything able to write there could steer a
+publish: a forged marker passes `continue`, a rewritten record moves the lease.
+What stands in the way is partial: the base settings deny `Edit` on `.git` in
+both spellings for every session, and `guard-helper-argv.py` refuses a command
+substitution in a command that runs a helper. Neither reaches a `Bash` command
+that writes there by another route. It is accepted, not guarded, because the
+same files exist in every target that runs the helper; this repository measured
+nothing about it, and the limit is written down so a reader does not take the
+helper's own checks for protection of the files they read.
+
 **Some of the rebase helper's edges are accepted rather than guarded.** A replay
 amended after a failed push no longer descends from the commit `publish`
 recorded, so `publish` refuses it and names the tip to reset the branch to by
@@ -1652,6 +1682,20 @@ and it is that repository's to keep, under *Residuals* in its
 `docs/harness-local.md`: a file the build imports by name that does not exist
 yet is on no list read from what exists, so a deny enumerated from the tree
 cannot cover it.
+
+**A boundary an agent must keep across turns lives on its profile.** It was
+measured in blueprint-admin (its #19, #23 and #27) and blueprint-backend (its
+#52 and #149) while a writing agent still ran in the chain, and this repository
+has not re-measured it. A command loaded inside an agent can discard its own
+frontmatter deny; a type list inside a subagent's `Agent` grant is ignored; a
+command's `disallowed-tools` lasts only the turn that loaded it, so a deny a
+later step must still meet cannot be put there. A command's `disallowed-tools`
+propagate to the subagents it spawns, and a path deny reaches a `Bash` command
+naming the path; the harness offers no deny that reaches the parent and not the
+child. The local review holds no writing agent, so none of this binds a
+boundary today, and it binds the first one added: `branch-reviewer`,
+`bug-auditor`, `security-auditor` and `team-peer` hold `Read`, `Grep` and
+`Glob` on their profiles for that reason.
 
 ## The edit-target guard
 
