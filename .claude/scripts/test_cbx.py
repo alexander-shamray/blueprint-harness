@@ -179,6 +179,9 @@ class CbxWrapper(unittest.TestCase):
             line for line in text.splitlines()
             if not line.lstrip().startswith("#"))
 
+    def test_the_bash_wrapper_runs_in_strict_mode(self):
+        self.assertRegex(self.uncommented(CBX), r"(?m)^set -euo pipefail$")
+
     def test_both_wrappers_disable_skill_auto_update(self):
         self.assertIn(
             "export CBX_NO_SKILL_AUTO_UPDATE=1", self.uncommented(CBX))
@@ -238,16 +241,18 @@ class CbxWrapper(unittest.TestCase):
             }
             out = subprocess.run(
                 [_bash(), str(CBX), "search", "X"],
-                capture_output=True, text=True, encoding="utf-8", env=env)
+                capture_output=True, text=True, encoding="utf-8", env=env, cwd=fake)
             self.assertEqual(0, out.returncode, out.stderr)
             self.assertIn("PATH_CLI search X", out.stdout)
 
     def test_python312_fallback_when_cli_is_absent(self):
         with tempfile.TemporaryDirectory(prefix="cbx-py-") as fake:
             py = Path(fake) / "python3"
+            # A 3.12 that passes the index gate: `test_index_gate.py` holds it.
             py.write_text(
                 "#!/bin/sh\n"
-                "if [ \"$1\" = \"-P\" ]; then shift; fi\n"
+                "while [ \"$1\" = \"-P\" ] || [ \"$1\" = \"-I\" ]; do shift; done\n"
+                "case \"$1\" in *gate-index.py) exit 0 ;; esac\n"
                 "if [ \"$1\" = \"-c\" ]; then\n"
                 "  case \"$2\" in\n"
                 "    *'version_info[:2] == (3, 12)'*) exit 0 ;;\n"
@@ -270,16 +275,90 @@ class CbxWrapper(unittest.TestCase):
             self.assertIn("MODULE search X", out.stdout)
 
     def test_python_fallback_rejects_a_non_312_interpreter(self):
+        """The index gate asks for the same 3.12 first, so a 3.11 is refused
+        there, exit 4, before any fallback could take it."""
         with tempfile.TemporaryDirectory(prefix="cbx-py311-") as fake:
             py = Path(fake) / "python3"
             py.write_text(
                 "#!/bin/sh\n"
-                "if [ \"$1\" = \"-P\" ]; then shift; fi\n"
+                "while [ \"$1\" = \"-P\" ] || [ \"$1\" = \"-I\" ]; do shift; done\n"
                 "if [ \"$1\" = \"-c\" ]; then exit 1; fi\n"
+                "if [ \"$1\" = \"-m\" ]; then echo MODULE; exit 0; fi\n"
+                "exit 0\n",
+                encoding="utf-8")
+            py.chmod(py.stat().st_mode | stat.S_IEXEC)
+            env = {**os.environ, "PATH": fake}
+            out = subprocess.run(
+                [_bash(), str(CBX), "search", "X"],
+                capture_output=True, text=True, encoding="utf-8", env=env)
+            self.assertEqual(4, out.returncode, out.stderr)
+            self.assertIn("no Python 3.12", out.stderr)
+            self.assertNotIn("MODULE", out.stdout)
+
+    def test_a_fallback_whose_own_probe_fails_is_not_taken(self):
+        """The gate's probe asks for 3.12 alone and the fallback's for 3.12
+        with the package, so an interpreter passing the first and failing the
+        second is judged by the fallback's own check."""
+        with tempfile.TemporaryDirectory(prefix="cbx-py-nopkg-") as fake:
+            py = Path(fake) / "python3"
+            py.write_text(
+                "#!/bin/sh\n"
+                "while [ \"$1\" = \"-P\" ] || [ \"$1\" = \"-I\" ]; do shift; done\n"
+                "case \"$1\" in *gate-index.py) exit 0 ;; esac\n"
+                "if [ \"$1\" = \"-c\" ]; then\n"
+                "  case \"$2\" in\n"
+                "    *codebase_index*) exit 1 ;;\n"
+                "    *'version_info[:2] == (3, 12)'*) exit 0 ;;\n"
+                "  esac\n"
+                "  exit 1\n"
+                "fi\n"
                 "if [ \"$1\" = \"-m\" ]; then echo MODULE; exit 0; fi\n"
                 "exit 1\n",
                 encoding="utf-8")
             py.chmod(py.stat().st_mode | stat.S_IEXEC)
+            env = {**os.environ, "PATH": fake}
+            out = subprocess.run(
+                [_bash(), str(CBX), "search", "X"],
+                capture_output=True, text=True, encoding="utf-8", env=env)
+            self.assertEqual(127, out.returncode, out.stderr)
+            self.assertIn("not on PATH", out.stderr)
+            self.assertNotIn("MODULE", out.stdout)
+
+    def test_a_fallback_on_another_version_is_not_taken_behind_a_312_gate(self):
+        """`py -3.12` lacking the package passes the gate, and a `python3` or
+        `python` holding the package is a 3.11: only that fallback's version
+        check stops it from being run."""
+        for name in ("python3", "python"):
+            with self.subTest(name):
+                self.fallback_on_another_version(name)
+
+    def fallback_on_another_version(self, name):
+        with tempfile.TemporaryDirectory(prefix="cbx-py-mixed-") as fake:
+            launcher = Path(fake) / "py"
+            launcher.write_text(
+                "#!/bin/sh\n"
+                "[ \"$1\" = \"-3.12\" ] && shift\n"
+                "while [ \"$1\" = \"-P\" ] || [ \"$1\" = \"-I\" ]; do shift; done\n"
+                "case \"$1\" in *gate-index.py) exit 0 ;; esac\n"
+                "if [ \"$1\" = \"-c\" ]; then\n"
+                "  case \"$2\" in *codebase_index*) exit 1 ;; esac\n"
+                "  exit 0\n"
+                "fi\n"
+                "exit 1\n",
+                encoding="utf-8")
+            older = Path(fake) / name
+            older.write_text(
+                "#!/bin/sh\n"
+                "while [ \"$1\" = \"-P\" ] || [ \"$1\" = \"-I\" ]; do shift; done\n"
+                "if [ \"$1\" = \"-c\" ]; then\n"
+                "  case \"$2\" in *'version_info[:2] == (3, 12)'*) exit 1 ;; esac\n"
+                "  exit 0\n"
+                "fi\n"
+                "if [ \"$1\" = \"-m\" ]; then echo MODULE; exit 0; fi\n"
+                "exit 1\n",
+                encoding="utf-8")
+            for stub in (launcher, older):
+                stub.chmod(stub.stat().st_mode | stat.S_IEXEC)
             env = {**os.environ, "PATH": fake}
             out = subprocess.run(
                 [_bash(), str(CBX), "search", "X"],

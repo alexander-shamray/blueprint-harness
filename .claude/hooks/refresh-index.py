@@ -65,6 +65,23 @@ RETRY_PAUSE = 5
 MARKER_RETRIES = 5
 MARKER_WAIT = 0.2
 
+# The prefix both sweeps give their throwaway worktrees.
+SWEEP_PREFIX = "secsweep-"
+
+# An index is compacted once its free pages pass this share of the file, or its
+# full-text table passes this many segment rows per chunk, and a compaction
+# still running when its timeout passes is interrupted.
+FREE_SHARE = 0.5
+ROWS_PER_CHUNK = 10
+COMPACT_TIMEOUT = REFRESH_TIMEOUT
+
+# Every git call one process makes shares this many seconds, inside the hook's
+# own timeout, and git is run with nothing that aims it at another repository.
+GIT_BUDGET = 3
+GIT_ENV_OVERRIDES = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE")
+_DEADLINE = None
+_IGNORED: dict = {}
+
 if sys.platform == "win32":
     import msvcrt
 
@@ -240,15 +257,134 @@ def main_checkout(root: Path) -> Path | None:
     return common.parent
 
 
+def same(a, b) -> bool:
+    """Whether `a` and `b` are one existing entry, by identity, not spelling."""
+    try:
+        return os.path.samefile(a, b)
+    except (OSError, ValueError):
+        return False
+
+
 def same_repository(root: Path) -> bool:
     """Whether `root` keeps the git directory this hook's own checkout does."""
     ours, theirs = common_dir(home()), common_dir(root)
     if ours is None or theirs is None:
         return False
-    try:
-        return os.path.samefile(ours, theirs)
-    except (OSError, ValueError):
+    return same(ours, theirs)
+
+
+def registered(root: Path) -> bool:
+    """Whether `root` is a checkout git made of this repository, not one that
+    only claims it: the main checkout's real `.git` directory, or a `.git` file
+    with one name whose admin directory sits under `<common>/worktrees/` and
+    names that file back. `docs/harness-boundaries.md`, *Index refresh and
+    worktree seeding*, says what each refusal closes."""
+    common = common_dir(home())
+    marker = root / ".git"
+    if common is None or linked(marker):
         return False
+    if marker.is_dir():
+        return same(marker, common)
+    try:
+        text = marker.read_text(encoding="utf-8").strip()
+        if not text.startswith("gitdir:") or os.stat(marker).st_nlink > 1:
+            return False
+        admin = Path(os.path.realpath(root / text[len("gitdir:"):].strip()))
+        if not same(admin.parent, common / "worktrees"):
+            return False
+        # Read through `admin`, the path just judged; relative under
+        # `worktree.useRelativePaths`, and a join leaves an absolute one alone.
+        backlink = (admin / "gitdir").read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError, ValueError):
+        return False
+    return bool(backlink) and same(admin / backlink, marker)
+
+
+def swept(root: Path) -> bool:
+    """Whether `root` is a sweep's checkout, by its name folded, as it is
+    spelled and as it resolves: the tree a sweep holds is untrusted input."""
+    for spelling in (str(root), os.path.realpath(root)):
+        name = os.path.basename(os.path.normpath(spelling))
+        if name.casefold().startswith(SWEEP_PREFIX):
+            return True
+    return False
+
+
+def unlinked(path: Path, base: Path) -> bool:
+    """Whether `base` and every component of `path` below it is no link."""
+    if linked(base):
+        return False
+    current = base
+    for part in path.relative_to(base).parts:
+        current = current / part
+        if linked(current):
+            return False
+    return True
+
+
+def index_openable(root) -> bool:
+    """Whether the index under `root` may be opened at all: no link on its path
+    or at a file SQLite opens beside it, no rollback journal, and a WAL header.
+    No index yet, or one shorter than a header, is admitted. The gate the
+    `cbx` wrapper runs asks this too, so the rule has one owner."""
+    root = Path(root)
+    index = root / INDEX
+    if not unlinked(index, root):
+        return False
+    if any(linked(Path(str(index) + suffix)) for suffix in SIDECARS):
+        return False
+    if os.path.lexists(str(index) + "-journal"):
+        return False
+    try:
+        with open(index, "rb") as handle:
+            header = handle.read(100)
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    return len(header) < 100 or header[18:20] == bytes((2, 2))
+
+
+def deadline() -> float:
+    """The instant every git call this process makes must finish by."""
+    global _DEADLINE
+    if _DEADLINE is None:
+        _DEADLINE = time.monotonic() + GIT_BUDGET
+    return _DEADLINE
+
+
+def index_ignored(root: Path) -> bool:
+    """Whether git reports `root`'s index path ignored, asked once and kept,
+    since a seed leaves the main checkout's text there. An answer git did not
+    give, the budget spent among them, is a no and is not kept."""
+    key = str(root)
+    if key in _IGNORED:
+        return _IGNORED[key]
+    remaining = deadline() - time.monotonic()
+    git = on_path(root, "git")
+    if remaining <= 0 or git is None:
+        return False
+    environment = {name: value for name, value in os.environ.items()
+                   if name.upper() not in GIT_ENV_OVERRIDES}
+    environment[NO_CWD_SEARCH] = "1"
+    try:
+        child = subprocess.Popen(
+            [git, "-c", "core.fsmonitor=false", "check-ignore", "-q", "--", INDEX.as_posix()],
+            cwd=str(root), env=environment, stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        return False
+    try:
+        status = child.wait(timeout=remaining)
+    except subprocess.TimeoutExpired:
+        child.kill()
+        child.wait()
+        return False
+    # 0 is ignored and 1 is not; anything else is git failing to answer.
+    if status not in (0, 1):
+        return False
+    _IGNORED[key] = status == 0
+    return _IGNORED[key]
 
 
 def written(root: Path) -> bool:
@@ -263,17 +399,21 @@ def written(root: Path) -> bool:
 
 def seed_source(root: Path) -> Path | None:
     """The index a linked worktree without one is seeded from, or None: only
-    a regular file at the main checkout's own index path, so a link planted
-    there cannot point the copy at anything else."""
-    if (root / INDEX).exists():
+    into an empty path git ignores, and only from a written index at rest in
+    a registered main checkout that is no sweep's, a regular file at its own
+    index path, so a link planted there cannot point the copy elsewhere."""
+    if os.path.lexists(root / INDEX):
         return None
     main = main_checkout(root)
-    if main is None:
+    if main is None or not registered(main) or swept(main):
         return None
     source = main / INDEX
+    if not (index_openable(main) and written(main)):
+        return None
     if source.is_symlink() or not source.is_file():
         return None
-    return source
+    # Last, so git runs only where a seed could otherwise happen.
+    return source if index_ignored(root) else None
 
 
 def refreshable(root: Path) -> bool:
@@ -284,9 +424,11 @@ def refreshable(root: Path) -> bool:
 
 
 def admitted(root: Path) -> bool:
-    """Whether the hook may refresh `root` at all: a checkout of its own
-    repository, with state to keep and something to refresh."""
-    return state_dir() is not None and same_repository(root) and refreshable(root)
+    """Whether the hook may refresh `root` at all: a registered checkout of
+    its own repository and no sweep's, with state to keep, an index it may
+    open, and something to refresh."""
+    return (state_dir() is not None and same_repository(root) and registered(root)
+            and not swept(root) and index_openable(root) and refreshable(root))
 
 
 def target(event: dict) -> Path | None:
@@ -313,13 +455,21 @@ def target(event: dict) -> Path | None:
     return root
 
 
+def sqlite_uri(path: Path, mode: str) -> str:
+    """A `file:` URI for `path` with an empty authority: `as_uri()` puts a UNC
+    server or a `?` there, and SQLite refuses both."""
+    posix = Path(path).as_posix()
+    return ("file://" + ("" if posix.startswith("/") else "/")
+            + urllib.parse.quote(posix) + f"?mode={mode}")
+
+
 def seed(root: Path) -> None:
     """Give a linked worktree with no index its main checkout's, through
     SQLite's backup because a copied file can tear mid-`update`. Renamed in so
     `update` never opens a partial file, after any WAL an earlier seed left;
     only `index.sqlite` crosses, as the rest of that cache is its own state."""
     source = seed_source(root)
-    if source is None:
+    if source is None or not index_openable(root):
         return
     index = root / INDEX
     partial = index.with_name(f"{index.name}.seed.{os.getpid()}")
@@ -338,13 +488,9 @@ def seed(root: Path) -> None:
         copying = True
         for leftover in ("-wal", "-shm"):
             index.with_name(index.name + leftover).unlink(missing_ok=True)
-        # The authority stays empty: `as_uri()` puts a UNC server or a `?` there,
-        # and SQLite refuses both. `mode=rw` refuses a source gone since
-        # `seed_source` looked, where a plain connect would create one empty.
-        posix = source.as_posix()
-        reading = sqlite3.connect(
-            "file://" + ("" if posix.startswith("/") else "/") + urllib.parse.quote(posix) + "?mode=rw",
-            uri=True)
+        # `mode=rw` refuses a source gone since `seed_source` looked, where a
+        # plain connect would create one empty.
+        reading = sqlite3.connect(sqlite_uri(source, "rw"), uri=True)
         try:
             writing = sqlite3.connect(str(partial))
             try:
@@ -357,6 +503,10 @@ def seed(root: Path) -> None:
         with open(partial, "rb") as copy:
             if copy.read(100)[18:20] != bytes((2, 2)):
                 return
+        # Asked again at the last moment: the path must still be empty and
+        # free of links, whatever a checkout did while the copy ran.
+        if os.path.lexists(index) or not index_openable(root):
+            return
         os.replace(partial, index)
     except (OSError, sqlite3.Error):
         pass
@@ -414,7 +564,12 @@ def inside(path: Path, tree: Path) -> bool:
 
 
 def console_script(root: Path) -> str | None:
-    """`codebase-index` found on PATH alone, as a full path, or None.
+    """`codebase-index` found on PATH alone, as a full path, or None."""
+    return on_path(root, "codebase-index")
+
+
+def on_path(root: Path, stem: str) -> str | None:
+    """The program `stem` found on PATH alone, as a full path, or None.
 
     Absolute PATH entries, nothing in a checkout, and on Windows only `.exe` or
     `.com`: `docs/harness-boundaries.md`, *Index refresh and worktree seeding*.
@@ -425,9 +580,9 @@ def console_script(root: Path) -> str | None:
     except OSError:
         here = None
     if sys.platform == "win32":
-        names = ["codebase-index.exe", "codebase-index.com"]
+        names = [f"{stem}.exe", f"{stem}.com"]
     else:
-        names = ["codebase-index"]
+        names = [stem]
     for entry in os.environ.get("PATH", "").split(os.pathsep):
         directory = Path(entry.strip('"'))
         if not entry.strip('"') or not directory.is_absolute():
@@ -567,18 +722,134 @@ def refresh(root: Path, handle=None) -> bool:
     return False
 
 
+def shaped(connection) -> bool:
+    """Whether the tables compaction reads are the package's, from the parsed
+    schema: ASCII names folded as SQLite folds them, `chunks` a plain table
+    and every `fts_chunks_` name a shadow table. No `table_list` is no."""
+    rows = connection.execute("PRAGMA main.table_list").fetchall()
+    if not all(row[1].isascii() for row in rows):
+        return False
+    kinds = {row[1].lower(): row[2] for row in rows}
+    if kinds.get("chunks") != "table":
+        return False
+    return all(kind == "shadow" for name, kind in kinds.items() if name.startswith("fts_chunks_"))
+
+
+def bloated(connection) -> bool:
+    """Whether the index has outgrown its data by either measure."""
+    pages = connection.execute("PRAGMA page_count").fetchone()[0]
+    free = connection.execute("PRAGMA freelist_count").fetchone()[0]
+    rows = connection.execute("SELECT count(*) FROM fts_chunks_data").fetchone()[0]
+    chunks = connection.execute("SELECT count(*) FROM chunks").fetchone()[0]
+    return free > pages * FREE_SHARE or rows > ROWS_PER_CHUNK * max(chunks, 1)
+
+
+def locked_down(connection, limit: float) -> bool:
+    """Interrupt `connection` at `limit`, distrust the file's schema and
+    switch its triggers off, each read back: an older SQLite ignores the
+    pragma silently, and `setconfig` answers nothing. False compacts nothing."""
+    connection.set_progress_handler(lambda: time.monotonic() > limit, 10000)
+    connection.execute("PRAGMA trusted_schema=OFF")
+    if connection.execute("PRAGMA trusted_schema").fetchone() != (0,):
+        return False
+    switch = getattr(sqlite3, "SQLITE_DBCONFIG_ENABLE_TRIGGER", None)
+    if switch is None or not hasattr(connection, "setconfig"):
+        return False
+    connection.setconfig(switch, False)
+    return not connection.getconfig(switch)
+
+
+def beside(path: Path) -> bool:
+    """Whether anything sits at a name SQLite opens beside `path`."""
+    return any(os.path.lexists(str(path) + suffix) for suffix in SIDECARS)
+
+
+def discard(partial: Path) -> None:
+    """Remove the compacted copy and whatever SQLite left beside it."""
+    for suffix in ("", *SIDECARS):
+        try:
+            os.remove(str(partial) + suffix)
+        except OSError:
+            pass
+
+
+def late(limit: float) -> None:
+    """Raise once `limit` has passed, between the steps of the copy, which the
+    progress handler never reaches."""
+    if time.monotonic() > limit:
+        raise sqlite3.OperationalError("the compaction's deadline passed")
+
+
+def compact(root: Path) -> bool:
+    """Merge the index's full-text segments and give back its free pages, past
+    a threshold, on a copy in the state directory renamed over an index at
+    rest; true when it did. `docs/harness-boundaries.md`, *Index refresh and
+    worktree seeding*, says why each step is the shape it is."""
+    path = root / INDEX
+    if not index_openable(root) or not path.is_file() or beside(path):
+        return False
+    partial = state_path(root, "compact.sqlite")
+    if partial is None:
+        return False
+    try:
+        partial.parent.mkdir(parents=True, exist_ok=True)
+        # A killed worker's copy, under the lock no other compaction holds.
+        discard(partial)
+        if os.path.lexists(partial):
+            return False
+        seen = os.stat(path)
+        limit = time.monotonic() + COMPACT_TIMEOUT
+        reading = sqlite3.connect(sqlite_uri(path, "ro") + "&immutable=1", uri=True, timeout=30)
+        try:
+            if not locked_down(reading, limit) or not shaped(reading) or not bloated(reading):
+                return False
+            writing = sqlite3.connect(str(partial), timeout=30, isolation_level=None)
+            try:
+                reading.backup(writing, pages=1024, progress=lambda *step: late(limit))
+                if not locked_down(writing, limit):
+                    return False
+                writing.execute("INSERT INTO fts_chunks(fts_chunks) VALUES('optimize')")
+                writing.execute("VACUUM")
+                if writing.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()[0] != 0:
+                    return False
+            finally:
+                writing.close()
+        finally:
+            reading.close()
+        with open(partial, "rb") as copy:
+            if copy.read(100)[18:20] != bytes((2, 2)):
+                return False
+        if beside(partial):
+            return False
+        # Asked again at the last moment: the index must be what was copied.
+        after = os.stat(path)
+        if (after.st_size, after.st_mtime_ns) != (seen.st_size, seen.st_mtime_ns):
+            return False
+        if not index_openable(root) or beside(path):
+            return False
+        os.replace(partial, path)
+    except (OSError, sqlite3.Error):
+        return False
+    finally:
+        discard(partial)
+    return written(root) and index_openable(root)
+
+
 def refreshed(root: Path, handle=None) -> bool | None:
     """One request's update, tried again while it keeps failing; None when
     the root stopped qualifying. The pause is what makes a retry worth
     anything, and the root is judged again after it: an index can go."""
     for attempt in range(REFRESH_ATTEMPTS):
-        if not (same_repository(root) and written(root)):
+        # The CLI opens the index and its sidecars before anything here could
+        # look again, and a checkout since the last look can link either.
+        if not (same_repository(root) and written(root) and index_openable(root)):
             return None
         # An indexer that outlived its kill is on the record, and an attempt
         # would overwrite that and start a second beside it.
         if running_indexer(handle) is not None:
             return False
         if refresh(root, handle):
+            compact(root)
             return True
         if attempt + 1 < REFRESH_ATTEMPTS:
             time.sleep(RETRY_PAUSE)

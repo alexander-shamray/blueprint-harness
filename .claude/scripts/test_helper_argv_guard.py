@@ -88,7 +88,9 @@ class TheRunbooksKeepIssueTextFromTheShell(unittest.TestCase):
     def test_no_helper_line_puts_a_placeholder_in_double_quotes(self):
         for name in ("dispatch.md", "pr.md"):
             text = (COMMANDS / name).read_text(encoding="utf-8")
-            lines = re.findall(r"^\s*(?:py -3\.12 \.claude/scripts/\S+|gh pr create).*$", text, re.MULTILINE)
+            # pr.md's create line is the helper's since the raw `gh pr create` grant was withdrawn.
+            lines = re.findall(r"^\s*(?:py -3\.12 \.claude/scripts/\S+|gh pr create|bash \.claude/scripts/gh-pr-create\.sh)"
+                               r".*$", text, re.MULTILINE)
             self.assertTrue(lines, name)
             for found in lines:
                 with self.subTest(line=found):
