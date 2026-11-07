@@ -45,14 +45,22 @@ common_there=$(git -C "$path" rev-parse --path-format=absolute --git-common-dir)
 # hook's own primitive, in the git directory, and one still held at the bound
 # removes nothing.
 state="$common_here/index-refresh"
+# The files' name, taken while the path still stats: it is the worktree's
+# device and inode, which a later worktree can be given once this one is gone.
+keyed=
 if [ -d "$state" ]; then
   python=python3
   command -v py >/dev/null 2>&1 && python="py -3.12"
-  if ! $python -I - "$state" "$path" <<'PY'; then
-import hashlib, os, sys, time
+  keyed=$($python -I -c '
+import hashlib, os, sys
 info = os.stat(sys.argv[2])
 key = hashlib.sha256(f"{info.st_dev}:{info.st_ino}".encode()).hexdigest()[:32]
-lock, pending = (os.path.join(sys.argv[1], f"{key}.{suffix}") for suffix in ("lock", "pending"))
+print(sys.argv[1] + "/" + key)' "$state" "$path" | tr -d '\r') || keyed=
+fi
+if [ -n "$keyed" ] && { [ -e "$keyed.lock" ] || [ -e "$keyed.pending" ]; }; then
+  if ! $python -I - "$keyed" <<'PY'; then
+import os, sys, time
+lock, pending = sys.argv[1] + ".lock", sys.argv[1] + ".pending"
 bound, grace = 30, 2
 if sys.platform == "win32":
     import msvcrt
@@ -101,6 +109,11 @@ PY
     exit 5
   fi
 fi
+# The worktree's lock and marker go with it, and a file that will not go is not
+# the removal failing.
+forget() {
+  [ -z "$keyed" ] || rm -f "$keyed.lock" "$keyed.pending" 2>/dev/null || :
+}
 # Windows refuses a path past 260 characters unless git asks for long paths:
 # git then refuses a worktree holding files it cannot read, or, failing to
 # delete one, unregisters the worktree anyway and leaves its directory behind.
@@ -120,10 +133,12 @@ if [ -e "$path" ]; then
     if rmdir "$path" 2>/dev/null; then
       [ "$status" -eq 0 ] ||
         echo "git exited $status after deleting $path; the empty directory is removed" >&2
+      forget
       exit 0
     fi
     echo "unregistered but not deleted: $path is still there; remove it by hand" >&2
     exit 4
   fi
 fi
+[ "$status" -ne 0 ] || forget
 exit "$status"
