@@ -1064,9 +1064,11 @@ this target's own denies, read from `.claude/settings.json`, so `.github` is
 protected only where a target denies it. A path is anchored at the root of the
 checkout that holds it and folded for case, which leaves `payload/.claude/…`,
 `staging/.claude/…`, `.claude/worktrees/` and `.claude/cache` writable, and a
-link is judged where it lands. `~` and the variables this process shares with
-the session are expanded and judged, and a literal `cd` is followed, through a
-subshell's end as well.
+link is judged where it lands. A verb that takes a tree whole, `rm`, `mv`,
+`rmdir`, `shred` or a copy into a directory, is refused a parent of what a deny
+names as well, so `rm -rf .claude` is refused and `.claude/worktrees/x` is not.
+`~` and the variables this process shares with the session are expanded and
+judged, and a literal `cd` is followed, through a subshell's end as well.
 
 **What it cannot read it admits, and that is the narrowing, not a gap.** An
 unknown variable, a computed operand, or a relative target after a `cd` nothing

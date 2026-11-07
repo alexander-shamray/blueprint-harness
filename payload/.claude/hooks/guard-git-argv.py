@@ -182,20 +182,23 @@ def edit_denies():
         for path in folded if not path.startswith(("/", "~"))))
 
 
-def denied_path(relative):
+def denied_path(relative, whole=False):
     """The deny that holds `relative`, a path from a checkout's root, or `None`.
 
     Anchored at the root and folded, so `payload/.claude/hooks/x` and
-    `.claude/worktrees/x` are not protected and `.CLAUDE/hooks/x` is.
+    `.claude/worktrees/x` are not protected and `.CLAUDE/hooks/x` is. `whole`
+    is a write to the tree itself, so a parent of a deny's literal prefix counts.
     """
     parts = [part for part in re.split(r"[\\/]+", relative)
              if part not in ("", ".")]
     path = "/".join(parts).lower()
-    if not path:
+    if not path or path == ".." or path.startswith("../"):
         return None
     for rule in edit_denies():
+        literal = re.split(r"[*?\[]", rule, maxsplit=1)[0].rstrip("/")
         if fnmatch.fnmatchcase(path, rule) or (
-                rule.endswith("/**") and path == rule[:-3]):
+                rule.endswith("/**") and path == rule[:-3]) or (
+                whole and literal.startswith(path + "/")):
             return f"`Edit({rule})`"
     return None
 
@@ -2573,6 +2576,8 @@ WRITING_VERBS = {
     "dd": "of",
 }
 TARGET_OPTION_VERBS = frozenset({"cp", "install", "ln", "mv"})
+# Verbs that remove, move or fill a directory whole, so its parent is a write.
+TREE_VERBS = frozenset({"cp", "install", "mv", "rm", "rmdir", "shred"})
 
 # Options that take a value, so their value is not read as an operand.
 SHORT_VALUE_OPTIONS = {
@@ -2696,22 +2701,22 @@ def scratch_checkout(path):
     return session is None or not beneath(path, os.path.realpath(session))
 
 
-def protected_target(path):
+def protected_target(path, whole=False):
     """The deny holding `path`, as spelled or where its links land, or `None`."""
     if scratch_checkout(os.path.realpath(path)):
         return None
     for place in (path, os.path.realpath(path)):
         relative = checkout_relative(place)
-        named = denied_path(relative) if relative is not None else None
+        named = denied_path(relative, whole) if relative is not None else None
         if named is not None:
             return named
     return None
 
 
-def destination_offence(word, cwd, command, writer):
+def destination_offence(word, cwd, command, writer, whole=False):
     """The reason to refuse writing the file shell `word` names, or `None`."""
     path = written_path(word, cwd, command)
-    named = protected_target(path) if path is not None else None
+    named = protected_target(path, whole) if path is not None else None
     if named is None:
         return None
     return (
@@ -2931,7 +2936,8 @@ def writing_verb_offence(words, cwd, command):
                     operands = operands[:cut]
                     break
         for word in verb_destinations(verb, operands):
-            refusal = destination_offence(word, cwd, command, f"`{verb}`")
+            refusal = destination_offence(word, cwd, command, f"`{verb}`",
+                                          verb in TREE_VERBS)
             if refusal is not None:
                 return refusal
     return None
