@@ -125,6 +125,20 @@ its prompt, not its tools — the sweeps' residual for the same tool set. The re
 is the parent's: it holds the shell the reviewer was denied, so a finding
 written to steer an edit is caught by that verification or not at all.
 
+**The residual is that the chain has no outside reader, and no grant expresses
+it.** What reviews a branch before it merges is the same model family that
+wrote it, with its own context and its own blind spots, and `/ship` merges
+unattended. Nothing in the harness can close that: independence of judgement is
+not a tool grant. It is accepted, the external reviewers being archived (*Grant
+semantics* says where they are held; blueprint-frontend recorded the decision
+in its #117), and the control is procedural and stated: a full pass, a recheck
+of every fix with a full pass again after a `bug`-severity or large one, a
+seventh-round ceiling whose open findings are filed as issues rather than
+dropped, and CI, which judges the branch by rules the model did not choose. It
+is recorded because a reader who learns only that the reviewer is read-only has
+been told the safe half. Restoring an outside reader starts from
+`archive/external-reviewers`.
+
 **`team-peer` rests on it too, over a wider input.** `/team`'s peers hold
 the same three tools and read a board other peers wrote, so a line planted
 in the code can reach a second peer as a claim. The residual is that
@@ -853,6 +867,10 @@ row is therefore a spelling the deny list does not match.
 | Edit the skills | `Edit(.claude/skills/codebase-index/SKILL.md)` | `deny` | `test_destructive_classes.py` |
 | Edit the settings | `Edit(.claude/settings.json)` | `deny` | `test_destructive_classes.py` |
 | Edit the local settings | `Edit(.claude/settings.local.json)` | `deny` | `test_destructive_classes.py` |
+| Edit inside the git directory | `Edit(.git/config)` | `deny` | `test_destructive_classes.py` |
+| Edit the git directory itself | `Edit(.git)` | `deny` | `test_destructive_classes.py` |
+| Edit the MCP server definitions | `Edit(.mcp.json)` | `deny` | `test_destructive_classes.py` |
+| Edit the index's ignore list | `Edit(.codeindexignore)` | `deny` | `test_destructive_classes.py` |
 | Edit a hook through a link | `Edit(linked/hooks/guard-git-argv.py)` | `guard-edit-target` | `test_destructive_classes.py` |
 | Edit the settings through a link | `Edit(linked/claude/settings.json)` | `guard-edit-target` | `test_destructive_classes.py` |
 | Edit the agent notes through a link | `Edit(linked/remember/notes.md)` | `guard-edit-target` | `test_destructive_classes.py` |
@@ -1290,16 +1308,33 @@ mutation sweep, so no payload command holds it. Each execs
 `gh-issue-create.sh` with the route spelled, so the kind, severity, area, stdin
 and trailer checks stay in one place. A grant on one entry point withholds
 nothing from another, so each command denies the entries it does not hold by
-name, and `gh-issue-create.sh` besides; `/ship` states no deny list, because a
-deny on a command it chains outlasts the step. `test_command_grants.py` walks
-every command in the tree it runs in, a target's local ones too, so whether a
-route needs an entry point is a question about every target, not the payload.
+name, and `gh-issue-create.sh` besides; `/ship` denies agent types and no tool a
+command it chains uses, because a deny on one of those outlasts the step.
+`test_command_grants.py` walks every command in the tree it runs in, a target's
+local ones too, so whether a route needs an entry point is a question about
+every target, not the payload.
 The `request` route has none, since no command in any target files under it; it
 stays reachable by calling `gh-issue-create.sh` directly, and a command that
 comes to need it gets its own entry point of the same shape. Residual: a prefix
 grant on a helper lets its holder choose that helper's own arguments, which here
 are the severity, the area and, on every entry but the mutation one, the kind,
 all in closed sets.
+
+**The replay's provenance and its divergence baseline are files under `.git`,
+and that is a stated limit.** The helper keeps a record in the git directory
+(`claude-rebase-pending`, naming the branch, the lease and the replayed
+commit), writes a marker into the rebase state (`started-by-this-helper`), and
+reads git's own `orig-head` for where a replay began. `continue` takes the
+marker as proof that the helper started the rebase and `publish` forces over
+the lease the record names, so anything able to write there could steer a
+publish: a forged marker passes `continue`, a rewritten record moves the lease.
+What stands in the way is partial: the base settings deny `Edit` on `.git` in
+both spellings for every session, and `guard-helper-argv.py` refuses a command
+substitution in a command that runs a helper. Neither reaches a `Bash` command
+that writes there by another route. It is accepted, not guarded, because the
+same files exist in every target that runs the helper; this repository measured
+nothing about it, and the limit is written down so a reader does not take the
+helper's own checks for protection of the files they read.
 
 **Some of the rebase helper's edges are accepted rather than guarded.** A replay
 amended after a failed push no longer descends from the commit `publish`
@@ -1501,7 +1536,14 @@ runs before it pushes never denies push.** It reads as hardening and is not —
 `settings.json` refuse `main`, force and delete whoever asks.
 `NothingShipChainsDeniesPush` in `test_command_grants.py` names the commands and
 fails if one denies push. A terminal, read-only command — the two sweeps — keeps
-its deny, because nothing pushes after it.
+its deny, because nothing pushes after it. A target whose *Ship checks* run a
+command of its own names it in `CHAINED_BEFORE_A_PUSH` in a `local_commands.py`
+of its own beside the suites, listed under `local`: that case holds it to
+denying no push, and `ACommandThatDoesNotPublishCannotPush` stops asking it to
+deny one. A subclass in the target's own suite could do the first and not the
+second: `unittest discover` still runs the payload's
+`ACommandThatDoesNotPublishCannotPush` as written, which asks every command it
+does not exempt to deny push.
 
 ## Output deny and shell-expansion residuals
 
@@ -1590,16 +1632,35 @@ alternative fails open on a wrapper nobody listed.
 ## Agent-type and push entries
 
 **A seventh thing is a gap in the mechanism rather than in a grant.** Pinning a
-command to one subagent type is a **deny list of every other type**, because the
-harness has no "only this type" allow — so `security-sweep.md`,
-`bug-sweep.md` and `team.md` each deny every registered type but the one
-they grant, and **a newly added agent under `.claude/agents/` is admitted by
-default** until someone adds it to every list; `test_command_grants.py` fails
-a granting command that does not. That is the shape this repository already
-knows rots; it is taken here because the alternative on offer is prose. **It
-rotted once already on the day a third agent arrived**: `review-adjudicator`
-was added for #149 and every command then holding a list had to name it,
-which is the enumeration's cost paid in the change that proves it.
+command to one subagent type is a **deny list of every other type**, because
+the harness has no "only this type" allow — so `security-sweep.md`,
+`bug-sweep.md`, `team.md` and `ship.md` each deny every registered type but the
+one they grant (`ship.md` also leaves `general-purpose`, which step 2
+dispatches its audits as), and **a newly added agent under `.claude/agents/` is
+admitted by default** until someone adds it to every list;
+`test_command_grants.py` fails a granting command that does not. That is the
+shape this repository already knows rots; it is taken here because the
+alternative on offer is prose. **It rotted once already on the day a third
+agent arrived**: `review-adjudicator` was added for #149 and every command then
+holding a list had to name it, which is the enumeration's cost paid in the
+change that proves it.
+
+**A command that does not publish denies `git push`, and one that holds `Edit`
+or `Write` is held off the repository's machinery by the settings.** The
+settings allow `git push origin`, so a command that neither grants nor denies
+push reaches it; `ACommandThatDoesNotPublishCannotPush` in
+`test_command_grants.py` derives the commands from their frontmatter, so a new
+one fails until it decides. `branch.md` and `commit.md` are the exemption:
+`/ship` runs them before it pushes, and a frontmatter deny outlasts the step.
+`Edit` and `Write` carry no path scope, so `.git`, `.mcp.json` and
+`.codeindexignore` are denied in the base settings in both spellings, for
+every command at once, because the grant is per command and a new editing
+command should arrive behind the deny; `test_harness_denies.py` checks it
+against each command that holds either tool. No payload command edits any of
+the three, so the deny costs none. A target whose own command must edit one
+changes the base in `blueprint-harness`, because a deny beats every allow.
+Residual, as for the rest of the list: `Bash` redirection still writes what
+`Edit` refuses.
 
 **The eighth was the push deny-list (#23), and it closed the way the sixth
 did.** Two broad allows — `Bash(git push origin:*)` and the `-u` form — paired
@@ -1632,6 +1693,20 @@ and it is that repository's to keep, under *Residuals* in its
 `docs/harness-local.md`: a file the build imports by name that does not exist
 yet is on no list read from what exists, so a deny enumerated from the tree
 cannot cover it.
+
+**A boundary an agent must keep across turns lives on its profile.** It was
+measured in blueprint-admin (its #19, #23 and #27) and blueprint-backend (its
+#52 and #149) while a writing agent still ran in the chain, and this repository
+has not re-measured it. A command loaded inside an agent can discard its own
+frontmatter deny; a type list inside a subagent's `Agent` grant is ignored; a
+command's `disallowed-tools` lasts only the turn that loaded it, so a deny a
+later step must still meet cannot be put there. A command's `disallowed-tools`
+propagate to the subagents it spawns, and a path deny reaches a `Bash` command
+naming the path; the harness offers no deny that reaches the parent and not the
+child. The local review holds no writing agent, so none of this binds a
+boundary today, and it binds the first one added: `branch-reviewer`,
+`bug-auditor`, `security-auditor` and `team-peer` hold `Read`, `Grep` and
+`Glob` on their profiles for that reason.
 
 ## The edit-target guard
 
