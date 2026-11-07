@@ -324,6 +324,44 @@ class CbxWrapper(unittest.TestCase):
             self.assertIn("not on PATH", out.stderr)
             self.assertNotIn("MODULE", out.stdout)
 
+    def test_a_fallback_on_another_version_is_not_taken_behind_a_312_gate(self):
+        """`py -3.12` lacking the package passes the gate, and a `python3`
+        holding the package is a 3.11: only the fallback's version check
+        stops it from being run."""
+        with tempfile.TemporaryDirectory(prefix="cbx-py-mixed-") as fake:
+            launcher = Path(fake) / "py"
+            launcher.write_text(
+                "#!/bin/sh\n"
+                "[ \"$1\" = \"-3.12\" ] && shift\n"
+                "while [ \"$1\" = \"-P\" ] || [ \"$1\" = \"-I\" ]; do shift; done\n"
+                "case \"$1\" in *gate-index.py) exit 0 ;; esac\n"
+                "if [ \"$1\" = \"-c\" ]; then\n"
+                "  case \"$2\" in *codebase_index*) exit 1 ;; esac\n"
+                "  exit 0\n"
+                "fi\n"
+                "exit 1\n",
+                encoding="utf-8")
+            older = Path(fake) / "python3"
+            older.write_text(
+                "#!/bin/sh\n"
+                "while [ \"$1\" = \"-P\" ] || [ \"$1\" = \"-I\" ]; do shift; done\n"
+                "if [ \"$1\" = \"-c\" ]; then\n"
+                "  case \"$2\" in *'version_info[:2] == (3, 12)'*) exit 1 ;; esac\n"
+                "  exit 0\n"
+                "fi\n"
+                "if [ \"$1\" = \"-m\" ]; then echo MODULE; exit 0; fi\n"
+                "exit 1\n",
+                encoding="utf-8")
+            for stub in (launcher, older):
+                stub.chmod(stub.stat().st_mode | stat.S_IEXEC)
+            env = {**os.environ, "PATH": fake}
+            out = subprocess.run(
+                [_bash(), str(CBX), "search", "X"],
+                capture_output=True, text=True, encoding="utf-8", env=env)
+            self.assertEqual(127, out.returncode, out.stderr)
+            self.assertIn("not on PATH", out.stderr)
+            self.assertNotIn("MODULE", out.stdout)
+
     def test_wrappers_guard_and_skill_share_one_allow_list(self):
         bash = re.search(
             r'(?m)^ALLOWED="([^"]+)"', self.uncommented(CBX))
