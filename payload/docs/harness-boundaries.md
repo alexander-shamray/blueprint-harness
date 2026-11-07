@@ -1165,7 +1165,7 @@ it.** `<bug|test-gap|enhancement> <critical|high|medium|low>
 request route's), for the sync row, which finds payload defects from a target
 whose checkout is another repository. The repository is a literal in the helper
 and no word selects it: a word `gh-issue-create.sh` took would be the caller's
-to declare, and the sweeps hold that helper over a tree they cannot trust. So
+to declare, which is why no command is granted that helper. So
 the grant is the boundary: `/ship`'s frontmatter names the helper, the settings
 do not allow it, and both sweeps deny it by the same key as the force-push
 helpers, for the day someone allows it globally. It first searches the open
