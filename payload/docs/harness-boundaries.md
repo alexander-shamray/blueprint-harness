@@ -1829,7 +1829,7 @@ index. Each git call is bounded at 5 seconds, and a command at 200 files.
 
 **Which git it runs.** The first on `PATH` by the hook's own search, the
 rule *Index refresh and worktree seeding* gives its console script but for
-the main checkout, which the hook has no git yet to ask for, and never
+the main checkout, which it does not fence, and never
 `shutil.which`: on Windows that looks in the current directory first, where
 a merged change could plant a `git.cmd` to run inside this hook, and only
 `NoDefaultCurrentDirectoryInExePath`, which a hook cannot rely on, turns
