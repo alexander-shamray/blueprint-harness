@@ -1055,7 +1055,7 @@ class BoardTests(unittest.TestCase):
         self.assertEqual(0, code, err.getvalue())
         lines = out.getvalue().splitlines()
         self.assertTrue(lines[0].startswith("S1 | wave 1 | ready | free | "), lines[0])
-        self.assertIn(f"not ready: #1681 {db.NOT_OWNERS}", lines[1])
+        self.assertIn(f"not ready: {db.NOT_OWNERS}: #1681", lines[1])
         self.assertIn("t\ntouches definitions.json", (run / "bodies" / "1682.txt").read_text("utf-8"))
         self.assertEqual({1440}, db.open_issues(str(root)))
 
@@ -1071,19 +1071,20 @@ class OnlyTheOwnersIssuesRun(unittest.TestCase):
 
     def test_a_strangers_issue_never_runs(self):
         group = group_of(line(number=1700))
-        self.assertEqual((False, f"#1700 {db.NOT_OWNERS}"), db.runnable(group, frozenset({1}), set(), TODAY))
+        self.assertEqual((False, f"{db.NOT_OWNERS}: #1700"), db.runnable(group, frozenset({1}), set(), TODAY))
         self.assertEqual((True, ""), db.runnable(group, frozenset({1700}), set(), TODAY))
 
     def test_berserk_lifts_nothing_of_it(self):
         group = group_of(line(number=1700, depends="OWNER"))
         self.assertEqual((True, ""), db.ready(group, set(), TODAY, None, True), "the control: the flag lifts OWNER")
-        self.assertEqual((False, f"#1700 {db.NOT_OWNERS}"), db.runnable(group, frozenset(), set(), TODAY, None, True))
+        self.assertEqual((False, f"{db.NOT_OWNERS}: #1700"), db.runnable(group, frozenset(), set(), TODAY, None, True))
 
-    def test_one_strangers_row_holds_its_group(self):
-        rows = (line(number=1700), line(number=1701))
+    def test_each_strangers_row_is_named_and_one_holds_its_group(self):
+        rows = (line(number=1700), line(number=1701), line(number=1702))
         group = db.groups(db.parse_tasks(tasks_of(*rows)))[0]
-        self.assertEqual("#1701", db.stranger(group, frozenset({1700})).key)
-        self.assertIsNone(db.stranger(group, frozenset({1700, 1701})))
+        self.assertEqual((False, f"{db.NOT_OWNERS}: #1700, #1702"), db.runnable(group, frozenset({1701}), set(), TODAY))
+        self.assertEqual(["#1701"], db.strangers(group, frozenset({1700, 1702})))
+        self.assertEqual([], db.strangers(group, frozenset({1700, 1701, 1702})))
 
     def test_an_owed_row_has_no_author_and_keeps_its_own_reason(self):
         group = group_of(line().replace("| 1700 |", "| owed (not filed) |"))
@@ -1091,7 +1092,7 @@ class OnlyTheOwnersIssuesRun(unittest.TestCase):
 
     def test_the_board_names_the_issue_and_a_dry_run_cannot_release_it(self):
         lines = db.board(tasks_of(line(number=1700)), TODAY, {1700: "docs/a.md"}, set(), berserk=True, owned=frozenset())
-        self.assertIn(f"not ready: #1700 {db.NOT_OWNERS}", lines[0])
+        self.assertIn(f"not ready: {db.NOT_OWNERS}: #1700", lines[0])
         self.assertNotIn("released", lines[0])
 
     def test_a_listing_that_is_not_numbers_is_refused(self):

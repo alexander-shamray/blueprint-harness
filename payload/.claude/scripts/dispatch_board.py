@@ -47,7 +47,7 @@ ROW_GROUP = re.compile(r"\b[A-Z]\d+\b")
 GROUP_ID = re.compile(rf"{ROW_GROUP.pattern}|\bsync-[1-9][0-9]*\b")
 SEPARATOR = re.compile(r"\|[\s:|-]+\|")
 OWED = "owed (not filed)"
-NOT_OWNERS = "was not opened by the repository owner"
+NOT_OWNERS = "not opened by the repository owner"
 # The text cells of a row `tasks place` adds, read from a file under the run.
 PLACED = ("task", "labels", "depends", "model", "conflicts")
 BRANCH_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/()-]*")
@@ -395,15 +395,15 @@ def ready(group, open_issues, today, bodies=None, berserk=False, kept=frozenset(
     return True, ""
 
 
-def stranger(group, owned):
-    """The first row whose issue the repository owner did not open, or None."""
-    return next((row for row in group.rows if row.number is not None and row.number not in owned), None)
+def strangers(group, owned):
+    """The key of each row whose issue the repository owner did not open."""
+    return [row.key for row in group.rows if row.number is not None and row.number not in owned]
 
 
 def runnable(group, owned, open_issues, today, bodies=None, berserk=False, kept=frozenset()):
     """`ready`, behind the one gate no flag lifts: on a public repository an issue is a work order only from the owner."""
-    held = stranger(group, owned)
-    return (False, f"{held.key} {NOT_OWNERS}") if held else ready(group, open_issues, today, bodies, berserk, kept)
+    held = strangers(group, owned)
+    return (False, f"{NOT_OWNERS}: {', '.join(held)}") if held else ready(group, open_issues, today, bodies, berserk, kept)
 
 
 def released(candidates, ready_map, open_issues, today, bodies):

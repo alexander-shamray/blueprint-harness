@@ -1916,7 +1916,7 @@ class StrangersIssues(InRoot):
         argv = ["launch", RUN, "S1", "--tasks", "todo.md", "--branch", BRANCH, "--worktree", WORKTREE]
         with mock.patch.object(dr, "git", lambda root, *args: porcelain):
             refused = run_cli(argv, owned_source=lambda: frozenset({1682}))
-            self.assertIn(f"refused: S1 is not launched: #1683 {db.NOT_OWNERS}", refused)
+            self.assertIn(f"refused: S1 is not launched: {db.NOT_OWNERS}: #1683", refused)
             self.assertNotIn("status", dr.load_state(state_dir())["groups"]["S1"])
             self.assertEqual("", run_cli(argv, owned_source=lambda: frozenset({1682, 1683})))
 
@@ -1926,7 +1926,7 @@ class StrangersIssues(InRoot):
             handle.write(tasks_of(line()))
         lines = run_cli(["report", RUN, "--tasks", "todo.md", "--today", "2026-11-01"], body_source=lambda n: "",
                         open_source=set, owned_source=frozenset).splitlines()
-        self.assertIn(f"Z1 wave 1: #1700 {db.NOT_OWNERS}", lines)
+        self.assertIn(f"Z1 wave 1: {db.NOT_OWNERS}: #1700", lines)
 
 
 class TaskTextIsAFile(InRoot):
