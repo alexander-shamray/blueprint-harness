@@ -96,6 +96,13 @@ EXECUTING_SHORT_FLAGS = {
     "ls-remote": "u", "grep": "O",
 }
 
+# A flag that runs something on one subcommand only: `commit --template` only
+# reads a file. Matched whole or abbreviated, so `--strategy-option` is free.
+EXECUTING_LONG_FLAGS = {
+    "clone": ("--template",), "init": ("--template",),
+    "pull": ("--strategy",), "rebase": ("--strategy",),
+}
+
 # Subcommands that run the operand they are handed, which no flag check sees.
 EXECUTING_FORMS = {"bisect": "run", "submodule": "foreach",
                    "submodule--helper": "foreach"}
@@ -2683,9 +2690,10 @@ def _offence(command, depth, judged):
             # direction to be wrong in.
             name = element.split("=", 1)[0]
             abbreviation = name.startswith("--") and len(name) > 2
-            for flag in FORBIDDEN_FLAGS:
-                if element.startswith(flag) or (
-                        abbreviation and flag.startswith(name)):
+            for flag in FORBIDDEN_FLAGS + EXECUTING_LONG_FLAGS.get(subcommand, ()):
+                whole = (element.startswith(flag) if flag in FORBIDDEN_FLAGS
+                         else name == flag)
+                if whole or (abbreviation and flag.startswith(name)):
                     return (
                         f"`git ... {flag}` is refused: it writes or executes "
                         "rather than inspects, and the settings deny it matches "
