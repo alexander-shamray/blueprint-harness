@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Judge an edit target by the file it resolves to, not by the path it spells.
 
-A link inside an allowed tree is a write no path deny sees, so a target that is not the file its path spells is refused;
-the argument is `docs/harness-boundaries.md`'s (*Edit guard path resolution*). No permission rule reaches outside the
-project, so a worktree the session has not entered is judged by the target's denies, and the home directory's keys,
-profiles and control files are refused by name (*The edit-target guard*)."""
+A link inside an allowed tree is a write no path deny sees, so a target that is not the file its path spells is refused.
+Past the project, a worktree the session has not entered is judged by the target's denies, and the home's keys, profiles
+and control files are refused by name: `docs/harness-boundaries.md`, *The edit-target guard*."""
 
 import importlib.util
 import json
@@ -209,9 +208,8 @@ def verified_gitdir(root):
 def linked_worktree(path, checkouts):
     """`path`'s checkout root, when it is a linked worktree of an anchor's repo.
 
-    Read from the `.git` file rather than by running git, which a hook on every
-    write cannot afford. A checkout of another repository is not one: this
-    target's denies say nothing about what that repository protects.
+    Read from the `.git` file, since no hook on every write can run git. This
+    target's denies say nothing about what another repository protects.
     """
     root = checkout_root(path)
     if root is None:
@@ -248,9 +246,8 @@ def protected_in_worktree(path, root):
 def home_offence(spelled, lexical, resolved):
     """The reason to refuse a target outside every checkout, or `None`.
 
-    Both the spelling and the resolution are judged, so a link into `~/.ssh` is
-    held. Only the first component under `~/.claude` is control: a name below
-    `projects` is a session's own state.
+    Spelling and resolution are both judged, so a link into `~/.ssh` is held.
+    Only `~/.claude`'s first component is control: below it is session state.
     """
     home = os.path.abspath(os.path.expanduser("~"))
     traits = traits_of(home)
@@ -447,13 +444,11 @@ def offence(event):
                 "there (#181, docs/harness-boundaries.md)."
             )
 
-    # A spelling no anchor recognises, naming a file inside one, is refused: the
-    # residual is for a file genuinely outside every checkout, not for one
-    # inside a checkout under a name the anchors do not match, such as an 8.3
-    # alias of the whole prefix. Whatever the spelling, if it resolves into a
-    # checkout that did not recognise it, the matcher judged a string that is
-    # not this file. A target resolving outside every anchor is asked only for
-    # what `home_offence` names, which keeps memory and scratch writes working.
+    # A spelling no anchor recognises, naming a file inside one, is refused, such
+    # as an 8.3 alias of the whole prefix: if it resolves into a checkout that
+    # did not recognise it, the matcher judged a string that is not this file.
+    # A target outside every anchor is asked only for what `home_offence` names,
+    # which keeps memory and scratch writes working.
     if not judged:
         for _, real_root, traits in checkouts:
             if under(resolved, real_root, traits):

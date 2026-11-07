@@ -7,9 +7,12 @@ re-implementing are `review_helpers.py`'s.
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
+from pathlib import Path
 
 from review_helpers import (
     SCRIPTS,
@@ -3461,6 +3464,248 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(prefix=prefix):
                 self.assertIn(f"Edit({prefix}.claude/hooks/**)", deny)
 
+
+
+class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
+    """A redirection or a writing verb onto a path this target's denies name.
+
+    `Bash(ls:*)` is granted and every `Edit(...)` deny binds the editing tools
+    alone, so the same write past them is what these refuse. Each narrowing the
+    audit recorded is held by a case that the narrowed spelling is admitted.
+    """
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="argv-write-")
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        for tree in (".git", ".claude", "docs", "notes", "payload", "staging"):
+            os.makedirs(os.path.join(self.root, tree))
+
+    def judge(self, command, cwd=None, env=None, hook=HOOK):
+        event = {"tool_name": "Bash", "tool_input": {"command": command},
+                 "cwd": self.root if cwd is None else cwd}
+        result = subprocess.run(
+            [sys.executable, str(hook)], input=json.dumps(event),
+            capture_output=True, text=True, encoding="utf-8",
+            timeout=HOOK_TIMEOUT, env={**os.environ, **(env or {})},
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        if not result.stdout.strip():
+            return None
+        return json.loads(result.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+
+    def assertRefused(self, command, **kwargs):
+        reason = self.judge(command, **kwargs)
+        self.assertIsNotNone(reason, f"admitted: {command}")
+        self.assertNotIn("crashed the guard", reason)
+        return reason
+
+    def assertAdmitted(self, command, **kwargs):
+        self.assertIsNone(self.judge(command, **kwargs), f"refused: {command}")
+
+    def refused(self, *commands, **kwargs):
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertRefused(command, **kwargs)
+
+    def admitted(self, *commands, **kwargs):
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertAdmitted(command, **kwargs)
+
+    def spelled(self, *parts):
+        """An absolute path as Git Bash types it, whatever the platform."""
+        path = Path(self.root, *parts).as_posix()
+        return f"/{path[0].lower()}{path[2:]}" if os.name == "nt" else path
+
+    def link(self, target, path):
+        try:
+            os.symlink(target, path, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            from _winapi import CreateJunction
+            CreateJunction(target, path)
+
+    def hook_denying(self, *denies):
+        """A copy of this guard whose checkout's settings carry `denies`."""
+        owner = tempfile.mkdtemp(prefix="argv-owner-")
+        self.addCleanup(shutil.rmtree, owner, ignore_errors=True)
+        os.makedirs(os.path.join(owner, ".claude", "hooks"))
+        hook = shutil.copy(HOOK, os.path.join(owner, ".claude", "hooks"))
+        with open(os.path.join(owner, ".claude", "settings.json"), "w", encoding="utf-8") as handle:
+            json.dump({"permissions": {"deny": [f"Edit({rule})" for rule in denies]}}, handle)
+        return hook
+
+    def test_the_measured_redirections_are_refused(self):
+        self.refused(
+            "ls > .claude/settings.json", "ls >> .claude/hooks/guard-git-argv.py",
+            "ls >| .claude/scripts/x.sh", "ls &> .claude/agents/bug-auditor.md",
+            "ls &>> .claude/commands/ship.md", "ls >& .claude/skills/x/SKILL.md",
+            "ls <> .git/config", "ls 2> .claude/settings.local.json",
+            "ls > .remember/now.md", "ls > .mcp.json", "ls > .codeindexignore",
+            "git log --oneline > .claude/settings.json",
+            "cat > .claude/settings.json <<'EOF'\nx\nEOF",
+            "ls > ./.claude/settings.json",
+            "ls > docs/../.claude/settings.json",
+            "bash -c 'ls > .claude/settings.json'",
+        )
+        self.assertIn("Edit(.claude/settings.json)",
+                      self.assertRefused("ls > .claude/settings.json"))
+
+    def test_a_reading_redirection_is_not_a_write(self):
+        self.admitted("cat < .claude/settings.json", "wc -l < .git/config",
+                      "cat <<< '.claude/settings.json'", "ls 2>&1", "ls >&2",
+                      "ls 3>&-", "ls > /dev/null")
+
+    def test_a_protected_name_is_anchored_at_a_checkouts_root_and_folded(self):
+        self.refused("ls > .CLAUDE/Settings.JSON", "ls > .Claude/HOOKS/x.py",
+                     f"ls > {self.spelled('.claude', 'settings.json')}",
+                     f"ls > {Path(self.root, '.claude', 'hooks', 'x').as_posix()}")
+        # 113 redirections, 34 `rm` and 19 `sed -i` were typed at these.
+        self.admitted("ls > payload/.claude/hooks/x.py",
+                      "ls > staging/.claude/settings.json",
+                      "ls > .claude/worktrees/x/notes.md",
+                      "ls > .claude/cache/x", "ls > notes/settings.json",
+                      "ls > notes/.mcp.json", "ls > notes/.git/config",
+                      "ls > docs/out.md", "cat foo.txt > notes.md",
+                      "rm -rf .claude/worktrees/x", "rm -f .claude/cache/x",
+                      "sed -i s/a/b/ payload/.claude/hooks/x.py",
+                      "sed -i s/a/b/ staging/.claude/settings.json")
+
+    def test_a_tree_is_protected_only_where_a_target_denies_it(self):
+        self.admitted("ls > .github/workflows/ci.yml", "ls > package.json")
+        hook = self.hook_denying(".github/**", "./.github/**", "package.json")
+        self.refused("ls > .github/workflows/ci.yml", "ls > PACKAGE.JSON",
+                     "cp /tmp/a ./package.json", hook=hook)
+        self.admitted("ls > notes/package.json", "ls > .claude/settings.json",
+                      hook=hook)
+
+    def test_a_linked_worktree_is_a_checkout_of_its_own(self):
+        worktree = os.path.join(self.root, ".claude", "worktrees", "linked")
+        os.makedirs(worktree)
+        with open(os.path.join(worktree, ".git"), "w", encoding="utf-8") as handle:
+            handle.write("gitdir: elsewhere\n")
+        self.refused("ls > .claude/settings.json", cwd=worktree)
+        self.refused(f"ls > {Path(worktree, '.claude', 'hooks', 'x').as_posix()}")
+        self.admitted("ls > docs/out.md", cwd=worktree)
+
+    def test_a_worktree_with_no_git_file_left_is_judged_as_one(self):
+        gone = os.path.join(self.root, ".claude", "worktrees", "gone")
+        self.refused("ls > .claude/settings.json", cwd=gone)
+        self.admitted("ls > docs/out.md", cwd=gone)
+
+    def test_a_literal_cd_is_resolved_and_never_refused_for_standing_there(self):
+        self.refused("cd .claude && ls > settings.json",
+                     "cd .claude/hooks; ls > x.py", "cd notes && cd ../.claude && ls > settings.json",
+                     "if cd .claude; then ls > settings.json; fi",
+                     f"cd {self.spelled('.claude')} && ls > settings.json",
+                     "pushd .claude && ls > settings.json",
+                     "cd notes && ls > ../.claude/settings.json",
+                     "cd .claude && cp /tmp/a settings.json")
+        # `cd x && … > y` was typed 736 times.
+        self.admitted("cd notes && ls > out.md", "cd docs; cat a > settings.json",
+                      "cd .claude && cd .. && ls > settings.json",
+                      "(cd .claude && ls > x.txt); ls > settings.json",
+                      "cd .claude || exit 1", "cd notes && git status > .out")
+
+    def test_a_cd_nothing_can_read_leaves_a_relative_write_unjudged(self):
+        self.admitted('cd "$dir" && ls > .claude/settings.json',
+                      "cd $(git rev-parse --show-toplevel) && ls > .claude/settings.json",
+                      "cd - && ls > .claude/settings.json",
+                      "popd && ls > .claude/settings.json")
+        # An absolute target is judged wherever the shell stands.
+        self.refused(f'cd "$dir" && ls > {self.spelled(".claude", "settings.json")}')
+
+    def test_a_tilde_and_a_known_variable_are_judged_and_an_unknown_one_admitted(self):
+        env = {"HOME": self.root, "TMPDIR": os.path.join(self.root, "notes")}
+        self.refused("ls > ~/.claude/settings.json", "ls > $HOME/.claude/settings.json",
+                     'ls > "$HOME/.git/config"', "ls > ${HOME}/.claude/hooks/x", env=env)
+        self.admitted('ls > "$TMPDIR/out"', "ls > ${TMPDIR}/out", "ls > '~/.claude/settings.json'",
+                      env=env)
+        # `> "$var…"` was typed 523 times, and a value set here is not this
+        # process's, so neither is judged.
+        self.admitted('ls > "$out"', "ls > $1", 'ls > "$dir/.claude/settings.json"',
+                      "ls > $(mktemp -d)/out", "F=.claude/settings.json; ls > $F",
+                      "HOME=/x; ls > $HOME/.claude/settings.json",
+                      "ls > ~other/.claude/settings.json",
+                      'cp "$a" "$b"', 'mv "$a" "$b"', 'rm -f "$out"', 'tee "$log"',
+                      env=env)
+
+    def test_a_redirection_through_a_link_into_a_protected_tree_is_refused(self):
+        self.link(os.path.join(self.root, ".claude"),
+                  os.path.join(self.root, "notes", "linked"))
+        self.link(os.path.join(self.root, "docs"),
+                  os.path.join(self.root, "notes", "to-docs"))
+        self.refused("ls > notes/linked/settings.json",
+                     "ls >> ./notes/linked/hooks/x.py",
+                     "cp /tmp/a notes/linked/settings.json")
+        self.admitted("ls > notes/plain.txt", "ls > notes/to-docs/out.txt",
+                      "ls > notes/linked/worktrees/x/notes.md")
+
+    def test_every_writing_verb_reaches_the_protected_check(self):
+        spec = importlib.util.spec_from_file_location("guard_git_argv", HOOK)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        shapes = {
+            "destination": "{verb} /tmp/a .claude/settings.json",
+            "every": "{verb} .claude/settings.json",
+            "in-place": "{verb} -i -e 1 .claude/settings.json",
+            "of": "{verb} if=/tmp/a of=.claude/settings.json",
+        }
+        self.assertEqual(set(shapes), set(module.WRITING_VERBS.values()))
+        self.refused(*(shapes[model].format(verb=verb)
+                       for verb, model in sorted(module.WRITING_VERBS.items())))
+        for verb in ("cp", "mv", "rm", "tee", "sed", "dd"):
+            with self.subTest(named=verb):
+                self.assertIn(verb, module.WRITING_VERBS)
+
+    def test_a_verbs_destination_is_found_through_its_options(self):
+        self.refused(
+            "cp -t .claude/hooks /tmp/x", "cp -rt.claude/hooks /tmp/x",
+            "cp --target-directory=.claude/hooks /tmp/x",
+            "cp --target .claude/hooks /tmp/x",
+            "cp /tmp/x .claude/settings.json -S .bak",
+            "mv .claude/hooks/guard-git-argv.py /tmp/x",
+            "install -m 644 /tmp/a .claude/settings.json",
+            "ln -sf /tmp/evil .claude/hooks/x.sh",
+            "sed -ie s/a/b/ .claude/settings.json",
+            "sed --in-place -e s/a/b/ .claude/settings.json",
+            "perl -pi -e s/a/b/ .claude/settings.json",
+            "perl -i.bak -pe 1 .claude/settings.json",
+            "rm -- -x .claude/settings.json",
+            "echo x | sudo tee -a .claude/settings.json",
+            "env cp /tmp/a .claude/settings.json",
+            "X=1 cp /tmp/a .claude/settings.json",
+            '"cp" /tmp/a .claude/settings.json',
+            "cp.exe /tmp/a .claude/settings.json",
+            "/usr/bin/cp /tmp/a .CLAUDE/settings.json",
+            "(cp /tmp/a .claude/settings.json)",
+            "if (cp /tmp/a .claude/settings.json); then :; fi",
+            "if true; then cp /tmp/a .claude/settings.json; fi",
+            "cp <(echo hi) .claude/settings.json",
+            "bash -c 'cp /tmp/a .claude/settings.json'",
+            "find . -name x -exec cp {} .claude/hooks \\;",
+            "find . -name x -execdir rm .claude/settings.json {} +",
+            # A hard link makes a protected source writable under another name.
+            "ln .claude/settings.json notes/alias",
+            "ln -f .mcp.json notes/alias",
+            "cp -l .claude/settings.json notes/alias",
+            "cp --link .claude/settings.json notes/alias",
+            # The `-i` backup is a second write, named by its suffix.
+            "sed -i'.json' -e s/a/b/ .claude/settings",
+            "sed -i'.claude/hooks/*' -e s/a/b/ notes/x",
+        )
+
+    def test_a_write_elsewhere_is_not_read_as_one(self):
+        self.admitted(
+            "cp .claude/settings.json /tmp/x", "cp -r .claude/hooks notes/",
+            "ln -s .claude/settings.json notes/alias",
+            "sed -n 1p .claude/settings.json", "sed s/a/b/ .claude/settings.json",
+            "perl -pe 1 .claude/settings.json", "grep -n tee .claude/settings.json",
+            "git rm .claude/hooks/x", "git mv .claude/hooks/x notes/x",
+            "echo rm .claude/settings.json", "cat .claude/settings.json | head",
+            "ls | tee notes/out", "git ls-files .claude | xargs rm -f",
+            "dd if=.claude/settings.json of=notes/x", "touch notes/x",
+            "sed -i.bak s/a/b/ notes/x", "rm -rf notes",
+        )
 
 
 if __name__ == "__main__":

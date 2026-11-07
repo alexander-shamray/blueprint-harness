@@ -1,20 +1,8 @@
 """Replay the Bash commands of Claude Code transcripts through a guard hook.
 
-Owner: plan 5 Task 2, which measures what a guard change newly refuses against
-what agents really typed. The guard stays a subprocess fed the hook's stdin
-event, because that contract is what is being measured; each distinct
-(command, cwd) is judged once, since a process per command takes hours on
-Windows. `commands` and `refused` count every use, sidechains included, and a
-refusal prints once with the first session that typed it and its `count`.
-
-A guard that crashes, times out or prints no verdict has judged nothing, so it
-is neither refused nor admitted: it is printed, counted on a `{"crashed": n}`
-line and the exit status is 1. The status is 2 if the guard cannot be read.
-
-Usage:
-    py -3.12 measure/replay_guard.py --project 'C--dev-ashamray-blueprint-backend*' \
-        --since 2026-10-19 --guard <root>/.claude/hooks/guard-git-argv.py
-"""
+Each distinct (command, cwd) runs once through the hook's stdin contract, and every
+use counts. A crash is neither verdict: exit 1. An unreadable guard is exit 2.
+Usage: py -3.12 measure/replay_guard.py --project <glob> --since <date> --guard <hook>"""
 
 import argparse
 import concurrent.futures
