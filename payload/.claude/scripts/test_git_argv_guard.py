@@ -3743,10 +3743,12 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                      "cp -t .claude /tmp/hooks", "install /tmp/settings.json .claude/",
                      "mv /tmp/hooks .CLAUDE", "mv .claude /tmp/x", "cp -r . .claude/",
                      "cp /tmp/harness/.claude/* .claude/", "cp /tmp/h/settings.js? .claude",
-                     "cp /tmp/h/[s]ettings.json .claude/")
+                     "cp /tmp/h/[s]ettings.json .claude/", "cp -rT /tmp/evil .claude",
+                     "cp --no-target-directory -r /tmp/evil .claude", "mv -T /tmp/evil .claude",
+                     "cp -r --no-target /tmp/evil .claude/")
         self.admitted("cp notes.md .claude/", "cp a.md b.md .claude", "mv notes.md .claude/",
                       "cp -t .claude notes.md", "install -m 644 notes.md .claude/",
-                      "cp /tmp/h/*.md docs/")
+                      "cp /tmp/h/*.md docs/", "cp -rT /tmp/evil docs")
         os.makedirs(os.path.join(self.root, ".github"))
         hook = self.hook_denying(".github/workflows/**")
         self.admitted("cp x.md .github/", "mv x.md .github", hook=hook)

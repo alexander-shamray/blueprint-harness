@@ -2822,7 +2822,7 @@ def verb_destinations(verb, words):
 
     operands, targets, suffixes = [], [], []
     in_place = script_given = directory_mode = options_done = False
-    symbolic = hard_link = False
+    symbolic = hard_link = no_target = False
     short_values = SHORT_VALUE_OPTIONS.get(verb, "")
     long_values = LONG_VALUE_OPTIONS.get(verb, ())
     position = 0
@@ -2842,7 +2842,9 @@ def verb_destinations(verb, words):
             def abbreviates(option):
                 return len(name) > 2 and option.startswith(name)
 
-            if verb in TARGET_OPTION_VERBS and abbreviates("--target-directory"):
+            if verb in TARGET_OPTION_VERBS and abbreviates("--no-target-directory"):
+                no_target = True
+            elif verb in TARGET_OPTION_VERBS and abbreviates("--target-directory"):
                 if equals:
                     targets.append(_glued_raw(raw, literal, len(name) + 1))
                 elif position < len(words):
@@ -2878,6 +2880,9 @@ def verb_destinations(verb, words):
             if verb == "cp" and letter == "l":
                 hard_link = True
                 continue
+            if verb in TARGET_OPTION_VERBS and letter == "T":
+                no_target = True
+                continue
             if verb in TARGET_OPTION_VERBS and letter == "t":
                 if rest:
                     targets.append(_glued_raw(raw, literal, offset + 2))
@@ -2905,7 +2910,8 @@ def verb_destinations(verb, words):
         if verb in TARGET_OPTION_VERBS and not directory_mode and (
                 targets or len(operands) > 1):
             sources = operands if targets else operands[:-1]
-            landed = [(word, sources, bool(targets) or len(sources) > 1)
+            landed = [(word, None if no_target else sources,
+                       bool(targets) or len(sources) > 1)
                       for word in (targets or operands[-1:])]
             return [(word, None, False) for word in sources] * whole_list + landed
         return [(word, None, False) for word in operands + targets] * whole_list
