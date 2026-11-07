@@ -577,7 +577,7 @@ class NoCommandReadsAPullRequestFeedUnfiltered(unittest.TestCase):
                            scripts=self._scripts_with_map(tree)))
 
     def test_the_globstar_placeholder_cannot_be_spelled_by_a_token(self):
-        # BSD sed reads `\x01` as the two characters `x` and `1`, so the sentinel was an escape on one platform
+        # BSD sed reads `\x01` as the literal `x01`, so the sentinel was an escape on one platform
         # only. The placeholder is built from `%`, which no token may hold, and a token holding the old
         # sentinel's characters translates as itself.
         code = "\n".join(line for line in (SCRIPTS / "pr-locality.sh").read_text(encoding="utf-8").splitlines()
@@ -608,6 +608,17 @@ class NoCommandReadsAPullRequestFeedUnfiltered(unittest.TestCase):
         self.assertEqual("the Touch set row names a path outside the repository\n", r.stderr)
         self.assertEqual(["inside docs/a.md", "outside docs/.md", "inside src/x.ts", "inside src/ax.ts"],
                          self._verdicts("docs/{a,b}.md, src/{x,ax}.ts", files))
+
+    def test_an_empty_brace_alternative_in_a_class_map_item_is_refused(self):
+        body = "| Class | D |\n| Touch set | docs/x.md |\n"
+        rest = "A:\n  - 'src/**'\nB:\n  - 'src/**'\nC:\n  - 'src/**'\nE:\n  - 'x.props'\n"
+        for item in ("docs/{a,}.md", "docs/{}x.md"):
+            with self.subTest(item=item):
+                tree = rest + f"D:\n  - '{item}'\n"
+                r = self._run_locality_with_gh(self._gh_printing(body), scripts=self._scripts_with_map(tree))
+                self.assertEqual(3, r.returncode, r.stderr)
+                self.assertEqual("", r.stdout)
+                self.assertIn("classes.yml has an item with an empty brace alternative", r.stderr)
 
     def _spawns_for(self, body, files):
         # `grep` and `sed` are the tools the helper ran per item; a function logs its name and runs the real one.
