@@ -1,0 +1,16 @@
+# The rows /bug-sweep and /security-sweep cut this checkout into, read by
+# .claude/scripts/sweep-slices.sh. Tab-separated: kind (bug, security or * for
+# both), a POSIX extended regular expression over the whole path, anchored here,
+# the row, and what the row holds, which the sweeps read for each row. The first
+# matching line wins; row - owns nothing, so a path it matches refuses the run.
+# The samples row is read for its fenced code alone.
+*	^(\.claude|\.github|\.harness)/	tooling	the rendered harness: hooks, scripts, commands, agents, skills, CI and the gates, and `.harness/`
+*	^harness_sync/	sync	the sync tool and its suites: apply, render, check, the ruleset and sync-PR reads
+*	^measure/	measure	the stop counter and its suites
+*	^payload/docs/	samples	fenced code in the payload's documents, audited as code but excerpt-aware
+*	^payload/	payload	the harness as every target receives it: what a defect here ships to each
+*	^rulesets/	rulesets	the ruleset data the sync tool applies to each repository's `main`
+*	^targets/	targets	each target's draft config
+*	^docs/	samples	fenced code in `docs/`, audited as code but excerpt-aware; the closed records are owned and not read
+*	^.*/.*$	-	a directory no line above names: the run refuses until one owns it
+*	^[^/]+$	root	every tracked file at the repository root: `README.md`, `IMPORT.md`, `CLAUDE.md`, `targets.json` and the dotfiles

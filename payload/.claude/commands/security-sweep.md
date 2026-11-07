@@ -138,12 +138,11 @@ Each round is the review done once, end to end:
    bash .claude/scripts/sweep-slices.sh security "$posix"      # `full` as a third argument when asked
    ```
 
-   | | |
-   |---|---|
-   | `tooling` | CI, the harness and its `.harness/`, and the command and agent definitions |
-   | `source` | the services, the building blocks and the suites that stand up their hosts |
-   | `deploy` | deployment and configuration, and **every tracked file at the repository root** |
-   | `samples` | fenced code in `docs/` — a credential or an unsafe default an adopter copies; the closed records are owned and not read |
+   The rows are the checkout's own: those `.harness/sweep-rows.tsv` names
+   for `security`, with what each holds, the first matching line winning.
+   The `samples` row is read for its fenced code alone — a credential or an
+   unsafe default an adopter copies — and the closed records are owned and
+   not read.
 
    A tracked path no row owns makes the helper exit 3 naming it: a round
    error under *Never fail open*, never a gap to widen by hand.
