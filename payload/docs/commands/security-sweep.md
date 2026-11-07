@@ -509,9 +509,10 @@ is the record's, so a crafted tree can steer which area an issue carries, but
 only among the helper's closed set, which is no more than a mislabelled triage
 queue.
 
-**The fourth argument is the route, and `sweep` is the one this command
-passes.** The line above is the sentence that route requires; the helper
-refuses it under `hand`, and refuses `hand`'s sentence here. The fixed last
+**The route is the entry point, and `sweep` is the one this command
+files under.** The line above is the sentence that route requires; the helper
+refuses `hand`'s sentence here, and there is no word to pass that would
+change it. The fixed last
 line is the detector for a heredoc that closed early, and the route keeps
 it from being a provenance claim every issue makes whether or not it is
 true of them.
