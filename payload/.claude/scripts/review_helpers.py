@@ -18,6 +18,8 @@ SCRIPTS = Path(__file__).resolve().parent
 NEWLINE = chr(10)  # spelled this way so patch scripts cannot mangle it
 SETTINGS = SCRIPTS.parent / "settings.json"
 COMMANDS = SCRIPTS.parent / "commands"
+HOOKS = SCRIPTS.parent / "hooks"
+GUARD_LAUNCHER = 'sh "${CLAUDE_PROJECT_DIR}/.claude/hooks/run-guard.sh"'
 BASH = shutil.which("bash")
 GREP = shutil.which("grep")
 GIT = shutil.which("git")
@@ -25,6 +27,13 @@ JQ = shutil.which("jq")
 
 # The module a target keeps beside these suites, listed under `local`, to name its own commands to the payload's cases.
 LOCAL_COMMANDS = "local_commands"
+
+
+def assert_launched_on_the_floor(case, command, guard):
+    """`command` runs `guard` through `run-guard.sh`, and the launcher and `run-guard.py` keep the 3.12 floor."""
+    case.assertEqual(f"{GUARD_LAUNCHER} {guard}", command)
+    case.assertIn("sys.version_info < (3, 12)", (HOOKS / "run-guard.sh").read_text(encoding="utf-8"))
+    case.assertIn("FLOOR = (3, 12)", (HOOKS / "run-guard.py").read_text(encoding="utf-8"))
 
 
 class Declared(NamedTuple):
