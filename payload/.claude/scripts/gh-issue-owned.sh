@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # The numbers of the issues the repository owner opened, as one JSON list: what
 # /dispatch may launch (`docs/harness-boundaries.md`, *Headless dispatched sessions*).
-# `gh-issue-suppresses.sh`'s test over every issue at once: authorship, since a
-# label stays while its issue is rewritten, and numbers, so no reader holds a
-# login. A failed read exits non-zero, so it never reads as an empty list.
+# `gh-issue-suppresses.sh`'s test over every issue at once, so no reader holds a
+# login; a failed read exits non-zero and never reads as an empty list.
 set -euo pipefail
 
 [ "$#" -eq 0 ] ||
