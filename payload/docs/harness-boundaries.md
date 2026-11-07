@@ -173,7 +173,11 @@ an index that cannot refresh is not a reason to fail the call that provoked
 it. The exit status is the one thing it does keep, and a request whose update
 failed goes back rather than counting as served: contention is what fails
 here, the streams that would have said so are gone, and the loser may be the
-run carrying the newest edit. The worker runs from the system temp directory,
+run carrying the newest edit. A marker the worker cannot remove, a directory
+in its place or a file Windows has open, is not an absent one: read as absent,
+the worker took the lock and looked again for ever. It lets go of the lock,
+waits briefly and tries a bounded number of times, then leaves the marker for
+the next edit. The worker runs from the system temp directory,
 outside every checkout, and only the CLI inside the checkout: Windows will not
 delete a live process's working directory and `/ship` removes a worktree
 moments after its last call, and Windows looks in the starting process's own

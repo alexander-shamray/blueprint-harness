@@ -52,6 +52,11 @@ REFRESH_TIMEOUT = 600
 REFRESH_ATTEMPTS = 3
 RETRY_PAUSE = 5
 
+# A marker the worker cannot remove is tried again this often, this far apart,
+# with the lock let go between tries, and then left for the next edit.
+MARKER_RETRIES = 5
+MARKER_WAIT = 0.2
+
 if sys.platform == "win32":
     import msvcrt
 
@@ -364,16 +369,19 @@ def request(root: Path) -> None:
         pass
 
 
-def take_request(root: Path) -> bool:
-    """Consume an outstanding request, if there is one."""
+def take_request(root: Path) -> bool | None:
+    """Consume an outstanding request, if there is one. None is a marker that
+    is there and will not go, which is not the same as one that is absent."""
     path = pending_path(root)
     if path is None:
         return False
     try:
         path.unlink()
         return True
-    except OSError:
+    except FileNotFoundError:
         return False
+    except OSError:
+        return None
 
 
 def busy(root: Path) -> bool:
@@ -470,19 +478,23 @@ def refreshed(root: Path) -> bool:
     return False
 
 
-def drain(root: Path) -> bool:
-    """Every outstanding request, refreshed; false when one was given up on.
-
-    A failed request is put back so the next worker carries its edit, and
-    returning keeps that from spinning against a broken install. A root that
-    no longer qualifies is left without an update and without that."""
-    while take_request(root):
+def drain(root: Path) -> bool | None:
+    """Every outstanding request, refreshed; false when one was given up on,
+    None when a marker would not go. A failed request is put back so the next
+    worker carries its edit, and returning keeps that from spinning against a
+    broken install. A root that no longer qualifies is left without an update
+    and without that."""
+    while True:
+        taken = take_request(root)
+        if taken is None:
+            return None
+        if not taken:
+            return True
         if not (same_repository(root) and written(root)):
             return False
         if not refreshed(root):
             request(root)
             return False
-    return True
 
 
 def work(root: Path) -> int:
@@ -491,6 +503,7 @@ def work(root: Path) -> int:
     Held for the whole drain, so an edit arriving mid-run reaches this worker
     through the marker; a worker that cannot take it leaves the marker alone.
     """
+    stuck = 0
     while True:
         handle = open_lock(root)
         if handle is None:
@@ -499,8 +512,16 @@ def work(root: Path) -> int:
             if not grab(handle):
                 return 0
             seed(root)
-            if not drain(root):
+            drained = drain(root)
+            if drained is False:
                 return 0
+        if drained is None:
+            stuck += 1
+            if stuck > MARKER_RETRIES:
+                return 0
+            time.sleep(MARKER_WAIT)
+            continue
+        stuck = 0
         # The lock is gone by here, and that is the point. A request made
         # between the last look above and this release found `busy` true and
         # left a marker rather than a worker, so it is taken now. Another
