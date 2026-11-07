@@ -32,8 +32,10 @@ LOCAL_COMMANDS = "local_commands"
 def assert_launched_on_the_floor(case, command, guard):
     """`command` runs `guard` through `run-guard.sh`, and the launcher and `run-guard.py` keep the 3.12 floor."""
     case.assertEqual(f"{GUARD_LAUNCHER} {guard}", command)
-    case.assertIn("sys.version_info < (3, 12)", (HOOKS / "run-guard.sh").read_text(encoding="utf-8"))
-    case.assertIn("FLOOR = (3, 12)", (HOOKS / "run-guard.py").read_text(encoding="utf-8"))
+    launcher = code_lines((HOOKS / "run-guard.sh").read_text(encoding="utf-8"))
+    prover = code_lines((HOOKS / "run-guard.py").read_text(encoding="utf-8"))
+    case.assertTrue(any("sys.version_info < (3, 12)" in line for line in launcher), "no floor in the launcher's code")
+    case.assertIn("FLOOR = (3, 12)", prover)
 
 
 class Declared(NamedTuple):
