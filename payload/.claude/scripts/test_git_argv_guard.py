@@ -4,9 +4,11 @@ The shared harness and the reason it shells out rather than
 re-implementing are `review_helpers.py`'s.
 """
 
+import fnmatch
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -3469,9 +3471,8 @@ class TheGitArgvGuard(unittest.TestCase):
 class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
     """A redirection or a writing verb onto a path this target's denies name.
 
-    `Bash(ls:*)` is granted and every `Edit(...)` deny binds the editing tools
-    alone, so the same write past them is what these refuse. Each narrowing the
-    audit recorded is held by a case that the narrowed spelling is admitted.
+    Every `Edit(...)` deny binds the editing tools alone, so the same write past
+    them is refused here, and each narrowing has a case that it is admitted.
     """
 
     def setUp(self):
@@ -3640,10 +3641,14 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         self.admitted("ls > notes/plain.txt", "ls > notes/to-docs/out.txt",
                       "ls > notes/linked/worktrees/x/notes.md")
 
-    def test_every_writing_verb_reaches_the_protected_check(self):
+    def guard_module(self):
         spec = importlib.util.spec_from_file_location("guard_git_argv", HOOK)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
+        return module
+
+    def test_every_writing_verb_reaches_the_protected_check(self):
+        module = self.guard_module()
         shapes = {
             "destination": "{verb} /tmp/a .claude/settings.json",
             "every": "{verb} .claude/settings.json",
@@ -3706,6 +3711,74 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
             "dd if=.claude/settings.json of=notes/x", "touch notes/x",
             "sed -i.bak s/a/b/ notes/x", "rm -rf notes",
         )
+
+
+class TheListsTheGuardReads(unittest.TestCase):
+    """What the write check and the push guard are looking at, not what they found."""
+
+    ROOT = SCRIPTS.parent.parent
+    TYPES = r"(?:docs|chore|feat|fix|refactor|ci|test)"
+    NAME = re.compile(r"(?<![\w./(-])" + TYPES + r"(?:\([^)\s]*\))?/[A-Za-z0-9._()/-]*[A-Za-z0-9]")
+
+    def guard_module(self):
+        spec = importlib.util.spec_from_file_location("guard_git_argv", HOOK)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    @staticmethod
+    def command_edit_paths(text):
+        """The paths a command's `disallowed-tools` line names under `Edit(...)`."""
+        return [path for line in text.splitlines() if line.startswith("disallowed-tools:")
+                for path in re.findall(r"Edit\(([^)]*)\)", line)]
+
+    def managed_commands(self):
+        manifest = json.loads((self.ROOT / ".harness" / "manifest.json").read_text(encoding="utf-8"))
+        return [self.ROOT / name for name in manifest["files"]
+                if name.startswith(".claude/commands/")]
+
+    def test_the_protected_trees_cover_what_the_editing_commands_deny(self):
+        # A target's local read-only command denies its own trees for its own
+        # run, which no hook can see, so the managed commands are the subject.
+        module = self.guard_module()
+        self.assertEqual(["docs/**"], self.command_edit_paths("disallowed-tools: Edit, Edit(docs/**), Agent(x)\n"))
+        self.assertGreater(len(module.edit_denies()), 9, "the deny list went empty")
+        commands = self.managed_commands()
+        self.assertGreater(len(commands), 5, "the managed commands went empty")
+        denied = [rule for path in commands
+                  for rule in self.command_edit_paths(path.read_text(encoding="utf-8"))]
+        for rule in [*module.edit_denies(), *denied]:
+            with self.subTest(rule=rule):
+                path = rule.removeprefix("./").removesuffix("/**")
+                self.assertIsNotNone(module.denied_path(path + "/x" if rule.endswith("/**") else path))
+
+    def test_the_protected_files_cover_every_tracked_root_file(self):
+        # The side of the boundary each root file is on is the target's config
+        # and the base, so the hook's list has to be exactly those two.
+        module = self.guard_module()
+        base = json.loads((self.ROOT / ".harness" / "settings.base.json").read_text(encoding="utf-8"))
+        config = json.loads((self.ROOT / ".harness" / "config.json").read_text(encoding="utf-8"))
+        rules = [*base["permissions"]["deny"], *config["settings"]["deny"]]
+        paths = [rule[len("Edit("):-1].lower().removeprefix("./") for rule in rules
+                 if rule.startswith("Edit(")]
+        self.assertEqual(sorted(set(paths)), sorted(module.edit_denies()))
+        tracked = subprocess.run(["git", "ls-files"], cwd=self.ROOT, capture_output=True,
+                                 encoding="utf-8", check=True).stdout.splitlines()
+        names = [name for name in tracked if "/" not in name]
+        self.assertGreater(len(names), 3, "the root listing went empty")
+        for name in names:
+            with self.subTest(name=name):
+                named = any(fnmatch.fnmatchcase(name.lower(), path) for path in paths)
+                self.assertEqual(named, module.denied_path(name) is not None)
+
+    def test_every_name_the_file_gives_is_one_the_push_guard_admits(self):
+        module = self.guard_module()
+        text = (SCRIPTS.parent / "commands" / "branch.md").read_text(encoding="utf-8")
+        names = sorted(set(self.NAME.findall(text)))
+        self.assertGreaterEqual(len(names), 5, names)
+        for name in names:
+            with self.subTest(name=name):
+                self.assertIsNone(module.offence(f"git push -u origin '{name}'"))
 
 
 if __name__ == "__main__":
