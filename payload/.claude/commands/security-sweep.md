@@ -154,11 +154,15 @@ Each round is the review done once, end to end:
    in-tree comment calls deliberate is **reported, not dropped**.
 
    The helper prints the round's plan: `pinned`, `mode full` or
-   `mode since <sha>`, one `tracked` line, and one
+   `mode since <sha>`, one `tracked` line, a `binary <files> <list>` line
+   when it skipped a binary file, and one
    `slice <n> <row> <files> <bytes> <list>` line per slice — at most 240,000
    bytes, unless one file is larger. Read the lists only to `Grep` for a path
    a scope hint names, keeping the slices that hold it or the slices of the
-   rows it names; the summary says which it dropped.
+   rows it names; the summary says which it dropped. **Read the binary list
+   whole**: no auditor reads a file on it, and a NUL byte is all it takes to
+   make a script one, so the summary names each path on it that is not an
+   asset — an image, a font, an archive.
 
    **Round 1 is one auditor per slice; every later round follows leads**: one
    auditor per row that produced a new candidate in the round before, handed
