@@ -650,8 +650,9 @@ the residual, and it is the one a sibling worktree had: a path outside the
 project prompted there too.
 
 Changing any of them is a human's edit, made with the deny lifted. Like the
-push denies it is defence in depth — `Bash` redirection can still write a file
-— but it removes the quiet path.
+push denies it is defence in depth — a redirection or a writing verb is judged
+by the git guard (*Git argv guard hook*), and any other program can still
+write a file — but it removes the quiet path.
 
 **`.claude/hooks/**` joined the list when the first hook landed, and the way it
 joined is the lesson.** It had been excluded on a stated condition — "no hook is
@@ -1055,6 +1056,40 @@ untokenisable on purpose, bash runs the lines before the one that breaks, and
 no crude check reads git's options or sees a name that case, a glob or an
 expansion builds. The cost is a rephrased command where bash would have run
 one `shlex` cannot read.
+
+**An `Edit(...)` deny binds the editing tools, and `Bash(ls:*)` is granted, so
+the guard judges the same write past them.** A redirection and a writing verb
+(`cp`, `mv`, `rm`, `tee`, `sed -i` and the rest of `WRITING_VERBS`) are held to
+this target's own denies, read from `.claude/settings.json`, so `.github` is
+protected only where a target denies it. A path is anchored at the root of the
+checkout that holds it and folded for case, which leaves `payload/.claude/…`,
+`staging/.claude/…`, `.claude/worktrees/` and `.claude/cache` writable, and a
+link is judged where it lands. `~` and the variables this process shares with
+the session are expanded and judged, and a literal `cd` is followed, through a
+subshell's end as well.
+
+**What it cannot read it admits, and that is the narrowing, not a gap.** An
+unknown variable, a computed operand, or a relative target after a `cd` nothing
+can read is admitted: `> "$var…"` was typed 523 times, `cd x && … > y` 736 and
+`cp "$a" "$b"` 107, so refusing them is the false refusal *The guards' threat
+model* files. An expansion's readings, which exist to find a hidden program,
+place no file. The list of verbs trails the programs that write: `curl -o`,
+`rsync`, `tar -x`, `patch` and an interpreter's own writes are not on it, and
+that is a residual. A worktree removed from disk is still judged as one by its
+place under `.claude/worktrees/`.
+
+**Five lists reach what the flag check above did not.** The short spellings of
+the flags that run a command, keyed by subcommand because a letter means
+something else on another; `bisect run` and `submodule foreach`, which run
+their operand; `--strategy` and `--template`, per subcommand; `--ext-diff`,
+`--textconv`, `--extcmd` and `--open-files-in-pager`, with `--text` read as the
+option it is; and `filter-branch`, `send-email`, `instaweb`, `daemon`,
+`http-backend` and `web--browse` refused whole. Those are lists and not an
+allow-list of subcommands, which would refuse `git ls-remote`, `git config` and
+`git stash`, typed hundreds of times. `xargs` is refused only in front of a
+push, whose destination it supplies unseen; a fetch is refused its `-f`, `-u`
+and `+` refspec, which discard local commits under a read's grant, and `git
+pull --ff-only` any option that overrides it.
 
 **Three refusals are traps, not attacks**: the command does what it says,
 and what it says loses work. They are the honest mistakes *The guards'
@@ -1738,8 +1773,9 @@ command should arrive behind the deny; `test_harness_denies.py` checks it
 against each command that holds either tool. No payload command edits any of
 the three, so the deny costs none. A target whose own command must edit one
 changes the base in `blueprint-harness`, because a deny beats every allow.
-Residual, as for the rest of the list: `Bash` redirection still writes what
-`Edit` refuses.
+Residual, as for the rest of the list: the git guard judges a redirection and
+the writing verbs (*Git argv guard hook*), and any other program still writes
+what `Edit` refuses.
 
 **The eighth was the push deny-list (#23), and it closed the way the sixth
 did.** Two broad allows — `Bash(git push origin:*)` and the `-u` form — paired

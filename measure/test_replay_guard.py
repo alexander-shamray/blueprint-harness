@@ -1,10 +1,7 @@
 """Tests for the guard replay, against synthetic transcripts and stub guards.
 
-The transcript field shapes are recorded in test_stops.py. Two more are the
-replay's own, read from real transcripts: a ``tool_use`` part's line carries
-``cwd``, ``sessionId`` and ``isSidechain``, and a subagent's Bash is on a
-sidechain line in ``<project>/<session>/subagents/*.jsonl``, a directory
-``stops.sessions`` does not walk by itself.
+test_stops.py records the field shapes. A ``tool_use`` line also carries ``cwd``
+and ``sessionId``, and a subagent's lines are in ``<session>/subagents/``.
 """
 
 import contextlib

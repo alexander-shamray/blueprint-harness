@@ -1400,16 +1400,7 @@ def redirection_spans(command):
     boundary. A here-string is matched before either, since `<<<` has `<<` as
     a prefix.
     """
-    ordinary = [False] * len(command)
-    escaped = None
-    for index, in_quotes, in_comment in shell_positions(command):
-        if index == escaped:
-            escaped = None
-            continue
-        if command[index] == "\\" and not in_quotes and not in_comment:
-            escaped = index + 1
-            continue
-        ordinary[index] = not in_quotes and not in_comment
+    ordinary = ordinary_positions(command)
 
     def plain(position):
         return position < len(command) and ordinary[position]
@@ -1765,11 +1756,8 @@ COMMAND_PREFIX_WORDS = frozenset({"!", "{", "do", "elif", "else", "if", "then",
 def leading_command(run):
     """The command word of `run`, past any assignment or reserved word.
 
-    `X=1 bash` is a run led by `bash`, so
-    `X=1 bash <<<'git push origin +HEAD:main'` reads its here-string as a
-    script. The same reading is owed to the printer half — `X=1 echo … | bash`,
-    `if echo … | bash; then` — and to the data-only exemption, which is why
-    this is one function rather than a test repeated at each site.
+    `X=1 bash` is a run led by `bash`, and `if echo … | bash; then` by `echo`:
+    one function, because the script and printer passes all owe that reading.
     """
     for token in run:
         if not ASSIGNMENT.match(token) and token not in COMMAND_PREFIX_WORDS:
@@ -1835,9 +1823,8 @@ def _run_bounds(command, position, ordinary):
 def _ends_run(command, index, ordinary):
     """Whether the character at `index` ends the command run it is in.
 
-    The `&` of a redirection operator does not: bash's lexer is greedy from the
-    left, so after `<` or `>` it is half of `<&` or `>&`, and before `>` it
-    opens `&>` unless an `&` or `|` in front has claimed it as `&&` or `|&`.
+    A redirection's `&` does not: bash's lexer is greedy from the left, so it
+    is half of `<&`, `>&` or `&>` unless `&` or `|` has claimed it as `&&`, `|&`.
     """
     if not (_unescaped(command, index, ordinary)
             and command[index] in RUN_SEPARATORS):
@@ -2469,9 +2456,8 @@ def short_flag(element, subcommand, letters):
 def xargs_supplies_push(tokens):
     """Whether `xargs` hands a `git push` arguments this guard never sees.
 
-    Only the push: its destination is what cannot be read, and `xargs` in front
-    of a reader or a script is ordinary. A run led by a reader or a printer
-    names `xargs` as data.
+    Only the push, whose destination cannot be read: `xargs` before anything
+    else is ordinary, and a run led by a reader names it as data.
     """
     for run in command_runs(tokens):
         if program_name(leading_command(run)) in (
@@ -2550,10 +2536,434 @@ def trap_offence(segment):
 # Substitutions and evaluators both recurse, and a crafted nest of either would
 # otherwise reach Python's own limit — where the hook dies with a traceback
 # rather than a verdict, which is the one direction a guard must not fail in.
+# ---- what a command writes -------------------------------------------------
+
+# The directory the command runs in, from the hook event; `main` sets it.
+EVENT_CWD = None
+
+WRITING_REDIRECTION = re.compile(
+    r"^(?:\d+|\{\w+\})?(?P<operator>&>>|&>|>>|>&|>\||<>|>)[ \t]*(?P<target>.*)$",
+    re.DOTALL)
+
+# Variables whose value this process shares with the session.
+EXPANDABLE_VARIABLES = frozenset({
+    "CLAUDE_PROJECT_DIR", "HOME", "TEMP", "TMP", "TMPDIR",
+})
+VARIABLE_REFERENCE = re.compile(
+    r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))")
+
+# A worktree removed or not yet forked has no `.git`, and is still one.
+WORKTREE_BELOW = re.compile(r"(?i)^\.claude[\\/]worktrees[\\/][^\\/]+[\\/](.*)$")
+
+# Bash on Windows spells `C:\x` as `/c/x`, which `abspath` reads as `C:\c\x`.
+DRIVE_SPELLING = re.compile(r"^/([A-Za-z])(?=/|$)")
+
+# What each verb writes: `destination` the last operand or a `-t` value, `every`
+# each operand, `in-place` the files under `-i`, and `of` the `of=` operand.
+# The list trails the programs that write, which the boundaries file states.
+WRITING_VERBS = {
+    "cp": "destination", "install": "destination", "ln": "destination",
+    "mv": "every", "rm": "every", "rmdir": "every", "shred": "every",
+    "tee": "every", "touch": "every", "truncate": "every", "unlink": "every",
+    "perl": "in-place", "sed": "in-place",
+    "dd": "of",
+}
+TARGET_OPTION_VERBS = frozenset({"cp", "install", "ln", "mv"})
+
+# Options that take a value, so their value is not read as an operand.
+SHORT_VALUE_OPTIONS = {
+    "cp": "S", "install": "gmoS", "ln": "S", "mv": "S", "sed": "l",
+    "shred": "ns", "touch": "dr", "truncate": "rs",
+}
+LONG_VALUE_OPTIONS = {
+    "cp": ("--suffix",), "install": ("--group", "--mode", "--owner",
+                                     "--strip-program", "--suffix"),
+    "ln": ("--suffix",), "mv": ("--suffix",),
+    "sed": ("--expression", "--file", "--line-length"),
+    "shred": ("--iterations", "--random-source", "--size"),
+    "touch": ("--date", "--reference", "--time"),
+    "truncate": ("--reference", "--size"),
+}
+FIND_EXECUTORS = frozenset({"-exec", "-execdir", "-ok", "-okdir"})
+DIRECTORY_CHANGES = frozenset({"cd", "pushd", "popd"})
+DIRECTORY_WRAPPERS = frozenset({"builtin", "command"})
+
+
+def target_literal(word):
+    """The text shell `word` spells, or `None` for a substitution or a parse failure."""
+    if word.startswith(("<(", ">(")) or substitutions(word):
+        return None
+    try:
+        parsed = shlex.split(strip_dollar_quotes(word), posix=True)
+    except ValueError:
+        return None
+    return parsed[0] if parsed else None
+
+
+def expanded_target(literal, command):
+    """`literal` with its known variables replaced, or `None` if one is unknown.
+
+    Known means this process holds it and `command` does not set it.
+    """
+    assigned = VARIABLE_REFERENCE.sub("", command)
+    failed = False
+
+    def replace(match):
+        nonlocal failed
+        name = match.group(1) or match.group(2)
+        value = os.environ.get(name)
+        if (name not in EXPANDABLE_VARIABLES or not value or re.search(
+                rf"(?<![A-Za-z0-9_]){name}(?![A-Za-z0-9_])", assigned)):
+            failed = True
+            return ""
+        return value
+
+    expanded = VARIABLE_REFERENCE.sub(replace, literal)
+    return None if failed or "$" in expanded else expanded
+
+
+def written_path(word, cwd, command):
+    """The absolute path shell `word` names from `cwd`, or `None` if unreadable.
+
+    `None` admits: refusing an unknown variable or a computed word is the false
+    refusal the threat model files.
+    """
+    literal = target_literal(word)
+    if not literal:
+        return None
+    raw = word.strip()
+    if raw.startswith("~"):
+        prefix = re.match(r"~[^/\\]*", raw).group(0)
+        if prefix == "~":
+            home = os.environ.get("HOME") or os.path.expanduser("~")
+            literal = home + literal[1:]
+        elif prefix == "~+" and cwd:
+            literal = cwd + literal[2:]
+        else:
+            return None
+    if "$" in literal:
+        literal = expanded_target(literal, command)
+        if literal is None:
+            return None
+    if os.name == "nt":
+        literal = DRIVE_SPELLING.sub(r"\1:", literal)
+    if not (os.path.isabs(literal) or literal.startswith(("/", "\\"))):
+        if cwd is None:
+            return None
+        literal = os.path.join(cwd, literal)
+    return os.path.normpath(os.path.abspath(literal))
+
+
+def checkout_relative(path):
+    """`path` from the root of the checkout holding it, or `None` outside one."""
+    root = path
+    while not os.path.exists(os.path.join(root, ".git")):
+        parent = os.path.dirname(root)
+        if parent == root:
+            return None
+        root = parent
+    relative = os.path.relpath(path, root)
+    worktree = WORKTREE_BELOW.match(relative)
+    return worktree.group(1) if worktree else relative
+
+
+def protected_target(path):
+    """The deny holding `path`, as spelled or where its links land, or `None`."""
+    for place in (path, os.path.realpath(path)):
+        relative = checkout_relative(place)
+        named = denied_path(relative) if relative is not None else None
+        if named is not None:
+            return named
+    return None
+
+
+def destination_offence(word, cwd, command, writer):
+    """The reason to refuse writing the file shell `word` names, or `None`."""
+    path = written_path(word, cwd, command)
+    named = protected_target(path) if path is not None else None
+    if named is None:
+        return None
+    return (
+        f"{writer} would write `{path}`, which {named} protects, and a deny "
+        "binds the editing tools alone, so this writes straight past it. Use "
+        "an editing tool, where the rule judges the path, or hand it to the "
+        "owner."
+    )
+
+
+def ordinary_positions(command):
+    """Whether each character of `command` is unquoted, unescaped shell text."""
+    ordinary = [False] * len(command)
+    escaped = None
+    for index, in_quotes, in_comment in shell_positions(command):
+        if index == escaped:
+            escaped = None
+            continue
+        if command[index] == "\\" and not in_quotes and not in_comment:
+            escaped = index + 1
+            continue
+        ordinary[index] = not in_quotes and not in_comment
+    return ordinary
+
+
+def raw_runs(command):
+    """`command`'s runs in order, as `(words, redirections)`, quoting intact.
+
+    `shlex` removes the quotes that decide whether `~` or `$` expands. A
+    subshell's `(` and `)` stand as themselves: a `cd` inside one ends with it.
+    """
+    ordinary = ordinary_positions(command)
+    spans = dict(redirection_spans(command))
+    runs, words, written, index = [], [], [], 0
+
+    def finish():
+        nonlocal words, written
+        if words or written:
+            runs.append((words, written))
+        words, written = [], []
+
+    while index < len(command):
+        if spans.get(index, index) > index:
+            written.append(command[index:spans[index]])
+            index = spans[index]
+            continue
+        if ordinary[index] and command[index] in " \t":
+            index += 1
+            continue
+        if ordinary[index] and command[index] == "(" and words:
+            close = _closing_paren(command, index + 1)
+            if close is None:
+                break
+            words.append(command[index:close + 1])
+            runs.extend(raw_runs(command[index + 1:close]))
+            index = close + 1
+            continue
+        end = word_end(command, index, ordinary)
+        if end == index:
+            finish()
+            # An opener with no closer stops the walk: bash cannot parse what
+            # follows it, and rescanning from each one would be quadratic.
+            if command[index] in "$`":
+                break
+            if command[index] in "()":
+                runs.append(command[index])
+            index += 1
+            continue
+        words.append(command[index:end])
+        index = end
+    finish()
+    return runs
+
+
+def _glued_raw(raw, literal, cut):
+    """The raw text of `literal[cut:]`, whose quoting still decides what expands."""
+    return raw[cut:] if raw.startswith(literal[:cut]) else shlex.quote(literal[cut:])
+
+
+def backup_word(word, suffix):
+    """The shell word naming `word`'s `-i` backup: `*` in `suffix` is its name."""
+    literal = target_literal(word)
+    if literal is None or "*" not in suffix:
+        return word + shlex.quote(suffix)
+    named = suffix.replace("*", os.path.basename(literal))
+    return shlex.quote(named if "/" in suffix
+                       else os.path.join(os.path.dirname(literal), named))
+
+
+def verb_destinations(verb, words):
+    """The raw words `verb` writes, found through its options.
+
+    A hard link makes its source writable under another name, so its sources
+    count; a symbolic link is judged where it lands; a `-i` backup is a write.
+    """
+    literals = [target_literal(word) for word in words]
+    model = WRITING_VERBS[verb]
+    if model == "of":
+        return [_glued_raw(raw, literal, 3) for raw, literal in zip(words, literals)
+                if literal and literal.startswith("of=")]
+
+    operands, targets, suffixes = [], [], []
+    in_place = script_given = directory_mode = options_done = False
+    symbolic = hard_link = False
+    short_values = SHORT_VALUE_OPTIONS.get(verb, "")
+    long_values = LONG_VALUE_OPTIONS.get(verb, ())
+    position = 0
+    while position < len(words):
+        raw, literal = words[position], literals[position]
+        position += 1
+        if literal is None or options_done or literal in ("-", "") or (
+                not literal.startswith("-")):
+            operands.append(raw)
+            continue
+        if literal == "--":
+            options_done = True
+            continue
+        if literal.startswith("--"):
+            name, equals, _ = literal.partition("=")
+
+            def abbreviates(option):
+                return len(name) > 2 and option.startswith(name)
+
+            if verb in TARGET_OPTION_VERBS and abbreviates("--target-directory"):
+                if equals:
+                    targets.append(_glued_raw(raw, literal, len(name) + 1))
+                elif position < len(words):
+                    targets.append(words[position])
+                    position += 1
+            elif verb == "sed" and abbreviates("--in-place"):
+                in_place = True
+                if equals:
+                    suffixes.append(literal[len(name) + 1:])
+            elif verb == "ln" and abbreviates("--symbolic") and not abbreviates("--suffix"):
+                symbolic = True
+            elif verb == "cp" and abbreviates("--link"):
+                hard_link = True
+            elif verb == "install" and abbreviates("--directory"):
+                directory_mode = True
+            else:
+                if verb == "sed" and (abbreviates("--expression") or abbreviates("--file")):
+                    script_given = True
+                if not equals and any(abbreviates(option) for option in long_values):
+                    position += 1
+            continue
+        letters = literal[1:]
+        for offset, letter in enumerate(letters):
+            rest = letters[offset + 1:]
+            if verb in ("sed", "perl") and letter == "i":
+                in_place = True
+                if rest:
+                    suffixes.append(rest)
+                break
+            if verb == "ln" and letter == "s":
+                symbolic = True
+                continue
+            if verb == "cp" and letter == "l":
+                hard_link = True
+                continue
+            if verb in TARGET_OPTION_VERBS and letter == "t":
+                if rest:
+                    targets.append(_glued_raw(raw, literal, offset + 2))
+                elif position < len(words):
+                    targets.append(words[position])
+                    position += 1
+                break
+            if verb == "install" and letter == "d":
+                directory_mode = True
+                continue
+            script_letter = (verb == "sed" and letter in "ef") or (
+                verb == "perl" and letter in "eE")
+            if script_letter:
+                script_given = True
+            if script_letter or letter in short_values:
+                if not rest:
+                    position += 1
+                break
+            if verb == "perl" and letter in "CDFIMdmx":
+                break
+
+    if model == "every" or directory_mode or hard_link or (
+            verb == "ln" and not symbolic):
+        return operands + targets
+    if model == "destination":
+        if targets:
+            return targets
+        if len(operands) > 1:
+            return operands[-1:]
+        return []
+    if not in_place:
+        return []
+    files = operands if script_given else operands[1:]
+    return files + [backup_word(word, suffix)
+                    for suffix in suffixes for word in files]
+
+
+def writing_verb_offence(words, cwd, command):
+    """The reason to refuse a writing verb in the run `words`, or `None`.
+
+    Anywhere in the run, since a wrapper puts it mid-run (`sudo tee`, `env cp`,
+    `find -exec cp`); a run led by a reader or a printer cannot run those words.
+    """
+    literals = [target_literal(word) for word in words]
+    if program_name(leading_command([word or "" for word in literals])) in (
+            READING_COMMANDS | DATA_ONLY_COMMANDS):
+        return None
+    for index, literal in enumerate(literals):
+        if literal is None or ASSIGNMENT.match(words[index]):
+            continue
+        verb = program_name(literal)
+        if verb not in WRITING_VERBS:
+            continue
+        operands = words[index + 1:]
+        if any(word in FIND_EXECUTORS for word in literals[:index]):
+            for cut, word in enumerate(literals[index + 1:]):
+                if word in (";", "+"):
+                    operands = operands[:cut]
+                    break
+        for word in verb_destinations(verb, operands):
+            refusal = destination_offence(word, cwd, command, f"`{verb}`")
+            if refusal is not None:
+                return refusal
+    return None
+
+
+def directory_after(words, cwd, command):
+    """Where the run `words` leaves the shell: `cwd`, or `None` if unreadable."""
+    literals = [target_literal(word) for word in words]
+    lead = leading_command([word or "" for word in literals])
+    if not lead:
+        return cwd
+    start = literals.index(lead)
+    if program_name(lead) in DIRECTORY_WRAPPERS and start + 1 < len(literals):
+        start += 1
+    verb = program_name(literals[start] or "")
+    if verb not in DIRECTORY_CHANGES:
+        return cwd
+    operands = [word for word, literal in zip(words[start + 1:], literals[start + 1:])
+                if literal is None or not literal.startswith("-") or literal == "-"]
+    if verb == "popd" or target_literal(operands[0] if operands else "~") == "-":
+        return None
+    return written_path(operands[0] if operands else "~", cwd, command)
+
+
+def write_offence(command):
+    """The reason to refuse a write in `command`, or `None`.
+
+    A relative target is placed by following each literal `cd`, and after a
+    `cd` nothing can read, only an absolute target is judged.
+    """
+    cwd = EVENT_CWD or os.getcwd()
+    saved = []
+    for run in raw_runs(command):
+        if run == "(":
+            saved.append(cwd)
+            continue
+        if run == ")":
+            cwd = saved.pop() if saved else cwd
+            continue
+        words, written = run
+        for text in written:
+            match = WRITING_REDIRECTION.match(text)
+            if match is None:
+                continue
+            target = match.group("target").strip()
+            if not target or (match.group("operator") == ">&"
+                              and (target == "-" or target.isdigit())):
+                continue
+            refusal = destination_offence(
+                target, cwd, command, f"`{match.group('operator')}`")
+            if refusal is not None:
+                return refusal
+        refusal = writing_verb_offence(words, cwd, command)
+        if refusal is not None:
+            return refusal
+        cwd = directory_after(words, cwd, command)
+    return None
+
+
 MAX_NESTING = 24
 
 
-def offence(command, depth=0, judged=None):
+def offence(command, depth=0, judged=None, reading=False):
     """The reason to refuse `command`, or None to allow it.
 
     `judged` is a verdict cache, and it is what keeps the cost finite. Each
@@ -2574,12 +2984,12 @@ def offence(command, depth=0, judged=None):
         return judged[command]
     judged[command] = None
 
-    verdict = _offence(command, depth, judged)
+    verdict = _offence(command, depth, judged, reading)
     judged[command] = verdict
     return verdict
 
 
-def _offence(command, depth, judged):
+def _offence(command, depth, judged, reading):
     """`offence`'s body, called only through its cache."""
     if depth > MAX_NESTING:
         return (
@@ -2602,15 +3012,15 @@ def _offence(command, depth, judged):
     # Each is what bash does in the shell these commands run in — no positional
     # parameters, no variables set — so none is the run-time residual
     # `docs/harness-boundaries.md` names; the dangerous string is in the source.
-    for description, reading in (
+    for description, rewrite in (
         ("a command substitution taken as empty", without_substitutions),
         ("an expansion taken as whitespace", splitting_expansions),
         ("an expansion taken as its default", defaulted_expansions),
         ("a brace expansion taken as one word", brace_expanded),
     ):
-        variant = outside_verbatim(command, reading)
+        variant = outside_verbatim(command, rewrite)
         if variant != command:
-            refusal = offence(variant, depth + 1, judged)
+            refusal = offence(variant, depth + 1, judged, reading=True)
             if refusal is not None:
                 return f"with {description}: {refusal}"
 
@@ -2656,9 +3066,9 @@ def _offence(command, depth, judged):
     # body or a comment is not one bash performs. `join_continuations` sits
     # after `strip_comments` because a backslash at the end of a comment
     # continues nothing — bash ends a comment at the newline.
-    resolved = strip_redirections(
-        separate_lines(
-            join_continuations(strip_comments(strip_heredocs(command)))))
+    performed = separate_lines(
+        join_continuations(strip_comments(strip_heredocs(command))))
+    resolved = strip_redirections(performed)
 
     # The check and the code that acts on it read the same string: on the raw
     # command, a heredoc body or comment mentioning `$'\n'` would be refused,
@@ -2813,7 +3223,8 @@ def _offence(command, depth, judged):
                         "argument as a command, and no Bash permission rule can "
                         "express it."
                     )
-    return None
+    # A reading of an expansion hides a program; it names no file bash opens.
+    return None if reading else write_offence(performed)
 
 
 # Every scan here must finish inside the hook's timeout, because a hook that
@@ -2900,6 +3311,10 @@ def main():
     tool = event.get("tool_name")
     if tool not in ("Bash", "PowerShell"):
         return 0
+
+    global EVENT_CWD
+    cwd = event.get("cwd")
+    EVENT_CWD = cwd if isinstance(cwd, str) and cwd else None
 
     command = (event.get("tool_input") or {}).get("command")
     if not isinstance(command, str):
