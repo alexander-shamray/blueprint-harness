@@ -1114,8 +1114,8 @@ command never derived, and the last publishes any file it can read. It is
 withdrawn for `gh-pr-create.sh`, taken from blueprint-frontend. It takes two
 paths, the title's and the body's, reads the repository and the head from the
 checkout and spells the base `main`, and refuses an input that is not a file
-git ignores under the checkout's `artifacts/`, or is reached through a
-symbolic link: an ignored file is untracked, so the branch under review never
+git ignores under the checkout's `artifacts/`, is a symbolic link itself, or
+resolves outside `artifacts/`: an ignored file is untracked, so the branch under review never
 writes its own pull request, and every target already ignores `artifacts/`.
 
 **Two more sat in the sweep command files rather than in this paragraph, and
