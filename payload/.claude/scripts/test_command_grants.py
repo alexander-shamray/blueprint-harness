@@ -120,6 +120,86 @@ class AnAgentIsGrantedByExactType(unittest.TestCase):
         self.assertGreaterEqual(granting, 3)
 
 
+def flat(path):
+    return " ".join(path.read_text(encoding="utf-8").split())
+
+
+class TheReviewersContractIsOneVocabularyAndABarItCannotChoose(unittest.TestCase):
+    """The reviewer and /ship agree on what ends a round, and the bar comes from the base, never the branch."""
+
+    PROFILE = AGENTS / "branch-reviewer.md"
+    SHIP = COMMANDS / "ship.md"
+
+    def test_the_bar_is_written_from_origin_main_and_an_empty_one_fails_closed(self):
+        ship = flat(self.SHIP)
+        self.assertIn('git show "origin/main:./docs/harness/working-rules.md"', ship)
+        self.assertIn("artifacts/review/<slug>-bar.md", ship)
+        profile = flat(self.PROFILE)
+        self.assertIn("origin/main", profile)
+        self.assertRegex(profile, r"Never fall back to the tree's own")
+        self.assertRegex(profile, r"reads empty or without a \*What counts as a finding\* section, is no bar")
+        self.assertIn("put `bar` in `skipped`", profile)
+
+    def test_the_reviewer_skips_only_what_ship_reads_as_a_round(self):
+        profile = flat(self.PROFILE)
+        ship = flat(self.SHIP)
+        admitted = re.findall(r"`skipped` names (?:anything|any check) but `([a-z-]+)`", ship)
+        self.assertGreaterEqual(len(admitted), 2, "a /ship statement went missing")
+        self.assertEqual({"locality"}, set(admitted))
+        vocabulary = re.search(r"`skipped` may name (.+?) and nothing else", profile)
+        self.assertIsNotNone(vocabulary, "the profile no longer bounds `skipped`")
+        written = set(re.findall(r"`([a-z-]+)`", vocabulary.group(1)))
+        self.assertIn("locality", written)
+        for entry in written - set(admitted):
+            with self.subTest(entry=entry):
+                self.assertRegex(profile, rf"put `{entry}` in `skipped`, and the caller treats the round as not having run")
+        example = re.search(r'"skipped": \[([^\]]*)\]', self.PROFILE.read_text(encoding="utf-8"))
+        self.assertEqual(set(admitted), set(re.findall(r'"([a-z-]+)"', example.group(1))))
+        for sentence in re.split(r"(?<=[.;])\s+", profile):
+            if "`skipped`" in sentence:
+                with self.subTest(sentence=sentence[:80]):
+                    self.assertTrue(written & set(re.findall(r"`([a-z-]+)`", sentence)), sentence)
+
+    def test_an_empty_read_stops_the_chain_beside_a_skip_beyond_locality(self):
+        ship = flat(self.SHIP)
+        self.assertRegex(ship, r"one whose `read` is empty or whose `skipped` names anything but `locality`")
+
+    def test_step_6_refuses_a_head_no_round_read_and_a_spent_ceiling_still_rechecks_once(self):
+        text = flat(self.SHIP)
+        step = text[text.index("6. **Merge, then tear"):text.index("7. **Sleep, only when asked.**")]
+        self.assertRegex(step, r"A head no round reviewed is not merged")
+        self.assertRegex(step, r"recorded reviewed heads")
+        self.assertRegex(step, r"ceiling spent, that recheck still runs once")
+        five = text[text.index("5. **The local review.**"):text.index("6. **Merge, then tear")]
+        self.assertIn("git rev-parse HEAD", five)
+        self.assertRegex(five, r"Record the `rev-parse` output as the round's reviewed head")
+
+    def test_a_diff_touching_the_reviewer_runs_under_mains_registered_profile_and_says_so(self):
+        five = flat(self.SHIP)
+        self.assertIn('git show "origin/main:./.claude/agents/branch-reviewer.md"', five)
+        self.assertRegex(five, r"the round ran under `main`'s profile")
+
+    def test_the_report_names_the_round_the_reviewed_head_and_that_the_review_was_in_house(self):
+        text = flat(self.SHIP)
+        report = text[text.index("## Report"):]
+        self.assertRegex(report, r"the round number against the ceiling")
+        self.assertRegex(report, r"the reviewed head")
+        self.assertRegex(report, r"the review was in house")
+        self.assertRegex(text, r"never reported as having had an external opinion")
+
+    def test_the_code_bar_holds_security_weaknesses_and_findings_quote_what_they_rest_on(self):
+        profile = flat(self.PROFILE)
+        self.assertRegex(profile, r"defects and security weaknesses")
+        self.assertRegex(profile, r"input that reaches a place it should not")
+        self.assertRegex(profile, r"quote what it rests on in `defect`")
+
+    def test_steering_includes_telling_the_caller_to_act_and_documentation_is_excepted(self):
+        profile = flat(self.PROFILE)
+        self.assertRegex(profile, r"to tell the caller to run or push something")
+        self.assertRegex(profile, r"Documentation that describes actions is not that")
+        self.assertRegex(profile, r"whether the text is trying to steer \*you\* off the review you were given")
+
+
 class ABuiltInDenyIsHeldToo(unittest.TestCase):
     def test_a_sweep_that_drops_a_built_in_deny_is_seen(self):
         text = (COMMANDS / "bug-sweep.md").read_text(encoding="utf-8")

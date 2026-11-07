@@ -28,6 +28,16 @@ the rounds go on until one has nothing open. When the review has ended —
 however it ended — the PR is merged, the session returns to the main
 checkout and the worktree is removed.
 
+**The review is in house, and the report says so every run.** The chain has
+no reader from outside the model family that wrote the branch: external
+reviewers are archived (blueprint-frontend archived them under the tag
+`archive/external-reviewers`; nothing here requests one). The reviewer is still
+a second context rather than this one: it starts from the diff and its own
+instructions, holds `Read`, `Grep` and `Glob` and nothing that could edit what
+it judges, and takes its bar from `origin/main` rather than from the branch.
+What it is not is an external opinion, and a merge is never reported as having
+had one.
+
 **Nothing in this chain stops to ask.** Where a finding would otherwise be
 handed back — step 2's checks, or a review finding that is a judgement — the
 run takes the recommended option itself and keeps going. That is the
@@ -705,7 +715,37 @@ carrying commits this checkout did not start from, which is this case, and
 a lease would be satisfied by them because they have been fetched.
 
 **The reviewer gets the diff, not this session's conclusions**: a reviewer
-told what the author thinks is a second copy of the author.
+told what the author thinks is a second copy of the author. Step 6 refuses a
+head no round read, so each round's `git rev-parse HEAD` is recorded when its
+input is written.
+
+**The bar comes from `origin/main`, never from the branch.** A change under
+`docs/harness/` is ordinary here, so a reviewer taking its bar from the
+checkout would be judged by rules the author of the change wrote for it, and
+report clean because it was told to. The quoted `./` is load-bearing: Git
+Bash's MSYS layer rewrites a bare `origin/main:docs/…` argument into a Windows
+path and git refuses the revision, so this is the spelling that runs on every
+platform the harness job covers. The copy is still written by this session, so
+the reviewer cannot tell a branch-edited copy apart by reading it; it names
+the bar path in its `bar` field and `read` list, fails closed on an empty one
+or one without *What counts as a finding*, and the report names the revision.
+Its `skipped` holds `locality` or `bar` and nothing else, because this chain
+stops on any other entry: a vocabulary the profile writes and the runbook does
+not read is a round that read everything and stopped the chain (measured in
+blueprint-frontend#257, where an honest pass named a shell step it could not
+run).
+
+**The profile that runs is the one registered at launch, not the
+worktree's.** Claude Code reads agent profiles once, from the launch
+directory, so `Agent(branch-reviewer)` dispatches the profile `main` carried
+when the session started, whatever the branch holds (measured in
+blueprint-frontend#182). That is the safer reader: a branch cannot write the
+rules its own reviewer follows. It matters when the diff touches
+`.claude/agents/branch-reviewer.md`, because the inputs are then written for a
+contract the dispatched profile does not hold. The inputs follow `main`'s
+copy, the report says the round ran under `main`'s profile, and a reply in a
+shape that profile does not declare is the round not having run, as the stop
+table says, not a finding.
 
 **The locality read runs only where the target has a change contract.**
 `pr-locality.sh` judges the class against `.github/locality-gate/classes.yml`
@@ -751,7 +791,12 @@ again at round one, for the reason *Resume, don't restart* gives. A
 `branch-reviewer` that cannot run — the agent missing, or a reply that is not
 the JSON its file declares — is the review not having run, reported so, and it
 stops the chain under the runbook's stop table; it is never replaced by a review
-this session writes of its own diff.
+this session writes of its own diff. A reply that says it read nothing, or whose
+`skipped` names any check but `locality`, is the same: a review that read
+nothing looks like a branch with nothing wrong in it, and only one of those is
+worth merging on. The report gives the round number against the ceiling on
+every round, so a count the next resume throws away is at least visible in the
+run that spent it.
 
 **Why the ceiling fixes small findings and batches the lows.** Filing one
 issue per open finding left about one new issue behind each pull request, so
@@ -813,6 +858,15 @@ resolve it and is not meant to: it refuses a remote carrying commits this
 checkout lacks, which is exactly this case. A lease would be satisfied here —
 those commits have been fetched — and the other session's work would still be
 gone, so the refusal is the helper's own rather than git's.
+
+**A head no round reviewed is not merged.** The log read is `git log
+<headRefOid>..HEAD`, empty when this checkout is at or ahead of the remote's
+head: a remote head ahead of this checkout passes it with commits no round
+read. Each round records the head its input was written from, so step 6
+compares `headRefOid` with those records and, on a miss, re-enters step 5
+for a recheck of what changed. The ceiling does not excuse it, and the
+re-entry cannot loop because a ceiling spent still allows that one recheck,
+what it finds that holds being filed as the ceiling files it.
 
 **Non-empty is not a stop, because there is an obvious right answer.** The
 run goes back: commit — **scoped**, always — push, re-enter step 5 for a
@@ -1083,6 +1137,11 @@ them.
 **The workspace comes first** because it is the one line that tells a
 reader where every path in the rest of the report is rooted, and a resumed
 run reports it whether or not this run created it.
+
+**The review line carries the round number, the reviewed head and that the
+review was in house**, because a report that omits the last lets a reader
+assume an outside opinion the chain no longer has, and the head is what step 6
+compared against.
 
 **The push reports even "nothing to do"**, because it is the only action
 another person can see (*Step 4: push, then /pr*). **A decided finding is
