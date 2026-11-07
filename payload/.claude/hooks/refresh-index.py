@@ -538,6 +538,16 @@ def work(root: Path) -> int:
             return 0
 
 
+def detached() -> dict:
+    """`Popen`'s keywords for a worker that outlives the hook's session."""
+    if sys.platform == "win32":
+        # Never DETACHED_PROCESS: a worker started with it exits 0 without its
+        # child ever running, and says nothing. CREATE_NO_WINDOW gives it a
+        # hidden console of its own, and the group keeps the hook's Ctrl+C off it.
+        return {"creationflags": subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP}
+    return {"start_new_session": True}
+
+
 def main() -> int:
     if sys.argv[1:2] == ["--worker"]:
         # Judged as an event's root is: the argument is only what the hook
@@ -576,7 +586,7 @@ def main() -> int:
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            **detached(),
         )
     except OSError:
         # Nothing to undo: no lock was taken here, and the marker stays for
