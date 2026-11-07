@@ -352,9 +352,11 @@ refusal is a stale index, never a write.
 **A seed lands only where git ignores the index path.** It leaves the main
 checkout's indexed text at a path only `.gitignore` keeps out of a commit,
 and a branch checked out in the worktree can drop that line, which would put
-that text in front of an unscoped `/commit`. The worker asks `git
-check-ignore` once per root, with `GIT_DIR` and its kin removed and the
-hook's three-second git budget, and keeps a yes or a no git gave; an answer
+that text in front of an unscoped `/commit`. `git check-ignore` is asked
+last, only where a seed could otherwise happen, so a checkout with no index
+and nothing to seed it from costs no git call; it is asked once per root and
+process, with `GIT_DIR` and its kin removed and a three-second git budget,
+and a yes or a no git gave is kept; an answer
 git did not give is a no, and is asked again later. Nothing is seeded over
 anything already at the index path, a placeholder a branch tracks included.
 

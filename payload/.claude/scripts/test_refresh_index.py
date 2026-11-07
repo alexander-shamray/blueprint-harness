@@ -1186,6 +1186,20 @@ class OnlyAnIndexAtRest(Base):
         self.assertEqual([], self.spawned)
         self.assertFalse(os.path.lexists(worktree / INDEX))
 
+    def test_git_is_asked_only_where_a_seed_could_happen(self):
+        """The hook runs after every call, and a checkout that has no index and
+        nothing to seed it from must cost no git call."""
+        main = self.checkout("main", indexed=False)
+        worktree = self.linked(main)
+        with mock.patch.object(self.mod, "index_ignored", return_value=True) as asked:
+            self.assertEqual(0, self.run_event({"cwd": str(main)}))
+            self.assertEqual(0, self.run_event({"cwd": str(worktree)}))
+        asked.assert_not_called()
+        self.index(main)
+        with mock.patch.object(self.mod, "index_ignored", return_value=True) as asked:
+            self.assertEqual(0, self.run_event({"cwd": str(worktree)}))
+        asked.assert_called_with(worktree)
+
     def test_each_update_is_judged_again_before_it_runs(self):
         """A worker refreshes for as long as edits keep coming, and a checkout
         between two updates can put a journal where the CLI opens the index."""
