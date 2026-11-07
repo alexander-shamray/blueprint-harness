@@ -983,6 +983,8 @@ row is therefore a spelling the deny list does not match.
 | Rename a branch, forced | `git branch -M feature other` | `deny` | `test_destructive_classes.py` |
 | Rename a branch, long option | `git branch --move feature other` | `deny` | `test_destructive_classes.py` |
 | Move a branch over another | `git branch --force feature HEAD~1` | `deny` | `test_destructive_classes.py` |
+| Remove a worktree, discarding its work | `git worktree remove -f .claude/worktrees/x` | `deny` | `test_destructive_classes.py` |
+| Merge a pull request past its checks | `gh pr merge 7 --rebase --admin` | `deny` | `test_destructive_classes.py` |
 | Write a file through a read-only command | `git log --output=out.txt` | `deny` | `test_destructive_classes.py` |
 | Run a program through `--upload-pack` | `git fetch --upload-pack=prog origin` | `deny` | `test_destructive_classes.py` |
 | Run a program through `--receive-pack` | `git push --receive-pack=prog origin feature` | `deny` | `test_destructive_classes.py` |
@@ -1264,7 +1266,11 @@ not count them here.
 Two are `/ship`'s, and both are closed:
 `Bash(git worktree remove:*)` admitted the `-f` that discards work, and
 `Bash(gh pr merge --rebase:*)` admitted a trailing `--admin` that merges past
-failing checks. Both are withdrawn. `gh-pr-merge.sh` takes a number and a
+failing checks. Both are withdrawn, and the base denies both raw forms,
+`Bash(git worktree remove:*)` and `Bash(gh pr merge:*)`, so no target's
+config or session grant brings the flag back: a deny judges the typed
+command and never one a script runs, so the helpers are untouched by it.
+`gh-pr-merge.sh` takes a number and a
 head oid, spells `--rebase --match-head-commit` itself, and refuses a pull
 request that is not the checked-out branch's own, from this repository, into
 `main`. `git-worktree-remove.sh` takes a `.claude/worktrees/<name>` path and
