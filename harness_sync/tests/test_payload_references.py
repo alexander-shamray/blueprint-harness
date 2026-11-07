@@ -187,10 +187,15 @@ def local_commands() -> set[str]:
     return names
 
 
+# Local files whose name and shape the payload defines, so a payload file naming one names its own contract.
+PAYLOAD_DEFINED = {"local_commands.py"}
+
+
 def local_scripts() -> set[str]:
     """The file names of the scripts a target keeps local, its suites aside: a payload file naming one names nothing."""
     return {glob.rsplit("/", 1)[1] for glob in _local_globs()
-            if glob.startswith(".claude/scripts/") and "*" not in glob and not glob.rsplit("/", 1)[1].startswith("test_")}
+            if glob.startswith(".claude/scripts/") and "*" not in glob and not glob.rsplit("/", 1)[1].startswith("test_")
+            and glob.rsplit("/", 1)[1] not in PAYLOAD_DEFINED}
 
 
 def local_scripts_named(payload: Path, names: set[str], import_text: str) -> list[str]:
@@ -260,6 +265,11 @@ class PayloadReferences(unittest.TestCase):
         names = local_scripts()
         self.assertIn("mutation-run.sh", names, "the local-script list stopped reading the target configs")
         self.assertEqual(local_scripts_named(PAYLOAD, names, IMPORT.read_text(encoding="utf-8")), [])
+
+    def test_the_declaration_module_a_target_lists_is_not_a_local_script(self) -> None:
+        # Backend lists it under local, as README says a target does, and the payload's suites name it.
+        self.assertIn(".claude/scripts/local_commands.py", _local_globs())
+        self.assertNotIn("local_commands.py", local_scripts())
 
     def test_stack_name_only_at_a_listed_site(self) -> None:
         self.assertEqual(stack_names(PAYLOAD, IMPORT.read_text(encoding="utf-8")), [])
