@@ -238,16 +238,18 @@ class CbxWrapper(unittest.TestCase):
             }
             out = subprocess.run(
                 [_bash(), str(CBX), "search", "X"],
-                capture_output=True, text=True, encoding="utf-8", env=env)
+                capture_output=True, text=True, encoding="utf-8", env=env, cwd=fake)
             self.assertEqual(0, out.returncode, out.stderr)
             self.assertIn("PATH_CLI search X", out.stdout)
 
     def test_python312_fallback_when_cli_is_absent(self):
         with tempfile.TemporaryDirectory(prefix="cbx-py-") as fake:
             py = Path(fake) / "python3"
+            # A 3.12 that passes the index gate: `test_index_gate.py` holds it.
             py.write_text(
                 "#!/bin/sh\n"
-                "if [ \"$1\" = \"-P\" ]; then shift; fi\n"
+                "while [ \"$1\" = \"-P\" ] || [ \"$1\" = \"-I\" ]; do shift; done\n"
+                "case \"$1\" in *gate-index.py) exit 0 ;; esac\n"
                 "if [ \"$1\" = \"-c\" ]; then\n"
                 "  case \"$2\" in\n"
                 "    *'version_info[:2] == (3, 12)'*) exit 0 ;;\n"
@@ -270,22 +272,24 @@ class CbxWrapper(unittest.TestCase):
             self.assertIn("MODULE search X", out.stdout)
 
     def test_python_fallback_rejects_a_non_312_interpreter(self):
+        """The index gate asks for the same 3.12 first, so a 3.11 is refused
+        there, exit 4, before any fallback could take it."""
         with tempfile.TemporaryDirectory(prefix="cbx-py311-") as fake:
             py = Path(fake) / "python3"
             py.write_text(
                 "#!/bin/sh\n"
-                "if [ \"$1\" = \"-P\" ]; then shift; fi\n"
+                "while [ \"$1\" = \"-P\" ] || [ \"$1\" = \"-I\" ]; do shift; done\n"
                 "if [ \"$1\" = \"-c\" ]; then exit 1; fi\n"
                 "if [ \"$1\" = \"-m\" ]; then echo MODULE; exit 0; fi\n"
-                "exit 1\n",
+                "exit 0\n",
                 encoding="utf-8")
             py.chmod(py.stat().st_mode | stat.S_IEXEC)
             env = {**os.environ, "PATH": fake}
             out = subprocess.run(
                 [_bash(), str(CBX), "search", "X"],
                 capture_output=True, text=True, encoding="utf-8", env=env)
-            self.assertEqual(127, out.returncode, out.stderr)
-            self.assertIn("not on PATH", out.stderr)
+            self.assertEqual(4, out.returncode, out.stderr)
+            self.assertIn("no Python 3.12", out.stderr)
             self.assertNotIn("MODULE", out.stdout)
 
     def test_wrappers_guard_and_skill_share_one_allow_list(self):

@@ -3,8 +3,7 @@
 # - Resolves the binary (prefers one on PATH; falls back to `python -m codebase_index`).
 # - Python fallbacks pass -P / PYTHONSAFEPATH so a checkout codebase_index.py
 #   is not imported.
-# - Whitelists subcommands so the skill can never invoke destructive ones (clean/init/watch).
-set -euo pipefail
+# - Whitelists subcommands so the skill can never invoke destructive ones (clean/init/watch).set -euo pipefail
 export CBX_NO_SKILL_AUTO_UPDATE=1
 export PYTHONSAFEPATH=1
 
@@ -18,6 +17,20 @@ case " $ALLOWED " in
     exit 2
     ;;
 esac
+
+# The index is judged before the CLI opens it: a rollback journal or a link a
+# branch tracked under .claude/cache/codebase-index/ is refused, not replayed.
+case "$0" in
+  */* | *\\*) here=${0%[/\\]*} ;;
+  *) here=. ;;
+esac
+here=$(CDPATH= cd -- "$here" && pwd) || exit 4
+if [ ! -f "$here/gate.sh" ]; then
+  echo "cbx: no gate.sh beside cbx, so the index cannot be judged; refusing to open it" >&2
+  exit 4
+fi
+. "$here/gate.sh"
+gate_index "$here" || exit $?
 
 if command -v codebase-index >/dev/null 2>&1; then
   exec codebase-index "$@"
