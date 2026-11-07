@@ -228,7 +228,10 @@ supported install that leaves the script in a directory that need not be on
 no module this interpreter can import, so the script is not dropped for it.
 `CBX_NO_SKILL_AUTO_UPDATE` keeps an unpinned package from rewriting the
 tracked skill, and `-P` keeps a checkout's own `codebase_index.py` off the
-import path.
+import path. The hook sets `NoDefaultCurrentDirectoryInExePath` for everything
+it starts, the worker and the CLI, and does not leave it to its launcher: the
+CLI runs in the checkout, where a branch can plant a program that Windows
+would otherwise find first for any name the CLI starts bare.
 
 **Both shell tools are in the matcher, `Bash` and `PowerShell`, because
 agents write through them more than through any edit tool** — a commit, a

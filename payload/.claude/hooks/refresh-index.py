@@ -38,6 +38,11 @@ INDEX = CACHE / "index.sqlite"
 # anything there, as it can under `CACHE`.
 STATE = "index-refresh"
 
+# Windows finds a bare program name in the working directory before PATH, and
+# the CLI runs in the checkout. Upper case, so it replaces the variable
+# Claude Code passes down rather than sitting beside it.
+NO_CWD_SEARCH = "NODEFAULTCURRENTDIRECTORYINEXEPATH"
+
 # The files SQLite opens by name beside a database.
 SIDECARS = ("-wal", "-shm", "-journal")
 
@@ -445,7 +450,8 @@ def refresh(root: Path) -> bool:
     The script by its full path, then the module through this interpreter:
     `docs/harness-boundaries.md`, *Index refresh and worktree seeding*.
     """
-    environment = dict(os.environ, CBX_NO_SKILL_AUTO_UPDATE="1", PYTHONSAFEPATH="1")
+    environment = dict(os.environ, CBX_NO_SKILL_AUTO_UPDATE="1", PYTHONSAFEPATH="1",
+                       **{NO_CWD_SEARCH: "1"})
     script = console_script(root)
     for command in (
         *([[script, "update"]] if script else []),
@@ -566,6 +572,7 @@ def main() -> int:
         subprocess.Popen(
             [sys.executable, "-P", str(Path(__file__).resolve()), "--worker", str(root)],
             cwd=tempfile.gettempdir(),
+            env=dict(os.environ, **{NO_CWD_SEARCH: "1"}),
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

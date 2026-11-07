@@ -21,6 +21,7 @@ from pathlib import Path
 from unittest import mock
 
 SCRIPTS = Path(__file__).resolve().parent
+NO_CWD_SEARCH = "NoDefaultCurrentDirectoryInExePath"
 HOOK = SCRIPTS.parent / "hooks" / "refresh-index.py"
 SETTINGS = SCRIPTS.parent / "settings.json"
 EXAMPLE = (SCRIPTS.parent / "skills" / "codebase-index" / "examples" / "hooks"
@@ -1077,6 +1078,64 @@ class Refreshing(Base):
         self.assertEqual(
             [[self.mod.sys.executable, "-P", "-m", "codebase_index", "update"]],
             [arguments[0] for arguments, _ in self.ran])
+
+
+# What `codebase-index update` is, for a case that runs the module route: it
+# says what a bare name finds from the directory it was started in.
+STUB_CLI = """
+import pathlib, shutil
+pathlib.Path("answer.txt").write_text(str(shutil.which("planted")), encoding="utf-8")
+"""
+
+
+class NothingIsFoundInTheWorkingDirectory(Base):
+    """Windows looks in the working directory for a program named bare before
+    it looks on PATH, and the CLI runs in the checkout, where a branch can
+    plant one. Everything the hook starts carries the variable that stops it,
+    so the hook does not depend on its launcher having passed it down."""
+
+    def test_every_start_carries_the_variable(self):
+        root = self.checkout("main")
+        self.patch(mock.patch.dict(self.mod.os.environ))
+        self.mod.os.environ.pop(NO_CWD_SEARCH, None)
+        self.patch(mock.patch.object(self.mod, "console_script", lambda _root: None))
+
+        self.run_event({"cwd": str(root)})
+        self.mod.refresh(root)
+
+        self.assertEqual(1, len(self.spawned))
+        for keywords in (self.spawned[0][1], self.ran[0][1]):
+            # Windows folds the name's case, so the starts may not disagree.
+            folded = {name.casefold(): value for name, value in keywords.get("env", {}).items()}
+            self.assertEqual("1", folded.get(NO_CWD_SEARCH.casefold()), keywords)
+
+    @unittest.skipUnless(sys.platform == "win32", "only Windows searches the working directory for a bare name")
+    def test_a_program_planted_in_the_working_directory_is_never_run(self):
+        root = self.checkout("main")
+        (root / "planted.cmd").write_text("@echo planted\r\n", encoding="ascii")
+        stub = self.tmp / "stub" / "codebase_index"
+        stub.mkdir(parents=True)
+        (stub / "__main__.py").write_text(STUB_CLI, encoding="utf-8")
+        (stub / "__init__.py").write_text("", encoding="utf-8")
+        self.patch(mock.patch.dict(self.mod.os.environ, {"PYTHONPATH": str(stub.parent)}))
+        self.mod.os.environ.pop(NO_CWD_SEARCH, None)
+        self.patch(mock.patch.object(self.mod, "console_script", lambda _root: None))
+
+        def really(command, timeout=None, check=False, **keywords):
+            return _Completed(self.start_process(command, **keywords).wait(timeout=timeout))
+
+        self.patch(mock.patch.object(self.mod.subprocess, "run", really))
+        answer = root / "answer.txt"
+
+        # The control: without the variable the plant is what Windows finds.
+        really([sys.executable, "-P", "-m", "codebase_index"], timeout=60, cwd=str(root),
+               env=dict(self.mod.os.environ))
+        self.assertIn("planted", answer.read_text(encoding="utf-8"), "no plant to refuse")
+        answer.unlink()
+
+        self.assertTrue(self.mod.refresh(root))
+
+        self.assertEqual("None", answer.read_text(encoding="utf-8"))
 
 
 def plant(directory: Path) -> Path:
