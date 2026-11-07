@@ -615,10 +615,16 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
     HOME = os.path.expanduser("~")
     CLAUDE = os.path.join(HOME, ".claude")
 
+    def recased(self, *spellings):
+        # A recased name is the same file only where the home's mount folds
+        # case; on ext4 it is another file, which the guard admits.
+        folds = self.guard_module().case_insensitive(self.HOME)
+        return spellings if folds else ()
+
     def test_a_key_a_profile_or_the_git_config_is_refused(self):
         for target in (
             os.path.join(self.HOME, ".ssh", "authorized_keys"),
-            os.path.join(self.HOME, ".SSH", "config"),
+            *self.recased(os.path.join(self.HOME, ".SSH", "config")),
             os.path.join(self.HOME, ".bashrc"),
             os.path.join(self.HOME, ".bash_profile"),
             os.path.join(self.HOME, ".profile"),
@@ -658,7 +664,7 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
         for target in (
             os.path.join(self.CLAUDE, ".credentials.json"),
             os.path.join(self.CLAUDE, "settings.json"),
-            os.path.join(self.CLAUDE, "SETTINGS.LOCAL.JSON"),
+            *self.recased(os.path.join(self.CLAUDE, "SETTINGS.LOCAL.JSON")),
             os.path.join(self.CLAUDE, "hooks", "anything.py"),
             os.path.join(self.CLAUDE, "commands", "anything.md"),
             os.path.join(self.CLAUDE, "agents", "anything.md"),
