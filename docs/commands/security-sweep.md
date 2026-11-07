@@ -395,9 +395,16 @@ read-only profiles belong on it too, because `bug-auditor` reports bugs
 rather than security findings, so a sweep run through it can return a clean
 *security* round having looked for something else.
 
-**The rows are `sweep-slices.sh`'s, which cuts them into slices**: its
-`row_of` holds each row's paths, and the runbook's table in *The round*
-says why each row exists.
+**The rows are the checkout's, and `sweep-slices.sh` cuts them into
+slices**: `.harness/sweep-rows.tsv` holds each row's paths and what it
+holds, because which trees a repository has is that repository's fact, and
+a table in the managed helper partitioned one target's tree and refused
+every other's. The file is read from the checkout running the sweep, as
+the helpers are, and trusted as they are. That is no defence against the
+commit under audit, which is usually that checkout's own `HEAD` and wrote
+both: a line moving a script into `samples`, where a file with no fence is
+counted and not read, changes what every sweep reads, so it is reviewed as
+a change to the helper would be.
 
 **The rows have to partition the repository, not merely sample it.** A row
 is an auditor's **reporting** ownership, so a path no row owns is not a
@@ -408,10 +415,10 @@ as a clean sweep.
 so `.git` and anything ignored were never its subject, and a tracked path
 no row owns exits 3 naming it: a round error under *Never fail open*, not a
 gap to widen by hand. Rows written as remainders survive the repository
-growing — every tracked file at the root is the deployment row's, so a new
-build file is owned the day it lands — while a new top-level tree refuses
-the run until the helper, and the suite that runs it over this tree, give
-it a row.
+growing — a line for every tracked file at the root, so a new build file is
+owned the day it lands — while a new top-level tree refuses the run until a
+line of the row file gives it a row; the payload's suite partitions each
+checkout's own tree, so that refusal reaches CI first.
 
 Give each the same contract: **root every path under `$work`** (the pinned
 worktree, per the rule above — an agent left to default to the caller's
@@ -430,7 +437,15 @@ de-duplicate gates below could check the claim against a record.
 full` or `mode since <sha>`, one `tracked` line counting what it listed
 and each reason it skipped the rest, and one
 `slice <n> <row> <files> <bytes> <list>` line per slice — at most 240,000
-bytes, about 60k tokens, unless one file is larger. A sample's bytes are
+bytes, about 60k tokens, unless one file is larger. **A binary file is
+named, not only counted**, in the list a `binary <files> <list>` line points
+at: what `git grep -I` calls binary no auditor reads. The swept tree's
+`.gitattributes` never decide it, since the helper reads attributes from
+the empty tree and a line there could mark any script binary
+(blueprint-backend#1784); a NUL byte still does, and a script can hold one,
+so the parent reads the list and the summary names every path on it that
+is not an asset. A git older than 2.41 has no `--attr-source` and fails the
+run rather than trusting the tree's attributes. A sample's bytes are
 its fenced lines, so a `samples` auditor reads the fences and not the
 prose, and a docs file with no fence is not sliced. The closed records,
 `docs/superpowers/`, `pr-decision-log.md` and `lessons.md`, are owned and
