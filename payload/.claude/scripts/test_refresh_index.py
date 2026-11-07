@@ -1347,6 +1347,103 @@ class DocumentedConfiguration(unittest.TestCase):
         self.assertTrue(entries_running_the_hook(EXAMPLE))
 
 
+# What `codebase-index update` is for the case below: it says that it ran, how,
+# and where.
+RECORDING_CLI = r"""
+import os, pathlib, sys
+pathlib.Path("cli-ran").write_text(
+    "\n".join([*sys.argv[1:], os.getcwd()]), encoding="utf-8")
+"""
+
+
+def remove_tree(path: Path) -> None:
+    """Remove a tree a process may still be leaving, for as long as it takes
+    and then loudly, since Windows refuses a directory something stands in."""
+    deadline = time.monotonic() + 60
+    while True:
+        try:
+            return shutil.rmtree(path)
+        except OSError:
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(0.2)
+
+
+class TheDetachedWorkerReallyRuns(unittest.TestCase):
+    """Every case above replaces `Popen`, so a worker that starts and does
+    nothing leaves the index stale with the suite green. This one runs the
+    registered command against a real event and waits for the detached worker
+    to seed a linked worktree, run a stand-in CLI there and let go of the
+    lock."""
+
+    def setUp(self):
+        self.base = Path(tempfile.mkdtemp())
+        self.addCleanup(remove_tree, self.base)
+        self.owner = self.base / "owner"
+        (self.owner / ".git").mkdir(parents=True)
+        hooks = self.owner / ".claude" / "hooks"
+        hooks.mkdir(parents=True)
+        shutil.copyfile(HOOK, hooks / HOOK.name)
+        self.hook = _load()
+        self.hook.home = lambda: self.owner
+        self.worktree = self.owner / ".claude" / "worktrees" / "feature"
+        admin = self.owner / ".git" / "worktrees" / "feature"
+        admin.mkdir(parents=True)
+        (admin / "commondir").write_text("../..\n", encoding="utf-8")
+        self.worktree.mkdir(parents=True)
+        (self.worktree / ".git").write_text(f"gitdir: {admin}\n", encoding="utf-8")
+        index = self.owner / CACHE / "index.sqlite"
+        index.parent.mkdir(parents=True)
+        connection = sqlite3.connect(str(index))
+        try:
+            connection.execute("pragma journal_mode=wal")
+            connection.execute("create table origin (name text)")
+            connection.execute("insert into origin values ('main')")
+            connection.commit()
+        finally:
+            connection.close()
+        package = self.base / "stand-in" / "codebase_index"
+        package.mkdir(parents=True)
+        (package / "__init__.py").write_text("", encoding="utf-8")
+        (package / "__main__.py").write_text(RECORDING_CLI, encoding="utf-8")
+
+    def environment(self):
+        installed = ("codebase-index.exe", "codebase-index.com") if sys.platform == "win32" else ("codebase-index",)
+        path = [entry for entry in os.environ.get("PATH", "").split(os.pathsep)
+                if not any((Path(entry) / name).is_file() for name in installed)]
+        return dict(os.environ, CLAUDE_PROJECT_DIR=str(self.owner), PATH=os.pathsep.join(path),
+                    PYTHONPATH=str(self.base / "stand-in"))
+
+    def test_an_event_reaches_the_cli_through_the_detached_worker(self):
+        event = json.dumps({"cwd": str(self.worktree), "hook_event_name": "PostToolUse"})
+        done = subprocess.run(
+            [sys.executable, *shlex.split(COMMAND)[2:]], input=event.encode("utf-8"),
+            capture_output=True, timeout=60, check=False, env=self.environment())
+        self.assertEqual(0, done.returncode, done.stderr)
+
+        ran = self.worktree / "cli-ran"
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline and (not ran.exists() or self.hook.busy(self.worktree)):
+            time.sleep(0.2)
+        state = self.owner / ".git" / "index-refresh"
+        self.assertTrue(
+            ran.exists(),
+            "the detached worker never ran the CLI within 60 s; the state "
+            f"directory held {sorted(os.listdir(state)) if state.is_dir() else None!r}. A lock "
+            "beside a marker and no record is a worker started and stopped "
+            "without running it, which DETACHED_PROCESS did on Windows")
+        arguments = ran.read_text(encoding="utf-8").split("\n")
+        self.assertEqual("update", arguments[-2])
+        self.assertTrue(os.path.samefile(self.worktree, arguments[-1]), arguments)
+        connection = sqlite3.connect(str(self.worktree / CACHE / "index.sqlite"))
+        try:
+            self.assertEqual("main", connection.execute("select name from origin").fetchone()[0])
+        finally:
+            connection.close()
+        self.assertFalse(self.hook.busy(self.worktree), "the worker finished without releasing")
+        self.assertFalse(self.hook.pending_path(self.worktree).exists())
+
+
 class RestoresWhatItPatched(unittest.TestCase):
     """The canary, and it sorts after the suites above on purpose.
 
