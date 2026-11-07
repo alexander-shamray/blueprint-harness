@@ -244,11 +244,9 @@ class TheSkillAgrees(unittest.TestCase):
 
     def test_no_command_double_quotes_the_term(self):
         """Inside double quotes bash still runs a `$(…)`, a backtick or a
-        `$VAR` the term carries, and a term copied from a log or a branch's
-        file can carry one. The guard refuses the first two and not the third,
-        so `cbx refs "$event"` asks about nothing and says so to no one. Every
-        `cbx` line in the skill's markdown is held, not only the table, and so
-        is a subcommand written bare in prose."""
+        `$VAR` the term carries. The guard refuses the first two and not the
+        third, so `cbx refs "$event"` asks about nothing. Every `cbx` line in
+        the skill's markdown is held, and a subcommand written bare in prose."""
         bare = re.compile(r"`(?:search|explain|symbol|refs|impact|path|describe|verify) +\"")
         lines = [line for path in sorted(SKILL.parent.rglob("*.md"))
                  for line in path.read_text(encoding="utf-8").splitlines()
