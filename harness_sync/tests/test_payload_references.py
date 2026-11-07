@@ -22,6 +22,8 @@ TARGET_HELD = {
     # The class map `pr-locality.sh` reads: a target with a change contract holds it as its own, and the helper
     # exits 3 where there is none.
     ".github/locality-gate/classes.yml",
+    # The rows `sweep-slices.sh` cuts a sweep into: every target holds its own, and the helper exits 3 without it.
+    ".harness/sweep-rows.tsv",
 }
 # Paths an argument invents to show a case — a link anchor, a spelling the edit guard refuses — not files it cites.
 EXAMPLES = {
