@@ -36,9 +36,8 @@ and a remote carrying commits this checkout never held
 (`docs/harness-boundaries.md`). The trailer helper in *Steps* carries its own
 lease the same way. Neither is a way round the deny: a refusal from either, a
 deletion, or a push reaching `main` is raising a decision — stop and say so.
-The create in *Steps* never pushes either: the helper names the branch as
-the head, so `gh` takes it as published rather than offering to push it by a
-route that skips the upstream check above.
+The create in *Steps* never pushes: it names the head, so `gh` offers no
+push that would skip the upstream check above.
 
 **The deny list is defence in depth, not the guard.** It matches on command
 prefixes, and a refspec has more spellings than a prefix list can hold —
@@ -174,23 +173,17 @@ result instead, and report it as it actually came out.
 
 ## Steps
 
-Write the title, one line, with `Write` to `artifacts/pr/title.txt`, and the
-body to `artifacts/pr/body.md`, both in this checkout; a heredoc mangles the
-wrapping. Then:
+With `Write`, put the title, one line, in `artifacts/pr/title.txt` and the
+body in `artifacts/pr/body.md`; a heredoc mangles the wrapping. Then:
 
 ```bash
 bash .claude/scripts/gh-pr-create.sh artifacts/pr/title.txt artifacts/pr/body.md
 ```
 
-The helper fixes the repository and the head from the checkout and the base
-as `main`, the trailing flags a raw `gh pr create` grant would let a command
-choose. **The title never appears on the command line**: a house title often
-holds a backticked name, which double quotes hand to the shell to run before
-anything can refuse it. Each input must be a file git ignores under the
-checkout's `artifacts/`, reached through no symbolic link, since `--body-file`
-publishes whatever it reads; the helper removes both once the PR is open, and
-keeps both for a retry when the create fails
-(`docs/harness-boundaries.md`, *Prefix grants and wildcard denies*).
+The helper fixes the repository, head and base, keeps the title, whose
+backticked names double quotes would run, off the command line, and removes
+both files once the PR is open (`docs/harness-boundaries.md`, *Grant
+inventory and push helpers*).
 
 Then stamp the number the helper printed on the branch's commits,
 before anything reviews them:
