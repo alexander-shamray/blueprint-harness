@@ -1056,6 +1056,24 @@ class TheIndexerAKilledWorkerLeftBehind(Base):
             self.mod.work(root)
         refresh.assert_called_once()
 
+    def test_a_record_older_than_an_update_can_run_names_a_reused_pid(self):
+        """An update is killed within `REFRESH_TIMEOUT` plus `REAP_TIMEOUT`,
+        so a record older than that is a pid some other process now holds,
+        and standing off for it would last as long as that process."""
+        root = self.checkout("main")
+        child, _stop = self.child()
+        self.record(root, str(child.pid))
+        self.mod.request(root)
+        path = self.mod.lock_path(root)
+        for age, called in ((self.mod.REFRESH_TIMEOUT, 0), (self.mod.REFRESH_TIMEOUT + self.mod.REAP_TIMEOUT + 60, 1)):
+            with self.subTest(age=age):
+                then = time.time() - age
+                os.utime(path, (then, then))
+                with mock.patch.object(self.mod, "refresh") as refresh:
+                    self.mod.work(root)
+                self.assertEqual(called, refresh.call_count)
+                self.mod.request(root)
+
     def test_a_record_naming_nothing_alive_keeps_nothing(self):
         root = self.checkout("main")
         gone = self.start_process([sys.executable, "-c", "pass"])

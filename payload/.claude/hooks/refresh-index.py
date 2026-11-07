@@ -29,13 +29,14 @@ INDEX = CACHE / "index.sqlite"
 # that silent, so this lock is what keeps the index honest.
 
 # The operating system holds it, on an open descriptor, and releases it when
-# the worker exits however it exits. A lock file read as data needs a
-# staleness rule; a staleness rule needs a takeover; and a takeover between
-# two claimants needs the very serialisation being asked for. The marker
-# beside it is how an edit arriving mid-run reaches the worker running.
+# the worker exits however it exits, so the lock itself needs no staleness
+# rule and no takeover. The pid recorded in the file is data, and has one: an
+# update is killed within REFRESH_TIMEOUT plus REAP_TIMEOUT, so an older
+# record names a pid something else now holds.
 
-# Both live in the git directory, one pair per checkout: no branch tracks
-# anything there, as it can under `CACHE`.
+# The marker beside the lock is how an edit arriving mid-run reaches the
+# worker running. Both live in the git directory, one pair per checkout: no
+# branch tracks anything there, as it can under `CACHE`.
 STATE = "index-refresh"
 
 # Windows finds a bare program name in the working directory before PATH, and
@@ -510,6 +511,12 @@ def running_indexer(handle) -> int | None:
         return None
     # A record that is no pid, or one no system call takes, names nothing.
     if not recorded.isdigit() or not 0 < int(recorded) < 2**31 or int(recorded) == os.getpid():
+        return None
+    try:
+        age = time.time() - os.fstat(handle.fileno()).st_mtime
+    except OSError:
+        age = 0
+    if age > REFRESH_TIMEOUT + REAP_TIMEOUT:
         return None
     return int(recorded) if alive(int(recorded)) else None
 
