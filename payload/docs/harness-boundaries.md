@@ -186,7 +186,13 @@ a directory of the main checkout, would let a merged file stand in for the
 CLI, which is started by the full path a PATH-only lookup found instead. The
 CLI's own run still holds files in the checkout while it lasts, and the worker
 holds the lock for that whole run, which is why `/ship`'s
-`git-worktree-remove.sh` takes the lock before it removes.
+`git-worktree-remove.sh` takes the lock before it removes. The worker is
+started in a session of its own on POSIX, and on Windows with
+`CREATE_NO_WINDOW` and a new process group, never `DETACHED_PROCESS`: a worker
+started with that flag was measured to exit 0 without its child ever running,
+and the hook discards every stream, so nothing said so while the index went
+stale. `test_refresh_index.py` holds the set, because a run only passes on a
+machine that tolerates the wrong one.
 
 **The lock and the marker are the hook's own writes, so they live in the git
 directory and not in the tree.** Each checkout has a pair under

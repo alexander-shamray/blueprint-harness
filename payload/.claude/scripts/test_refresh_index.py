@@ -1080,6 +1080,38 @@ class Refreshing(Base):
             [arguments[0] for arguments, _ in self.ran])
 
 
+class TheWorkerIsDetached(Base):
+    """The worker has to outlive the hook, whose own session or console ends
+    with the call, and has to run: the hook discards every stream and always
+    exits 0, so a launch that starts a worker which does nothing is silent."""
+
+    def started(self, platform=None):
+        root = self.checkout("main")
+        if platform is not None:
+            self.patch(mock.patch.object(self.mod.sys, "platform", platform))
+        self.run_event({"cwd": str(root)})
+        self.assertEqual(1, len(self.spawned))
+        return self.spawned[0][1]
+
+    def test_a_posix_worker_has_a_session_of_its_own(self):
+        keywords = self.started("linux")
+
+        self.assertIs(True, keywords["start_new_session"])
+        self.assertFalse(keywords.get("creationflags"))
+
+    @unittest.skipUnless(sys.platform == "win32", "creation flags exist on Windows only")
+    def test_the_flags_are_the_ones_measured_to_run_the_cli(self):
+        """`DETACHED_PROCESS` was measured to start a worker that exits 0
+        without its child ever running, with every case green on a runner
+        that tolerates the flag: so the set is held here, not by a run."""
+        flags = self.started()["creationflags"]
+
+        self.assertFalse(flags & subprocess.DETACHED_PROCESS)
+        self.assertTrue(flags & subprocess.CREATE_NO_WINDOW)
+        self.assertTrue(flags & subprocess.CREATE_NEW_PROCESS_GROUP)
+        self.assertNotIn("start_new_session", self.spawned[0][1])
+
+
 # What `codebase-index update` is, for a case that runs the module route: it
 # says what a bare name finds from the directory it was started in.
 STUB_CLI = """
