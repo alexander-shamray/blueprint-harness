@@ -643,11 +643,13 @@ session has entered `.claude/worktrees/<slug>`, `Edit(.claude/commands/**)`
 and `Edit(.claude/hooks/**)` refuse the worktree's own `.claude/` and `docs/`
 stays writable. From the main checkout the same paths sit under
 `.claude/worktrees/<slug>/.claude/`, which no rule here names; what refuses
-them there is Claude Code's own sensitive-file check, which measured every
-`.claude/` target inside a nested worktree — hooks, scripts, commands, agents,
-settings — as a refusal under `acceptEdits` and a prompt otherwise. That is
-the residual, and it is the one a sibling worktree had: a path outside the
-project prompted there too.
+them there is the edit guard, which judges a worktree the session has not
+entered by this target's own denies (*The edit-target guard*), and behind it
+Claude Code's own sensitive-file check, which measured every `.claude/`
+target inside a nested worktree — hooks, scripts, commands, agents, settings
+— as a refusal under `acceptEdits` and a prompt otherwise. The residual is a
+path there that no deny names, which that check alone prompts for, as it
+does for a path outside the project.
 
 Changing any of them is a human's edit, made with the deny lifted. Like the
 push denies it is defence in depth — a redirection or a writing verb is judged
@@ -1848,9 +1850,11 @@ and its gate stays green.
 
 **That guard holds no copy of any deny list, and refusing to write one is
 the whole of why it is safe to run on every write this repository makes.**
-A path deny is *correct* when the spelling is true of the file, so the hook
-judges only the disagreement and leaves every list — `.claude/settings.json`'s
-and both commands' frontmatter — to say what may be edited. Nothing here goes
+A path deny is *correct* when the spelling is true of the file, so inside a
+checkout the session stands in the hook judges only the disagreement and
+leaves every list — `.claude/settings.json`'s and both commands' frontmatter —
+to say what may be edited; where no rule reaches it reads that list rather
+than copying it, as the next paragraph says. Nothing here goes
 stale as those change, and the PR that lifts a deny to edit a helper is not
 refused by the guard on its way past. A test pins that control: a denied tree
 spelled as itself is **admitted** here.
@@ -2035,11 +2039,12 @@ normalising.
 
 **Its residual is the half the harness itself needs, stated rather than
 rounded up.** The subject is a target spelled *inside* a checkout the session
-is standing in; a path spelled entirely outside one is judged only for the
-home directory's named files (*The edit-target guard*), because the session's
-memory and scratch state are written that way by absolute path and an
-allow-list would take both with it. The residual is a passing test, not a
-paragraph alone.
+is standing in; a path spelled entirely outside one is judged only where no
+rule reaches it, a linked worktree of this repository by this target's denies
+and the home directory by its named files (*The edit-target guard*), because
+the session's memory and scratch state are written that way by absolute path
+and an allow-list would take both with it. The residual is a passing test,
+not a paragraph alone.
 **The sweeps' item 5 (#75) closed by the same shape** — a second read-only
 dispatch returns a verdict, the parent opens nothing in `$work`, and
 `gh-issue-create.sh` leaves `gh issue create` with no free parameter — so
