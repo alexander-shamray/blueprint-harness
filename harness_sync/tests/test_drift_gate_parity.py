@@ -179,7 +179,7 @@ class DriftGateParity(unittest.TestCase):
                     self.assertTrue(any(glob.rstrip("*") in p and "which" in p for p in problems), problems)
 
     def test_the_real_configs_protect_nothing(self) -> None:
-        for path in (REPO / ".harness/config.json", REPO / "targets/blueprint-backend.config.json"):
+        for path in (REPO / ".harness/config.json", *sorted((REPO / "targets").glob("*.config.json"))):
             config = json.loads(path.read_text(encoding="utf-8"))
             for rel in [*apply_mod.GATE_FILES, *apply_mod.hook_paths(REAL_BASE)]:
                 with self.subTest(config=path.name, rel=rel):
