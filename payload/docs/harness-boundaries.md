@@ -321,6 +321,70 @@ checkout with no index is left alone, because unindexed is not stale.
 `git-worktree-fork.sh` runs the new worktree's own hook once, because
 `/branch` enters it mid-session, where no `SessionStart` fires.
 
+**A checkout's `.git` is a claim it makes about itself, so the hook takes
+only a checkout git made.** A directory whose `.git` file names one of this
+repository's admin directories reports this repository's common directory
+without git having made it, and its tree would be indexed with this
+checkout's tooling. So a `.git` directory must be the repository's own, and a
+`.git` file must be no link, have one name, and name an admin directory under
+`<common>/worktrees/` whose `gitdir` names that file back. A hard link shares
+the real file's inode and so its backlink, which is why a second name is
+refused; while one exists the real worktree is refused too, a denial of
+refresh by someone who can already write beside the repository rather than a
+tree of theirs being indexed. The main checkout a worktree is seeded from is
+judged the same way. A checkout named `secsweep-…`, in any case and as it
+resolves through a link, is refused outright: both sweeps detach their
+worktrees under that prefix, and the tree one holds is audit input.
+
+**An index is opened only at rest, in WAL mode, and with no link on its
+path.** A branch can force-track any file under
+`.claude/cache/codebase-index/`, the first connection to a rollback-mode
+database replays a `-journal` it finds beside it, and SQLite opens each
+sidecar by name, so a link at one aims its write where the branch chose.
+`index_openable` refuses a link at any component of the cache path, at the
+database or at its `-wal`, `-shm` or `-journal`, a journal at all, and a
+header that is not WAL; a root with no index, or one shorter than a header,
+is admitted, since nothing in it can be replayed. It is asked of the target,
+of the seed's source and target, before every update, and before and after a
+compaction. A `-wal` is admitted: every open reader keeps one. The cost of a
+refusal is a stale index, never a write.
+
+**A seed lands only where git ignores the index path.** It leaves the main
+checkout's indexed text at a path only `.gitignore` keeps out of a commit,
+and a branch checked out in the worktree can drop that line, which would put
+that text in front of an unscoped `/commit`. The worker asks `git
+check-ignore` once per root, with `GIT_DIR` and its kin removed and the
+hook's three-second git budget, and keeps a yes or a no git gave; an answer
+git did not give is a no, and is asked again later. Nothing is seeded over
+anything already at the index path, a placeholder a branch tracks included.
+
+**The worker compacts what it refreshed, because the package never does.**
+Each `update` leaves full-text segments and free pages behind, and with
+`auto_vacuum` off the file only grows. Past half the file in free pages, or
+ten segment rows per chunk, a successful update is followed, under the same
+lock, by FTS `optimize` and `VACUUM`, never in place: the index is read
+through an immutable read-only connection, which takes no lock, reads no log
+and replays no journal, copied into the state directory, compacted there on
+a connection that distrusts the file's schema and has its triggers off, and
+renamed over the index. Only a file whose tables are the package's shape is
+touched. Nothing is done while a `-wal`, `-shm` or `-journal` exists, since a
+log beside a replaced database is replayed into it; that, the file's size and
+modification time are asked again just before the rename, and a statement or
+a copy step past the update's timeout is interrupted. Every failure leaves the
+index as it was. Two residuals stand: the state directory and the index must
+share a volume, or every rename fails; and a connection that opens the index
+between the last look and the rename would have its log replayed into the new
+file.
+
+**`cbx` asks the same judgement before it starts the CLI.** `gate.sh` runs
+`gate-index.py`, which loads this hook and asks `index_openable` of the
+working directory and of the checkout git puts it in; exit 3 is a refusal,
+and no Python 3.12 is exit 4 rather than a pass, since the CLI would open an
+index nobody judged. `cbx.ps1` runs no gate: the skill neither grants nor
+teaches it, so a session reaches it only through a prompt, and the window
+between the gate's look and the CLI's own open is the one every check here
+leaves.
+
 **The approval of `.mcp.json`'s servers belongs to a directory, so the fork
 carries it.** A session started in a worktree reads that worktree's own
 `.claude/settings.local.json`, untracked and so absent, and `claude mcp list`
