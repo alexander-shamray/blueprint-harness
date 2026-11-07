@@ -15,7 +15,7 @@ refuse() { echo "$1" >&2; exit 3; }
 to_regex() {
   local re
   # `+` is a literal, and the placeholder is spelled with `%`, which no token
-  # may hold: BSD sed reads `\x01` as two characters.
+  # may hold: BSD sed reads `\x01` as the literal `x01`.
   re=$(printf '%s' "$1" |
     sed -e 's/[.()+]/\\&/g' -e 's/\*\*/%%GLOBSTAR%%/g' -e 's/\*/[^\/]*/g' \
         -e 's/?/[^\/]/g' -e 's/%%GLOBSTAR%%/.*/g' \
@@ -129,6 +129,9 @@ while IFS= read -r raw || [ -n "$raw" ]; do
   n="${item//[\{\}]/}"
   n="${n//,//}"
   case "/$n/" in *//*|*/./*|*/../*) refuse "classes.yml has an item outside the repository" ;; esac
+  case "$item" in
+    *'{}'*|*'{,'*|*',,'*|*',}'*) refuse "classes.yml has an item with an empty brace alternative" ;;
+  esac
   seen[$member]=$((seen[$member] + 1))
   case "+$class+" in *"+$member+"*) class_patterns+=("$(to_regex "$item")") ;; esac
 done <"$map"
