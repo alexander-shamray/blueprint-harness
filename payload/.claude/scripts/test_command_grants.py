@@ -4,9 +4,15 @@ Both rules are read from the files on every run, because an agent's guarantee is
 deny lasts the rest of the turn (`docs/harness-boundaries.md`).
 """
 
+import importlib
 import re
+import sys
+import tempfile
 import unittest
+import uuid
 from pathlib import Path
+
+from review_helpers import LOCAL, declared, local_commands
 
 SCRIPTS = Path(__file__).resolve().parent
 COMMANDS = SCRIPTS.parent / "commands"
@@ -393,7 +399,8 @@ class ACommandThatDoesNotPublishCannotPush(unittest.TestCase):
     """The settings allow `git push origin`, so a command that neither grants nor denies it reaches the push."""
 
     PUBLISHING = ("pr.md", "ship.md")
-    CHAINED_BEFORE_A_PUSH = ("branch.md", "commit.md")
+    # A target's own commands its Ship checks chain are declared in its `local_commands.py`, and held below.
+    CHAINED_BEFORE_A_PUSH = ("branch.md", "commit.md") + LOCAL.chained
     PUSH = "git push origin fix/a-branch"
 
     def test_every_other_command_denies_push_or_the_shell(self):
@@ -421,9 +428,9 @@ class NothingShipChainsDeniesPush(unittest.TestCase):
     Restoring one reads as hardening and breaks the chain silently (`docs/harness-boundaries.md`).
     """
 
-    # The payload's commands the chain runs before it pushes; a target whose Ship checks name commands of its own
-    # holds them to the same case.
-    CHAINED_BEFORE_A_PUSH = ("ship.md", "branch.md", "commit.md", "pr.md")
+    # The payload's commands the chain runs before it pushes, and those a target's Ship checks add, which its
+    # `local_commands.py` declares; the case below holds each to being one the chain names.
+    CHAINED_BEFORE_A_PUSH = ("ship.md", "branch.md", "commit.md", "pr.md") + LOCAL.chained
 
     PUSHES = ("git push origin fix/a-branch",
               "git push -u origin fix/a-branch")
@@ -464,6 +471,61 @@ class NothingShipChainsDeniesPush(unittest.TestCase):
         self.assertEqual([], frontmatter_list(text, "disallowed-tools"))
         self.assertEqual(["x"], frontmatter_list(text, "name"))
         self.assertEqual([], frontmatter_list("name: x\n", "name"))
+
+
+class ATargetDeclaresItsOwnCommandsInOneModule(unittest.TestCase):
+    """The payload's classes run under `unittest discover` whatever a target subclasses, so its own commands reach
+    them through `local_commands.py`, which a target keeps beside the suites and lists under `local`."""
+
+    def module(self, source):
+        # A uniquely named module in a directory of its own, so no case sees another's or the target's.
+        name = f"local_commands_{uuid.uuid4().hex}"
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        Path(directory.name, f"{name}.py").write_text(source, encoding="utf-8")
+        sys.path.insert(0, directory.name)
+        self.addCleanup(sys.path.remove, directory.name)
+        self.addCleanup(sys.modules.pop, name, None)
+        importlib.invalidate_caches()
+        return name
+
+    def test_a_target_that_declares_nothing_has_no_module_and_holds_nothing(self):
+        self.assertIsNone(local_commands(f"local_commands_{uuid.uuid4().hex}"))
+        self.assertEqual(((), {}), tuple(declared(None)))
+
+    def test_what_a_target_declares_reaches_the_cases(self):
+        name = self.module('CHAINED_BEFORE_A_PUSH = ("check-links.md",)\nCEILINGS = {"review-branch.md": 8400}\n')
+        found = declared(local_commands(name))
+        self.assertEqual(("check-links.md",), found.chained)
+        self.assertEqual({"review-branch.md": 8400}, found.ceilings)
+
+    def test_a_module_may_declare_one_half_only(self):
+        found = declared(local_commands(self.module('CEILINGS = {"own.md": 1}\n')))
+        self.assertEqual(((), {"own.md": 1}), tuple(found))
+
+    def test_a_declaration_whose_own_import_fails_is_not_an_absent_one(self):
+        # Reading it as absent would drop every local command from the cases and pass in silence.
+        name = self.module("import a_module_no_target_has\n")
+        with self.assertRaises(ModuleNotFoundError):
+            local_commands(name)
+
+    def test_a_misshapen_declaration_is_refused_rather_than_read(self):
+        # A bare string would iterate as its characters and exempt nothing a reader could see.
+        for source in ('CHAINED_BEFORE_A_PUSH = "check-links.md"\n',
+                       'CHAINED_BEFORE_A_PUSH = ("check-links",)\n',
+                       'CEILINGS = {"own.md": "8400"}\n',
+                       'CEILINGS = {"own.md": True}\n',
+                       'CEILINGS = {"own.md": 0}\n',
+                       'CEILINGS = [("own.md", 1)]\n'):
+            with self.subTest(source=source):
+                with self.assertRaises(TypeError):
+                    declared(local_commands(self.module(source)))
+
+    def test_the_push_cases_hold_what_the_target_declares(self):
+        # Empty where the target declares nothing, as this repository does; in a target it is what reaches the cases.
+        for case in (ACommandThatDoesNotPublishCannotPush, NothingShipChainsDeniesPush):
+            with self.subTest(case=case.__name__):
+                self.assertLessEqual(set(LOCAL.chained), set(case.CHAINED_BEFORE_A_PUSH))
 
 
 if __name__ == "__main__":

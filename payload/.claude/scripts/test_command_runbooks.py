@@ -7,13 +7,13 @@ these cases hold the two halves to each other, and the rest of what a run keeps 
 import re
 import unittest
 
-from review_helpers import COMMANDS
+from review_helpers import COMMANDS, LOCAL
 
 ARGUMENTS = COMMANDS.parent.parent / "docs" / "commands"
 
 # Bytes with CRLF counted as LF, so a Windows checkout reads what Linux CI does;
 # each landed size and about a tenth: a runbook past it has regrown its argument.
-# The payload's split commands; a target's own carry their ceilings in a suite of its own.
+# The payload's split commands; a target declares its own in `CEILINGS` in its `local_commands.py`.
 CEILINGS = {
     "ship.md": 46000,
     "bug-sweep.md": 19000,
@@ -51,8 +51,8 @@ def collapsed(path):
 
 class EachSplitCommandHasBothHalves(unittest.TestCase):
 
-    # A target's own split commands carry their ceilings in a map of its own, which its suite names here.
-    OWN_CEILINGS = {}
+    # A target's own split commands, whose ceilings its `local_commands.py` declares.
+    OWN_CEILINGS = LOCAL.ceilings
 
     def argued(self):
         names = sorted(p.name for p in ARGUMENTS.glob("*.md"))
@@ -98,8 +98,12 @@ class EachSplitCommandHasBothHalves(unittest.TestCase):
                     self.assertIn(heading, headings)
         self.assertGreater(cited, len(CEILINGS), "the citation pattern stopped matching the runbooks")
 
+    def test_a_targets_ceilings_name_only_its_own_commands(self):
+        # One the payload holds would replace the payload's ceiling below with the target's.
+        self.assertEqual(set(), set(CEILINGS) & set(self.OWN_CEILINGS))
+
     def test_each_runbook_stays_under_its_ceiling(self):
-        for name, ceiling in CEILINGS.items():
+        for name, ceiling in {**CEILINGS, **self.OWN_CEILINGS}.items():
             with self.subTest(command=name):
                 size = len((COMMANDS / name).read_bytes().replace(b"\r\n", b"\n"))
                 self.assertLessEqual(size, ceiling, f"{name} is {size} bytes, over {ceiling}")

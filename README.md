@@ -108,9 +108,14 @@ Two things the jobs do not cover or cannot promise:
   `targets/blueprint-backend.config.json`, so `payload-suites` never renders
   it. A payload suite that read such a file would be red here, or pass
   vacuously; build the fixture in the case instead (`IMPORT.md`, *Decided
-  after review*). Every `test_*.py` under a payload gate directory runs from
-  its first pull request, as the *Test the gates* step reads the rendered
-  tree.
+  after review*). Where a payload case has to know a target's own commands —
+  the ones its *Ship checks* chain before a push, and its split commands'
+  runbook ceilings — the target names them in `CHAINED_BEFORE_A_PUSH` and
+  `CEILINGS` in `.claude/scripts/local_commands.py`, also under `local`, and
+  the payload's cases read them through `review_helpers.py`'s `LOCAL`; a
+  target with none keeps no such file. Every `test_*.py` under a payload gate
+  directory runs from its first pull request, as the *Test the gates* step
+  reads the rendered tree.
 - **`payload-suites (macos-latest)` can sit in the runner queue.** Its
   `timeout-minutes` bounds the run, not the wait for a runner, so a leg that
   GitHub cancels from the queue with no step run (seen on #11 and #15) is a
