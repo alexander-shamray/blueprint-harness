@@ -152,6 +152,12 @@ class OnlyThisCheckoutsPullRequestsSurvive(unittest.TestCase):
         self.assertEqual("", result.stdout.strip())
         self.assertIn("truncated", result.stderr)
 
+    def test_an_answer_that_is_no_count_is_not_reported_as_truncation(self):
+        result = self.run_helper(rows="")
+        self.assertNotEqual(0, result.returncode)
+        self.assertNotEqual(4, result.returncode)
+        self.assertNotIn("truncated", result.stderr)
+
     def test_one_row_short_of_the_page_is_an_answer(self):
         # Without this the detector could refuse every listing and still pass.
         self.assertEqual(999, len(self.numbers(self.listing([self.row(n, "CLOSED") for n in range(1, 1000)]))))
