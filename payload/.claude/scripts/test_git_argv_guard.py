@@ -3227,6 +3227,51 @@ class TheGitArgvGuard(unittest.TestCase):
             any(HOOK.name in c and "py -3.12" in c for c in commands),
             f"{HOOK.name} is not among the registered PowerShell hooks: {commands}")
 
+    def test_a_redirection_ampersand_does_not_end_the_run(self):
+        body = "\ngit push origin +HEAD:main\nEOF"
+        for command in (
+            "bash <&0 <<'EOF'" + body,
+            "bash 0<&0 <<'EOF'" + body,
+            "bash >&2 <<'EOF'" + body,
+            "bash 2>&1 <<'EOF'" + body,
+            "bash 2>&- <<'EOF'" + body,
+            "sh 1>&2 <<EOF" + body,
+            "bash &>/dev/null <<'EOF'" + body,
+            "bash &>>/dev/null <<'EOF'" + body,
+            "bash <&0 <<<'git push origin +HEAD:main'",
+            "cat <<'EOF' 2>&1 | bash" + body,
+            # An escaped separator is a word character: bash runs the heredoc.
+            "bash 2>\\&1 <<'EOF'" + body,
+            "bash >\\&2 <<'EOF'" + body,
+            "bash 2>\\;x <<'EOF'" + body,
+            "bash 2>\\&1 <<<'git push origin +HEAD:main'",
+            # Bash joins a backslash-newline before it tokenises.
+            "bash >\\\n&2 <<'EOF'" + body,
+            "bash 2>\\\n&1 <<'EOF'" + body,
+            "bash &\\\n>/dev/null <<'EOF'" + body,
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command)
+        # A separating `&` still separates.
+        for command in (
+            "bash <<'EOF' 2>&1" + body,
+            "sleep 1 & bash <<'EOF'" + body,
+            "sleep 1& bash <<'EOF'" + body,
+            "true &&bash <<'EOF'" + body,
+            "echo x |& bash <<'EOF'" + body,
+            "echo \\>& bash <<'EOF'" + body,
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command)
+        for command in (
+            "git status 2>&1", "git status >&2", "git status &",
+            "git log -1 & git status", "npm test &>/dev/null",
+            "cat <<'EOF' 2>&1" + body, "cat >&2 <<'EOF'" + body,
+            "bash <<'EOF' 2>&1\ngit status\nEOF", "git status 2>\\\n&1",
+        ):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
     def test_the_hook_directory_is_a_control_surface_and_is_denied(self):
         # It grants nothing, but it RUNS on every Bash call, so a session able
         # to rewrite it could delete its own guard and then act. `CLAUDE.md`
