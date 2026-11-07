@@ -319,9 +319,9 @@ approved. So it reaches the helpers as files under the run, written with the
 argument, which also keeps a relaunch's task the first launch's, and `tasks
 place` reads `place-<n>.json`. The task is written before `tasks move`, so a
 resumed night finds it wherever the dispatcher stopped. `--refused` carries
-the helper's own line, in single quotes. `guard-helper-argv.py` is the backstop for a session that spells
-any of them otherwise (`docs/harness-boundaries.md`, *Prefix grants and
-wildcard denies*).
+the helper's own line, in single quotes. `guard-helper-argv.py` is the
+backstop for a session that spells any of them otherwise
+(`docs/harness-boundaries.md`, *Prefix grants and wildcard denies*).
 
 ## Sync pull requests
 
