@@ -62,6 +62,7 @@ import os
 import re
 import shlex
 import sys
+import tempfile
 import traceback
 from bisect import bisect_left
 
@@ -2472,18 +2473,21 @@ def xargs_supplies_push(tokens):
     return False
 
 
+FORCED_ONTO_BRANCH = re.compile(r"^\+[^:]*:(?!refs/(?!heads/))")
+
+
 def fetch_offence(segment):
     """The reason to refuse a fetch that can move a local branch backwards.
 
-    `main:main` is `/ship`'s fast-forward and stays; `-f`, `-u` and a `+`
-    refspec are what turn it into a discard of local commits.
+    `main:main` is `/ship`'s fast-forward and stays; `-f`, `-u` and a `+` onto
+    a branch are what discard local commits. A remote-tracking ref holds none.
     """
     stripped = after_global_options(segment)
     if not stripped or stripped[0] != "fetch":
         return None
     for element in stripped[1:]:
         name = element.split("=", 1)[0]
-        if (element.startswith("+") or short_flag(element, "fetch", "fu")
+        if (FORCED_ONTO_BRANCH.match(element) or short_flag(element, "fetch", "fu")
                 or (len(name) > 3 and "--force".startswith(name))
                 or (len(name) > 9 and "--update-head-ok".startswith(name))):
             return (
@@ -2654,21 +2658,48 @@ def written_path(word, cwd, command):
     return os.path.normpath(os.path.abspath(literal))
 
 
-def checkout_relative(path):
-    """`path` from the root of the checkout holding it, or `None` outside one."""
+def checkout_of(path):
+    """The root of the checkout holding `path`, or `None` outside one."""
     root = path
     while not os.path.exists(os.path.join(root, ".git")):
         parent = os.path.dirname(root)
         if parent == root:
             return None
         root = parent
+    return root
+
+
+def checkout_relative(path):
+    """`path` from the root of the checkout holding it, or `None` outside one."""
+    root = checkout_of(path)
+    if root is None:
+        return None
     relative = os.path.relpath(path, root)
     worktree = WORKTREE_BELOW.match(relative)
     return worktree.group(1) if worktree else relative
 
 
+def beneath(path, root):
+    """Whether resolved `path` is `root` or sits under it."""
+    path, root = os.path.normcase(path), os.path.normcase(root)
+    return path == root or path.startswith(root.rstrip(os.sep) + os.sep)
+
+
+def scratch_checkout(path):
+    """Whether `path` is in a checkout under the temp root the session is not in.
+
+    A mutation proof copies into one, and this target's denies are not about it.
+    """
+    if not beneath(path, os.path.realpath(tempfile.gettempdir())):
+        return False
+    session = checkout_of(os.path.abspath(EVENT_CWD or os.getcwd()))
+    return session is None or not beneath(path, os.path.realpath(session))
+
+
 def protected_target(path):
     """The deny holding `path`, as spelled or where its links land, or `None`."""
+    if scratch_checkout(os.path.realpath(path)):
+        return None
     for place in (path, os.path.realpath(path)):
         relative = checkout_relative(place)
         named = denied_path(relative) if relative is not None else None
