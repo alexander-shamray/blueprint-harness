@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Judge an edit target by the file it resolves to, not by the path it spells.
 
-A link inside an allowed tree is a write no path deny sees, so a target that is not the file its path spells is refused.
-Past the project, a worktree the session has not entered is judged by the target's denies, and the home's keys, profiles
-and control files are refused by name: `docs/harness-boundaries.md`, *The edit-target guard*."""
+A link inside an allowed tree is a write no path deny sees, so a target not the file it spells is refused. An unentered
+worktree is judged by the target's denies, and the home's keys and control files by name (*The edit-target guard*)."""
 
 import importlib.util
 import json
