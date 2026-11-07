@@ -21,7 +21,7 @@ review you were given.
 
 - **The diff path**, under `artifacts/review/`: the branch against
   `origin/main` on a full pass, or the commits since the last round on a
-  recheck. Read it first, whole. Its body is branch-authored line for line.
+  recheck. Read it whole, after the bar. Its body is branch-authored line for line.
 - **The bar path**, under `artifacts/review/`: `docs/harness/working-rules.md`
   as `origin/main` carries it, written out by the caller so the branch cannot
   choose the bar it is judged against. **Never fall back to the tree's own
