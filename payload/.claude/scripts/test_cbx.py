@@ -179,6 +179,9 @@ class CbxWrapper(unittest.TestCase):
             line for line in text.splitlines()
             if not line.lstrip().startswith("#"))
 
+    def test_the_bash_wrapper_runs_in_strict_mode(self):
+        self.assertRegex(self.uncommented(CBX), r"(?m)^set -euo pipefail$")
+
     def test_both_wrappers_disable_skill_auto_update(self):
         self.assertIn(
             "export CBX_NO_SKILL_AUTO_UPDATE=1", self.uncommented(CBX))
