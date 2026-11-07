@@ -113,8 +113,8 @@ one PR read before doing anything:
 bash .claude/scripts/pr-for-branch.sh <branch>
 ```
 
-It exits 0 for all four outcomes: empty means no PR has ever existed for this
-branch; otherwise the newest row reads `OPEN`, `CLOSED` or `MERGED`. Never
+It exits 0 for all four outcomes: empty means no PR into `main` has ever
+existed for this branch; otherwise the newest row reads `OPEN`, `CLOSED` or `MERGED`. Never
 use `pr-state.sh` for this read: it exits non-zero with no PR. (why:
 docs/commands/ship.md, *Resume, don't restart*)
 
@@ -246,7 +246,7 @@ target*)
                                                    # headRefOid is later work.
    ```
 
-   - The helper fixes `--state all` and does not filter on base, so **look
+   - The helper fixes `--state all` and lists only rows into `main`, so **look
      for a row whose `state` is `MERGED` and whose `baseRefName` is `main`,
      and compare that row's `headRefOid`** with the tip; a non-empty result,
      or an OPEN row, never means landed.

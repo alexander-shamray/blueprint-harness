@@ -92,7 +92,7 @@ be a guess. A plan PR is no exception, and *A plan is reviewed once, for
 contradiction* says what its re-run costs.
 
 **One call to `pr-for-branch.sh`, four outcomes, and it exits 0 for every one
-of them.** Empty means no PR has ever existed for this branch; otherwise the
+of them.** Empty means no PR into `main` has ever existed for this branch; otherwise the
 newest row reads `OPEN`, `CLOSED` or `MERGED`, and those are precisely the
 four cases the runbook's resume table distinguishes.
 
@@ -305,8 +305,8 @@ merge — there is no shape of post-landing work that survives this read.
 **The row's `baseRefName` must be `main`, because landed means landed
 there.** A stacked pull request merged into another branch has a `MERGED`
 row whose head is the tip, and `main` holds none of it. The helper
-publishes the base and does not filter on it, since the resume table reads
-the same rows for a question that has no base in it.
+lists only rows into `main` and still publishes the base, so the read checks
+it rather than assuming it.
 
 **No comparison of content can stand here, and the two obvious ones fail
 in opposite directions.** A range read over `origin/main..HEAD` cannot see
