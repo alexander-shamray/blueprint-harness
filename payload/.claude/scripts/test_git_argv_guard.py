@@ -3432,6 +3432,23 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
 
+    def test_nothing_overrides_the_fast_forward_of_a_granted_pull(self):
+        for command in (
+            "git pull --ff-only --no-ff", "git pull --ff-only --ff",
+            "git pull --ff-only --rebase", "git pull --rebase=merges --ff-only",
+            "git pull --ff-only -r", "git pull -qr --ff-only",
+            "git pull --ff-only --reb",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command)
+        for command in (
+            "git pull --ff-only", "git pull -q --ff-only",
+            "git pull --ff-only origin main", "git pull --ff-only -v",
+            "git pull --rebase", "git pull --no-ff",
+        ):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
     def test_the_hook_directory_is_a_control_surface_and_is_denied(self):
         # It grants nothing, but it RUNS on every Bash call, so a session able
         # to rewrite it could delete its own guard and then act. `CLAUDE.md`

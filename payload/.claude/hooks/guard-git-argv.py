@@ -2508,6 +2508,23 @@ def fetch_offence(segment):
     return None
 
 
+def pull_offence(segment):
+    """The reason to refuse an option that overrides `--ff-only`, or `None`."""
+    stripped = after_global_options(segment)
+    if not stripped or stripped[0] != "pull" or "--ff-only" not in stripped:
+        return None
+    for element in stripped[1:]:
+        name = element.split("=", 1)[0]
+        if (name in ("--no-ff", "--ff") or short_flag(element, "pull", "r")
+                or (len(name) > 4 and "--rebase".startswith(name))):
+            return (
+                f"`{element}` beside `--ff-only` overrides it, and the pull "
+                "that is granted is the one that cannot rewrite or merge. "
+                "Drop the option."
+            )
+    return None
+
+
 def trap_offence(segment):
     """The refusal for a git command whose text shows it losing work, or None."""
     stripped = after_global_options(segment)
@@ -2719,7 +2736,7 @@ def _offence(command, depth, judged):
 
     for segment in git_segments(tokens):
         refusal = (push_offence(segment) or trap_offence(segment)
-                   or fetch_offence(segment))
+                   or fetch_offence(segment) or pull_offence(segment))
         if refusal is not None:
             return refusal
 
