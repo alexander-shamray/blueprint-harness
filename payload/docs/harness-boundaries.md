@@ -1778,8 +1778,9 @@ spelled as itself is **admitted** here.
 
 **Two things a path deny cannot reach are judged here all the same, and
 neither takes a copy of a list.** Every rule anchors at the session's
-permission root, so a linked worktree of this repository that the session has
-not entered is reached by none of them: its `.claude/scripts/x` and its `.git`
+permission root, so a worktree of this repository that the session has not
+entered, the main checkout seen from a linked one included, is reached by none
+of them: its `.claude/scripts/x` and its `.git`
 are judged by this target's own `Edit(...)` denies, read from
 `.claude/settings.json` through `guard-git-argv.py`'s `denied_path`, anchored at
 that worktree's root and folded for case, and a link inside it is judged as in

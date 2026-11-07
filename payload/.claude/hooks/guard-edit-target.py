@@ -205,16 +205,19 @@ def verified_gitdir(root):
 
 
 def linked_worktree(path, checkouts):
-    """`path`'s checkout root, when it is a linked worktree of an anchor's repo.
+    """`path`'s checkout root, when it is a worktree of an anchor's repository.
 
-    Read from the `.git` file, since no hook on every write can run git. This
-    target's denies say nothing about what another repository protects.
+    Read from the `.git` file, or a main checkout's `.git` directory, since no
+    hook on every write can run git. An anchor reached by a link is that anchor,
+    and another repository's protections are not this target's to judge.
     """
     root = checkout_root(path)
     if root is None:
         return None
-    gitdir = verified_gitdir(root)
-    if gitdir is None:
+    main = os.path.join(root, ".git")
+    gitdir = os.path.realpath(main) if os.path.isdir(main) else verified_gitdir(root)
+    if gitdir is None or any(same(os.path.realpath(root), real_root, traits)
+                             for _, real_root, traits in checkouts):
         return None
     for spelled_root, real_root, traits in checkouts:
         for base in (spelled_root, real_root):
@@ -407,9 +410,9 @@ def offence(event):
         if machinery is not None:
             return (
                 f"guard-edit-target: {spelled} is held by {machinery} in a "
-                "linked worktree this session is not standing in, where none "
-                "of its permission rules apply. Move into the worktree to "
-                "edit it (docs/harness-boundaries.md)."
+                "worktree of this repository the session is not standing in, "
+                "where none of its permission rules apply. Move into the "
+                "worktree to edit it (docs/harness-boundaries.md)."
             )
         checkouts = checkouts + [
             (sibling, os.path.realpath(sibling), traits_of(sibling))]
