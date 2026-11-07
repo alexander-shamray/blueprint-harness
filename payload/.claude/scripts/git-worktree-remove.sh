@@ -39,13 +39,11 @@ common_there=$(git -C "$path" rev-parse --path-format=absolute --git-common-dir)
 # worktree has no symbolic HEAD and holds no branch, so it is refused too.
 [ "$(git -C "$path" symbolic-ref --quiet HEAD || :)" = "refs/heads/$branch" ] ||
   { echo "not the worktree of this repository holding ${branch}: $path" >&2; exit 3; }
-# Every refresh worker holds this lock for its whole run, the index update
-# included, and Windows will not delete a file held open: a remove meanwhile
-# deletes part of the tree and fails. So the lock is taken first, with the
-# hook's own primitive, in the git directory, and one still held at the bound
-# removes nothing. The lock covers a worker, not the indexer a killed worker
-# left on the record: a removal meeting that one can leave part of the tree
-# on Windows, which exit 4 reports.
+# A refresh worker holds this lock for its whole run, and Windows will not
+# delete a file held open, so it is taken first, in the git directory, and one
+# held at the bound removes nothing. It covers a worker, not the survivor a
+# killed one left on the record: meeting that, a Windows removal can leave
+# part of the tree, which exit 4 reports.
 state="$common_here/index-refresh"
 # The files' name, taken while the path still stats: it is the worktree's
 # device and inode, which a later worktree can be given once this one is gone.
