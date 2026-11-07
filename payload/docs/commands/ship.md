@@ -798,8 +798,9 @@ report, since the person reading it needs the words, not a paraphrase.
 **A fix in a tree a deny covers cannot be made here, and it is filed at
 once.** Outside `--dispatched` nothing else routes it, so the finding would
 stay open to the ceiling, spend rounds carrying itself, and reach step 6 as
-open work nobody could do. The settings deny edits under `.claude/`, so such a finding is filed as the ceiling files it,
-the report says so, and the run continues.
+open work nobody could do. The settings deny edits under `.claude/`, so such a
+finding is filed as the ceiling files it, the report says so, and the run
+continues.
 
 **Why a full pass rather than a recheck** when a fix closed a `bug`-severity
 finding or the fixes since the last full pass change more than 400 lines: a
