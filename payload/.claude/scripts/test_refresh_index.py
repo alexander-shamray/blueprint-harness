@@ -141,11 +141,9 @@ class Base(unittest.TestCase):
         (root / ".git").write_text(f"gitdir: {git_dir}\n", encoding="utf-8")
         return root
 
-    def index(self, root, marker="main"):
-        """A written index at the root's cache path, in the WAL mode the
-        package leaves its own in."""
-        path = root / INDEX
-        path.parent.mkdir(parents=True, exist_ok=True)
+    @staticmethod
+    def database(path, marker):
+        """A small database in the WAL mode the package leaves its index in."""
         connection = sqlite3.connect(str(path))
         try:
             connection.execute("pragma journal_mode=wal")
@@ -154,7 +152,12 @@ class Base(unittest.TestCase):
             connection.commit()
         finally:
             connection.close()
-        return path
+
+    def index(self, root, marker="main"):
+        """A written index at the root's cache path."""
+        (root / CACHE).mkdir(parents=True, exist_ok=True)
+        self.database(root / INDEX, marker)
+        return root / INDEX
 
     def apart(self, name):
         """An indexed checkout of a repository of its own."""
@@ -387,13 +390,6 @@ class SeedingAWorktree(Base):
         return root
 
     @staticmethod
-    def database(path, marker):
-        with sqlite3.connect(str(path)) as connection:
-            connection.execute("create table origin (name text)")
-            connection.execute("insert into origin values (?)", (marker,))
-        connection.close()
-
-    @staticmethod
     def origin(path):
         connection = sqlite3.connect(str(path))
         try:
@@ -409,8 +405,45 @@ class SeedingAWorktree(Base):
         self.mod.work(worktree)
 
         self.assertEqual("main", self.origin(worktree / CACHE / "index.sqlite"))
+        with open(worktree / INDEX, "rb") as seeded:
+            self.assertEqual(bytes((2, 2)), seeded.read(100)[18:20])
         self.assertEqual(1, len(self.ran), "the seed was never updated")
         self.assertEqual(str(worktree), self.ran[0][1]["cwd"])
+
+    def test_a_copy_without_a_wal_header_is_never_renamed_in(self):
+        """Such a copy is one the package's own readers refuse: it must not
+        reach the index path, nor leave the partial it was made in."""
+        main = self.main()
+        connection = sqlite3.connect(str(main / INDEX), isolation_level=None)
+        try:
+            connection.execute("pragma journal_mode=delete")
+        finally:
+            connection.close()
+        worktree = self.linked(main)
+        (worktree / CACHE).mkdir(parents=True)
+
+        self.mod.seed(worktree)
+
+        self.assertFalse((worktree / INDEX).exists())
+        self.assertEqual([], [path.name for path in (worktree / CACHE).iterdir()])
+
+    def test_a_killed_workers_partial_is_removed_by_the_next_seed(self):
+        """The partial is named for the worker that made it, so one a killed
+        worker left is never met by a later pid, and sits beside the index
+        until something removes it."""
+        main = self.main()
+        worktree = self.linked(main)
+        (worktree / CACHE).mkdir(parents=True)
+        stale = worktree / CACHE / "index.sqlite.seed.99999999"
+        stale.write_bytes(b"half a copy")
+        journal = stale.with_name(stale.name + "-journal")
+        journal.write_bytes(b"")
+
+        self.mod.seed(worktree)
+
+        self.assertFalse(stale.exists())
+        self.assertFalse(journal.exists())
+        self.assertEqual("main", self.origin(worktree / INDEX))
 
     def test_only_the_index_crosses(self):
         """The main checkout's memory and configuration are its own state,

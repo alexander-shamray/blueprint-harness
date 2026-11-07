@@ -38,6 +38,9 @@ INDEX = CACHE / "index.sqlite"
 # anything there, as it can under `CACHE`.
 STATE = "index-refresh"
 
+# The files SQLite opens by name beside a database.
+SIDECARS = ("-wal", "-shm", "-journal")
+
 # An update that cannot finish is not allowed to hold the lock for ever.
 REFRESH_TIMEOUT = 600
 
@@ -303,7 +306,19 @@ def seed(root: Path) -> None:
         return
     index = root / INDEX
     partial = index.with_name(f"{index.name}.seed.{os.getpid()}")
+    copying = False
     try:
+        # A killed worker's partial is named for it, and the lock this runs
+        # under is the only reason no other seed is writing one.
+        for name in os.listdir(index.parent):
+            if name.startswith(f"{index.name}.seed."):
+                try:
+                    (index.parent / name).unlink()
+                except OSError:
+                    pass
+        if any(os.path.lexists(str(partial) + suffix) for suffix in ("", *SIDECARS)):
+            return
+        copying = True
         for leftover in ("-wal", "-shm"):
             index.with_name(index.name + leftover).unlink(missing_ok=True)
         # The authority stays empty: `as_uri()` puts a UNC server or a `?` there,
@@ -321,14 +336,20 @@ def seed(root: Path) -> None:
                 writing.close()
         finally:
             reading.close()
+        # The header says WAL, or the copy is one the readers refuse.
+        with open(partial, "rb") as copy:
+            if copy.read(100)[18:20] != bytes((2, 2)):
+                return
         os.replace(partial, index)
     except (OSError, sqlite3.Error):
         pass
     finally:
-        try:
-            partial.unlink(missing_ok=True)
-        except OSError:
-            pass
+        # Only what this process made: a refusal above found files it did not.
+        for suffix in ("", *SIDECARS) if copying else ():
+            try:
+                Path(str(partial) + suffix).unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def request(root: Path) -> None:
