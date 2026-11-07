@@ -3323,6 +3323,20 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
 
+    def test_the_operand_forms_that_run_a_command_are_refused(self):
+        for command in (
+            "git bisect run ./tools/m",
+            "git submodule --quiet foreach ./tools/m",
+            "git submodule--helper foreach ./tools/m",
+            "git -C sub bisect run ./tools/m",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command)
+        for command in ("git bisect start", "git bisect good", "git submodule status",
+                        "git submodule update --init", "git log --grep=foreach"):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
     def test_the_hook_directory_is_a_control_surface_and_is_denied(self):
         # It grants nothing, but it RUNS on every Bash call, so a session able
         # to rewrite it could delete its own guard and then act. `CLAUDE.md`
