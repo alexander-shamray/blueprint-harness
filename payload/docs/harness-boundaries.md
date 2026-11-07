@@ -1827,6 +1827,15 @@ directory, whose checkout may be foreign: the call switches
 hostile config names, and sets `GIT_OPTIONAL_LOCKS=0` so the read writes no
 index. Each git call is bounded at 5 seconds, and a command at 200 files.
 
+**Which git it runs.** The first on `PATH` by the hook's own search, a copy
+of `dispatch_board.py`'s `path_which`, never `shutil.which`: on Windows that
+looks in the current directory first, where a merged change could plant a
+`git.cmd` to run inside this hook, and only
+`NoDefaultCurrentDirectoryInExePath`, which a hook cannot rely on, turns
+that off. The search skips empty and `.` entries and anything at or below
+the hook's working directory, so a real git installed there, as under a
+session started in the home directory, reads as no git on `PATH`.
+
 **Where it fails open, by design rather than by crash.** An operand holding
 an expansion (`"$FILE"`, `$(git ls-files)`), a `cd` it cannot follow, a file
 that does not exist or cannot be read, a command `shlex` cannot tokenise, no
