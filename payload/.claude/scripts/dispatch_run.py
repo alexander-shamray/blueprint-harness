@@ -19,7 +19,7 @@ from pathlib import Path
 
 from dispatch_board import (BRANCH_NAME, MODEL, NOT_OWNERS, Group, Refusal, _blocker, _bodies, _held, _number, _read,
                             _row, _write, git, group_claim, groups, helper, one_line, parse_tasks, path_which, pick,
-                            ready, released, row_branch, runnable, stranger)
+                            ready, released, row_branch, runnable, strangers)
 from sync_pr import SYNC_HEAD
 
 RUN_NAME = re.compile(r"\d{8}-\d{6}")
@@ -366,9 +366,9 @@ def launch(root, run, gid, tasks_path, branch, worktree, owned_source):
     if entry.get("status") is not None:
         raise Refusal(f"{gid} is {entry['status']}, not moved and unlaunched")
     # `wake` already held this row back; a launch it never named is refused here, in code, whatever the session read.
-    held_row = stranger(group, owned_source())
-    if held_row:
-        raise Refusal(f"{gid} is not launched: {held_row.key} {NOT_OWNERS}")
+    held_rows = strangers(group, owned_source())
+    if held_rows:
+        raise Refusal(f"{gid} is not launched: {NOT_OWNERS}: {', '.join(held_rows)}")
     # A group sent back and launched again starts afresh, as its move did: its state no longer names the earlier
     # launch's session as read, so that launch's marker, result copy, record and pid go now, or this launch is
     # refused, rather than a later run meeting them beside its own and _refused holding the slot all night.
