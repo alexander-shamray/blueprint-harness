@@ -3786,7 +3786,7 @@ class TheListsTheGuardReads(unittest.TestCase):
         module = self.guard_module()
         base = json.loads((self.ROOT / ".harness" / "settings.base.json").read_text(encoding="utf-8"))
         config = json.loads((self.ROOT / ".harness" / "config.json").read_text(encoding="utf-8"))
-        rules = [*base["permissions"]["deny"], *config["settings"]["deny"]]
+        rules = [*base["permissions"]["deny"], *config.get("settings", {}).get("deny", [])]
         paths = [rule[len("Edit("):-1].lower().removeprefix("./") for rule in rules
                  if rule.startswith("Edit(")]
         self.assertEqual(sorted(set(paths)), sorted(module.edit_denies()))
