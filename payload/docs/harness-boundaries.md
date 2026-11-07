@@ -1002,7 +1002,9 @@ checkout that holds it and folded for case, which leaves `payload/.claude/…`,
 link is judged where it lands. A verb that takes a tree whole, `rm`, `mv`,
 `rmdir`, `shred` or a copy into a directory, is refused a directory below the
 checkout root that holds what a deny names as well, so `rm -rf .claude` is
-refused and `.claude/worktrees/x` and the root itself, `rm -rf .`, are not.
+refused and `.claude/worktrees/x` and the root itself, `rm -rf .`, are not. What
+a copy or a move puts into a directory is judged by the name it lands under, so
+`cp notes.md .claude/` is admitted and `cp -r /tmp/hooks .claude/` is not.
 `~` and the variables this process shares with the session are expanded and
 judged, and a literal `cd` is followed, through a subshell's end as well.
 

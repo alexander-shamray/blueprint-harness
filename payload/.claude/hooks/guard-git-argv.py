@@ -2709,9 +2709,14 @@ def protected_target(path, whole=False):
     return None
 
 
-def destination_offence(word, cwd, command, writer, whole=False):
-    """The reason to refuse writing the file shell `word` names, or `None`."""
+def destination_offence(word, cwd, command, writer, whole=False, inside=None):
+    """The reason to refuse writing the file shell `word` names, or `None`.
+
+    `inside` is the name a copy gives its source in the directory `word` names.
+    """
     path = written_path(word, cwd, command)
+    if path is not None and inside is not None:
+        path = os.path.join(path, inside)
     named = protected_target(path, whole) if path is not None else None
     if named is None:
         return None
@@ -2803,7 +2808,7 @@ def backup_word(word, suffix):
 
 
 def verb_destinations(verb, words):
-    """The raw words `verb` writes, found through its options.
+    """The raw words `verb` writes, each with the sources a copy puts inside it.
 
     A hard link makes its source writable under another name, so its sources
     count; a symbolic link is judged where it lands; a `-i` backup is a write.
@@ -2811,7 +2816,8 @@ def verb_destinations(verb, words):
     literals = [target_literal(word) for word in words]
     model = WRITING_VERBS[verb]
     if model == "of":
-        return [_glued_raw(raw, literal, 3) for raw, literal in zip(words, literals)
+        return [(_glued_raw(raw, literal, 3), None, False)
+                for raw, literal in zip(words, literals)
                 if literal and literal.startswith("of=")]
 
     operands, targets, suffixes = [], [], []
@@ -2893,20 +2899,42 @@ def verb_destinations(verb, words):
             if verb == "perl" and letter in "CDFIMdmx":
                 break
 
-    if model == "every" or directory_mode or hard_link or (
-            verb == "ln" and not symbolic):
-        return operands + targets
-    if model == "destination":
-        if targets:
-            return targets
-        if len(operands) > 1:
-            return operands[-1:]
-        return []
+    whole_list = model == "every" or directory_mode or hard_link or (
+        verb == "ln" and not symbolic)
+    if model != "in-place":
+        if verb in TARGET_OPTION_VERBS and not directory_mode and (
+                targets or len(operands) > 1):
+            sources = operands if targets else operands[:-1]
+            landed = [(word, sources, bool(targets) or len(sources) > 1)
+                      for word in (targets or operands[-1:])]
+            return [(word, None, False) for word in sources] * whole_list + landed
+        return [(word, None, False) for word in operands + targets] * whole_list
     if not in_place:
         return []
     files = operands if script_given else operands[1:]
-    return files + [backup_word(word, suffix)
-                    for suffix in suffixes for word in files]
+    return [(word, None, False) for word in files + [
+        backup_word(word, suffix) for suffix in suffixes for word in files]]
+
+
+def landings(destination, sources, into, cwd, command):
+    """The names a copy or move gives `sources` inside `destination`, or `[None]`.
+
+    `None` is the destination itself: it is a file, or a source's name is not
+    known. A source of `.` or `..` fills the directory with what it holds.
+    """
+    literal = target_literal(destination) or ""
+    path = written_path(destination, cwd, command)
+    if not (into or literal.endswith(("/", "\\")) or (path and os.path.isdir(path))):
+        return [None]
+    names = []
+    for source in sources:
+        spelled = (target_literal(source) or "").rstrip("/\\")
+        last = re.split(r"[\\/]", spelled)[-1]
+        found = written_path(source, cwd, command)
+        if last in ("", ".", "..") or found is None:
+            return [None]
+        names.append(os.path.basename(found))
+    return names or [None]
 
 
 def writing_verb_offence(words, cwd, command):
@@ -2931,11 +2959,14 @@ def writing_verb_offence(words, cwd, command):
                 if word in (";", "+"):
                     operands = operands[:cut]
                     break
-        for word in verb_destinations(verb, operands):
-            refusal = destination_offence(word, cwd, command, f"`{verb}`",
-                                          verb in TREE_VERBS)
-            if refusal is not None:
-                return refusal
+        for word, sources, into in verb_destinations(verb, operands):
+            names = [None] if sources is None or verb not in TREE_VERBS else (
+                landings(word, sources, into, cwd, command))
+            for name in names:
+                refusal = destination_offence(word, cwd, command, f"`{verb}`",
+                                              verb in TREE_VERBS, name)
+                if refusal is not None:
+                    return refusal
     return None
 
 

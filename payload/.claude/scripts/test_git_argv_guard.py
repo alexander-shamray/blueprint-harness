@@ -3735,6 +3735,21 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                       "ls > .claude/notes.md", "touch .claude/notes.md",
                       "rm -rf notes", "mv notes /tmp/x")
 
+    def test_a_file_copied_into_a_directory_is_judged_where_it_lands(self):
+        # Only the source's name lands in the directory, so `.claude/` itself
+        # is not the write unless what lands there is a protected tree.
+        self.refused("cp -r /tmp/hooks .claude/", "cp -r /tmp/hooks/ .claude",
+                     "cp x.py .claude/hooks/", "cp a.md settings.json .claude/",
+                     "cp -t .claude /tmp/hooks", "install /tmp/settings.json .claude/",
+                     "mv /tmp/hooks .CLAUDE", "mv .claude /tmp/x", "cp -r . .claude/")
+        self.admitted("cp notes.md .claude/", "cp a.md b.md .claude", "mv notes.md .claude/",
+                      "cp -t .claude notes.md", "install -m 644 notes.md .claude/")
+        os.makedirs(os.path.join(self.root, ".github"))
+        hook = self.hook_denying(".github/workflows/**")
+        self.admitted("cp x.md .github/", "mv x.md .github", hook=hook)
+        self.refused("cp -r /tmp/workflows .github/", "cp ci.yml .github/workflows/",
+                     hook=hook)
+
     def test_a_write_elsewhere_is_not_read_as_one(self):
         self.admitted(
             "cp .claude/settings.json /tmp/x", "cp -r .claude/hooks notes/",
