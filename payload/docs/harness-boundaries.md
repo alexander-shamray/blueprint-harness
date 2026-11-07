@@ -601,8 +601,9 @@ otherwise: it refuses a command substitution anywhere in a command that runs a
 for its own. So `oid=$(git rev-parse HEAD)` and a helper line beneath it are
 refused though that line is clean: a heredoc's substitution runs for the
 helper's stdin on no helper line, so the whole command is what is judged, and
-such a value is read in a call of its own. It leaves the `.sh` helpers, whose arguments are numbers and names, and it judges
-substitutions alone: a second command is the grant's own matching.
+such a value is read in a call of its own. It leaves the `.sh` helpers, whose
+arguments are numbers and names, and it judges substitutions alone: a second
+command is the grant's own matching.
 
 ## The guards' threat model
 
