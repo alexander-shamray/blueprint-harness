@@ -2541,9 +2541,6 @@ def trap_offence(segment):
     return None
 
 
-# Substitutions and evaluators both recurse, and a crafted nest of either would
-# otherwise reach Python's own limit — where the hook dies with a traceback
-# rather than a verdict, which is the one direction a guard must not fail in.
 # ---- what a command writes -------------------------------------------------
 
 # The directory the command runs in, from the hook event; `main` sets it.
@@ -2998,6 +2995,9 @@ def write_offence(command):
     return None
 
 
+# Substitutions and evaluators both recurse, and a crafted nest of either would
+# otherwise reach Python's own limit — where the hook dies with a traceback
+# rather than a verdict, which is the one direction a guard must not fail in.
 MAX_NESTING = 24
 
 
