@@ -47,6 +47,15 @@ say one thing, and only the first two are enumerated. What actually keeps this
 safe is the rule above: push the **current branch, by name**, and nothing else.
 A push whose destination is not the branch you are on is not this step.
 
+**The allow rules do not guarantee the push runs.** A refused push comes back
+with the harness's "has been denied" text and no hook reason. It is a
+**stop**, not a retry: report that the push did not happen and no PR was
+opened, give the line for the caller — `! git push -u origin <branch>`, or
+the tracking form — and name the remedy, which is user-level: this
+repository and its `origin` named as trusted source control in
+`autoMode.environment`. Never reach the remote by another spelling or a
+wrapper that hides it; that is routing around a refusal.
+
 ## Title
 
 One line, semantic prefix, the same form as the commits. It names the change,

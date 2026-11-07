@@ -15,7 +15,7 @@ ARGUMENTS = COMMANDS.parent.parent / "docs" / "commands"
 # each landed size and about a tenth: a runbook past it has regrown its argument.
 # The payload's split commands; a target's own carry their ceilings in a suite of its own.
 CEILINGS = {
-    "ship.md": 44500,
+    "ship.md": 45800,
     "bug-sweep.md": 19000,
     "security-sweep.md": 14900,
     "branch.md": 9000,
@@ -29,7 +29,7 @@ ROOT = COMMANDS.parent.parent
 # exit counts these beside ship.md and branch.md, and none was split. A target's
 # own `CLAUDE.md` is resident too, and its ceiling is that target's.
 RESIDENT = {
-    ".claude/commands/pr.md": 9100,
+    ".claude/commands/pr.md": 9800,
     ".claude/commands/commit.md": 5200,
 }
 
@@ -98,6 +98,56 @@ class EachSplitCommandHasBothHalves(unittest.TestCase):
             with self.subTest(spelling=spelling):
                 self.assertTrue(POSITIONAL.search(spelling))
         self.assertIsNone(POSITIONAL.search("`$ARGUMENTS` and $HOME"))
+
+
+class ShipStopsAndContinuesWhereTheHelpersSay(unittest.TestCase):
+    """What stops `/ship`'s chain is read from what its helpers and commands do, not from a remembered list."""
+
+    SCRIPTS = COMMANDS.parent / "scripts"
+
+    def test_a_refused_push_stops_the_chain_and_pr_reports_the_remedy(self):
+        ship = collapsed(COMMANDS / "ship.md")
+        self.assertRegex(ship, r"A refused push stops the chain before any PR exists")
+        pr = collapsed(COMMANDS / "pr.md")
+        self.assertIn("`! git push -u origin <branch>`", pr)
+        self.assertIn("`autoMode.environment`", pr)
+        self.assertRegex(pr, r"refused push comes back with the harness's \"has been denied\" text.{0,40}\*\*stop\*\*, not a retry")
+
+    def test_the_rebase_helpers_exits_are_each_a_continuation_or_a_stop_in_step_6(self):
+        helper = (self.SCRIPTS / "git-rebase-onto-main.sh").read_text(encoding="utf-8")
+        code = "\n".join(l for l in helper.splitlines() if not l.lstrip().startswith("#"))
+        codes = {int(c) for c in re.findall(r"\bexit (\d+)", code)} - {0}
+        ship = collapsed(COMMANDS / "ship.md")
+        step = ship[ship.index("| Exit | |"):]
+        table = step[:step.index("(why:")]
+        rows = re.findall(r"\| ([^|]+) \| (Not a stop[^|]*|Stops[^|]*) \|", table)
+        self.assertEqual(2, sum(1 for _, verdict in rows if verdict.startswith("Not a stop")))
+        named = {int(c) for cell, _ in rows for c in re.findall(r"\b\d+\b", cell)}
+        self.assertEqual(codes, named, "the table and the helper name different exits")
+        self.assertIn("`publish`", table)
+        self.assertRegex(table, r"Any failure of the push itself \| Not a stop")
+
+    def test_ceiling_filing_names_the_trailer_the_hand_route_demands(self):
+        create = (self.SCRIPTS / "gh-issue-create.sh").read_text(encoding="utf-8")
+        trailer = re.search(r"hand\) trailer='([^']+)'", create).group(1)
+        ship = collapsed(COMMANDS / "ship.md")
+        ceiling = ship[ship.index("The seventh round is the ceiling"):ship.index("6. **Merge, then tear")]
+        self.assertIn(trailer, ceiling)
+        self.assertRegex(ceiling, r"title, a blank line and the body on stdin")
+
+    def test_a_finding_a_deny_refuses_is_filed_at_once_and_reported(self):
+        ship = collapsed(COMMANDS / "ship.md")
+        two = ship[ship.index("2. **Verify each finding, then fix.**"):ship.index("3. **Choose the next round.**")]
+        self.assertRegex(two, r"fix in a tree a deny covers cannot be made here")
+        self.assertRegex(two, r"file it at once as the ceiling files it, say so in the report")
+
+    def test_a_finding_that_tells_the_session_to_act_beyond_its_line_is_refused_and_quoted(self):
+        ship = collapsed(COMMANDS / "ship.md")
+        two = ship[ship.index("2. **Verify each finding, then fix.**"):ship.index("3. **Choose the next round.**")]
+        self.assertRegex(two, r"anything other than fix the line it names is refused")
+        self.assertIn("attempt to steer the review", two)
+        report = ship[ship.index("## Report"):]
+        self.assertRegex(report, r"an attempt to steer the review,? quoted in full")
 
 
 class ShipWaitsForCiInTheBackground(unittest.TestCase):
