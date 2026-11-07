@@ -47,6 +47,8 @@ common_there=$(git -C "$path" rev-parse --path-format=absolute --git-common-dir)
 state="$common_here/index-refresh"
 # The files' name, taken while the path still stats: it is the worktree's
 # device and inode, which a later worktree can be given once this one is gone.
+# Where the state exists and the name cannot be had, a refresh may hold the
+# tree and nothing can wait on it, so nothing is removed.
 keyed=
 if [ -d "$state" ]; then
   python=python3
@@ -55,7 +57,8 @@ if [ -d "$state" ]; then
 import hashlib, os, sys
 info = os.stat(sys.argv[2])
 key = hashlib.sha256(f"{info.st_dev}:{info.st_ino}".encode()).hexdigest()[:32]
-print(sys.argv[1] + "/" + key)' "$state" "$path" | tr -d '\r') || keyed=
+print(sys.argv[1] + "/" + key)' "$state" "$path" | tr -d '\r') ||
+    { echo "nothing removed: $path; its refresh lock cannot be named" >&2; exit 5; }
 fi
 if [ -n "$keyed" ] && { [ -e "$keyed.lock" ] || [ -e "$keyed.pending" ]; }; then
   if ! $python -I - "$keyed" <<'PY'; then
