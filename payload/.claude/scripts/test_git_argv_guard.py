@@ -3337,6 +3337,23 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
 
+    def test_a_merge_strategy_and_a_template_are_refused(self):
+        for command in (
+            "git pull --strategy=ours", "git pull --strat=ours",
+            "git rebase --strategy ours main",
+            "git clone --template=./tools/t ./src dest",
+            "git init --template=./tools/t", "git init --templ=./tools/t",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command)
+        for command in (
+            "git pull --ff-only", "git pull --stat", "git rebase origin/main",
+            "git rebase --strategy-option=ours origin/main",
+            "git commit --template=msg.txt", "git clone ./a b", "git init",
+        ):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
     def test_the_hook_directory_is_a_control_surface_and_is_denied(self):
         # It grants nothing, but it RUNS on every Bash call, so a session able
         # to rewrite it could delete its own guard and then act. `CLAUDE.md`
