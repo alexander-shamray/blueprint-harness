@@ -1071,7 +1071,9 @@ link is judged where it lands. A verb that takes a tree whole, `rm`, `mv`,
 checkout root that holds what a deny names as well, so `rm -rf .claude` is
 refused and `.claude/worktrees/x` and the root itself, `rm -rf .`, are not. What
 a copy or a move puts into a directory is judged by the name it lands under, so
-`cp notes.md .claude/` is admitted and `cp -r /tmp/hooks .claude/` is not.
+`cp notes.md .claude/` is admitted and `cp -r /tmp/hooks .claude/` is not; a
+glob source has no known name, and `-T` lands on the directory itself, so both
+are judged as the whole directory.
 `~` and the variables this process shares with the session are expanded and
 judged, and a literal `cd` is followed, through a subshell's end as well.
 
