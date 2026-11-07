@@ -236,6 +236,12 @@ stays for the next edit. Whether a pid is live is asked of the system without
 starting anything, `kill(pid, 0)` on POSIX and `OpenProcess` with the exit
 code on Windows, where `os.kill` would end the process. Where it cannot be
 told, the process counts as running: one skipped refresh, never two indexers.
+The look is made before every attempt, a retry included, since an attempt
+overwrites the record. The record is read with its age, the file's
+modification time: an update is killed within 630 seconds, `REFRESH_TIMEOUT`
+plus `REAP_TIMEOUT`, so an older record names a pid something else now holds,
+and the worker takes the tree rather than stand off for as long as that
+process lives.
 
 **The CLI is found on `PATH` alone, and the answer is a full path, so the
 operating system searches nothing.** A `PATH` entry naming a checkout is the
