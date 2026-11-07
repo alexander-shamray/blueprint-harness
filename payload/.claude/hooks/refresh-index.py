@@ -164,32 +164,42 @@ def checkout_root(start: Path) -> Path | None:
     return None
 
 
-def edited(event: dict) -> Path | None:
-    """The file the tool touched, resolved against the session's directory.
-
-    A relative path is relative to `cwd`; an absolute one may name another
-    checkout: `guard-edit-target` admits the session's tree or its fork source.
-    """
+def named_file(event: dict) -> str | None:
+    """The path the tool touched as the event spells it, or None when the
+    event names no file."""
     given = event.get("tool_input")
     if not isinstance(given, dict):
         return None
     for key in ("file_path", "notebook_path"):
         value = given.get(key)
         if isinstance(value, str) and value.strip():
-            path = Path(value.strip())
-            base = event.get("cwd")
-            if not path.is_absolute() and base:
-                path = Path(str(base)) / path
-            # Resolved before anything walks it. `../../../src/Thing.cs` from a
-            # worktree under `.claude/worktrees/` lands in the main checkout,
-            # and the worktree is among that path's lexical parents — so an
-            # unresolved walk finds the worktree's `.git` and refreshes the
-            # tree the edit did not touch.
-            try:
-                return path.resolve()
-            except OSError:
-                return None
+            return value.strip()
     return None
+
+
+def edited(event: dict) -> Path | None:
+    """The file the tool touched, resolved against the session's directory,
+    or None when it names none or one that cannot be placed. A relative path
+    is relative to `cwd`; an absolute one may name another checkout:
+    `guard-edit-target` admits the session's tree or its fork source."""
+    value = named_file(event)
+    if value is None:
+        return None
+    path = Path(value)
+    base = event.get("cwd")
+    if not path.is_absolute():
+        if not base:
+            return None
+        path = Path(str(base)) / path
+    # Resolved before anything walks it. `../../../src/Thing.cs` from a
+    # worktree under `.claude/worktrees/` lands in the main checkout,
+    # and the worktree is among that path's lexical parents — so an
+    # unresolved walk finds the worktree's `.git` and refreshes the
+    # tree the edit did not touch.
+    try:
+        return path.resolve()
+    except (OSError, ValueError):
+        return None
 
 
 def main_checkout(root: Path) -> Path | None:
@@ -210,6 +220,27 @@ def main_checkout(root: Path) -> Path | None:
     return common.parent
 
 
+def same_repository(root: Path) -> bool:
+    """Whether `root` keeps the git directory this hook's own checkout does."""
+    ours, theirs = common_dir(home()), common_dir(root)
+    if ours is None or theirs is None:
+        return False
+    try:
+        return os.path.samefile(ours, theirs)
+    except (OSError, ValueError):
+        return False
+
+
+def written(root: Path) -> bool:
+    """Whether `root` holds an index a build has written. A file shorter than
+    SQLite's 100-byte header is one a first build created and never wrote,
+    which `update` cannot open: it is no index at all."""
+    try:
+        return (root / INDEX).stat().st_size >= 100
+    except OSError:
+        return False
+
+
 def seed_source(root: Path) -> Path | None:
     """The index a linked worktree without one is seeded from, or None: only
     a regular file at the main checkout's own index path, so a link planted
@@ -225,25 +256,40 @@ def seed_source(root: Path) -> Path | None:
     return source
 
 
+def refreshable(root: Path) -> bool:
+    """Whether a worker for `root` would have anything to do: an index, or
+    one to seed. A cache directory alone is neither, and `update` there is a
+    build."""
+    return written(root) or seed_source(root) is not None
+
+
+def admitted(root: Path) -> bool:
+    """Whether the hook may refresh `root` at all: a checkout of its own
+    repository, with state to keep and something to refresh."""
+    return state_dir() is not None and same_repository(root) and refreshable(root)
+
+
 def target(event: dict) -> Path | None:
     """The indexed or seedable checkout holding the file that changed, else
-    the one `cwd` names, which follows a shell call into a worktree, then
-    `CLAUDE_PROJECT_DIR`, then the working directory `git-worktree-fork.sh`
-    runs it in — each in turn, never as a second chance after an unindexed
-    tree, which would refresh the one that did not change."""
-    named = (edited(event) or event.get("cwd")
-             or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
+    the one `cwd` names, then `CLAUDE_PROJECT_DIR`, then the working
+    directory `git-worktree-fork.sh` runs it in, each in turn and never as a
+    second chance after an unindexed tree. An event naming a file that cannot
+    be placed answers with none of them."""
+    if named_file(event) is not None:
+        named = edited(event)
+        if named is None:
+            return None
+    else:
+        named = (event.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR")
+                 or os.getcwd())
     root = checkout_root(Path(str(named)))
-    if root is None or state_dir() is None:
+    if root is None or not admitted(root):
         return None
-    if (root / CACHE).is_dir():
-        return root
-    if seed_source(root) is None:
-        return None
-    try:
-        (root / CACHE).mkdir(parents=True, exist_ok=True)
-    except OSError:
-        return None
+    if not written(root):
+        try:
+            (root / CACHE).mkdir(parents=True, exist_ok=True)
+        except OSError:
+            return None
     return root
 
 
@@ -406,10 +452,12 @@ def refreshed(root: Path) -> bool:
 def drain(root: Path) -> bool:
     """Every outstanding request, refreshed; false when one was given up on.
 
-    The request is put back so the next worker carries its edit, and returning
-    rather than looping keeps that from spinning against a broken install.
-    """
+    A failed request is put back so the next worker carries its edit, and
+    returning keeps that from spinning against a broken install. A root that
+    no longer qualifies is left without an update and without that."""
     while take_request(root):
+        if not (same_repository(root) and written(root)):
+            return False
         if not refreshed(root):
             request(root)
             return False
@@ -443,8 +491,12 @@ def work(root: Path) -> int:
 
 
 def main() -> int:
-    if len(sys.argv) > 2 and sys.argv[1] == "--worker":
-        return work(Path(sys.argv[2]))
+    if sys.argv[1:2] == ["--worker"]:
+        # Judged as an event's root is: the argument is only what the hook
+        # that started this worker chose, some time ago.
+        if len(sys.argv) == 3 and admitted(Path(sys.argv[2])):
+            return work(Path(sys.argv[2]))
+        return 0
 
     # Bytes, decoded here: Python reads a Windows pipe in the ANSI code page,
     # which turns a non-ASCII checkout path into one that does not exist.

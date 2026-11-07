@@ -25,6 +25,7 @@ SETTINGS = SCRIPTS.parent / "settings.json"
 EXAMPLE = (SCRIPTS.parent / "skills" / "codebase-index" / "examples" / "hooks"
            / "settings.json")
 CACHE = Path(".claude") / "cache" / "codebase-index"
+INDEX = CACHE / "index.sqlite"
 
 # What settings.json has to run, spelled once. Matched whole, because
 # `not-refresh-index.py` and `refresh-index.py.disabled` both contain the
@@ -118,21 +119,48 @@ class Base(unittest.TestCase):
         return patcher
 
     def checkout(self, name, indexed=True):
-        """A directory that looks like a checkout, with or without an index."""
-        root = self.tmp / name
-        (root / ".git").mkdir(parents=True)
+        """A checkout of the case's repository, with or without an index. The
+        first is the main checkout the hook file sits in, and each later one
+        a linked worktree of it."""
+        if self.owner is None:
+            root = self.tmp / name
+            (root / ".git").mkdir(parents=True)
+            self.owner = root
+        else:
+            root = self.linked(self.owner, name, at=self.tmp / name)
         if indexed:
-            (root / CACHE).mkdir(parents=True)
-        self.owner = self.owner or root
+            self.index(root)
         return root
 
-    def linked(self, main, name="probe"):
+    def linked(self, main, name="probe", at=None):
         git_dir = main / ".git" / "worktrees" / name
         git_dir.mkdir(parents=True)
         (git_dir / "commondir").write_text("../..\n", encoding="utf-8")
-        root = main / ".claude" / "worktrees" / name
+        root = at or main / ".claude" / "worktrees" / name
         root.mkdir(parents=True)
         (root / ".git").write_text(f"gitdir: {git_dir}\n", encoding="utf-8")
+        return root
+
+    def index(self, root, marker="main"):
+        """A written index at the root's cache path, in the WAL mode the
+        package leaves its own in."""
+        path = root / INDEX
+        path.parent.mkdir(parents=True, exist_ok=True)
+        connection = sqlite3.connect(str(path))
+        try:
+            connection.execute("pragma journal_mode=wal")
+            connection.execute("create table origin (name text)")
+            connection.execute("insert into origin values (?)", (marker,))
+            connection.commit()
+        finally:
+            connection.close()
+        return path
+
+    def apart(self, name):
+        """An indexed checkout of a repository of its own."""
+        root = self.tmp / name
+        (root / ".git").mkdir(parents=True)
+        self.index(root)
         return root
 
     def link_dir(self, link, destination):
@@ -280,6 +308,46 @@ class ChoosingTheCheckout(Base):
 
         self.assertEqual([], self.spawned)
 
+    def test_another_repository_is_refused(self):
+        """The hook belongs to one repository; a checkout of another that
+        holds a cache of its own is no concern of its."""
+        ours = self.checkout("main")
+        theirs = self.apart("other")
+
+        self.assertEqual(0, self.run_event({"cwd": str(theirs)}, ours))
+
+        self.assertEqual([], self.spawned)
+        self.assertFalse(self.mod.pending_path(theirs).exists())
+
+    def test_an_event_naming_a_file_is_never_answered_with_cwd(self):
+        """A file that cannot be placed refreshes nothing, never the tree
+        the session stands in, which the change did not touch."""
+        session = self.checkout("main")
+        self.addCleanup(os.chdir, os.getcwd())
+        os.chdir(session)
+        unplaced = {
+            "a relative path with no directory to be relative to":
+                {"tool_input": {"file_path": "src/Thing.cs"}},
+            "a notebook path likewise":
+                {"tool_input": {"notebook_path": "n.ipynb"}},
+        }
+        for name, event in unplaced.items():
+            with self.subTest(name):
+                self.assertEqual(0, self.run_event(event, session))
+                self.assertEqual([], self.spawned)
+
+        real_resolve = Path.resolve
+
+        def refuse(path, *arguments, **keywords):
+            if path.name == "Thing.cs":
+                raise OSError("a path the system cannot resolve")
+            return real_resolve(path, *arguments, **keywords)
+
+        self.patch(mock.patch.object(Path, "resolve", autospec=True, side_effect=refuse))
+        event = {"cwd": str(session), "tool_input": {"file_path": str(session / "Thing.cs")}}
+        self.assertEqual(0, self.run_event(event, session))
+        self.assertEqual([], self.spawned)
+
     def test_a_cwd_outside_any_checkout_spawns_nothing(self):
         self.assertEqual(0, self.run_event({"cwd": str(self.tmp)}))
 
@@ -408,6 +476,36 @@ class SeedingAWorktree(Base):
 
         self.assertEqual([], self.spawned)
         self.assertFalse((worktree / CACHE).exists())
+
+    def test_nothing_is_seeded_or_built_without_a_main_index(self):
+        """A cache directory is not an index: `update` on one is a build,
+        which is the cost this exists to avoid and the one the agent's turn
+        cannot afford."""
+        main = self.main(indexed=False)
+        (main / CACHE).mkdir(parents=True)
+        worktree = self.linked(main)
+        (worktree / CACHE).mkdir(parents=True)
+
+        self.assertEqual(0, self.run_event({"cwd": str(worktree)}))
+        self.assertEqual(0, self.run_event({"cwd": str(main)}))
+        self.mod.request(worktree)
+        self.mod.work(worktree)
+
+        self.assertEqual([], self.spawned)
+        self.assertEqual([], self.ran)
+        self.assertFalse((worktree / INDEX).exists())
+        self.assertFalse(self.mod.refreshable(worktree))
+
+    def test_only_a_written_index_counts_as_one(self):
+        """A first build creates the file before it writes SQLite's header,
+        and `update` cannot open what that leaves."""
+        root = self.checkout("main", indexed=False)
+        self.assertFalse(self.mod.written(root))
+        (root / CACHE).mkdir(parents=True)
+        (root / INDEX).write_bytes(b"")
+        self.assertFalse(self.mod.written(root))
+        (root / INDEX).write_bytes(b"\0" * 100)
+        self.assertTrue(self.mod.written(root))
 
     def test_a_worktree_index_is_left_as_it_is(self):
         worktree = self.linked(self.main())
@@ -644,6 +742,70 @@ class OneRefreshAtATime(Base):
             self.assertLessEqual(depth, 1, lines)
         self.assertEqual(2, sum(1 for line in lines if line.endswith(" in")), lines)
         self.assertFalse(self.mod.pending_path(root).exists(), lines)
+
+
+class TheWorkerJudgesItsRoot(Base):
+    """The worker is started with a path as an argument, and runs for as long
+    as edits keep arriving, so what was true of the root when it was
+    chosen is asked again at the worker's entry and before every update."""
+
+    def worker(self, *arguments):
+        self.patch(mock.patch.object(self.mod.sys, "argv", ["refresh-index.py", *arguments]))
+        with mock.patch.object(self.mod, "work", return_value=0) as work:
+            self.assertEqual(0, self.mod.main())
+        return work
+
+    def test_the_worker_entry_point_judges_its_root_again(self):
+        ours = self.checkout("main")
+        theirs = self.apart("other")
+        bare = self.checkout("bare", indexed=False)
+        (self.tmp / "loose").mkdir()
+
+        self.worker("--worker", str(ours)).assert_called_once_with(ours)
+        self.worker("--worker", str(bare)).assert_called_once_with(bare)
+        # With the main checkout's index gone, the worktree has none to seed.
+        (ours / INDEX).unlink()
+        for name, arguments in {
+            "another repository": ("--worker", str(theirs)),
+            "a checkout with no index and none to seed": ("--worker", str(bare)),
+            "a directory that is no checkout": ("--worker", str(self.tmp / "loose")),
+            "an extra argument": ("--worker", str(ours), "extra"),
+            "no root": ("--worker",),
+        }.items():
+            with self.subTest(name):
+                self.worker(*arguments).assert_not_called()
+
+    def test_a_root_that_stops_qualifying_mid_drain_is_not_updated_again(self):
+        """Each request is a full update, and a worker can serve many: a
+        link, a checkout of another repository or a removed index landing
+        after the first is caught before the second."""
+        def lose_the_index(root):
+            (root / INDEX).unlink()
+
+        def leave_the_repository(root):
+            (root / ".git").write_text(
+                f"gitdir: {self.apart('elsewhere') / '.git'}\n", encoding="utf-8")
+
+        main = self.checkout("main")
+        for slug, change in {"index": lose_the_index,
+                             "repository": leave_the_repository}.items():
+            with self.subTest(slug):
+                self.ran.clear()
+                root = self.linked(main, name=slug)
+                self.index(root)
+
+                def update_and_change(*arguments, **keywords):
+                    self.ran.append((arguments, keywords))
+                    change(root)
+                    self.mod.request(root)
+                    return _Completed(0)
+
+                self.patch(mock.patch.object(
+                    self.mod.subprocess, "run", side_effect=update_and_change))
+                self.mod.request(root)
+                self.mod.work(root)
+
+                self.assertEqual(1, len(self.ran))
 
 
 class StateOutOfReach(Base):
