@@ -35,7 +35,9 @@
       "Edit(**/*.config.mts)",
       "Edit(node_modules/**)",
       "Edit(./node_modules/**)",
-      "Bash(git *--no-index*)"
+      "Bash(git *--no-index*)",
+      "Bash(gh pr merge:*)",
+      "Bash(git worktree remove:*)"
     ],
     "hooks": {}
   },
