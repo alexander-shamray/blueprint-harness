@@ -358,26 +358,31 @@ def holds_crlf(path):
         return False
 
 
-def path_which(name):
-    """The first executable `name` on PATH, never one in the current directory, or None.
+def resolved(path):
+    return os.path.normcase(os.path.realpath(path))
 
-    shutil.which looks in the current directory first on Windows, where a merged change could plant git.cmd. Copied
-    from dispatch_board because a hook runs on every Bash call and imports nothing of the dispatcher's."""
-    here = os.path.normcase(os.path.realpath(os.getcwd()))
-    if os.name == "nt":
-        exts = [e for e in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(os.pathsep) if e]
-        names = [name] if os.path.splitext(name)[1].upper() in (e.upper() for e in exts) else [name + e for e in exts]
-    else:
-        names = [name]
-    for directory in os.environ.get("PATH", "").split(os.pathsep):
-        if directory in ("", ".") or os.path.normcase(os.path.realpath(directory)) == here:
+
+def inside(path, tree):
+    return path == tree or path.startswith(os.path.join(tree, ""))
+
+
+def git_on_path(cwd):
+    """git found on PATH alone, as a full path, or None.
+
+    Absolute PATH entries, nothing at or below where the session stands, and on Windows only `.exe` or `.com`:
+    `docs/harness-boundaries.md`, *The sed line-ending guard*."""
+    fenced = [resolved(tree) for tree in (os.getcwd(), cwd, os.environ.get("CLAUDE_PROJECT_DIR")) if tree]
+    names = ("git.exe", "git.com") if os.name == "nt" else ("git",)
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        directory = entry.strip('"')
+        if not os.path.isabs(directory) or any(inside(resolved(directory), tree) for tree in fenced):
             continue
-        for candidate in names:
-            path = os.path.join(directory, candidate)
-            if os.path.isfile(path) and os.access(path, os.X_OK):
-                real = os.path.normcase(os.path.realpath(path))
-                if real != here and not real.startswith(here + os.sep):
-                    return path
+        for name in names:
+            path = os.path.join(directory, name)
+            if not (os.path.isfile(path) and os.access(path, os.X_OK)):
+                continue
+            if not any(inside(resolved(path), tree) for tree in fenced):
+                return path
     return None
 
 
@@ -415,7 +420,7 @@ def offence(event, strips_cr=os.name == "nt"):
         return None
     cwd = event.get("cwd")
     cwd = cwd if isinstance(cwd, str) and cwd else os.getcwd()
-    return judge(command, cwd, path_which("git"), [0], 0)
+    return judge(command, cwd, git_on_path(cwd), [0], 0)
 
 
 def judge(command, cwd, git, checked, depth):
