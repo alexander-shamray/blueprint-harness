@@ -132,7 +132,11 @@ It is the interview's because only the owner can take the work on, and no
 answer lifts it, since an answer attaches to an issue whose author can rewrite
 it afterwards. So the owner files the work as their own, in their own words,
 and closes the original; on a `--berserk` run, which asks nothing, the row
-stays where it is and *Left in the backlog* names it.
+stays where it is and *Left in the backlog* names it. Such a row takes a group
+of its own, so it holds no owner's row back: after the `board` that first shows
+it at the rebuild, and at the night's placement, which has no `board` before
+it, for every issue but those an executor filed, since any other may be a
+stranger's.
 
 When the night starts the owner is told how to stop it, that no other
 session may write the task list, and how to watch an executor: `wake` and
@@ -313,8 +317,9 @@ pair or a `$(…)` inside double quotes, on a line a prefix grant has already
 approved. So it reaches the helpers as files under the run, written with the
 `artifacts/dispatch/` grant: `run` reads `<g>.task.txt` and takes no text
 argument, which also keeps a relaunch's task the first launch's, and `tasks
-place` reads `place-<n>.json`. `--refused` carries the helper's own line, in
-single quotes. `guard-helper-argv.py` is the backstop for a session that spells
+place` reads `place-<n>.json`. The task is written before `tasks move`, so a
+resumed night finds it wherever the dispatcher stopped. `--refused` carries
+the helper's own line, in single quotes. `guard-helper-argv.py` is the backstop for a session that spells
 any of them otherwise (`docs/harness-boundaries.md`, *Prefix grants and
 wildcard denies*).
 
