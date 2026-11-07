@@ -219,6 +219,18 @@ never answered with the `cwd`, which names a tree the edit did not touch. The
 worker is handed its root as an argument and runs for as long as edits keep
 arriving, so it judges the root again at its entry and before every update.
 
+**The lock is the worker's, and the indexer it starts is not.** A worker
+killed mid-update frees the lock while the indexer goes on writing the cache,
+and the next edit would start a second beside it. So the worker writes its own
+pid into the lock file, through the handle that holds the lock, before it
+starts the CLI, the CLI's once it exists, and nothing once the CLI is known to
+be gone: reaped after a kill, not merely asked to end. A worker that takes the
+lock and finds a live process recorded leaves the tree to it, and the marker
+stays for the next edit. Whether a pid is live is asked of the system without
+starting anything, `kill(pid, 0)` on POSIX and `OpenProcess` with the exit
+code on Windows, where `os.kill` would end the process. Where it cannot be
+told, the process counts as running: one skipped refresh, never two indexers.
+
 **The CLI is found on `PATH` alone, and the answer is a full path, so the
 operating system searches nothing.** A `PATH` entry naming a checkout is the
 bare name's hole by another route, so the lookup takes absolute entries only,

@@ -46,8 +46,10 @@ NO_CWD_SEARCH = "NODEFAULTCURRENTDIRECTORYINEXEPATH"
 # The files SQLite opens by name beside a database.
 SIDECARS = ("-wal", "-shm", "-journal")
 
-# An update that cannot finish is not allowed to hold the lock for ever.
+# An update that cannot finish is not allowed to hold the lock for ever, and
+# one that will not end when killed is waited on this long and then left.
 REFRESH_TIMEOUT = 600
+REAP_TIMEOUT = 30
 
 # A failed update is retried, because the failure worth retrying is the one
 # this lock cannot prevent: the CLI errors rather than waits when another
@@ -444,12 +446,77 @@ def console_script(root: Path) -> str | None:
     return None
 
 
-def refresh(root: Path) -> bool:
+def note(handle, text: str) -> None:
+    """Make `text` the whole of the lock file, through the handle that holds
+    the lock, so the record lives and dies with the lock."""
+    if handle is None:
+        return
+    try:
+        handle.seek(0)
+        handle.truncate()
+        handle.write(text.encode("ascii"))
+        handle.flush()
+    except OSError:
+        pass
+
+
+def alive(pid: int) -> bool:
+    """Whether a process with this id is running, and for any doubt, yes: one
+    skipped refresh costs less than two indexers on one cache."""
+    if pid <= 0:
+        return False
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.OpenProcess.argtypes = [ctypes.c_ulong, ctypes.c_int, ctypes.c_ulong]
+            kernel32.OpenProcess.restype = ctypes.c_void_p
+            kernel32.GetExitCodeProcess.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
+            kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+            # PROCESS_QUERY_LIMITED_INFORMATION; access denied is a process
+            # that exists, and invalid parameter is one that does not.
+            process = kernel32.OpenProcess(0x1000, False, pid)
+            if not process:
+                return ctypes.get_last_error() != 87
+            try:
+                code = ctypes.c_ulong()
+                if not kernel32.GetExitCodeProcess(process, ctypes.byref(code)):
+                    return True
+                return code.value == 259
+            finally:
+                kernel32.CloseHandle(process)
+        except (OSError, AttributeError, ValueError):
+            return True
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+    return True
+
+
+def running_indexer(handle) -> int | None:
+    """The pid the lock file records, when that process is still running: the
+    lock ends with its worker, and the indexer it started does not."""
+    if handle is None:
+        return None
+    try:
+        handle.seek(0)
+        recorded = handle.read().decode("ascii", "replace").strip()
+    except OSError:
+        return None
+    if not recorded.isdigit() or int(recorded) == os.getpid():
+        return None
+    return int(recorded) if alive(int(recorded)) else None
+
+
+def refresh(root: Path, handle=None) -> bool:
     """One update, waited on and answered, because the streams are gone.
 
     The script by its full path, then the module through this interpreter:
-    `docs/harness-boundaries.md`, *Index refresh and worktree seeding*.
-    """
+    `docs/harness-boundaries.md`, *Index refresh and worktree seeding*. The
+    indexer's pid goes in the lock's `handle` and is cleared once it is gone."""
     environment = dict(os.environ, CBX_NO_SKILL_AUTO_UPDATE="1", PYTHONSAFEPATH="1",
                        **{NO_CWD_SEARCH: "1"})
     script = console_script(root)
@@ -457,40 +524,60 @@ def refresh(root: Path) -> bool:
         *([[script, "update"]] if script else []),
         [sys.executable, "-P", "-m", "codebase_index", "update"],
     ):
+        note(handle, str(os.getpid()))
         try:
-            done = subprocess.run(
+            child = subprocess.Popen(
                 command, cwd=str(root), env=environment,
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL, timeout=REFRESH_TIMEOUT, check=False)
-            return done.returncode == 0
+                stderr=subprocess.DEVNULL)
         except OSError:
             continue
+        note(handle, str(child.pid))
+        try:
+            finished = child.wait(timeout=REFRESH_TIMEOUT) == 0
         except subprocess.TimeoutExpired:
-            return False
+            finished = False
+            try:
+                child.kill()
+            except OSError:
+                pass
+        # Reaped before the record is cleared, and left on it if the child
+        # outlives the wait: the next worker stands off until it is gone.
+        try:
+            child.wait(timeout=REAP_TIMEOUT)
+        except (OSError, subprocess.SubprocessError):
+            return finished
+        note(handle, "")
+        return finished
+    note(handle, "")
     return False
 
 
-def refreshed(root: Path) -> bool:
+def refreshed(root: Path, handle=None) -> bool:
     """One request's update, tried again while it keeps failing.
 
     The pause is what makes a retry worth anything: an update that answered
     a contended index answers the same one immediately afterwards.
     """
     for attempt in range(REFRESH_ATTEMPTS):
-        if refresh(root):
+        if refresh(root, handle):
             return True
         if attempt + 1 < REFRESH_ATTEMPTS:
             time.sleep(RETRY_PAUSE)
     return False
 
 
-def drain(root: Path) -> bool | None:
+def drain(root: Path, handle=None) -> bool | None:
     """Every outstanding request, refreshed; false when one was given up on,
     None when a marker would not go. A failed request is put back so the next
     worker carries its edit, and returning keeps that from spinning against a
     broken install. A root that no longer qualifies is left without an update
     and without that."""
     while True:
+        # Before every marker: an indexer that outlived its kill leaves its
+        # pid on the record, and this worker must not start another beside it.
+        if running_indexer(handle) is not None:
+            return False
         taken = take_request(root)
         if taken is None:
             return None
@@ -498,7 +585,7 @@ def drain(root: Path) -> bool | None:
             return True
         if not (same_repository(root) and written(root)):
             return False
-        if not refreshed(root):
+        if not refreshed(root, handle):
             request(root)
             return False
 
@@ -517,8 +604,10 @@ def work(root: Path) -> int:
         with handle:
             if not grab(handle):
                 return 0
+            if running_indexer(handle) is not None:
+                return 0
             seed(root)
-            drained = drain(root)
+            drained = drain(root, handle)
             if drained is False:
                 return 0
         if drained is None:
