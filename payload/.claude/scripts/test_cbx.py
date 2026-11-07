@@ -295,6 +295,35 @@ class CbxWrapper(unittest.TestCase):
             self.assertIn("no Python 3.12", out.stderr)
             self.assertNotIn("MODULE", out.stdout)
 
+    def test_a_fallback_whose_own_probe_fails_is_not_taken(self):
+        """The gate's probe asks for 3.12 alone and the fallback's for 3.12
+        with the package, so an interpreter passing the first and failing the
+        second is judged by the fallback's own check."""
+        with tempfile.TemporaryDirectory(prefix="cbx-py-nopkg-") as fake:
+            py = Path(fake) / "python3"
+            py.write_text(
+                "#!/bin/sh\n"
+                "while [ \"$1\" = \"-P\" ] || [ \"$1\" = \"-I\" ]; do shift; done\n"
+                "case \"$1\" in *gate-index.py) exit 0 ;; esac\n"
+                "if [ \"$1\" = \"-c\" ]; then\n"
+                "  case \"$2\" in\n"
+                "    *codebase_index*) exit 1 ;;\n"
+                "    *'version_info[:2] == (3, 12)'*) exit 0 ;;\n"
+                "  esac\n"
+                "  exit 1\n"
+                "fi\n"
+                "if [ \"$1\" = \"-m\" ]; then echo MODULE; exit 0; fi\n"
+                "exit 1\n",
+                encoding="utf-8")
+            py.chmod(py.stat().st_mode | stat.S_IEXEC)
+            env = {**os.environ, "PATH": fake}
+            out = subprocess.run(
+                [_bash(), str(CBX), "search", "X"],
+                capture_output=True, text=True, encoding="utf-8", env=env)
+            self.assertEqual(127, out.returncode, out.stderr)
+            self.assertIn("not on PATH", out.stderr)
+            self.assertNotIn("MODULE", out.stdout)
+
     def test_wrappers_guard_and_skill_share_one_allow_list(self):
         bash = re.search(
             r'(?m)^ALLOWED="([^"]+)"', self.uncommented(CBX))
