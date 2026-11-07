@@ -851,8 +851,9 @@ command through its config. It runs the five guards and nothing else.
   first candidate working leaves an empty directory,
   `.claude/cache/run-guard.<candidate>`, beside the launcher of the checkout
   `CLAUDE_PROJECT_DIR` names, and a later call that finds it skips the probe;
-  a session started in a new worktree pays its own first probe. The mark is never opened: a session can make one, so it holds
-  nothing that could name a program, and a forged one buys a skipped probe of
+  a session started in a new worktree pays its own first probe. The mark is
+  never opened: a session can make one, so it holds nothing that could name
+  a program, and a forged one buys a skipped probe of
   the program the probe would have run. Only the candidate probed first is
   remembered, so a host whose first candidate fails pays the probe every call.
 - **A remembered candidate runs `run-guard.py`, as a child, and is believed
