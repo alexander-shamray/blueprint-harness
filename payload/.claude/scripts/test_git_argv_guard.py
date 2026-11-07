@@ -3393,6 +3393,25 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
 
+    def test_xargs_cannot_supply_a_push(self):
+        for command in (
+            "echo +HEAD:main | xargs git push origin some-branch",
+            "echo +HEAD:main | xargs -n9 git push origin some-branch",
+            "echo main | xargs -I{} git -C sub push origin {}",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command)
+        # The reader allow-list stays out: `xargs` was typed 54 times.
+        for command in (
+            "git ls-files | xargs wc -l", "git log --oneline | xargs echo",
+            "git ls-files | xargs py -3.12 tools/x.py",
+            "git ls-files -z | xargs -0 rm -f", "ls | xargs git log",
+            "echo xargs git push origin +HEAD:main",
+            "grep -rn 'xargs git push' docs",
+        ):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
     def test_the_hook_directory_is_a_control_surface_and_is_denied(self):
         # It grants nothing, but it RUNS on every Bash call, so a session able
         # to rewrite it could delete its own guard and then act. `CLAUDE.md`
