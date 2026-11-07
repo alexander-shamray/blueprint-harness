@@ -293,6 +293,15 @@ class IssueHelperHasNoFreeParameter(unittest.TestCase):
             with self.subTest(entry=name, args="short"):
                 self.assert_refused_before_gh(self.run_entry(name, "bug", "low", body=self.STDIN))
 
+    def test_the_entry_points_offer_no_kind_they_cannot_file(self):
+        # An enhancement files under the request route alone, which neither entry point spells.
+        for name in ("gh-issue-sweep.sh", "gh-issue-hand.sh"):
+            with self.subTest(entry=name):
+                result = self.run_entry(name)
+                self.assertEqual(2, result.returncode)
+                self.assertIn(f"usage: {name} <security|bug|test-gap>", result.stderr)
+                self.assertNotIn("enhancement", result.stderr)
+
     def test_each_entry_point_files_one_route_and_refuses_the_other_trailer(self):
         # The positive controls come first in each pair: an entry point that refused everything would satisfy
         # the refusals.
