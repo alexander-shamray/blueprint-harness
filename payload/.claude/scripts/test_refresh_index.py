@@ -901,6 +901,26 @@ class TheWorkerJudgesItsRoot(Base):
 
                 self.assertEqual(1, len(self.ran))
 
+    def test_an_index_lost_while_a_retry_waits_is_not_built(self):
+        """The pause before a retry is long enough for the index to go, and an
+        update then would build one the checkout never asked for."""
+        root = self.checkout("main")
+
+        def fail_and_lose_the_index(*arguments, **keywords):
+            self.ran.append((arguments, keywords))
+            (root / INDEX).unlink(missing_ok=True)
+            return _Child(1)
+
+        self.patch(mock.patch.object(
+            self.mod.subprocess, "Popen", side_effect=fail_and_lose_the_index))
+        self.patch(mock.patch.object(self.mod.time, "sleep", lambda _pause: None))
+        self.mod.request(root)
+
+        self.mod.work(root)
+
+        self.assertEqual(1, len(self.ran))
+        self.assertFalse(self.mod.pending_path(root).exists())
+
 
 class StateOutOfReach(Base):
     """The lock and the marker are the hook's own writes, so they live where
