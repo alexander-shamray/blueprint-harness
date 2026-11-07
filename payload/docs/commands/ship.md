@@ -487,6 +487,19 @@ form that refuses a dirty tree.
 
 ## Step 0: the teardown
 
+**The teardown reads `main`'s ahead state itself, with `git status -sb`.**
+After `ExitWorktree` nothing has read `main`, and the pull's guard is a read of
+exactly that, so without a line that makes it the ahead case goes unread: the
+pull succeeds or reports nothing to do, step 1 forks from `origin/main`, and
+the local commits sit outside the pull request with nothing saying so. The
+status line carries the `ahead` count and the dirty marker together, which is
+the pair the guard below needs. It is not the finished predicate, which asks
+whether a branch has landed; this asks whether the checkout holds commits
+`origin/main` does not, which no landing method changes. A log range over
+`origin/main..HEAD` would also answer, and `RETIRED_READS` in
+`test_ship_landing_method.py` refuses it as a content comparison, so the
+status line is the read.
+
 **Both Stay rows leave the session off `main`**, and one of them leaves it
 outside the main checkout entirely. Prune and list are safe from anywhere in
 the repository, which is why they are unguarded; the pull is the only line
