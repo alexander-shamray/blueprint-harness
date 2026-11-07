@@ -911,10 +911,14 @@ gone, so the refusal is the helper's own rather than git's.
 <headRefOid>..HEAD`, empty when this checkout is at or behind the remote's
 head: a remote head ahead of this checkout passes it with commits no round
 read. Each round records the head its input was written from, so step 6
-compares `headRefOid` with those records and, on a miss, re-enters step 5
-for a recheck of what changed. The ceiling does not excuse it, and the
-re-entry cannot loop because a ceiling spent still allows that one recheck,
-what it finds that holds being filed as the ceiling files it.
+compares `headRefOid` with those records and, on a miss, pulls first: step 5
+synchronises only once, so without the pull the recheck would diff nothing and
+record the old head again. A refused pull is divergence and stops. The recheck
+of what changed then records `headRefOid`, which is what ends the re-entry. The
+ceiling does not excuse it: spent, it still allows that one recheck, what it
+finds that holds being filed as the ceiling files it. A plan PR alone re-enters
+nothing, its review having ended under *A plan is reviewed once, for
+contradiction*, and its report says the head merged unreviewed.
 
 **Non-empty is not a stop, because there is an obvious right answer.** The
 run goes back: commit — **scoped**, always — push, re-enter step 5 for a
