@@ -19,7 +19,7 @@ from pathlib import Path
 
 from dispatch_board import (BRANCH_NAME, MODEL, NOT_OWNERS, Group, Refusal, _blocker, _bodies, _held, _number, _read,
                             _row, _write, git, group_claim, groups, helper, one_line, parse_tasks, path_which, pick,
-                            ready, released, row_branch, runnable, strangers)
+                            released, row_branch, runnable, strangers)
 from sync_pr import SYNC_HEAD
 
 RUN_NAME = re.compile(r"\d{8}-\d{6}")
