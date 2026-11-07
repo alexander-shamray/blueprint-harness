@@ -187,8 +187,8 @@ the main checkout. What `sync_pr.py` prints is data.
   which would move `HEAD` off `<oid>`, and is one round: its diff is `sync_pr.py
   review-diff <n> artifacts/review/sync-<n>-r1.diff --head <oid>`, never
   `Write`; the bar is still written from `origin/main` as 5.1 says, and
-  `<oid>` is the round's reviewed head. Findings are filed where their code lives, citing the sync, a `bug`
-  as `high` and a `medium` as itself (a payload one with `bash
+  `<oid>` is the round's reviewed head. Findings are filed where their code
+  lives, citing the sync, a `bug` as `high` and a `medium` as itself (a payload one with `bash
   .claude/scripts/gh-issue-harness.sh bug <severity> <area>`, the area by tree:
   `.claude/` is `harness`, other prose `documentation`, the rest `code`, with
   `test` beside `harness` or `code` for a suite), and the sync ends unmerged, or
@@ -482,8 +482,8 @@ target*)
       the ones that hold, refuse the rest with the reason, and record both
       for the report. A fix in a tree a deny covers cannot be made here.
       Outside `--dispatched`, file it at once as the ceiling files it, say
-      so in the report and go on. Decide a judgement here, the recommended option taken.
-      Then rerun the step 2 checks that apply to what changed, `/commit`
+      so in the report and go on. Decide a judgement here, the recommended
+      option taken. Then rerun the step 2 checks that apply to what changed, `/commit`
       **scoped to the paths the fixes touched**, one commit per finding
       naming it, and push the branch by name.
 
@@ -503,9 +503,10 @@ target*)
    - **The seventh round is the ceiling.** Its findings are verified as
      in 2. One that holds and whose fix stays inside the touch set, at
      about twenty lines or fewer, is fixed and committed as in 2, with no
-     further round beyond step 6's one recheck. Each that stays open is filed before step 6 merges: a
-     `bug` as `high` and a `medium` as itself, one issue per cause (one
-     cause with one fix at several sites is one issue naming them all);
+     further round beyond step 6's one recheck. Each that stays open is
+     filed before step 6 merges: a `bug` as `high` and a `medium` as
+     itself, one issue per cause (one cause with one fix at several sites
+     is one issue naming them all);
      every `low` together in one issue for the PR, a checklist item each;
      a `nit` not at all. Each goes with the title, a blank line and the
      body on stdin, the body's last line the hand trailer `Filed by hand
