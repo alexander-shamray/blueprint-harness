@@ -506,7 +506,8 @@ def running_indexer(handle) -> int | None:
         recorded = handle.read().decode("ascii", "replace").strip()
     except OSError:
         return None
-    if not recorded.isdigit() or int(recorded) == os.getpid():
+    # A record that is no pid, or one no system call takes, names nothing.
+    if not recorded.isdigit() or not 0 < int(recorded) < 2**31 or int(recorded) == os.getpid():
         return None
     return int(recorded) if alive(int(recorded)) else None
 

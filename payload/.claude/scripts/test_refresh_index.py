@@ -1050,7 +1050,7 @@ class TheIndexerAKilledWorkerLeftBehind(Base):
         root = self.checkout("main")
         gone = self.start_process([sys.executable, "-c", "pass"])
         gone.wait(timeout=60)
-        for text in ("", "not a pid", str(gone.pid)):
+        for text in ("", "not a pid", "0", "99999999999999999999", str(gone.pid)):
             with self.subTest(record=text):
                 self.record(root, text)
                 self.mod.request(root)
