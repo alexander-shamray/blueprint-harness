@@ -12,7 +12,6 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -22,6 +21,7 @@ from review_helpers import (
     SETTINGS,
     run_bash,
     setUpModule,
+    temp_root,
 )
 
 
@@ -3480,8 +3480,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
     """
 
     def setUp(self):
-        self.root = tempfile.mkdtemp(prefix="argv-write-")
-        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        self.root = temp_root(self)
         for tree in (".git", ".claude", "docs", "notes", "payload", "staging"):
             os.makedirs(os.path.join(self.root, tree))
 
@@ -3531,8 +3530,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
 
     def hook_denying(self, *denies):
         """A copy of this guard whose checkout's settings carry `denies`."""
-        owner = tempfile.mkdtemp(prefix="argv-owner-")
-        self.addCleanup(shutil.rmtree, owner, ignore_errors=True)
+        owner = temp_root(self)
         os.makedirs(os.path.join(owner, ".claude", "hooks"))
         hook = shutil.copy(HOOK, os.path.join(owner, ".claude", "hooks"))
         with open(os.path.join(owner, ".claude", "settings.json"), "w", encoding="utf-8") as handle:
@@ -3600,8 +3598,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
     def test_a_scratch_checkout_the_session_is_not_in_is_not_this_targets(self):
         # Mutation proofs copy into one and `sed -i` there, and no deny of this
         # target is about it: eight commands in the replay did.
-        scratch = tempfile.mkdtemp(prefix="argv-scratch-")
-        self.addCleanup(shutil.rmtree, scratch, ignore_errors=True)
+        scratch = temp_root(self)
         os.makedirs(os.path.join(scratch, ".git"))
         place = Path(scratch, ".claude", "scripts").as_posix()
         self.admitted(f"cp notes/x {place}/", f"ls > {place}/x.sh",
@@ -3640,7 +3637,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         # `> "$var…"` was typed 523 times, and a value set here is not this
         # process's, so neither is judged.
         self.admitted('ls > "$out"', "ls > $1", 'ls > "$dir/.claude/settings.json"',
-                      "ls > $(mktemp -d)/out", "F=.claude/settings.json; ls > $F",
+                      "ls > $(make-scratch)/out", "F=.claude/settings.json; ls > $F",
                       "HOME=/x; ls > $HOME/.claude/settings.json",
                       "ls > ~other/.claude/settings.json",
                       'cp "$a" "$b"', 'mv "$a" "$b"', 'rm -f "$out"', 'tee "$log"',
