@@ -1128,6 +1128,25 @@ class TheIndexerAKilledWorkerLeftBehind(Base):
         child.kill.assert_called_once()
         self.assertEqual([str(os.getpid()), "4242"], notes)
 
+    def test_a_retry_does_not_start_an_indexer_beside_one_that_survived(self):
+        """The survivor's pid is the record, and a retry that overwrote it
+        with the worker's own would start a second indexer beside it."""
+        root = self.checkout("main")
+        survivor, _stop = self.child()
+        started = mock.Mock(pid=survivor.pid)
+        started.wait.side_effect = subprocess.TimeoutExpired("codebase-index", 1)
+        start = mock.Mock(return_value=started)
+        handle = self.hold(root)
+        self.patch(mock.patch.object(self.mod, "console_script", lambda _root: None))
+        self.patch(mock.patch.object(self.mod.time, "sleep", lambda _pause: None))
+        self.patch(mock.patch.object(self.mod.subprocess, "Popen", start))
+
+        self.assertFalse(self.mod.refreshed(root, handle))
+
+        self.assertEqual(1, start.call_count)
+        handle.seek(0)
+        self.assertEqual(str(survivor.pid).encode(), handle.read())
+
 
 class Refreshing(Base):
     def test_the_call_is_the_cli_with_auto_update_off(self):

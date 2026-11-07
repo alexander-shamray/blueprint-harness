@@ -561,6 +561,10 @@ def refreshed(root: Path, handle=None) -> bool:
     a contended index answers the same one immediately afterwards.
     """
     for attempt in range(REFRESH_ATTEMPTS):
+        # An indexer that outlived its kill is on the record, and an attempt
+        # would overwrite that and start a second beside it.
+        if running_indexer(handle) is not None:
+            return False
         if refresh(root, handle):
             return True
         if attempt + 1 < REFRESH_ATTEMPTS:
