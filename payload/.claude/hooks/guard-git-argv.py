@@ -171,8 +171,7 @@ def edit_denies():
     """This target's `Edit(...)` deny paths, root-relative and folded.
 
     `.claude/settings.json` is the one list, so `.github` is protected only
-    where a target denies it. `/x` is the project root's; `//x` and `~/x` name
-    no checkout path.
+    where a target denies it; `/x` is the root's, and `//x` and `~/x` no path.
     """
     with open(SETTINGS, encoding="utf-8") as handle:
         rules = json.load(handle).get("permissions", {}).get("deny", [])
@@ -186,9 +185,8 @@ def edit_denies():
 def denied_path(relative, whole=False):
     """The deny that holds `relative`, a path from a checkout's root, or `None`.
 
-    Anchored at the root and folded, so `payload/.claude/hooks/x` and
-    `.claude/worktrees/x` are not protected and `.CLAUDE/hooks/x` is. `whole`
-    is a write to the tree itself, so a parent of a deny's literal prefix counts.
+    Anchored at the root and folded: `.CLAUDE/hooks/x` is held, `.claude/worktrees/x`
+    is not. With `whole`, a write to a tree, a parent of a deny's prefix counts.
     """
     parts = [part for part in re.split(r"[\\/]+", relative)
              if part not in ("", ".")]
