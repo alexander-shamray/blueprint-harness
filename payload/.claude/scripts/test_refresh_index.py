@@ -14,6 +14,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -699,6 +700,57 @@ class OneRefreshAtATime(Base):
 
         self.assertEqual(
             [self.mod.RETRY_PAUSE] * (self.mod.REFRESH_ATTEMPTS - 1), pauses)
+
+    def work_apart(self, root, bound=15):
+        """`work` on a thread, so a worker that spins fails here and does not
+        hold the run."""
+        worker = threading.Thread(target=self.mod.work, args=(root,), daemon=True)
+        worker.start()
+        worker.join(bound)
+        return worker
+
+    def test_a_marker_that_never_goes_costs_a_bounded_number_of_tries(self):
+        """A marker that is there and cannot be taken is not an absent one:
+        read as absent, the worker looked, found the file, took the lock
+        and looked again, for ever."""
+        root = self.checkout("main")
+        self.mod.request(root)
+        with mock.patch.object(self.mod, "take_request", return_value=None) as take, \
+                mock.patch.object(self.mod.time, "sleep") as sleep:
+            worker = self.work_apart(root)
+
+        self.assertFalse(worker.is_alive(), "the worker is spinning on the marker")
+        self.assertEqual([], self.ran)
+        self.assertEqual(self.mod.MARKER_RETRIES + 1, take.call_count)
+        self.assertEqual(self.mod.MARKER_RETRIES, sleep.call_count)
+        self.assertFalse(self.mod.busy(root), "the lock was kept")
+
+    def test_a_directory_where_the_marker_goes_costs_the_same(self):
+        root = self.checkout("main")
+        self.mod.pending_path(root).mkdir(parents=True)
+        self.patch(mock.patch.object(self.mod.time, "sleep", lambda _pause: None))
+
+        worker = self.work_apart(root)
+
+        self.assertFalse(worker.is_alive(), "the worker is spinning on the marker")
+        self.assertEqual([], self.ran)
+
+    @unittest.skipUnless(sys.platform == "win32", "only Windows refuses to remove an open file")
+    def test_a_marker_the_hook_holds_open_is_served_when_it_is_closed(self):
+        """The hook has the marker open while it makes it, and Windows
+        refuses the worker's removal until it lets go."""
+        root = self.checkout("main")
+        self.mod.request(root)
+        handle = open(self.mod.pending_path(root), "a", encoding="ascii")
+        self.addCleanup(handle.close)
+        closer = threading.Timer(0.3, handle.close)
+        self.addCleanup(closer.cancel)
+        closer.start()
+
+        self.mod.work(root)
+
+        self.assertEqual(1, len(self.ran))
+        self.assertFalse(self.mod.pending_path(root).exists())
 
     def test_a_worker_that_cannot_take_the_lock_does_nothing(self):
         """Its marker belongs to whoever holds the lock, and taking it would
