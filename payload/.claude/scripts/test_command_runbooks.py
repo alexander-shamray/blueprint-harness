@@ -34,6 +34,14 @@ RESIDENT = {
 }
 
 CITATION = re.compile(r"docs/commands/([a-z-]+\.md)`?, \*([^*]+)\*")
+# A `(why:` that opens on a docs/commands argument, the one form CITATION parses; others cite the boundaries.
+OPENING = re.compile(r"\(why: `?docs/commands/")
+INDEX_ROW = re.compile(r"^\| (?P<name>[^|]+?) \| ")
+
+
+def missing_ceilings(arguments, *maps):
+    """The argument files no ceiling map holds, so a command split tomorrow cannot escape its ceiling."""
+    return sorted(name for name in arguments if not any(name in held for held in maps))
 POSITIONAL = re.compile(r"\$\d+|\$ARGUMENTS\[")
 
 
@@ -42,6 +50,9 @@ def collapsed(path):
 
 
 class EachSplitCommandHasBothHalves(unittest.TestCase):
+
+    # A target's own split commands carry their ceilings in a map of its own, which its suite names here.
+    OWN_CEILINGS = {}
 
     def argued(self):
         names = sorted(p.name for p in ARGUMENTS.glob("*.md"))
@@ -55,6 +66,25 @@ class EachSplitCommandHasBothHalves(unittest.TestCase):
                 runbook = COMMANDS / name
                 self.assertTrue(runbook.is_file(), f"no runbook for docs/commands/{name}")
                 self.assertIn(f"docs/commands/{name}", collapsed(runbook))
+
+    def test_every_argument_has_a_ceiling(self):
+        self.assertEqual([], missing_ceilings(self.argued(), CEILINGS, self.OWN_CEILINGS))
+
+    def test_an_argument_no_map_holds_is_found_and_a_targets_own_map_admits_it(self):
+        self.assertEqual(["own.md"], missing_ceilings(["ship.md", "own.md"], CEILINGS, {}))
+        self.assertEqual([], missing_ceilings(["ship.md", "own.md"], CEILINGS, {"own.md": 1}))
+        self.assertEqual(["ship.md"], missing_ceilings(["ship.md"], {}, {}))
+
+    def test_every_runbook_cites_and_every_citation_parses(self):
+        # Per runbook, because the global count below is met by one file's citations: a runbook that lost every
+        # `(why:` or wrote one CITATION does not match would stay green. Each opening claims a section argues the rule.
+        for name in sorted(set(CEILINGS) | set(self.OWN_CEILINGS)):
+            with self.subTest(command=name):
+                text = collapsed(COMMANDS / name)
+                openings = len(OPENING.findall(text))
+                parsed = len(CITATION.findall(text))
+                self.assertGreater(openings, 0, f"{name} cites no docs/commands section")
+                self.assertEqual(openings, parsed, f"{name} has {openings} openings but {parsed} parse as citations")
 
     def test_every_citation_names_a_heading_that_exists(self):
         cited = 0
@@ -201,6 +231,35 @@ class BranchChangesADerivedNameByASecondBranch(unittest.TestCase):
     def test_the_pattern_sees_the_offer(self):
         self.assertIsNotNone(self.OFFERED_AS_FREE.search("`git branch -m <better-name>` is free until `/pr` pushes"))
         self.assertIsNotNone(self.OFFERED_AS_FREE.search("`git branch -m <better-name>` costs nothing until then"))
+
+
+class TheBoundariesIndexMatchesItsHeadings(unittest.TestCase):
+    """`docs/harness-boundaries.md` opens with an index of its sections, and nothing else held the two together."""
+
+    DOC = ROOT / "docs" / "harness-boundaries.md"
+
+    def parts(self):
+        lines = self.DOC.read_text(encoding="utf-8").splitlines()
+        fenced, headings = False, []
+        for line in lines:
+            fenced = fenced != line.startswith("```")
+            if not fenced and line.startswith("## "):
+                headings.append(line[3:].strip())
+        # The index heading is the one section with no row of its own, and its first table row is the column header.
+        self.assertEqual("Index", headings[0], "the file no longer opens with its index")
+        start = lines.index("## Index")
+        stop = next(i for i, line in enumerate(lines) if i > start and line.startswith("## "))
+        rows = [m["name"] for m in map(INDEX_ROW.match, lines[start:stop]) if m][1:]
+        return headings[1:], rows
+
+    def test_the_file_has_headings_and_an_index_to_hold_them_to(self):
+        headings, rows = self.parts()
+        self.assertTrue(headings, "no `## ` heading was found to judge")
+        self.assertTrue(rows, "no index row was found under `## Index`")
+
+    def test_every_heading_is_an_index_row_in_order_and_every_row_a_heading(self):
+        headings, rows = self.parts()
+        self.assertEqual(headings, rows, "the index and the `## ` headings differ")
 
 
 class ShipWaitsForCiInTheBackground(unittest.TestCase):
