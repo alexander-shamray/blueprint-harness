@@ -112,8 +112,9 @@ while IFS= read -r raw || [ -n "$raw" ]; do
   [[ "$raw" =~ ^\ \ -\ \'([^\']+)\'[[:space:]]*$ ]] && [ -n "$member" ] ||
     refuse "classes.yml has a line outside its grammar"
   item=${BASH_REMATCH[1]}
-  # An item takes the gate's token checks, since an unchecked one widens a
-  # class here that the gate refuses: `docs/a,docs/b` would admit `docs/admin`.
+  # An item takes the touch-set token checks, since an unchecked one widens a
+  # class: `docs/a,docs/b` would admit `docs/admin`. A target's own gate may
+  # admit fewer characters than this grammar does.
   grep -Eq '^[A-Za-z0-9_./*?{},()@+-]+$' <<<"$item" && [[ "$item" == *[/.]* ]] ||
     refuse "classes.yml has an item that is not a path token"
   depth=0
