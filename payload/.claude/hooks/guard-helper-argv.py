@@ -13,8 +13,8 @@ from pathlib import Path
 INDEX_GUARD = Path(__file__).with_name("guard-index-argv.py")
 REASON = (
     "a command substitution in a command that runs a helper is refused: its prefix grant matches the typed string "
-    "while the shell still runs `$(…)` and backticks, inside double quotes too. Put issue text in the file the helper "
-    "reads, or in single quotes with each embedded quote written as '\\''; a pull request's body goes in --body-file. "
+    "while the shell still runs `$(…)` and backticks, inside double quotes too. Put issue text in the file the "
+    "helper reads, or in single quotes with each embedded quote written as '\\''; a pull request's body goes in --body-file. "
     "A value another command computes is a run of its own, read and then spelled on the helper's line."
 )
 

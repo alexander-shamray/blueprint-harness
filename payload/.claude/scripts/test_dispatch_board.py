@@ -1091,7 +1091,8 @@ class OnlyTheOwnersIssuesRun(unittest.TestCase):
         self.assertEqual((False, "owed, not filed"), db.runnable(group, frozenset(), set(), TODAY))
 
     def test_the_board_names_the_issue_and_a_dry_run_cannot_release_it(self):
-        lines = db.board(tasks_of(line(number=1700)), TODAY, {1700: "docs/a.md"}, set(), berserk=True, owned=frozenset())
+        lines = db.board(tasks_of(line(number=1700)), TODAY, {1700: "docs/a.md"}, set(), berserk=True,
+                         owned=frozenset())
         self.assertIn(f"not ready: {db.NOT_OWNERS}: #1700", lines[0])
         self.assertNotIn("released", lines[0])
 

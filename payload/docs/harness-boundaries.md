@@ -599,9 +599,9 @@ names, and a pull request's title goes in single quotes.
 otherwise: it refuses a command substitution anywhere in a command that runs a
 `.py` under `.claude/scripts/` or `gh pr create`, as `guard-index-argv.py` does
 for its own. So `oid=$(git rev-parse HEAD)` and a helper line beneath it are
-refused though the helper's own line is clean, which a heredoc's substitution,
-run for the helper's stdin, is why: the value is read in a call of its own. It
-leaves the `.sh` helpers, whose arguments are numbers and names, and it judges
+refused though that line is clean: a heredoc's substitution runs for the
+helper's stdin on no helper line, so the whole command is what is judged, and
+such a value is read in a call of its own. It leaves the `.sh` helpers, whose arguments are numbers and names, and it judges
 substitutions alone: a second command is the grant's own matching.
 
 ## The guards' threat model

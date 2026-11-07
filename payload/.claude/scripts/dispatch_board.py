@@ -401,9 +401,11 @@ def strangers(group, owned):
 
 
 def runnable(group, owned, open_issues, today, bodies=None, berserk=False, kept=frozenset()):
-    """`ready`, behind the one gate no flag lifts: on a public repository an issue is a work order only from the owner."""
+    """`ready`, behind the gate no flag lifts: on a public repository an issue is a work order only from the owner."""
     held = strangers(group, owned)
-    return (False, f"{NOT_OWNERS}: {', '.join(held)}") if held else ready(group, open_issues, today, bodies, berserk, kept)
+    if held:
+        return False, f"{NOT_OWNERS}: {', '.join(held)}"
+    return ready(group, open_issues, today, bodies, berserk, kept)
 
 
 def released(candidates, ready_map, open_issues, today, bodies):
@@ -649,7 +651,7 @@ def rewrite(live, read, rebuilt):
 
 
 def _placement(directory, issue):
-    """The cells `<run>/place-<n>.json` gives a new row, none without the file: an issue's text never reaches a shell."""
+    """The cells `<run>/place-<n>.json` gives a new row, or none: an issue's text never reaches a shell."""
     path = Path(directory) / f"place-{issue}.json"
     if not path.is_file():
         return {}
