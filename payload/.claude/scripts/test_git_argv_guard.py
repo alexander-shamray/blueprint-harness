@@ -3712,6 +3712,18 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
             "sed -i'.claude/hooks/*' -e s/a/b/ notes/x",
         )
 
+    def test_a_verb_that_takes_a_whole_tree_is_refused_its_parent(self):
+        # Removing, moving or copying into a directory reaches every deny
+        # below it, though no deny names the directory itself.
+        self.refused("rm -rf .claude", "rm -r ./.claude/", "mv .claude /tmp/x",
+                     "cp -r /tmp/hooks .claude/", "rmdir .claude", "shred -u .claude",
+                     "install -d /tmp/a .claude", "cp -rt .claude /tmp/hooks",
+                     "mv /tmp/hooks .CLAUDE")
+        self.admitted("rm -rf .claude/worktrees/x", "rm -rf artifacts", "rm -rf .",
+                      "rm -rf .claude/cache", "cp -r .claude /tmp/backup",
+                      "ls > .claude/notes.md", "touch .claude/notes.md",
+                      "rm -rf notes", "mv notes /tmp/x")
+
     def test_a_write_elsewhere_is_not_read_as_one(self):
         self.admitted(
             "cp .claude/settings.json /tmp/x", "cp -r .claude/hooks notes/",
