@@ -2926,7 +2926,7 @@ def landings(destination, sources, into, cwd, command):
     """The names a copy or move gives `sources` inside `destination`, or `[None]`.
 
     `None` is the destination itself: it is a file, or a source's name is not
-    known, as for a glob. A source of `.` or `..` fills the directory whole.
+    known, as for a glob or a brace. A source of `.` or `..` fills the directory whole.
     """
     literal = target_literal(destination) or ""
     path = written_path(destination, cwd, command)
@@ -2938,7 +2938,7 @@ def landings(destination, sources, into, cwd, command):
         last = re.split(r"[\\/]", spelled)[-1]
         found = written_path(source, cwd, command)
         if last in ("", ".", "..") or found is None or any(
-                mark in spelled for mark in "*?["):
+                mark in spelled for mark in "*?[{"):
             return [None]
         names.append(os.path.basename(found))
     return names or [None]
