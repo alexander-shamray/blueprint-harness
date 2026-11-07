@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refuse a command substitution on a line that runs a prefix-granted helper.
+"""Refuse a command substitution in a command that runs a prefix-granted helper.
 
 A grant matches the typed string while the shell runs `$(…)`, quoted or not; the protocol is `guard-index-argv.py`'s.
 """
@@ -12,9 +12,10 @@ from pathlib import Path
 
 INDEX_GUARD = Path(__file__).with_name("guard-index-argv.py")
 REASON = (
-    "a command substitution on a helper line is refused: its prefix grant matches the typed string while the shell "
-    "still runs `$(…)` and backticks, inside double quotes too. Put issue text in the file the helper reads, or in "
-    "single quotes with each embedded quote written as '\\''; a pull request's body goes in --body-file."
+    "a command substitution in a command that runs a helper is refused: its prefix grant matches the typed string "
+    "while the shell still runs `$(…)` and backticks, inside double quotes too. Put issue text in the file the helper "
+    "reads, or in single quotes with each embedded quote written as '\\''; a pull request's body goes in --body-file. "
+    "A value another command computes is a run of its own, read and then spelled on the helper's line."
 )
 
 

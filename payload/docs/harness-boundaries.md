@@ -596,10 +596,13 @@ titles, where a backticked name is the house style. So the text stays off the
 command line, in the files `/dispatch` *Issue text stays off the command line*
 names, and a pull request's title goes in single quotes.
 `.claude/hooks/guard-helper-argv.py` is what holds when a session spells it
-otherwise: it refuses a command substitution on a line that runs a `.py` under
-`.claude/scripts/` or `gh pr create`. It leaves the `.sh` helpers, whose
-arguments are numbers and names, and it judges substitutions alone: a second
-command on such a line is the grant's own matching, not this hook's.
+otherwise: it refuses a command substitution anywhere in a command that runs a
+`.py` under `.claude/scripts/` or `gh pr create`, as `guard-index-argv.py` does
+for its own. So `oid=$(git rev-parse HEAD)` and a helper line beneath it are
+refused though the helper's own line is clean, which a heredoc's substitution,
+run for the helper's stdin, is why: the value is read in a call of its own. It
+leaves the `.sh` helpers, whose arguments are numbers and names, and it judges
+substitutions alone: a second command is the grant's own matching.
 
 ## The guards' threat model
 

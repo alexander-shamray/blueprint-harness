@@ -33,6 +33,8 @@ class GuardHelperArgv(unittest.TestCase):
             'gh pr create --base main --title t --body "$(cat b.md)"',
             f'cd /tmp && {BOARD} wake r --tasks "$(id)"',
             f'{BOARD} wake r --tasks l > "$(id)"',
+            f'oid=$(git rev-parse HEAD)\n{BOARD} verify r S1 --head "$oid"',
+            f'{BOARD} wake r <<EOF\n$(id)\nEOF',
         ):
             with self.subTest(command=command):
                 self.assertIn("substitution", self.judge(command) or "")
