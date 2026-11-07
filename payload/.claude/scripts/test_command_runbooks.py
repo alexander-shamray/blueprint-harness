@@ -98,6 +98,10 @@ class EachSplitCommandHasBothHalves(unittest.TestCase):
                     self.assertIn(heading, headings)
         self.assertGreater(cited, len(CEILINGS), "the citation pattern stopped matching the runbooks")
 
+    def test_a_targets_ceilings_are_the_ones_it_declares(self):
+        # The same object, so the case holds even here, where the target's map is empty.
+        self.assertIs(LOCAL.ceilings, self.OWN_CEILINGS)
+
     def test_a_targets_ceilings_name_only_its_own_commands(self):
         # One the payload holds would replace the payload's ceiling below with the target's.
         self.assertEqual(set(), set(CEILINGS) & set(self.OWN_CEILINGS))
