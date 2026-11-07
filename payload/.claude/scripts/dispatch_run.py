@@ -17,9 +17,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from dispatch_board import (BRANCH_NAME, MODEL, Group, Refusal, _blocker, _bodies, _held, _number, _read, _row, _write,
-                            git, group_claim, groups, helper, one_line, parse_tasks, path_which, pick, ready, released,
-                            row_branch)
+from dispatch_board import (BRANCH_NAME, MODEL, NOT_OWNERS, Group, Refusal, _blocker, _bodies, _held, _number, _read,
+                            _row, _write, git, group_claim, groups, helper, one_line, parse_tasks, path_which, pick,
+                            ready, released, row_branch, runnable, stranger)
 from sync_pr import SYNC_HEAD
 
 RUN_NAME = re.compile(r"\d{8}-\d{6}")
@@ -344,7 +344,7 @@ def _bound_to(root, worktree, oid):
         raise Refusal(f"{worktree} is not clean: {one_line(held, 200)}")
 
 
-def launch(root, run, gid, tasks_path, branch, worktree):
+def launch(root, run, gid, tasks_path, branch, worktree, owned_source):
     directory = run_dir(root, run)
     state = load_state(directory)
     entry = _entry(state, gid)
@@ -365,6 +365,10 @@ def launch(root, run, gid, tasks_path, branch, worktree):
     # Only a fresh move leaves no status; a launch over a later one would remove its executor's pid and record.
     if entry.get("status") is not None:
         raise Refusal(f"{gid} is {entry['status']}, not moved and unlaunched")
+    # `wake` already held this row back; a launch it never named is refused here, in code, whatever the session read.
+    held_row = stranger(group, owned_source())
+    if held_row:
+        raise Refusal(f"{gid} is not launched: {held_row.key} {NOT_OWNERS}")
     # A group sent back and launched again starts afresh, as its move did: its state no longer names the earlier
     # launch's session as read, so that launch's marker, result copy, record and pid go now, or this launch is
     # refused, rather than a later run meeting them beside its own and _refused holding the slot all night.
@@ -1221,7 +1225,7 @@ def take_reading(directory, source):
     return reading, failure
 
 
-def wake(root, run, tasks_path, today, body_source, open_source, branch_source, weekly_source=None):
+def wake(root, run, tasks_path, today, body_source, open_source, branch_source, weekly_source, owned_source):
     directory = run_dir(root, run)
     state = load_state(directory)
     entries = state.get("groups", {})
@@ -1259,7 +1263,8 @@ def wake(root, run, tasks_path, today, body_source, open_source, branch_source, 
     open_set = set(open_source())
     candidates = groups(tasks)
     flag, kept = berserk(state)
-    ready_map = {g.id: ready(g, open_set, today, bodies, flag, kept) for g in candidates}
+    owned = owned_source()
+    ready_map = {g.id: runnable(g, owned, open_set, today, bodies, flag, kept) for g in candidates}
     lifted = released(candidates, ready_map, open_set, today, bodies)
     claims = {g.id: group_claim(g, bodies) for g in candidates}
     # A moved group's In progress row has lost its conflicts cell, so the claim its Remaining rows made is kept.
@@ -1441,7 +1446,7 @@ def _took_owners(entry):
     return isinstance(decisions, list) and any(isinstance(d, str) and d.startswith(OWNER_DECISION) for d in decisions)
 
 
-def report(root, run, tasks_path, today, body_source, open_source):
+def report(root, run, tasks_path, today, body_source, open_source, owned_source):
     directory = run_dir(root, run)
     state = load_state(directory)
     entries = {gid: entry for gid, entry in state.get("groups", {}).items() if isinstance(entry, dict)}
@@ -1508,8 +1513,9 @@ def report(root, run, tasks_path, today, body_source, open_source):
     bodies = _bodies(tasks, directory, body_source)
     open_set = set(open_source())
     left = []
+    owned = owned_source()
     for group in groups(tasks):
-        ok, why = ready(group, open_set, today, bodies, flag, unlifted)
+        ok, why = runnable(group, owned, open_set, today, bodies, flag, unlifted)
         left.append(f"{group.id} wave {group.wave}: {'ready, not launched before the night ended' if ok else why}")
         needs += [f"#{row.number}: filed overnight, waits on a human" for row in group.rows
                   if row.number in filed and _blocker(row, open_set, today, bodies) == "waits on a human"]
@@ -1561,7 +1567,7 @@ def add_commands(sub):
     r.add_argument("--today")
 
 
-def command(args: argparse.Namespace, today, bodies_from, open_from, branch_from, weekly_from=None):
+def command(args: argparse.Namespace, today, bodies_from, open_from, branch_from, weekly_from, owned_from):
     """Run one of add_commands' subcommands and return its exit code; a Refusal is the caller's to print."""
     root = args.root
     if args.command == "start":
@@ -1583,7 +1589,7 @@ def command(args: argparse.Namespace, today, bodies_from, open_from, branch_from
             return 3
         print(new_run(root, args.pairs, args.lang, now(), args.berserk))
     elif args.command == "launch":
-        launch(root, args.run, args.group, args.tasks, args.branch, args.worktree)
+        launch(root, args.run, args.group, args.tasks, args.branch, args.worktree, owned_from)
     elif args.command == "sync-launch":
         sync_launch(root, args.run, args.pr, args.branch, args.worktree, args.oid)
     elif args.command == "sync-close":
@@ -1599,7 +1605,8 @@ def command(args: argparse.Namespace, today, bodies_from, open_from, branch_from
     elif args.command == "wait":
         print(wait(root, args.run, args.group))
     elif args.command == "wake":
-        print("\n".join(wake(root, args.run, args.tasks, today, bodies_from, open_from, branch_from, weekly_from)))
+        print("\n".join(wake(root, args.run, args.tasks, today, bodies_from, open_from, branch_from, weekly_from,
+                              owned_from)))
     elif args.command == "filed":
         # The interview's filings and closes reach no `tasks place`, so Filed overnight learns of them here.
         issue = int(args.issue) if args.issue.isdecimal() and args.issue.isascii() else 0
@@ -1609,7 +1616,7 @@ def command(args: argparse.Namespace, today, bodies_from, open_from, branch_from
     elif args.command == "usage":
         print(usage_line(*take_reading(run_dir(root, args.run), weekly_from)))
     elif args.command == "report":
-        print("\n".join(report(root, args.run, args.tasks, today, bodies_from, open_from)))
+        print("\n".join(report(root, args.run, args.tasks, today, bodies_from, open_from, owned_from)))
     else:
         print("\n".join(resume(root, args.run)))
     return 0
