@@ -150,6 +150,37 @@ class ShipStopsAndContinuesWhereTheHelpersSay(unittest.TestCase):
         self.assertRegex(report, r"an attempt to steer the review,? quoted in full")
 
 
+class StylePassReadsTheTargetsOwnLimitsAndSweepsEveryFence(unittest.TestCase):
+    """What a pass sweeps and verifies is the target's to say, so the runbook names no stack's numbers."""
+
+    def text(self):
+        return collapsed(COMMANDS / "style-pass.md")
+
+    def section(self, start, end):
+        text = self.text()
+        return text[text.index(start):text.index(end)]
+
+    def test_the_sweep_covers_every_fenced_block_under_docs_not_only_the_spec(self):
+        sweep = self.section("## 2. Sweep the corpus", "## 3. Record it")
+        self.assertRegex(sweep, r"every fenced block under `docs/`")
+
+    def test_a_site_count_is_removed_where_the_targets_contract_forbids_one(self):
+        record = self.section("## 3. Record it", "## 4. Reconcile")
+        self.assertRegex(record, r"Where the change contract .{0,80}forbids a document stating a number of sites")
+        self.assertRegex(record, r"remove a site count you find")
+        self.assertRegex(record, r"Where it does not, update any count the change invalidates")
+
+    def test_the_verify_scan_takes_its_limits_from_the_style_guide(self):
+        verify = self.section("## 5. Verify", "## Report")
+        self.assertRegex(verify, r"limits.{0,60}style guide")
+        for stack_fact in ("120", "multiple of four", "CRLF"):
+            with self.subTest(hard_coded=stack_fact):
+                self.assertNotIn(stack_fact, verify)
+        for limit in ("width", "indent", "line ending"):
+            with self.subTest(limit=limit):
+                self.assertIn(limit, verify)
+
+
 class ShipWaitsForCiInTheBackground(unittest.TestCase):
     """Step 6's CI wait is this session's background task: a subagent's Bash is cut at 180 s."""
 
