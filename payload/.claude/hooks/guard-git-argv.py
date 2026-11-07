@@ -89,6 +89,17 @@ FORBIDDEN_SUBSTRINGS = ("ext::",)
 # nothing in this repository passes `-c` or `--config-env` to git. A caller
 # that needs one wants an allow-list of keys.
 CONFIG_OPTIONS = ("-c", "--config-env")
+
+# Subcommands that exist to run something: the flag lists trail git, so these
+# are refused whole. Everything else stays admitted, as an allow-list would not.
+REFUSED_SUBCOMMANDS = {
+    "filter-branch": "runs the shell commands its --*-filter options carry",
+    "send-email": "runs the programs its --*-cmd and --smtp-server options name",
+    "instaweb": "starts the web server its --httpd option names",
+    "daemon": "starts a server that runs the services it is told to",
+    "http-backend": "is a CGI program that runs git for whoever calls it",
+    "web--browse": "starts the browser program it is given",
+}
 REPOSITORY_SUBCOMMANDS = {
     "fetch", "clone", "pull", "push", "remote", "submodule", "ls-remote",
     "archive", "bundle",
@@ -2673,6 +2684,11 @@ def _offence(command, depth, judged):
                 )
 
         subcommand = subcommand_of(segment)
+        if subcommand in REFUSED_SUBCOMMANDS:
+            return (
+                f"`git {subcommand}` {REFUSED_SUBCOMMANDS[subcommand]}, and "
+                "nothing here runs it, so it is refused whole."
+            )
         operand = EXECUTING_FORMS.get(subcommand)
         if operand is not None and operand in after_global_options(segment)[1:]:
             return (
