@@ -121,7 +121,7 @@ Verdict states and citing evidence in notes: [references/memory.md](references/m
 On `refs` and `impact`, an empty result is inconclusive whatever `coverage`
 reports. The C# graph carries call edges but not every use: a registration
 like `services.AddScoped<IFoo, Foo>()` is recorded against neither name, so
-`impact "Foo" --direction up` answers with no dependents and
+`impact 'Foo' --direction up` answers with no dependents and
 `coverage.partial: false` while four composition roots name it. Confirm with a
 targeted Grep before saying that nothing references the target, and never
 report an empty graph result as an absence.
