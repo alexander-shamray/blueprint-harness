@@ -78,6 +78,19 @@ def _path_without_launchers(*names):
     return os.pathsep.join(kept)
 
 
+def _ps_in_the_callers_process(subcommand, env):
+    """cbx.ps1 run as a caller runs it, with `&`, in a session that then says
+    what the script exited with and what its environment holds. Under `-File`
+    the session ends with the script, and no restore could be seen."""
+    script = str(CBX_PS1).replace("'", "''")
+    command = (f"& '{script}' {subcommand} X; "
+               'Write-Output "code=$LASTEXITCODE safe=[$env:PYTHONSAFEPATH] '
+               'auto=[$env:CBX_NO_SKILL_AUTO_UPDATE]"')
+    return subprocess.run(
+        [_powershell(), "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+        capture_output=True, text=True, encoding="utf-8", env=env)
+
+
 _PS_HIDDEN = ("python", "python3", "py", "codebase-index")
 _PY_MODULE = (
     "if '-m' in args:\n"
@@ -193,6 +206,17 @@ class CbxWrapper(unittest.TestCase):
         self.assertIn("-3.12 -P -m", ps1)
         self.assertIn("-P -c", ps1)
         self.assertIn("-P -m", ps1)
+
+    def test_powershell_restores_the_variables_in_a_finally_with_one_exit_after_it(self):
+        """The text of the structure the behavioural case above runs: an
+        exit inside the `try` would skip the restore."""
+        body = self.uncommented(CBX_PS1)
+        self.assertIn("$savedSafePath = $env:PYTHONSAFEPATH", body)
+        self.assertIn("$savedAutoUpdate = $env:CBX_NO_SKILL_AUTO_UPDATE", body)
+        self.assertIn('try {\n    $env:CBX_NO_SKILL_AUTO_UPDATE = "1"', body)
+        self.assertIn("} finally {\n    $env:PYTHONSAFEPATH = $savedSafePath\n"
+                      "    $env:CBX_NO_SKILL_AUTO_UPDATE = $savedAutoUpdate", body)
+        self.assertEqual(["exit 2", "exit $code"], re.findall(r"exit \S+", body))
 
     def test_destructive_subcommands_are_refused(self):
         for sub in ("clean", "init", "watch", "graph"):
@@ -370,6 +394,42 @@ class CbxWrapper(unittest.TestCase):
             self.assertIn("PATH_CLI", out.stdout)
             self.assertIn("search", out.stdout)
             self.assertIn("X", out.stdout)
+
+    def test_powershell_puts_both_variables_back_whichever_way_it_leaves(self):
+        """The script sets them for what it starts, in the process that
+        called it, and would leave them set for every later `python` or
+        `codebase-index` that session starts: `PYTHONSAFEPATH` takes the
+        script's directory off `sys.path` for all of them."""
+        def path_cli(fake):
+            if os.name == "nt":
+                stub = Path(fake) / "codebase-index.cmd"
+                stub.write_text("@echo off\r\necho PATH_CLI %*\r\n", encoding="utf-8")
+            else:
+                stub = Path(fake) / "codebase-index"
+                stub.write_text("#!/bin/sh\necho PATH_CLI \"$@\"\n", encoding="utf-8")
+                stub.chmod(stub.stat().st_mode | stat.S_IEXEC)
+            return fake + os.pathsep + os.environ.get("PATH", ""), 0, "PATH_CLI"
+
+        def module(fake):
+            _write_ps_stub(fake, "py", _PY_LAUNCHER_STUB)
+            return fake + os.pathsep + _path_without_launchers(*_PS_HIDDEN), 0, "MODULE"
+
+        def nothing(fake):
+            return fake + os.pathsep + _path_without_launchers(*_PS_HIDDEN), 127, ""
+
+        ours = {name: value for name, value in os.environ.items()
+                if name not in ("PYTHONSAFEPATH", "CBX_NO_SKILL_AUTO_UPDATE")}
+        for route in (path_cli, module, nothing):
+            for held in ({}, {"PYTHONSAFEPATH": "kept", "CBX_NO_SKILL_AUTO_UPDATE": "mine"}):
+                with self.subTest(route=route.__name__, held=held), \
+                        tempfile.TemporaryDirectory(prefix="cbx-ps-env-") as fake:
+                    path, code, said = route(fake)
+                    out = _ps_in_the_callers_process("search", {**ours, **held, "PATH": path})
+                    self.assertIn(f"code={code} ", out.stdout, out.stdout + out.stderr)
+                    self.assertIn(said, out.stdout, out.stdout + out.stderr)
+                    self.assertIn(
+                        f"safe=[{held.get('PYTHONSAFEPATH', '')}] auto=[{held.get('CBX_NO_SKILL_AUTO_UPDATE', '')}]",
+                        out.stdout)
 
     def test_powershell_py_fallback_when_cli_is_absent(self):
         with tempfile.TemporaryDirectory(prefix="cbx-ps-py-") as fake:
