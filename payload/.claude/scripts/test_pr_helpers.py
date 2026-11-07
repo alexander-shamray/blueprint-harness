@@ -710,5 +710,41 @@ class NoCommandReadsAPullRequestFeedUnfiltered(unittest.TestCase):
                 self.assertIn(reason, r.stderr)
 
 
+# What bash 3.2, /bin/bash on macOS, refuses: `mapfile` and `readarray`, an
+# associative array, and the case-changing expansions.
+BASH_4 = re.compile(
+    r"\b(?:mapfile|readarray)\b|\b(?:declare|local|typeset)\s+-[a-zA-Z]*A|\$\{\w+(?:\[[^]]*\])?(?:,|\^)")
+
+
+class NoHelperNeedsBash4(unittest.TestCase):
+    """Frontend's required `harness (macos-latest)` leg runs the helpers under bash 3.2."""
+
+    def shell_scripts(self):
+        for path in sorted(SCRIPTS.parent.rglob("*")):
+            if not path.is_file() or path.name.startswith("test_") or path.suffix == ".py":
+                continue
+            text = path.read_text(encoding="utf-8", errors="replace")
+            if path.suffix == ".sh" or re.match(r"#!.*\b(?:ba)?sh\b", text):
+                yield path, text
+
+    def test_no_helper_uses_a_bash_4_construct(self):
+        scripts = list(self.shell_scripts())
+        self.assertGreater(len(scripts), 20, "the script walk stopped finding the helpers")
+        for path, text in scripts:
+            with self.subTest(script=path.name):
+                self.assertEqual([], [line for line in code_lines(text) if BASH_4.search(line)])
+
+    def test_the_pattern_sees_each_construct(self):
+        # The positive control: a pattern that matched nothing would pass every script.
+        for line in ("mapfile -d '' tree < x", "readarray -t a", "declare -A seen=()", "local -rA x",
+                     'echo "${name,,}"', 'echo "${name^^}"', 'echo "${name^}"'):
+            with self.subTest(line=line):
+                self.assertRegex(line, BASH_4)
+        for line in ('echo "${name}"', 'echo "${name:-a,b}"', "declare -a list=()", 'echo "${#list[@]}"',
+                     'echo "${name/,/;}"'):
+            with self.subTest(line=line):
+                self.assertNotRegex(line, BASH_4)
+
+
 if __name__ == "__main__":
     unittest.main()
