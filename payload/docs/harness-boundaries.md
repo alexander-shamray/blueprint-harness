@@ -1332,13 +1332,19 @@ process is spawned per path: on Windows a spawn per path and pattern made
 the helper look hung. A row that fails its grammar exits 3 naming the row
 and not its content, and so does a class map that is absent, names a class
 twice, leaves one without items, or holds a line or a token outside its
-grammar: the gate refuses that map, so a verdict half-read from it is an
-answer CI never gives. **The verdict narrows
+grammar: a verdict half-read from a map the helper refuses would be one no
+gate gives. **The verdict narrows
 and grants nothing**: the caller's deny list and the class's tree set hold
 authority, an `outside` or `outside-class` line is a finding, and an
 `inside` line is not a licence for anything the caller's grant refuses.
-`test_pr_helpers.py` pins all of it, and runs the CI gate beside the helper
-to hold the two to one answer.
+`test_pr_helpers.py` pins all of it.
+
+**Residual: the helper's token grammar is the wider one a frontend-style
+tree needs.** It admits `@` and `+`, as a changed path may. A target's own
+locality gate is that target's file and must be widened in step, and a gate
+that is not refuses them: until it is, a row naming `@` or `+` reads `inside`
+here and is refused in CI. Backend's gate is such a one today. A token both
+admit is held to one answer by the target's own suite, not by this one.
 
 **Every `gh` read these helpers make is bounded, because one that stalls
 holds every step chained behind it.** #603 was `pr-locality.sh` printing
