@@ -55,7 +55,10 @@ reason the caller can read, and a guard that refuses without saying why is one
 that gets worked around rather than fixed.
 """
 
+import fnmatch
+import functools
 import json
+import os
 import re
 import shlex
 import sys
@@ -111,6 +114,47 @@ VALUE_FLAGS_BY_SUBCOMMAND = {
 }
 
 SEPARATORS = {"&&", "||", ";", "|", "&", "(", ")", "{", "}", "\n"}
+
+# ---- what a target protects ------------------------------------------------
+
+SETTINGS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "settings.json")
+EDIT_RULE = re.compile(r"^Edit\((?P<path>.*)\)$")
+
+
+@functools.lru_cache(maxsize=1)
+def edit_denies():
+    """This target's `Edit(...)` deny paths, root-relative and folded.
+
+    `.claude/settings.json` is the one list, so `.github` is protected only
+    where a target denies it. A rule anchored elsewhere names no checkout path.
+    """
+    with open(SETTINGS, encoding="utf-8") as handle:
+        rules = json.load(handle).get("permissions", {}).get("deny", [])
+    paths = [EDIT_RULE.match(rule) for rule in rules]
+    folded = (match.group("path").lower() for match in paths if match)
+    return tuple(dict.fromkeys(
+        path[2:] if path.startswith("./") else path
+        for path in folded if not path.startswith(("/", "~"))))
+
+
+def denied_path(relative):
+    """The deny that holds `relative`, a path from a checkout's root, or `None`.
+
+    Anchored at the root and folded, so `payload/.claude/hooks/x` and
+    `.claude/worktrees/x` are not protected and `.CLAUDE/hooks/x` is.
+    """
+    parts = [part for part in re.split(r"[\\/]+", relative)
+             if part not in ("", ".")]
+    path = "/".join(parts).lower()
+    if not path:
+        return None
+    for rule in edit_denies():
+        if fnmatch.fnmatchcase(path, rule) or (
+                rule.endswith("/**") and path == rule[:-3]):
+            return f"`Edit({rule})`"
+    return None
+
 
 # ---- the push allow-list ---------------------------------------------------
 
