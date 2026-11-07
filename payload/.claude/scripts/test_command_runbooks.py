@@ -181,6 +181,28 @@ class StylePassReadsTheTargetsOwnLimitsAndSweepsEveryFence(unittest.TestCase):
                 self.assertIn(limit, verify)
 
 
+class BranchChangesADerivedNameByASecondBranch(unittest.TestCase):
+    """The settings deny `git branch -m`, so a runbook offering it as free sends the session into a refusal."""
+
+    OFFERED_AS_FREE = re.compile(r"`git branch -m[^`]*`[^.]{0,40}(?:free|costs nothing)")
+
+    def test_the_report_changes_the_name_by_a_second_branch_at_head_and_never_by_a_rename(self):
+        for label, path in (("runbook", COMMANDS / "branch.md"), ("argument", ARGUMENTS / "branch.md")):
+            text = collapsed(path)
+            with self.subTest(document=label):
+                self.assertIsNone(self.OFFERED_AS_FREE.search(text))
+                self.assertIn("`bash .claude/scripts/git-branch-create.sh <better-name> HEAD`", text)
+                self.assertRegex(text, r"first (?:name|branch)[^.]{0,80}(?:report|git branch)")
+
+    def test_the_helper_the_report_names_takes_head_as_a_base(self):
+        helper = (COMMANDS.parent / "scripts" / "git-branch-create.sh").read_text(encoding="utf-8")
+        self.assertRegex(helper, r"(?m)^  HEAD\)")
+
+    def test_the_pattern_sees_the_offer(self):
+        self.assertIsNotNone(self.OFFERED_AS_FREE.search("`git branch -m <better-name>` is free until `/pr` pushes"))
+        self.assertIsNotNone(self.OFFERED_AS_FREE.search("`git branch -m <better-name>` costs nothing until then"))
+
+
 class ShipWaitsForCiInTheBackground(unittest.TestCase):
     """Step 6's CI wait is this session's background task: a subagent's Bash is cut at 180 s."""
 
