@@ -2769,7 +2769,7 @@ def raw_runs(command):
             if close is None:
                 break
             words.append(command[index:close + 1])
-            runs.extend(raw_runs(command[index + 1:close]))
+            runs.extend(["(", *raw_runs(command[index + 1:close]), ")"])
             index = close + 1
             continue
         end = word_end(command, index, ordinary)

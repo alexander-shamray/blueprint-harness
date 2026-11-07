@@ -3627,6 +3627,8 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         self.admitted("cd notes && ls > out.md", "cd docs; cat a > settings.json",
                       "cd .claude && cd .. && ls > settings.json",
                       "(cd .claude && ls > x.txt); ls > settings.json",
+                      "if (cd .claude && make); then ls > settings.json; fi",
+                      "while (cd .claude/hooks); do ls > x.py; break; done",
                       "cd .claude || exit 1", "cd notes && git status > .out")
 
     def test_a_cd_nothing_can_read_leaves_a_relative_write_unjudged(self):
