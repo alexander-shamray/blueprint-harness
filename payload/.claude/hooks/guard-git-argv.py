@@ -171,15 +171,16 @@ def edit_denies():
     """This target's `Edit(...)` deny paths, root-relative and folded.
 
     `.claude/settings.json` is the one list, so `.github` is protected only
-    where a target denies it. A rule anchored elsewhere names no checkout path.
+    where a target denies it. `/x` is the project root's; `//x` and `~/x` name
+    no checkout path.
     """
     with open(SETTINGS, encoding="utf-8") as handle:
         rules = json.load(handle).get("permissions", {}).get("deny", [])
     paths = [EDIT_RULE.match(rule) for rule in rules]
     folded = (match.group("path").lower() for match in paths if match)
     return tuple(dict.fromkeys(
-        path[2:] if path.startswith("./") else path
-        for path in folded if not path.startswith(("/", "~"))))
+        path[2:] if path.startswith("./") else path.removeprefix("/")
+        for path in folded if not path.startswith(("//", "~"))))
 
 
 def denied_path(relative, whole=False):

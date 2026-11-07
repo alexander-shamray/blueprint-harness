@@ -3584,6 +3584,12 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         self.admitted("ls > notes/package.json", "ls > .claude/settings.json",
                       hook=hook)
 
+    def test_a_rule_is_read_in_the_permission_grammar(self):
+        # `/x` is the project root's, `//x` absolute and `~/x` the home's.
+        hook = self.hook_denying("/package.json", "/.github/**", "//notes/**", "~/notes/**")
+        self.refused("ls > package.json", "ls > .github/workflows/ci.yml", hook=hook)
+        self.admitted("ls > notes/x.md", hook=hook)
+
     def test_a_linked_worktree_is_a_checkout_of_its_own(self):
         worktree = os.path.join(self.root, ".claude", "worktrees", "linked")
         os.makedirs(worktree)
@@ -3787,8 +3793,9 @@ class TheListsTheGuardReads(unittest.TestCase):
         base = json.loads((self.ROOT / ".harness" / "settings.base.json").read_text(encoding="utf-8"))
         config = json.loads((self.ROOT / ".harness" / "config.json").read_text(encoding="utf-8"))
         rules = [*base["permissions"]["deny"], *config.get("settings", {}).get("deny", [])]
-        paths = [rule[len("Edit("):-1].lower().removeprefix("./") for rule in rules
-                 if rule.startswith("Edit(")]
+        spelled = [rule[len("Edit("):-1].lower() for rule in rules if rule.startswith("Edit(")]
+        paths = [path.removeprefix("./") if path.startswith("./") else path.removeprefix("/")
+                 for path in spelled if not path.startswith(("//", "~"))]
         self.assertEqual(sorted(set(paths)), sorted(module.edit_denies()))
         tracked = subprocess.run(["git", "ls-files"], cwd=self.ROOT, capture_output=True,
                                  encoding="utf-8", check=True).stdout.splitlines()
