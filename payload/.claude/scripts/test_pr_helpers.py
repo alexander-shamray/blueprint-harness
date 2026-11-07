@@ -720,7 +720,10 @@ class NoHelperNeedsBash4(unittest.TestCase):
     """Frontend's required `harness (macos-latest)` leg runs the helpers under bash 3.2."""
 
     def shell_scripts(self):
-        for path in sorted(SCRIPTS.parent.rglob("*")):
+        # The helper directories alone: `.claude/worktrees/` holds every forked
+        # checkout, each with a copy of the helpers at its own base.
+        paths = [p for d in ("scripts", "hooks", "skills") for p in (SCRIPTS.parent / d).rglob("*")]
+        for path in sorted(paths):
             if not path.is_file() or path.name.startswith("test_") or path.suffix == ".py":
                 continue
             text = path.read_text(encoding="utf-8", errors="replace")
