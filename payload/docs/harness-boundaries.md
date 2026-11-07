@@ -197,6 +197,18 @@ refresh. `git-worktree-remove.sh` computes the same name from the worktree it
 removes, and `test_git_worktree_remove.py` takes the hook's own for the lock
 it holds, so a name that drifts in either fails there.
 
+**The hook refreshes a checkout of its own repository that holds an index,
+and nothing else.** The repository is the one the hook file's own checkout
+belongs to, compared by git directory, so a checkout of another repository,
+or a submodule, that holds a cache directory is not this hook's to write
+into. An index is a file past SQLite's 100-byte header: a cache directory
+alone is not one, and an `update` there is a build, which the hook never
+starts. An event that names a file the hook cannot place, a relative path
+with no `cwd` or one the system cannot resolve, refreshes nothing, and is
+never answered with the `cwd`, which names a tree the edit did not touch. The
+worker is handed its root as an argument and runs for as long as edits keep
+arriving, so it judges the root again at its entry and before every update.
+
 **The CLI is found on `PATH` alone, and the answer is a full path, so the
 operating system searches nothing.** A `PATH` entry naming a checkout is the
 bare name's hole by another route, so the lookup takes absolute entries only,
