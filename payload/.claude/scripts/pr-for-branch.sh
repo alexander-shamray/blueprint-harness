@@ -42,7 +42,10 @@ repo=$(gh_read repo view --json nameWithOwner --jq .nameWithOwner) ||
 limit=1000
 rows=$(gh_read pr list --state all --head "$branch" --limit "$limit" \
          --json number,state,url,headRepository,headRefOid,baseRefName,mergeCommit)
-[ "$(jq 'length' <<<"$rows")" -lt "$limit" ] ||
+count=$(jq length <<<"$rows" | tr -d '\r') || count=""
+[[ "$count" =~ ^[0-9]+$ ]] ||
+  { echo "the listing for $branch did not arrive as a JSON array" >&2; exit 3; }
+[ "$count" -lt "$limit" ] ||
   { echo "the listing for $branch holds $limit rows, so it may be truncated" >&2; exit 4; }
 # Only pull requests into main are this chain's: every one it opens targets main.
 mine=$(jq --arg repo "$repo" \
