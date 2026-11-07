@@ -121,8 +121,10 @@ def linked(path: Path) -> bool:
 
 
 def state_dir() -> Path | None:
-    """Where this hook keeps its lock and markers, or None where no git
-    directory can be reached without passing through a link."""
+    """Where this hook keeps its lock and markers, or None where the git
+    directory's own name, or the state directory's, is a link. Components
+    above them are not looked at: from a linked worktree the git directory is
+    reached through `commondir`, which lstat never reports as a link."""
     common = common_dir(home())
     if common is None:
         return None
