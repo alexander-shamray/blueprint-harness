@@ -229,7 +229,7 @@ target*)
    |---|---|
    | In a worktree whose branch is **finished** | `ExitWorktree({action: "keep"})`, then the teardown below on the directory just left |
    | In a worktree whose branch is **not finished** | **Stay.** Unfinished or unused alike, that directory is this run's workspace |
-   | In the main checkout on a **finished** branch | `bash .claude/scripts/git-switch-existing.sh main` — the tree is clean by the predicate, so there is no second condition to check here |
+   | In the main checkout on a **finished** branch | `bash .claude/scripts/git-switch-existing.sh main` — the predicate already holds the tree clean |
    | In the main checkout on a branch that is **not finished** | **Stay.** `/branch` puts a branch here whenever `main` was dirty, so this is an ordinary resumed run |
    | In the main checkout on `main` | The teardown below — but the pull inside it only when `main` is itself clean and not ahead of `origin/main`, which is the same predicate one branch over |
    | **Detached**, anywhere | **Stay**, and classify nothing. There is no branch name, so the predicate cannot be evaluated at all; step 1 creates a branch from `HEAD` and carries whatever is here |
