@@ -2486,6 +2486,28 @@ def xargs_supplies_push(tokens):
     return False
 
 
+def fetch_offence(segment):
+    """The reason to refuse a fetch that can move a local branch backwards.
+
+    `main:main` is `/ship`'s fast-forward and stays; `-f`, `-u` and a `+`
+    refspec are what turn it into a discard of local commits.
+    """
+    stripped = after_global_options(segment)
+    if not stripped or stripped[0] != "fetch":
+        return None
+    for element in stripped[1:]:
+        name = element.split("=", 1)[0]
+        if (element.startswith("+") or short_flag(element, "fetch", "fu")
+                or (len(name) > 3 and "--force".startswith(name))
+                or (len(name) > 9 and "--update-head-ok".startswith(name))):
+            return (
+                f"`git fetch {element}` can move a local branch to a commit "
+                "that does not contain it, which discards local commits under "
+                "a read's grant. Fetch without it; `main:main` fast-forwards."
+            )
+    return None
+
+
 def trap_offence(segment):
     """The refusal for a git command whose text shows it losing work, or None."""
     stripped = after_global_options(segment)
@@ -2696,7 +2718,8 @@ def _offence(command, depth, judged):
         )
 
     for segment in git_segments(tokens):
-        refusal = push_offence(segment) or trap_offence(segment)
+        refusal = (push_offence(segment) or trap_offence(segment)
+                   or fetch_offence(segment))
         if refusal is not None:
             return refusal
 

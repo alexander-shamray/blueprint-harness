@@ -3412,6 +3412,26 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
 
+    def test_a_fetch_that_discards_a_local_branch_is_refused(self):
+        for command in (
+            "git fetch -f origin main:main", "git fetch --force origin",
+            "git fetch --forc origin", "git fetch -qf origin",
+            "git fetch -u origin main:main", "git fetch --update-head-ok origin",
+            "git fetch origin +main:main",
+            "git fetch origin +refs/heads/main:refs/heads/main",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command)
+        # `/ship` fast-forwards with the plain form.
+        for command in (
+            "git fetch origin", "git fetch origin main",
+            "git fetch origin main:main", "git fetch -q origin main",
+            "git fetch --prune origin", "git fetch --all", "git fetch -p origin",
+            "git fetch --update-shallow origin",
+        ):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
     def test_the_hook_directory_is_a_control_surface_and_is_denied(self):
         # It grants nothing, but it RUNS on every Bash call, so a session able
         # to rewrite it could delete its own guard and then act. `CLAUDE.md`
