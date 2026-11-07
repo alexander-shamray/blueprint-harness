@@ -448,6 +448,25 @@ class RemoveShape(unittest.TestCase):
         self.assertFalse(lock.exists())
         self.assertTrue(neighbour.exists(), "another worktree's lock went")
 
+    def test_a_name_that_cannot_be_computed_removes_nothing(self):
+        """Without the name the lock cannot be waited on, and a refresh may
+        hold the tree: the state directory is the sign that one could."""
+        root, native = self.fixture()
+        self.hold(native, 1)
+        shim = native / "shim"
+        shim.mkdir()
+        for name in ("py", "python3"):
+            (shim / name).write_bytes(("#!/usr/bin/env bash" + chr(10) + "exit 1" + chr(10)).encode("utf-8"))
+            os.chmod(shim / name, 0o755)
+        shim_dir = shim.resolve()
+        if os.name == "nt":
+            shim_dir = "/" + shim_dir.drive[0].lower() + shim_dir.as_posix()[2:]
+        result = run_bash('cd "$WHERE" && PATH="$SHIM:$PATH" bash "$REMOVE" .claude/worktrees/probe feat/probe',
+                          WHERE=f"{root}/checkout", REMOVE=str(REMOVE), SHIM=str(shim_dir))
+        self.assertEqual(5, result.returncode, result.stderr)
+        self.assertIn("nothing removed", result.stderr)
+        self.assertTrue(self.present(root))
+
     def test_a_state_file_that_will_not_go_does_not_change_the_exit(self):
         root, native = self.fixture()
         lock, _ = self.state(native)
