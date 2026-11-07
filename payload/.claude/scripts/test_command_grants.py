@@ -5,6 +5,7 @@ deny lasts the rest of the turn (`docs/harness-boundaries.md`).
 """
 
 import importlib
+import inspect
 import re
 import sys
 import tempfile
@@ -522,9 +523,10 @@ class ATargetDeclaresItsOwnCommandsInOneModule(unittest.TestCase):
                     declared(local_commands(self.module(source)))
 
     def test_the_push_cases_hold_what_the_target_declares(self):
-        # Empty where the target declares nothing, as this repository does; in a target it is what reaches the cases.
+        # Read from the class bodies: LOCAL.chained is empty here, so comparing values would pass with the term gone.
         for case in (ACommandThatDoesNotPublishCannotPush, NothingShipChainsDeniesPush):
             with self.subTest(case=case.__name__):
+                self.assertRegex(inspect.getsource(case), r"(?m)^    CHAINED_BEFORE_A_PUSH = \([^)]*\) \+ LOCAL\.chained$")
                 self.assertLessEqual(set(LOCAL.chained), set(case.CHAINED_BEFORE_A_PUSH))
 
 
