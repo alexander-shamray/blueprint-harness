@@ -1,7 +1,7 @@
 ---
 description: Open a pull request with a body in the house form
 argument-hint: "[title — omit to derive it from the commits]"
-allowed-tools: Read, Grep, Glob, Write, Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git branch --list:*), Bash(git branch --show-current), Bash(git branch -a), Bash(git push -u origin:*), Bash(git push origin:*), Bash(gh pr create:*), Bash(bash .claude/scripts/pr-closure-input.sh:*), Bash(bash .claude/scripts/pr-for-branch.sh:*), Bash(bash .claude/scripts/git-trailer-pr.sh:*), Bash(bash .claude/scripts/git-push-force.sh)
+allowed-tools: Read, Grep, Glob, Write, Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git branch --list:*), Bash(git branch --show-current), Bash(git branch -a), Bash(git push -u origin:*), Bash(git push origin:*), Bash(bash .claude/scripts/gh-pr-create.sh:*), Bash(bash .claude/scripts/pr-closure-input.sh:*), Bash(bash .claude/scripts/pr-for-branch.sh:*), Bash(bash .claude/scripts/git-trailer-pr.sh:*), Bash(bash .claude/scripts/git-push-force.sh)
 ---
 
 Open a PR for the current branch. Title: $ARGUMENTS — if empty, derive it
@@ -36,9 +36,9 @@ and a remote carrying commits this checkout never held
 (`docs/harness-boundaries.md`). The trailer helper in *Steps* carries its own
 lease the same way. Neither is a way round the deny: a refusal from either, a
 deletion, or a push reaching `main` is raising a decision — stop and say so.
-Do not reach for `gh pr create`'s own offer to
-push either: it is the same action by a route that skips the upstream check
-above, so it pushes without ever reporting that it did.
+The create in *Steps* never pushes either: the helper names the branch as
+the head, so `gh` takes it as published rather than offering to push it by a
+route that skips the upstream check above.
 
 **The deny list is defence in depth, not the guard.** It matches on command
 prefixes, and a refspec has more spellings than a prefix list can hold —
@@ -174,18 +174,25 @@ result instead, and report it as it actually came out.
 
 ## Steps
 
-Write the body to a scratchpad file and pass it with `--body-file`; heredocs
-through `gh` mangle the wrapping. Then:
+Write the title, one line, with `Write` to `artifacts/pr/title.txt`, and the
+body to `artifacts/pr/body.md`, both in this checkout; a heredoc mangles the
+wrapping. Then:
 
 ```bash
-gh pr create --base main --title '<title>' --body-file <path>
+bash .claude/scripts/gh-pr-create.sh artifacts/pr/title.txt artifacts/pr/body.md
 ```
 
-The title goes in single quotes, each one inside it written `'\''`: a house
-title often holds a backticked name, which double quotes hand to the shell
-to run (`docs/harness-boundaries.md`, *Prefix grants and wildcard denies*).
+The helper fixes the repository and the head from the checkout and the base
+as `main`, the trailing flags a raw `gh pr create` grant would let a command
+choose. **The title never appears on the command line**: a house title often
+holds a backticked name, which double quotes hand to the shell to run before
+anything can refuse it. Each input must be a file git ignores under the
+checkout's `artifacts/`, reached through no symbolic link, since `--body-file`
+publishes whatever it reads; the helper removes both once the PR is open, and
+keeps both for a retry when the create fails
+(`docs/harness-boundaries.md`, *Prefix grants and wildcard denies*).
 
-Then stamp the number `gh pr create` printed on the branch's commits,
+Then stamp the number the helper printed on the branch's commits,
 before anything reviews them:
 
 ```bash

@@ -689,11 +689,12 @@ noting and not evidence. It is evidence now, and it says the deny was genuinely
 defeatable rather than theoretically so.
 
 **The helper grants have the index grants' gap, and a guard of their own.**
-`Bash(py -3.12 .claude/scripts/dispatch_board.py:*)` and `Bash(gh pr create:*)`
-match the typed string too, and both take text a model composes from issue
-titles, where a backticked name is the house style. So the text stays off the
-command line, in the files `/dispatch` *Issue text stays off the command line*
-names, and a pull request's title goes in single quotes.
+`Bash(py -3.12 .claude/scripts/dispatch_board.py:*)` matches the typed string
+too, and takes text a model composes from issue titles, where a backticked
+name is the house style; a pull request's title is the same text. So the text
+stays off the command line, in the files `/dispatch` *Issue text stays off the
+command line* names, and in the title file `gh-pr-create.sh` reads, which
+withdrew the raw `gh pr create` grant (*Grant inventory and push helpers*).
 `.claude/hooks/guard-helper-argv.py` is what holds when a session spells it
 otherwise: it refuses a command substitution anywhere in a command that runs a
 `.py` under `.claude/scripts/` or `gh pr create`, as `guard-index-argv.py` does
@@ -1105,6 +1106,17 @@ Windows' 260 characters is deleted too rather than left in a directory git has
 already unregistered; it first waits, to a bound it declares, for the
 worktree's code-index refresh lock, because Windows will not delete a file a
 running refresh holds (#516).
+
+A third, shared by `/pr` and `/ship`, is closed the same way:
+`Bash(gh pr create:*)` admitted a trailing `--repo`, `--head`, `--base` or
+`--body-file`, which choose a repository, a branch, a base and a body the
+command never derived, and the last publishes any file it can read. It is
+withdrawn for `gh-pr-create.sh`, taken from blueprint-frontend. It takes two
+paths, the title's and the body's, reads the repository and the head from the
+checkout and spells the base `main`, and refuses an input that is not a file
+git ignores under the checkout's `artifacts/`, or is reached through a
+symbolic link: an ignored file is untracked, so the branch under review never
+writes its own pull request, and every target already ignores `artifacts/`.
 
 **Two more sat in the sweep command files rather than in this paragraph, and
 both are now closed — which is worth recording because they were closed the

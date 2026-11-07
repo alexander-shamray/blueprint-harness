@@ -66,7 +66,6 @@ class NoCommandReadsAPullRequestFeedUnfiltered(unittest.TestCase):
     # fields as surely as `gh pr view`, and a helper that fixes its field set
     # does not bind a caller who still holds the raw grant.
     GH_GRANTS_THAT_CANNOT_REACH_A_FEED = {
-        "gh pr create",
         "gh pr diff",
         "gh pr checks",
         "gh issue create",
@@ -107,7 +106,8 @@ class NoCommandReadsAPullRequestFeedUnfiltered(unittest.TestCase):
             grant for path in COMMANDS.glob("*.md")
             for grant in self.granted_bash(path) if grant.startswith("gh ")
         ]
-        self.assertGreaterEqual(len(seen), 3)
+        # `gh pr checks` alone is left since the create became `gh-pr-create.sh`'s.
+        self.assertGreaterEqual(len(seen), 1)
         for banned in ("gh pr view", "gh pr list", "gh api"):
             self.assertNotIn(banned, self.GH_GRANTS_THAT_CANNOT_REACH_A_FEED)
 
