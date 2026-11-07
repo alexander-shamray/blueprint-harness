@@ -58,6 +58,10 @@ if [ "$mode" != full ] && last=$(g rev-parse --verify --quiet "refs/sweeps/$kind
   # the diff from it would skip files this commit never had swept.
   if g merge-base --is-ancestor "$last" "$pinned"; then since="$last"; fi
 fi
+# The swept tree's .gitattributes would decide what `grep -I` calls binary, so
+# they are read from the empty tree instead; a git older than 2.42 refuses the
+# option, and the run fails rather than trusting them.
+empty=$(g hash-object -t tree --stdin </dev/null)
 
 # The bytes inside fences, the only part of a sample the sweeps audit, one line
 # per blob of a `git cat-file --batch` stream. A fence closes only on its own
@@ -103,7 +107,7 @@ mkdir "$out"
 # Any exit before the plan is printed takes the half-cut lists with it.
 trap 'rm -rf "$out"' EXIT
 g ls-tree -r -l -z --full-tree "$pinned" > "$out/tree.z"
-g grep -I -l -z -e '' "$pinned" -- . > "$out/text.z" || [ "$?" -eq 1 ]
+g --attr-source="$empty" grep -I -l -z -e '' "$pinned" -- . > "$out/text.z" || [ "$?" -eq 1 ]
 : > "$out/changed.z"
 [ -z "$since" ] || g diff --name-only --no-renames -z "$since" "$pinned" > "$out/changed.z"
 lines_of "$out/tree.z" "$out/tree.txt"
@@ -119,7 +123,8 @@ sed "s/^[0-9a-f]*://" "$out/text.raw" > "$out/text.txt"
 
 # The rows of this kind in file order, the first match winning; row `-` and no
 # match alike leave a path unowned, printed on stderr and counted, and the run
-# refuses below. The other lines are `L row size file` for what the sweep reads.
+# refuses below. The other lines are `L row size file` for what the sweep reads
+# and `B file` for a binary one it does not.
 awk -F'\t' -v kind="$kind" -v since="$since" '
   function row_of(f,   i) {
     for (i = 1; i <= nrows; i++) if (f ~ pattern[i]) return row[i] == "-" ? "" : row[i]
@@ -141,7 +146,7 @@ awk -F'\t' -v kind="$kind" -v since="$since" '
     if (r == "") { print "no row owns: " file > "/dev/stderr"; unowned++; next }
     if (since != "" && !(file in changed)) { unchanged++; next }
     if (size == 0) { empty++; next }
-    if (!(file in text)) { binary++; next }
+    if (!(file in text)) { binary++; printf "B\t%s\n", file; next }
     # Closed records are never edited to match the code, so a defect in their
     # samples has no fix to file; owned by the row, counted, not read.
     if (file ~ /^docs\/superpowers\// || file == "docs/pr-decision-log.md" || file == "docs/lessons.md") {
@@ -155,6 +160,9 @@ awk -F'\t' -v kind="$kind" -v since="$since" '
 totals=$(grep '^T' "$out/plan.raw")
 IFS=$'\t' read -r _ tracked unowned unchanged empty binary record <<<"$totals"
 [ "$unowned" -eq 0 ] || { echo "$unowned tracked path(s) no row owns" >&2; exit 3; }
+# No auditor reads a binary file, so each is named in a list the plan points at:
+# a NUL byte is all it takes to make a script one.
+awk -F'\t' '$1 == "B" { print $2 }' "$out/plan.raw" > "$out/binary.txt"
 
 # A sample counts only its fenced lines; one with none is counted, not listed.
 # Every sample goes through one cat-file and one awk, in tree order, rather than
@@ -183,6 +191,7 @@ LC_ALL=C sort -t$'\t' -k1,1 -s "$out/plan.rows" > "$out/plan.sorted"
 echo "pinned $pinned"
 if [ -n "$since" ]; then echo "mode since $since"; else echo "mode full"; fi
 echo "tracked $tracked listed $listed unchanged $unchanged empty $empty binary $binary record $record fenceless $fenceless"
+if [ "$binary" -gt 0 ]; then echo "binary $binary $out/binary.txt"; else rm -f "$out/binary.txt"; fi
 
 n=0 bytes=0 files=0 current="" list=""
 flush() {
@@ -198,7 +207,7 @@ while IFS=$'\t' read -r row size file; do
   bytes=$((bytes + size)) files=$((files + 1)) list="$list$file"$'\n'
 done < "$out/plan.sorted"
 flush
-# Only the numbered lists stay beside the worktree.
+# Only the lists stay beside the worktree.
 rm -f "$out"/*.z "$out"/*.raw "$out"/tree.txt "$out"/text.txt "$out"/changed.txt \
   "$out"/plan.rows "$out"/plan.sorted "$out"/samples.txt "$out"/samples.fenced
 trap - EXIT

@@ -435,7 +435,15 @@ de-duplicate gates below could check the claim against a record.
 full` or `mode since <sha>`, one `tracked` line counting what it listed
 and each reason it skipped the rest, and one
 `slice <n> <row> <files> <bytes> <list>` line per slice — at most 240,000
-bytes, about 60k tokens, unless one file is larger. A sample's bytes are
+bytes, about 60k tokens, unless one file is larger. **A binary file is
+named, not only counted**, in the list a `binary <files> <list>` line points
+at: what `git grep -I` calls binary no auditor reads. The swept tree's
+`.gitattributes` never decide it, since the helper reads attributes from
+the empty tree and a line there could mark any script binary
+(blueprint-backend#1784); a NUL byte still does, and a script can hold one,
+so the parent reads the list and the summary names every path on it that
+is not an asset. A git older than 2.42 has no `--attr-source` and fails the
+run rather than trusting the tree's attributes. A sample's bytes are
 its fenced lines, so a `samples` auditor reads the fences and not the
 prose, and a docs file with no fence is not sliced. The closed records,
 `docs/superpowers/`, `pr-decision-log.md` and `lessons.md`, are owned and

@@ -225,6 +225,34 @@ class ASmallRepository(unittest.TestCase):
         tooling = listed([s for s in parse(result.stdout)[1] if s[0] == "tooling"])
         self.assertIn("tools/d.py", tooling)
 
+    def test_the_swept_trees_attributes_do_not_hide_a_file(self):
+        # blueprint-backend#1784: `grep -I` reads the swept tree's attributes, so
+        # a line there marked a chosen script binary and every slice dropped it.
+        self.commit(".gitattributes", "tools/hidden.sh -diff\ntools/also.sh binary\n")
+        self.commit("tools/hidden.sh", "rm -rf ~\n")
+        self.commit("tools/also.sh", "rm -rf ~\n")
+        result = self.sweep().slices("bug")
+        self.assertEqual(0, result.returncode, result.stderr)
+        head, slices = parse(result.stdout)
+        self.assertIn("tools/hidden.sh", listed(slices))
+        self.assertIn("tools/also.sh", listed(slices))
+        self.assertEqual(0, head["counts"]["binary"])
+        self.assertNotIn("binary", head)
+
+    def test_a_binary_file_is_named_in_a_list_the_plan_points_at(self):
+        # A NUL byte still makes a file binary, and a script can hold one, so
+        # what no auditor reads is named rather than only counted.
+        self.commit("tools/z.sh", "echo\0\nrm -rf ~\n")
+        result = self.sweep().slices("bug")
+        self.assertEqual(0, result.returncode, result.stderr)
+        head, slices = parse(result.stdout)
+        self.assertEqual(1, head["counts"]["binary"])
+        count, listing = head["binary"].split(" ")
+        self.assertEqual("1", count)
+        read = run_bash('cat -- "$P"', P=listing)
+        self.assertEqual(["tools/z.sh"], read.stdout.splitlines(), read.stderr)
+        self.assertNotIn("tools/z.sh", listed(slices))
+
     def test_a_marked_ancestor_narrows_round_one_to_the_change(self):
         base = git(self.repo, "rev-parse HEAD")
         self.assertEqual(0, self.mark("bug", base).returncode)
