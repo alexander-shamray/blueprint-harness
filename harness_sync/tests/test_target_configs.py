@@ -14,7 +14,6 @@ FRONTEND = ROOT / "targets" / "blueprint-frontend.config.json"
 OTHERS = (ROOT / "targets" / "blueprint-backend.config.json", ROOT / ".harness" / "config.json")
 
 # Frontend's settings.json at 41a3f45 denies these and the base does not; plan 5 *Decisions* keeps them as additions.
-# The raw `gh pr merge` and `git worktree remove` are the two it sends to the base instead.
 FRONTEND_DENIES = (
     "Edit(AGENTS.md)",
     "Edit(./AGENTS.md)",
@@ -46,6 +45,9 @@ FRONTEND_DENIES = (
     "Edit(./node_modules/**)",
     "Bash(git *--no-index*)",
 )
+# Frontend denies these too, and *Decisions* sends them to the base; the config holds them until the base does,
+# and the renderer drops the copy from then on.
+RAW_FORMS = ("Bash(gh pr merge:*)", "Bash(git worktree remove:*)")
 
 
 def real_base() -> dict:
@@ -58,11 +60,12 @@ class FrontendConfigTests(unittest.TestCase):
         cfg = load_config(FRONTEND)
         self.assertEqual(cfg.repo, "alexander-shamray/blueprint-frontend")
         self.assertEqual(len(FRONTEND_DENIES), 29)
-        self.assertEqual(tuple(cfg.settings["deny"]), FRONTEND_DENIES)
+        self.assertEqual(tuple(cfg.settings["deny"]), FRONTEND_DENIES + RAW_FORMS)
 
         rendered = render_settings(base, cfg)
         deny = rendered["permissions"]["deny"]
-        for entry in base["permissions"]["deny"] + list(FRONTEND_DENIES):
+        self.assertEqual(len(deny), len(set(deny)))
+        for entry in base["permissions"]["deny"] + list(FRONTEND_DENIES + RAW_FORMS):
             with self.subTest(deny=entry):
                 self.assertIn(entry, deny)
         self.assertEqual(deny[: len(base["permissions"]["deny"])], base["permissions"]["deny"])
