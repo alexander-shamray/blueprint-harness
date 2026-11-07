@@ -1,9 +1,7 @@
 """sweep-slices.sh and sweep-mark.sh: the partition, the budget and the ref.
 
-The partition runs on small repositories built per case, each beside a copy of
-the helper that reads a row file of the case's own, and once over this
-checkout's own tree with its own `.harness/sweep-rows.tsv`, which every target
-keeps, so that case runs wherever the payload lands.
+Small repositories are cut by a helper copy reading a row file of the case's
+own; this checkout's tree by its own, so that case runs in every target.
 """
 
 import os
@@ -226,8 +224,8 @@ class ASmallRepository(unittest.TestCase):
         self.assertIn("tools/d.py", tooling)
 
     def test_the_swept_trees_attributes_do_not_hide_a_file(self):
-        # blueprint-backend#1784: `grep -I` reads the swept tree's attributes, so
-        # a line there marked a chosen script binary and every slice dropped it.
+        # `grep -I` read the swept tree's attributes, so a line there marked a
+        # chosen script binary and every slice dropped it.
         self.commit(".gitattributes", "tools/hidden.sh -diff\ntools/also.sh binary\n")
         self.commit("tools/hidden.sh", "rm -rf ~\n")
         self.commit("tools/also.sh", "rm -rf ~\n")
