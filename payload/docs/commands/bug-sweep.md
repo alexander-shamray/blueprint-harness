@@ -626,7 +626,7 @@ at: what `git grep -I` calls binary no auditor reads. The swept tree's
 the empty tree and a line there could mark any script binary
 (blueprint-backend#1784); a NUL byte still does, and a script can hold one,
 so the parent reads the list and the summary names every path on it that
-is not an asset. A git older than 2.42 has no `--attr-source` and fails the
+is not an asset. A git older than 2.41 has no `--attr-source` and fails the
 run rather than trusting the tree's attributes. A sample's bytes are
 its fenced lines, so a `samples` auditor reads the fences and not the
 prose, and a docs file with no fence is not sliced. The closed records,
