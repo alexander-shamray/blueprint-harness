@@ -699,6 +699,7 @@ class AWorktreeTheSessionHasNotEntered(GuardCase):
         self.write(os.path.join(worktree, ".git"), "gitdir: " + admin + "\n")
         self.write(os.path.join(admin, "gitdir"),
                    os.path.join(worktree, ".git") + "\n")
+        self.write(os.path.join(admin, "commondir"), "../..\n")
         return worktree
 
     def hook_denying(self, *denies):
@@ -746,6 +747,16 @@ class AWorktreeTheSessionHasNotEntered(GuardCase):
             with self.subTest(parts=parts):
                 self.assertRefused(os.path.join(worktree, *parts), hook=hook)
         self.assertAdmitted(os.path.join(worktree, "src", "package.json"), hook=hook)
+
+    def test_a_sibling_is_judged_when_every_anchor_is_a_linked_worktree(self):
+        # The session stands in worktree A, so no anchor holds the main `.git`
+        # that sibling B's gitdir sits under; their common git dir does.
+        here = self.linked("here")
+        sibling = self.linked("sibling")
+        self.assertRefused(os.path.join(sibling, ".claude", "settings.json"),
+                           cwd=here, project=here)
+        self.assertAdmitted(os.path.join(sibling, "docs", "note.md"),
+                            cwd=here, project=here)
 
     def test_the_worktree_the_session_stands_in_is_not_this_rule(self):
         # There the permission rules apply, and a lifted deny is the owner's.
