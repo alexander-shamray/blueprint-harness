@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """Refuse a command substitution on a line that runs a prefix-granted helper.
 
-`Bash(py -3.12 .claude/scripts/dispatch_board.py:*)` matches the typed string while the shell still runs `$(…)` and
-backticks, inside double quotes too. A `.py` helper and `gh pr create` take text a model composes from issue titles.
-Protocol: PreToolUse, matcher `Bash`, as `guard-index-argv.py`, whose line reading this hook shares.
+A grant matches the typed string while the shell runs `$(…)`, quoted or not; the protocol is `guard-index-argv.py`'s.
 """
 
 import importlib.util

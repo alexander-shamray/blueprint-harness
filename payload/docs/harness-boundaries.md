@@ -606,9 +606,10 @@ defeatable rather than theoretically so.
 **The guard hooks catch an agent's honest mistakes; they are not a sandbox
 against a session that sets out to defeat them.** `guard-git-argv.py`,
 `guard-edit-target.py`, `guard-index-argv.py`, `guard-helper-argv.py` and
-`guard-sed-crlf.py` are written against a session that types a dangerous command by accident or by
-a plausible shortcut — a forced push, a write into a denied tree, a removal
-of a parent of the checkout, a `sed -i` over a CRLF file — in any spelling
+`guard-sed-crlf.py` are written against a session that types a dangerous
+command by accident or by a plausible shortcut — a forced push, a write
+into a denied tree, a removal of a parent of the checkout, a `sed -i` over
+a CRLF file — in any spelling
 a shell user writes in ordinary work: quoting, `-C` and `--work-tree`,
 environment prefixes, `cd` chains, the launchers and wrappers, heredocs,
 pipes into a shell. A guard that judges a file the command names, as
