@@ -116,8 +116,9 @@ bash .claude/scripts/pr-for-branch.sh <branch>
 It exits 0 for all four outcomes: empty means no PR into `main` other than
 earlier incarnations dropped for a reused name; otherwise the newest row
 reads `OPEN`, `CLOSED` or `MERGED`. Never use `pr-state.sh` for this read: it
-exits non-zero with no PR. (why: docs/commands/ship.md, *Resume, don't
-restart*)
+exits non-zero with no PR. A non-zero exit from `pr-for-branch.sh` is a
+refused read, never an empty one: the step did not run, so stop. (why:
+docs/commands/ship.md, *Resume, don't restart*)
 
 ## A plan is reviewed once, for contradiction
 

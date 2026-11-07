@@ -358,7 +358,9 @@ allowed to be wrong in.
 `pr-state.sh` on a branch with no PR exits non-zero, and *forked but never
 PR'd* is what step 1 produces on every run, so it cannot be one of these
 reads (*Resume, don't restart*). `pr-for-branch.sh` answers with a row or
-with `[]`.
+with `[]`. A non-zero exit is a refused read, never an empty one: the
+helper exits 4 at the listing cap and 3 on an answer that is no array,
+and the step did not run, as the runbook's first stop row says.
 
 **It is not filtered to merged, and the runbook's step 0 read must do that
 itself.** The helper fixes `--state all`, because the runbook's resume table
