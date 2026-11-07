@@ -916,7 +916,7 @@ synchronises only once, so without the pull the recheck would diff nothing and
 record the old head again. A refused pull is divergence and stops. The recheck
 of what changed then records `headRefOid`, which is what ends the re-entry. The
 ceiling does not excuse it: spent, it still allows that one recheck, what it
-finds that holds being filed as the ceiling files it. A plan PR alone re-enters
+finds that holds being filed as the ceiling files it. A plan PR re-enters
 nothing, its review having ended under *A plan is reviewed once, for
 contradiction*, and its report says the head merged unreviewed.
 
