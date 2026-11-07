@@ -941,6 +941,16 @@ class StateOutOfReach(Base):
             self.mod.pending_path(worktree),
             self.mod.pending_path(Path(str(worktree) + os.sep)))
 
+    def test_a_python_without_isjunction_still_judges_a_link(self):
+        """`os.path.isjunction` is Python 3.12's, and `git-worktree-fork.sh`
+        runs the hook with whatever `python3` it finds."""
+        root = self.checkout("main")
+        self.patch(mock.patch.object(self.mod.os.path, "isjunction", create=True))
+        del self.mod.os.path.isjunction
+
+        self.assertFalse(self.mod.linked(root))
+        self.assertIsNotNone(self.mod.state_dir())
+
     def test_a_link_at_the_state_directory_refreshes_nothing(self):
         root = self.checkout("main")
         elsewhere = self.aimed()
