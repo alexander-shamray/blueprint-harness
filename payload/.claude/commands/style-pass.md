@@ -29,10 +29,12 @@ whole corpus and it is the user's.
 ## 2. Sweep the corpus
 
 The named site is one of many. Find the rest across every fenced block under
-`docs/`, the product specification `docs/harness-local.md` *Documents* names
-among them — and the source too, because one dialect governs all of it. A
-rule applied to the source and not to the samples leaves the samples teaching
-the form the pass just removed.
+`docs/`, the product specification among them, except the closed records
+`docs/harness-local.md` *Documents* names and the paths
+`.harness/manifest.json` manages, which a target's pass does not edit — and the
+source too, because one dialect governs all of it. A rule applied to the source
+and not to the samples leaves the samples teaching the form the pass just
+removed.
 
 Grep gets you candidates; reading them gets you the shape. Anything structural
 — bracket depth, chain heads, continuation columns, raw-string boundaries —
@@ -44,9 +46,7 @@ script this command can run unattended.
 **This command holds no interpreter grant, and the absence is deliberate.**
 `Bash(python:*)` would be a prefix grant on a general-purpose interpreter:
 `python -c "<anything>"` would be auto-approved, and one `open(…,'w')`
-reaches every path the `Edit(…)` denies cover — `.claude/scripts/**`,
-`.claude/commands/**`, `.claude/agents/**`, `.claude/hooks/**`,
-`.claude/settings.json`, `.claude/settings.local.json` and `.remember/**` —
+reaches every path the `Edit(…)` denies in `.claude/settings.json` cover,
 while one `subprocess.run` reaches every `git push --force` and `git switch -fC`
 the deny list and the `git-*.sh` helpers exist to keep out. A rule that
 matches `python -c` cannot see what the interpreter then does, so the whole

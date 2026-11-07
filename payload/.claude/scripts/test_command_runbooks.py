@@ -165,6 +165,37 @@ class ShipStopsAndContinuesWhereTheHelpersSay(unittest.TestCase):
         self.assertIn(trailer, ceiling)
         self.assertRegex(ceiling, r"title, a blank line and the body on stdin")
 
+    def head_gate(self):
+        ship = collapsed(COMMANDS / "ship.md")
+        step = ship[ship.index("6. **Merge, then tear"):ship.index("7. **Sleep, only when asked.**")]
+        return step[step.index("**A head no round reviewed is not merged.**"):step.index("**A non-empty workspace read")]
+
+    def test_the_head_gate_fast_forwards_first_and_spares_a_plan_pr(self):
+        gate = self.head_gate()
+        self.assertRegex(gate, r"`git pull --ff-only` \(a refusal stops\)")
+        self.assertRegex(gate, r"on a plan PR nothing re-enters")
+
+    def test_a_sync_pr_still_writes_the_bar_and_takes_the_oid_as_its_reviewed_head(self):
+        ship = collapsed(COMMANDS / "ship.md")
+        sync = ship[ship.index("- **Step 5** skips its opening synchronise"):ship.index("- **Step 6** is unchanged")]
+        self.assertRegex(sync, r"the bar is still written from `origin/main` as 5\.1 says")
+        self.assertRegex(sync, r"`<oid>` is the round's reviewed head")
+
+    def test_the_ceiling_fix_leaves_step_6s_one_recheck_standing(self):
+        ship = collapsed(COMMANDS / "ship.md")
+        ceiling = ship[ship.index("The seventh round is the ceiling"):ship.index("Each that stays open is filed")]
+        self.assertRegex(ceiling, r"no further round beyond step 6's one recheck")
+
+    def test_row_one_names_the_rebase_continuations_among_its_exceptions(self):
+        ship = collapsed(COMMANDS / "ship.md")
+        row = ship[ship.index("| A helper or a guarded git command exits non-zero"):ship.index("| This branch's PR was closed")]
+        self.assertRegex(row, r"rebase helper's two continuations")
+
+    def test_the_deny_route_is_outside_dispatched_only(self):
+        ship = collapsed(COMMANDS / "ship.md")
+        two = ship[ship.index("2. **Verify each finding, then fix.**"):ship.index("3. **Choose the next round.**")]
+        self.assertRegex(two, r"Outside `--dispatched`, file it at once")
+
     def test_a_finding_a_deny_refuses_is_filed_at_once_and_reported(self):
         ship = collapsed(COMMANDS / "ship.md")
         two = ship[ship.index("2. **Verify each finding, then fix.**"):ship.index("3. **Choose the next round.**")]
@@ -203,6 +234,10 @@ class StylePassReadsTheTargetsOwnLimitsAndSweepsEveryFence(unittest.TestCase):
     def test_the_verify_scan_takes_its_limits_from_the_style_guide(self):
         verify = self.section("## 5. Verify", "## Report")
         self.assertRegex(verify, r"limits.{0,60}style guide")
+        sweep = self.section("## 2. Sweep the corpus", "## 3. Record it")
+        self.assertRegex(sweep, r"except the closed records `docs/harness-local.md` \*Documents\* names")
+        self.assertIn(".harness/manifest.json", sweep)
+        self.assertNotIn("`.claude/scripts/**`", sweep)
         for stack_fact in ("120", "multiple of four", "CRLF"):
             with self.subTest(hard_coded=stack_fact):
                 self.assertNotIn(stack_fact, verify)

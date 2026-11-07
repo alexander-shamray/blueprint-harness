@@ -198,6 +198,12 @@ class TheReviewersContractIsOneVocabularyAndABarItCannotChoose(unittest.TestCase
         self.assertRegex(report, r"the review was in house")
         self.assertRegex(text, r"never reported as having had an external opinion")
 
+    def test_the_bar_and_the_examples_come_before_the_diff_and_nothing_claims_first(self):
+        profile = flat(self.PROFILE)
+        self.assertNotIn("Read it first", profile)
+        self.assertRegex(profile, r"read both before the diff")
+        self.assertRegex(profile, r"Read it whole, after the bar")
+
     def test_the_code_bar_holds_security_weaknesses_and_findings_quote_what_they_rest_on(self):
         profile = flat(self.PROFILE)
         self.assertRegex(profile, r"defects and security weaknesses")
