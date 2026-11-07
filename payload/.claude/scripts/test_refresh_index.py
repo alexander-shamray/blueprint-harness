@@ -1437,10 +1437,8 @@ class TheIndexIsCompactedAfterARefresh(unittest.TestCase):
         self.assertEqual(before, self.snapshot())
         self.assertTrue(os.path.lexists(log))
 
-    def test_a_compaction_past_its_deadline_is_interrupted(self):
-        """In a thread, so a regression fails this case rather than hanging
-        the suite; the interrupted `VACUUM` gives no page back."""
-        self.build(segments=True, free=True)
+    def pad(self):
+        """Enough rows that a statement outlasts the progress handler's interval."""
         connection = sqlite3.connect(str(self.index), isolation_level=None)
         try:
             connection.execute("INSERT INTO chunks(content) SELECT 'padding ' || value FROM "
@@ -1448,6 +1446,11 @@ class TheIndexIsCompactedAfterARefresh(unittest.TestCase):
                                "SELECT value + 1 FROM r LIMIT 5000) SELECT value FROM r)")
         finally:
             connection.close()
+
+    def compact_past_the_deadline(self):
+        """In a thread, so a regression fails the case rather than hanging the
+        suite; the index is left as it was, with its free pages."""
+        before = self.snapshot()
         result = []
         worker = threading.Thread(
             target=lambda: result.append(self.mod.compact(self.root)), daemon=True)
@@ -1456,8 +1459,22 @@ class TheIndexIsCompactedAfterARefresh(unittest.TestCase):
             worker.join(timeout=30)
         self.assertFalse(worker.is_alive(), "compaction ran past its deadline")
         self.assertEqual([False], result)
+        self.assertEqual(before, self.snapshot())
         self.assertGreater(self.measure()["free"], 0)
         self.integrity()
+
+    def test_a_compaction_past_its_deadline_is_interrupted(self):
+        self.build(segments=True, free=True)
+        self.pad()
+        self.compact_past_the_deadline()
+
+    def test_the_statements_are_interrupted_by_the_progress_handler(self):
+        """With the copy's own check out of the way, what still stops the
+        statements past the deadline is the handler `locked_down` installs."""
+        self.build(segments=True, free=True)
+        self.pad()
+        with mock.patch.object(self.mod, "late", lambda _limit: None):
+            self.compact_past_the_deadline()
 
     def test_the_copy_is_interrupted_between_its_steps(self):
         self.build(segments=True, free=True)
