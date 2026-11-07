@@ -2187,6 +2187,12 @@ def evaluated_scripts(tokens):
 # here keeps reaching the scan.
 DATA_ONLY_COMMANDS = {"echo", "printf", ":", "true", "false"}
 
+# A run led by one of these reads or lists the words after it, and cannot run
+# them: `grep -n tee .claude/x` writes nothing, and `git rm` is git's business.
+READING_COMMANDS = frozenset({
+    "cat", "diff", "file", "git", "grep", "head", "ls", "stat", "tail", "wc",
+})
+
 
 # `shlex(punctuation_chars=True)` emits a maximal run of these as one token, so
 # an operator can arrive glued to its neighbour and match no separator by name.
@@ -2460,6 +2466,26 @@ def short_flag(element, subcommand, letters):
     return None
 
 
+def xargs_supplies_push(tokens):
+    """Whether `xargs` hands a `git push` arguments this guard never sees.
+
+    Only the push: its destination is what cannot be read, and `xargs` in front
+    of a reader or a script is ordinary. A run led by a reader or a printer
+    names `xargs` as data.
+    """
+    for run in command_runs(tokens):
+        if program_name(leading_command(run)) in (
+                READING_COMMANDS | DATA_ONLY_COMMANDS):
+            continue
+        names = [program_name(token) for token in run]
+        if "xargs" not in names:
+            continue
+        for index in range(names.index("xargs") + 1, len(run)):
+            if names[index] == "git" and subcommand_of(run[index + 1:]) == "push":
+                return True
+    return False
+
+
 def trap_offence(segment):
     """The refusal for a git command whose text shows it losing work, or None."""
     stripped = after_global_options(segment)
@@ -2661,6 +2687,13 @@ def _offence(command, depth, judged):
 
     if unchecked_push_pipeline(tokens):
         return UNCHECKED_PUSH
+
+    if xargs_supplies_push(tokens):
+        return (
+            "`xargs` supplies this `git push` with arguments read from stdin, "
+            "so its destination is not in the command and cannot be judged. "
+            "Name the remote and the refspec."
+        )
 
     for segment in git_segments(tokens):
         refusal = push_offence(segment) or trap_offence(segment)
