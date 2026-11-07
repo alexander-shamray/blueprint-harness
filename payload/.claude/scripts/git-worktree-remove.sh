@@ -42,14 +42,17 @@ common_there=$(git -C "$path" rev-parse --path-format=absolute --git-common-dir)
 # Every refresh worker holds this lock for its whole run, the index update
 # included, and Windows will not delete a file held open: a remove meanwhile
 # deletes part of the tree and fails. So the lock is taken first, with the
-# hook's own primitive, and one still held at the bound removes nothing.
-cache="$path/.claude/cache/codebase-index"
-if [ -f "$cache/refresh.lock" ] || [ -f "$cache/refresh.pending" ]; then
+# hook's own primitive, in the git directory, and one still held at the bound
+# removes nothing.
+state="$common_here/index-refresh"
+if [ -d "$state" ]; then
   python=python3
   command -v py >/dev/null 2>&1 && python="py -3.12"
-  if ! $python -I - "$cache" <<'PY'; then
-import os, sys, time
-lock, pending = (os.path.join(sys.argv[1], name) for name in ("refresh.lock", "refresh.pending"))
+  if ! $python -I - "$state" "$path" <<'PY'; then
+import hashlib, os, sys, time
+info = os.stat(sys.argv[2])
+key = hashlib.sha256(f"{info.st_dev}:{info.st_ino}".encode()).hexdigest()[:32]
+lock, pending = (os.path.join(sys.argv[1], f"{key}.{suffix}") for suffix in ("lock", "pending"))
 bound, grace = 30, 2
 if sys.platform == "win32":
     import msvcrt

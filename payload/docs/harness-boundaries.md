@@ -180,9 +180,22 @@ moments after its last call, and Windows looks in the starting process's own
 directory for a program named bare, so a checkout's parent, or for a worktree
 a directory of the main checkout, would let a merged file stand in for the
 CLI, which is started by the full path a PATH-only lookup found instead. The
-lock and the CLI's own run still hold files in the checkout while they last,
-which is why `/ship`'s `git-worktree-remove.sh` takes the lock before it
-removes.
+CLI's own run still holds files in the checkout while it lasts, and the worker
+holds the lock for that whole run, which is why `/ship`'s
+`git-worktree-remove.sh` takes the lock before it removes.
+
+**The lock and the marker are the hook's own writes, so they live in the git
+directory and not in the tree.** Each checkout has a pair under
+`<git directory>/index-refresh/`, named for the checkout's device and inode so
+that two spellings of one path share it. A branch can track a link at any
+component of `.claude/cache/codebase-index/`, and `open` follows a link there
+and truncates what it finds, so a state kept in the tree would be written
+wherever the branch aimed it. Git tracks nothing under its own directory. The
+directory is the one the hook file's own checkout reports, never the target's,
+and where it, or the path into it, is a link there is no state and so no
+refresh. `git-worktree-remove.sh` computes the same name from the worktree it
+removes, and `test_git_worktree_remove.py` takes the hook's own for the lock
+it holds, so a name that drifts in either fails there.
 
 **The CLI is found on `PATH` alone, and the answer is a full path, so the
 operating system searches nothing.** A `PATH` entry naming a checkout is the

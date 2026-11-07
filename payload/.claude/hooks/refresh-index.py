@@ -5,6 +5,7 @@ that cannot refresh is no reason to fail the call that provoked it."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sqlite3
@@ -32,8 +33,10 @@ INDEX = CACHE / "index.sqlite"
 # staleness rule; a staleness rule needs a takeover; and a takeover between
 # two claimants needs the very serialisation being asked for. The marker
 # beside it is how an edit arriving mid-run reaches the worker running.
-LOCK = CACHE / "refresh.lock"
-PENDING = CACHE / "refresh.pending"
+
+# Both live in the git directory, one pair per checkout: no branch tracks
+# anything there, as it can under `CACHE`.
+STATE = "index-refresh"
 
 # An update that cannot finish is not allowed to hold the lock for ever.
 REFRESH_TIMEOUT = 600
@@ -67,6 +70,86 @@ else:
         except OSError:
             return False
         return True
+
+
+def home() -> Path:
+    """The checkout this hook file sits in, three directories above it."""
+    return Path(__file__).resolve().parents[2]
+
+
+def common_dir(root: Path) -> Path | None:
+    """The git directory `root`'s repository keeps, read from the files git
+    writes: `.git` itself in a main checkout, and in a linked worktree the
+    `commondir` of the directory its `gitdir:` pointer names."""
+    marker = root / ".git"
+    try:
+        if marker.is_dir():
+            return marker
+        pointer = marker.read_text(encoding="utf-8").strip()
+        if not pointer.startswith("gitdir:"):
+            return None
+        admin = root / pointer[len("gitdir:"):].strip()
+        try:
+            named = (admin / "commondir").read_text(encoding="utf-8").strip()
+        except FileNotFoundError:
+            return admin
+        return admin / named
+    except (OSError, UnicodeDecodeError, ValueError):
+        return None
+
+
+def linked(path: Path) -> bool:
+    return path.is_symlink() or os.path.isjunction(path)
+
+
+def state_dir() -> Path | None:
+    """Where this hook keeps its lock and markers, or None where no git
+    directory can be reached without passing through a link."""
+    common = common_dir(home())
+    if common is None:
+        return None
+    directory = common / STATE
+    if linked(common) or linked(directory):
+        return None
+    return directory
+
+
+def identity(path: Path) -> str:
+    """A name for the entry `path` opens that its spellings share: its device
+    and inode, because `normcase` folds case on Windows alone."""
+    try:
+        info = os.stat(path)
+        return f"{info.st_dev}:{info.st_ino}"
+    except OSError:
+        return os.path.normcase(os.path.realpath(path))
+
+
+def state_path(root: Path, suffix: str) -> Path | None:
+    directory = state_dir()
+    if directory is None:
+        return None
+    key = hashlib.sha256(identity(root).encode("utf-8", "replace")).hexdigest()
+    return directory / f"{key[:32]}.{suffix}"
+
+
+def lock_path(root: Path) -> Path | None:
+    return state_path(root, "lock")
+
+
+def pending_path(root: Path) -> Path | None:
+    return state_path(root, "pending")
+
+
+def open_lock(root: Path):
+    """The lock file's handle, made where it is missing, or None."""
+    path = lock_path(root)
+    if path is None:
+        return None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return open(path, "a+b")
+    except OSError:
+        return None
 
 
 def checkout_root(start: Path) -> Path | None:
@@ -151,7 +234,7 @@ def target(event: dict) -> Path | None:
     named = (edited(event) or event.get("cwd")
              or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
     root = checkout_root(Path(str(named)))
-    if root is None:
+    if root is None or state_dir() is None:
         return None
     if (root / CACHE).is_dir():
         return root
@@ -204,16 +287,23 @@ def seed(root: Path) -> None:
 
 def request(root: Path) -> None:
     """Record that an edit wants a refresh, whoever ends up running it."""
+    path = pending_path(root)
+    if path is None:
+        return
     try:
-        (root / PENDING).write_text("", encoding="utf-8")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("", encoding="utf-8")
     except OSError:
         pass
 
 
 def take_request(root: Path) -> bool:
     """Consume an outstanding request, if there is one."""
+    path = pending_path(root)
+    if path is None:
+        return False
     try:
-        (root / PENDING).unlink()
+        path.unlink()
         return True
     except OSError:
         return False
@@ -225,9 +315,8 @@ def busy(root: Path) -> bool:
     Advisory: a worker may start between this answer and the spawn it saves.
     That costs one process that takes no lock, never two refreshes.
     """
-    try:
-        handle = open(root / LOCK, "a+b")
-    except OSError:
+    handle = open_lock(root)
+    if handle is None:
         return False
     with handle:
         return not grab(handle)
@@ -334,9 +423,8 @@ def work(root: Path) -> int:
     through the marker; a worker that cannot take it leaves the marker alone.
     """
     while True:
-        try:
-            handle = open(root / LOCK, "a+b")
-        except OSError:
+        handle = open_lock(root)
+        if handle is None:
             return 0
         with handle:
             if not grab(handle):
@@ -349,7 +437,8 @@ def work(root: Path) -> int:
         # left a marker rather than a worker, so it is taken now. Another
         # worker may have taken the lock in between, and then the grab above
         # fails and this returns: the marker is theirs.
-        if not (root / PENDING).exists():
+        path = pending_path(root)
+        if path is None or not path.exists():
             return 0
 
 
