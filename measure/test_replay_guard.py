@@ -156,6 +156,13 @@ class Replay(unittest.TestCase):
                 self.assertEqual(lines[0]["command"], command)
                 self.assertEqual(lines[-2], {"crashed": 1})
 
+    def test_a_crash_is_counted_in_uses_as_a_refusal_is(self):
+        # Both final numbers count uses, so a command run twice crashes twice.
+        self.transcript("s1", bash("crash-me"), bash("crash-me"))
+        code, lines = self.replay()
+        self.assertEqual(code, 1)
+        self.assertEqual(lines[-2], {"crashed": 2})
+
     def test_output_that_is_no_verdict_is_a_crash(self):
         self.guard.write_text('print("not json")\n', encoding="utf-8")
         self.transcript("s1", bash("git status"))
