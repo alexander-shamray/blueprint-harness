@@ -1057,9 +1057,9 @@ class TheIndexerAKilledWorkerLeftBehind(Base):
         refresh.assert_called_once()
 
     def test_a_record_older_than_an_update_can_run_names_a_reused_pid(self):
-        """An update is killed within `REFRESH_TIMEOUT` plus `REAP_TIMEOUT`,
-        so a record older than that is a pid some other process now holds,
-        and standing off for it would last as long as that process."""
+        """A record older than `REFRESH_TIMEOUT` plus `REAP_TIMEOUT` names
+        nothing, or standing off for a pid some other process now holds
+        would last as long as that process."""
         root = self.checkout("main")
         child, _stop = self.child()
         self.record(root, str(child.pid))
@@ -1170,7 +1170,36 @@ class TheIndexerAKilledWorkerLeftBehind(Base):
         self.assertFalse(self.mod.refresh(root, handle))
 
         child.kill.assert_called_once()
-        self.assertEqual([str(os.getpid()), "4242"], notes)
+        self.assertEqual([str(os.getpid()), "4242", "4242"], notes)
+
+    def test_a_survivor_is_stood_off_from_when_it_was_found_alive(self):
+        """The record is written when the indexer starts, and the worker only
+        learns it survived after both waits, so its age then already exceeds
+        the bound: unless it is written again, the retry reads it as stale."""
+        root = self.checkout("main")
+        survivor, _stop = self.child()
+        started = mock.Mock(pid=survivor.pid)
+        path = self.mod.lock_path(root)
+        waits = []
+
+        def wait(timeout=None):
+            waits.append(timeout)
+            # The time those waits took, as the file's age.
+            then = time.time() - sum(waits) - 1
+            os.utime(path, (then, then))
+            raise subprocess.TimeoutExpired("codebase-index", timeout)
+
+        started.wait.side_effect = wait
+        start = mock.Mock(return_value=started)
+        handle = self.hold(root)
+        self.patch(mock.patch.object(self.mod, "console_script", lambda _root: None))
+        self.patch(mock.patch.object(self.mod.time, "sleep", lambda _pause: None))
+        self.patch(mock.patch.object(self.mod.subprocess, "Popen", start))
+
+        self.assertFalse(self.mod.refreshed(root, handle))
+
+        self.assertEqual([self.mod.REFRESH_TIMEOUT, self.mod.REAP_TIMEOUT], waits)
+        self.assertEqual(1, start.call_count)
 
     def test_a_retry_does_not_start_an_indexer_beside_one_that_survived(self):
         """The survivor's pid is the record, and a retry that overwrote it
