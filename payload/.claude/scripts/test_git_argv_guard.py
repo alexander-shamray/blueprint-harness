@@ -3292,6 +3292,37 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
 
+    def test_the_flags_that_run_a_command_are_refused_in_their_short_spelling(self):
+        for command in (
+            "git rebase -x ./tools/m HEAD~1",
+            "git rebase -ix ./tools/m HEAD~1",
+            "git rebase -x./tools/m HEAD~1",
+            "git rebase -s ours origin/main",
+            "git pull -s ours",
+            "git difftool -x ./tools/m",
+            "git clone -u ./tools/m ./a b",
+            "git ls-remote -u ./tools/m origin",
+            "git grep -O./tools/x foo",
+            "git grep -nO./tools/x foo",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command)
+
+    def test_a_letter_is_read_only_where_it_is_that_flag(self):
+        # `archive -o` was typed twice and `format-patch -o` writes a named
+        # file, so neither is the flag that runs a command.
+        for command in (
+            "git clean -nx", "git rebase -i HEAD~2", "git log -s -1",
+            "git commit -s -m x", "git cherry-pick -x abc123",
+            "git rebase -X ours origin/main", "git rebase -Xours origin/main",
+            "git pull -Xtheirs", "git clone -bunstable ./a b",
+            "git grep -eOops src", "git grep -n foo",
+            "git archive -o out.zip HEAD", "git format-patch -o out HEAD~1",
+            "git ls-remote origin", "git ls-remote --heads origin",
+        ):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
     def test_the_hook_directory_is_a_control_surface_and_is_denied(self):
         # It grants nothing, but it RUNS on every Bash call, so a session able
         # to rewrite it could delete its own guard and then act. `CLAUDE.md`
