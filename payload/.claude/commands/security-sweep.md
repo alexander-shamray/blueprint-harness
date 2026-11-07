@@ -198,7 +198,8 @@ Each round is the review done once, end to end:
 
    - The area is the label `docs/harness/working-rules.md`, *Issues and the
      task list*, gives the tree the record's file is in.
-   - The route is `sweep`, never `hand`.
+   - The route is the entry point's: `gh-issue-sweep.sh` files under `sweep`
+     alone.
    - **The heredoc delimiter is never `EOF`** or any word a file could hold;
      it is a token of the form `ISSUE_BODY_END`, and **before the command is
      composed, every line of the payload is checked against it**; a payload

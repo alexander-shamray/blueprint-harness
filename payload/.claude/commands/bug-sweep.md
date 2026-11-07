@@ -247,7 +247,8 @@ Each round is the review done once, end to end:
    ```
 
    Pass as `<area>` the label `docs/harness/working-rules.md`, *Issues and the
-   task list*, gives the tree the record's file is in, and `sweep` as the route.
+   task list*, gives the tree the record's file is in; the route is the
+   entry point's.
    **The heredoc delimiter is never `EOF`** or any word a file could plausibly
    hold; it is a token of the form `ISSUE_BODY_END`, and **before the command is
    composed, every line of the payload — title, body, quoted lines — is checked
