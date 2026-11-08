@@ -3770,6 +3770,44 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         self.refused("rm -rf ..", "rm -rf ../..", f"rm -rf {self.spelled()}", cwd=worktree)
         self.admitted("rm -rf ../other", "rm -rf .", cwd=worktree)
 
+    def test_git_restore_checkout_rm_and_mv_are_judged_by_the_paths_they_write(self):
+        self.refused(
+            "git checkout origin/main -- .claude/settings.json",
+            "git checkout HEAD~1 -- .claude/hooks/x",
+            "git checkout origin/main .claude/settings.json",
+            "git checkout origin/main -- .claude",
+            "git restore --source=HEAD~1 .claude/settings.json",
+            "git restore --source HEAD~1 .claude/settings.json",
+            "git restore -s origin/main -- .claude/hooks/x",
+            "git restore -sorigin/main .claude/hooks/x",
+            "git restore --source=x --staged --worktree .claude/settings.json",
+            "git restore -SW -s x .claude/settings.json",
+            "git rm .claude/hooks/x", "git rm -f .claude/settings.json", "git rm -r .claude",
+            "git mv .claude/settings.json x.json", "git mv notes/a .claude/hooks/a",
+            "git -C .claude rm -f settings.json",
+            "git -C .claude/hooks checkout origin/main -- x",
+            "cd .claude && git rm settings.json",
+            "bash -c 'git rm .claude/hooks/x'",
+        )
+
+    def test_a_git_path_write_that_restores_or_leaves_a_denied_file_stays_admitted(self):
+        self.admitted(
+            "git checkout -- .claude/settings.json", "git checkout HEAD -- .claude/settings.json",
+            "git checkout @ -- .claude/settings.json", "git checkout .claude/settings.json",
+            "git checkout --theirs -- .claude/settings.json",
+            "git restore .claude/settings.json", "git restore --source=HEAD .claude/settings.json",
+            "git restore --staged .claude/settings.json", "git restore -S -s x .claude/settings.json",
+            "git rm --cached .claude/settings.json", "git rm -n .claude/hooks/x",
+            "git rm --dry-run .claude/hooks/x", "git mv -n .claude/settings.json x.json",
+            "git checkout main", "git checkout -b x origin/main", "git checkout -B x origin/main",
+            "git checkout origin/main -- docs/a.md", "git checkout origin/main -- .",
+            "git rm notes/a", "git rm -r payload/.claude/hooks/x", "git mv notes/a notes/b",
+            "git mv notes.md .claude/", "git log -- .claude/settings.json",
+            "git diff origin/main -- .claude/settings.json", "git show origin/main:.claude/settings.json",
+            'git -C "$d" rm .claude/hooks/x', "git -C /tmp/elsewhere rm .claude/hooks/x",
+            "git checkout $ref -- docs/a.md",
+        )
+
     def test_a_rule_is_read_in_the_permission_grammar(self):
         # `/x` is the project root's, `//x` absolute and `~/x` the home's.
         hook = self.hook_denying("/package.json", "/.github/**", "//notes/**", "~/notes/**")
