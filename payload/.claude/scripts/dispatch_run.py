@@ -1470,9 +1470,11 @@ def _usage_lines(gid, entry):
     spent = entry.get("usage") if isinstance(entry.get("usage"), dict) else {}
     uncounted = _uncounted(entry)
     missing = [f"{uncounted} session{'' if uncounted == 1 else 's'} left no usage, not counted"] if uncounted else []
-    if not spent:
-        return [f"{gid}: " + missing[0]] if missing else []
     cost = _cost(entry.get("cost_usd"))
+    if not spent:
+        # No tokens were read, but a cost or an uncounted session is still the group's to report.
+        parts = [*([f"${cost:.2f}"] if cost is not None else []), *missing]
+        return [f"{gid}: " + ", ".join(parts)] if parts else []
     sources = _usage_sources(entry)
     parts = [_tokens_text(spent), *([f"${cost:.2f}"] if cost is not None else []),
              ", and ".join(text for source, text in USAGE_SOURCES.items() if source in sources), *missing]
