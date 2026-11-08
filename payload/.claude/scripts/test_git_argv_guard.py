@@ -2393,20 +2393,65 @@ class TheGitArgvGuard(unittest.TestCase):
         self.assertAdmitted("git commit -F - <<\"EOF\"\na message\nEOF")
         self.assertAdmitted("git commit -F - <<'EOF'\na message\nEOF")
 
-    def test_a_refused_sweep_body_names_the_route_a_sweep_can_take(self):
-        # A sweep denies `Write`, so the file route the refusal opens with
-        # cannot be taken there; the refusal names the heredoc rewording and
-        # the pitfalls entry that lists the shapes another check refuses.
+    def test_a_helper_script_reads_its_heredoc_as_data(self):
+        # A shell handed a script file reads stdin as data, and a sweep denies
+        # `Write`, so the file route cannot be taken there: admin's guard
+        # refused 134 commands for a body's backtick, 42 of them in sweeps.
+        for helper in ("gh-issue-create", "gh-issue-hand", "gh-issue-harness", "gh-issue-sweep"):
+            for body in ("the parent's tree", "The `foo` call.", "$(git status)",
+                         "then git push origin +HEAD:main ran"):
+                with self.subTest(helper=helper, body=body):
+                    self.assertAdmitted(
+                        f"bash .claude/scripts/{helper}.sh bug low code "
+                        f"<<'ISSUE_BODY_END'{NEWLINE}Title{NEWLINE}{NEWLINE}"
+                        f"{body}{NEWLINE}ISSUE_BODY_END")
+        for command in ("bash ./.claude/scripts/gh-issue-sweep.sh bug low code <<<'a `b`'",
+                        "sh .claude/scripts/gh-issue-hand.sh bug low code <<'D'\nT\n\nsee `x`\nD"):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
+    def test_only_that_spelling_reads_a_heredoc_as_data(self):
+        body = "<<'D'\ngit push origin +HEAD:main\nD"
+        helper = ".claude/scripts/gh-issue-sweep.sh"
+        for command in (
+            f"bash {body}",
+            f"bash /dev/stdin {body}",
+            f"bash - {body}",
+            f"bash -s {helper} {body}",
+            f"bash $X {helper} {body}",
+            f"bash < {helper} {body}",
+            f"bash '{helper}'$X {body}",
+            f"bash .claude/scripts/../../x.sh {body}",
+            f"bash X=1 {helper} {body}",
+            f"env bash {helper} {body}",
+            f"bash .claude/scripts/gh-pr-create.sh {body}",
+            f"python -c 'import sys; exec(sys.stdin.read())' bash {helper} {body}",
+            f"bash() {{ source /dev/stdin; }}; bash {helper} {body}",
+            f"BASH_ENV=/dev/stdin bash {helper} {body}",
+            f"PATH=/tmp/evil:$PATH bash {helper} {body}",
+            f"cd /tmp && bash {helper} {body}",
+            f"/tmp/evil/bash {helper} {body}",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command)
+
+    def test_a_helper_heredoc_still_has_its_substitutions_judged(self):
+        # An unquoted body expands before the helper starts, in this shell.
+        self.assertRefused("bash .claude/scripts/gh-issue-hand.sh bug low code <<D\n"
+                           "T\n\n$(git push origin +HEAD:main)\nD")
+
+    def test_a_refused_stdin_script_names_the_route_a_sweep_can_take(self):
+        # Before the helper's own run the data reading does not hold, and the
+        # refusal names the helper's spelling and the pitfalls entry.
         for body in ("the parent's tree", "The `foo` call.",
                      "then git push origin +HEAD:main ran"):
             with self.subTest(body=body):
                 reason = self.assertRefused(
-                    "bash .claude/scripts/gh-issue-sweep.sh bug low code "
+                    "cd docs && bash .claude/scripts/gh-issue-sweep.sh bug low code "
                     f"<<'ISSUE_BODY_END'{NEWLINE}Title{NEWLINE}{NEWLINE}"
                     f"{body}{NEWLINE}ISSUE_BODY_END")
                 self.assertIn("handed to a shell on stdin", reason)
-                self.assertIn("Where `Write` is denied", reason)
-                self.assertIn("even count of apostrophes", reason)
+                self.assertIn("first thing the command does", reason)
                 self.assertIn(
                     "`docs/harness/pitfalls.md`, *Shell and encoding*", reason)
 
@@ -3206,7 +3251,7 @@ class TheGitArgvGuard(unittest.TestCase):
 
     def test_a_heredoc_fed_to_a_script_names_the_file_route(self):
         reason = self.assertRefused(
-            "bash .claude/scripts/gh-issue-hand.sh bug low harness <<'EOF'\nsee `x` here\nEOF")
+            "bash .claude/scripts/gh-pr-body.sh bug low harness <<'EOF'\nsee `x` here\nEOF")
         self.assertIn("with `Write`", reason)
         self.assertIn("< <path>", reason)
 
