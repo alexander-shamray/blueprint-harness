@@ -84,6 +84,7 @@ class WorkingRulesTests(unittest.TestCase):
         rule = _bullet(self.rules, "A check red on a pull request that touched none of it")
         self.assertIn("whether or not `main` ran red", rule)
         self.assertIn("a gate's refusal of its own commits, body or added lines is its own to fix", rule)
+        self.assertIn("A rerun comes first, and one that turns green is a flake", rule)
         self.assertIn("is not changed to make it pass", rule)
         self.assertIn("`git-rebase-onto-main.sh`", rule)
         update = _bullet(self.rules, "A branch is updated for a conflict")
