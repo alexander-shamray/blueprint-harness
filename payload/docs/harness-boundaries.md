@@ -383,10 +383,12 @@ file.
 `gate-index.py`, which loads this hook and asks `index_openable` of the
 working directory and of the checkout git puts it in; exit 3 is a refusal,
 and no Python 3.12 is exit 4 rather than a pass, since the CLI would open an
-index nobody judged. `cbx.ps1` runs no gate: the skill neither grants nor
-teaches it, so a session reaches it only through a prompt, and the window
-between the gate's look and the CLI's own open is the one every check here
-leaves.
+index nobody judged. `cbx.ps1` runs the same `gate-index.py` inside its `try`,
+under the first `py -3.12` or 3.12 `python`; the gate's exit becomes the
+script's and the CLI starts only when none was set, so the one `exit` after
+the `finally` still holds. `test_cbx.py`'s launcher stubs answer the gate's
+`-I` call with the exit `CBX_STUB_GATE_EXIT` names. The window between the
+gate's look and the CLI's own open is the one every check here leaves.
 
 **The approval of `.mcp.json`'s servers belongs to a directory, so the fork
 carries it.** A session started in a worktree reads that worktree's own
