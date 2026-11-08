@@ -1049,10 +1049,12 @@ def absorb(root, run, gid, run_refused=None):
     models = entry.get("usage_models") if isinstance(entry.get("usage_models"), dict) else {}
     models = {**models, **{name: _add_counts(models.get(name), counts) for name, counts in end.usage_models.items()}}
     costs = [cost for cost in (_cost(entry.get("cost_usd")), end.cost_usd) if cost is not None]
+    # A session with none of modelUsage, usage and total_cost_usd spent an unknown amount, so the row says so.
+    uncounted = _uncounted(entry) + (not end.usage_source and not end.usage_models and end.cost_usd is None)
     entry.update(status=decision, absorbed=raw.get("started"), exit=end.exit_code, session_id=end.session_id,
                  usage=_add_counts(spent, end.usage), usage_sources=sources, usage_models=models,
-                 cost_usd=sum(costs) if costs else None, denials=end.denials, reason=reason, unreviewed=unreviewed,
-                 review_seen="transcript" if seen else None)
+                 cost_usd=sum(costs) if costs else None, usage_uncounted=uncounted, denials=end.denials,
+                 reason=reason, unreviewed=unreviewed, review_seen="transcript" if seen else None)
     if decision in ("relaunch", "crash-hand-back"):
         entry["crashes"] = crashes + 1
     if end.resets_at is not None:
@@ -1459,14 +1461,21 @@ def _tokens_text(spent):
     return f"{sum(counts)} tokens (" + ", ".join(f"{name} {n}" for name, n in zip(TOKEN_NAMES, counts)) + ")"
 
 
+def _uncounted(entry):
+    """How many of the group's sessions left no usage to read; a count `absorb` never wrote is none."""
+    return entry["usage_uncounted"] if _count(entry.get("usage_uncounted")) else 0
+
+
 def _usage_lines(gid, entry):
     spent = entry.get("usage") if isinstance(entry.get("usage"), dict) else {}
+    uncounted = _uncounted(entry)
+    missing = [f"{uncounted} session{'' if uncounted == 1 else 's'} left no usage, not counted"] if uncounted else []
     if not spent:
-        return []
+        return [f"{gid}: " + missing[0]] if missing else []
     cost = _cost(entry.get("cost_usd"))
     sources = _usage_sources(entry)
     parts = [_tokens_text(spent), *([f"${cost:.2f}"] if cost is not None else []),
-             ", and ".join(text for source, text in USAGE_SOURCES.items() if source in sources)]
+             ", and ".join(text for source, text in USAGE_SOURCES.items() if source in sources), *missing]
     models = entry.get("usage_models") if isinstance(entry.get("usage_models"), dict) else {}
     apart = [f"{gid} {name}: {_tokens_text(counts)}" for name, counts in models.items() if isinstance(counts, dict)]
     return [f"{gid}: " + ", ".join(parts), *(apart if len(apart) > 1 else [])]
