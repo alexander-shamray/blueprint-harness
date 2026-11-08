@@ -1,11 +1,13 @@
 """`docs/harness/working-rules.md`'s rules held against the code, settings and sibling rules they depend on.
 
-No gate reads prose for meaning, so each case ties a rule to what makes it true.
+No gate reads prose for meaning, so the board and base-deny cases tie a rule to what makes it true; the others pin
+that a rule stays stated.
 """
 
-import ast
+import importlib.util
 import json
 import re
+import sys
 import unittest
 from pathlib import Path
 
@@ -16,12 +18,13 @@ BOARD = PAYLOAD / ".claude" / "scripts" / "dispatch_board.py"
 BASE = PAYLOAD / ".harness" / "settings.base.json"
 
 
-def _board_sections() -> tuple[str, ...]:
-    """`SECTIONS` as the board parses it, read rather than imported so its module state stays out of this suite."""
-    for node in ast.parse(BOARD.read_text(encoding="utf-8")).body:
-        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "SECTIONS":
-            return ast.literal_eval(node.value)
-    raise AssertionError("dispatch_board.py names no SECTIONS")
+def _board():
+    """The payload's `dispatch_board.py`, which sits outside any package this suite can import."""
+    spec = importlib.util.spec_from_file_location("working_rules_dispatch_board", BOARD)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def _bullet(rules: str, lead: str) -> str:
@@ -40,11 +43,15 @@ class WorkingRulesTests(unittest.TestCase):
         rows = re.findall(r"^  \| (.+?) \| (.+?) \|$", self.rules, re.MULTILINE)
         self.assertEqual(rows[0], ("State", "Where"), "the table under *The task list* should lead the indented rows")
         placed = {name for _, where in rows for name in re.findall(r"\*([A-Z][a-z]+(?: [a-z]+)?)\*", where)}
-        self.assertEqual(placed, set(_board_sections()))
+        self.assertEqual(placed, set(_board().SECTIONS))
 
     def test_a_pull_request_row_names_one_issue_as_the_board_refuses_two(self):
         task_list = _bullet(self.rules, "The task list")
         self.assertIn("a row for each open, unpaused issue it closes", task_list)
+        board = _board()
+        self.assertEqual(1690, board._row("In progress", "| — | #1690 | x | `b` | open |").number)
+        with self.assertRaisesRegex(board.Refusal, "names no issue number"):
+            board._row("In progress", "| — | #1690, #1691 | x | `b` | open |")
 
     def test_stopped_work_and_the_dispatcher_each_say_where_their_row_goes(self):
         task_list = _bullet(self.rules, "The task list")
