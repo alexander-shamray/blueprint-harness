@@ -189,13 +189,14 @@ deny in a local file is no payload suite's to require.
 **Measured in blueprint-admin, not here** (its #291): on 2026-10-20, on Windows,
 in a turn whose `/ship` frontmatter was in force, a `Write` to each directory was
 refused with no prompt and one to `~/.claude/scratch/` succeeded, so the
-home-relative specifier binds the absolute path a tool is given. **The rules bind
-only the editing tools, and the shell is open (blueprint-harness#246):**
-`guard-git-argv.py` judges
-paths anchored at a checkout's root, so a redirect, `rm`, `curl -o`, `tar -x` or
-an interpreter writing under either directory is neither denied nor refused. Read
-at `99cc539` by running the guard over each. Admin's own guard refused the first
-two, so that half of its paragraph does not hold here.
+home-relative specifier binds the absolute path a tool is given. **The git guard
+does not back them (blueprint-harness#246):** `guard-git-argv.py` judges paths
+anchored at a checkout's root, so it admits a redirect, `rm`, `curl -o` or `tar -x`
+writing under either directory, read at `99cc539` by running the guard over each.
+Whether the rule itself reaches such a command has not been measured here; a path
+deny reaches a `Bash` command naming the path where it was (*A boundary an agent must
+keep across turns*), and a command that computes its path would not name it. Admit
+the shell as open until that is read.
 
 **The index skill's prefix grants are the same speed bump as `git *--output*`.**
 `Bash(bash .claude/skills/codebase-index/scripts/cbx search:*)` matches the
