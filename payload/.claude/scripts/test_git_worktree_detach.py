@@ -302,6 +302,17 @@ class ARemovalGitLeftHalfDone(unittest.TestCase):
                 self.assert_the_lists_are_gone(path)
                 self.assertFalse(self.registered(path))
 
+    def test_a_leftover_under_a_temp_root_inside_another_repository_is_still_a_leftover(self):
+        # With no `.git` of its own the directory answers with whatever repository holds the temp root, by walking
+        # up. That is not the worktree it was, so it is not git's refusal.
+        self.assertEqual(0, run_bash('git init -q "$R"', R=self.root).returncode)
+        path = self.sweep()
+        self.addCleanup(run_bash, 'rm -rf "$P"', P=path)
+        result = self.drop(path, "file", 255)
+        self.assertEqual(4, result.returncode, result.stderr)
+        self.assertIn("unregistered but not deleted", result.stderr)
+        self.assert_the_lists_are_gone(path)
+
     def test_a_tree_git_deleted_before_it_failed_is_done_and_the_lists_go(self):
         path = self.sweep()
         result = self.drop(path, "nothing", 255)
