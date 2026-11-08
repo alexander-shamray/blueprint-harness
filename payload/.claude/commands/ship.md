@@ -649,7 +649,7 @@ target*)
      its history.
    - **A usage exit after line 5's pull on `main` is not a stop**: rerun from
      the exiting line as the pulled `ship.md` spells it, and report it.
-   - After line 9, re-derive this change's rows by state in
+   - When these lines end, re-derive this change's rows by state in
      the task list named by `.harness/config.json`
      `task_list`, in the main checkout's parent directory, by that path (why:
      docs/commands/ship.md, *Step 6: the teardown*).

@@ -1205,7 +1205,8 @@ main checkout — so line 3 is the only thing that makes the pull mean `main`.
 Running line 7 anyway exits non-zero against a worktree that never existed
 and stops the chain on a helper failure with nothing behind it.
 
-**The task-list rows of this change are re-derived after line 9**, which deletes
+**The task-list rows of this change are re-derived when the nine lines end**, at
+line 9 or at a line that stops them after the verified merge, which deletes
 the row `/branch` added unless its issue stays open, by the file's own path,
 which `.harness/agent-rules.md`, *Working in a target*, puts outside every
 checkout so that the isolation refuses it to no workspace. Nothing else removes
@@ -1213,8 +1214,8 @@ it: a row left behind reads as work still in progress after the PR has landed,
 which is what *In progress* exists not to say. An issue the merge left open, one
 a later pull request of a set closes, is still open work, so its row goes where
 `docs/harness/working-rules.md`, *Issues and the task list*, puts it rather than
-off the list. It reads the branch as line 9 left it, since read earlier the
-branch still stands and the row stays *In progress* naming one about to go.
+off the list. It reads the branch as those lines left it, since read earlier
+the branch still stands and the row stays *In progress* naming one about to go.
 
 Line 5 runs on both paths, the pull on `main` or the fetch elsewhere,
 because skipping it leaves local `main` a merge behind — precisely the state
