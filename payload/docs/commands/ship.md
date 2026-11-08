@@ -963,6 +963,11 @@ to perform. The rule is to wait for the run on the pushed head; `--watch`
 is the spelling that actually does, and `--fail-fast` returns the moment
 one check fails rather than sitting out the rest.
 
+**`--interval 60` is what keeps the wait cheap.** Off a terminal `--watch` prints
+the whole table again every interval, ten seconds by default. A minute is a sixth
+of the repeats and costs at most that much latency on a run of minutes;
+blueprint-admin read about a quarter less text a call (its #225).
+
 **`headRefOid` is read here, before the checks and before the merge**, and
 it is the `<oid>` the merge below matches on. Reading it afterwards would
 defeat the point: the value has to come from the same look that decided the
