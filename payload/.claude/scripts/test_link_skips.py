@@ -1,7 +1,7 @@
 """A link a suite cannot make skips the case only on a host that grants none:
 any other refusal, a missing parent above all, is the suite's own setup failing,
-and a skip would leave it green with nothing run. Each suite's `except` asks
-`skip_only_without_links`, and the last class here reads the suites for that.
+and a skip would leave it green with nothing run. A managed suite beside this
+one asks `skip_only_without_links` in its `except`, and the last class reads that.
 """
 
 import ast
@@ -115,7 +115,7 @@ class OnlyAHostThatGrantsNoLinkSkips(unittest.TestCase):
         self.assertIn("refused by the volume", str(caught.exception))
 
 
-class NoSuiteSkipsOnALinkByItself(unittest.TestCase):
+class NoSuiteBesideThisOneSkipsOnALinkByItself(unittest.TestCase):
 
     BARE = "try:\n    os.{call}(a, b)\nexcept OSError:\n    self.skipTest('no link')\n"
 
@@ -138,7 +138,7 @@ class NoSuiteSkipsOnALinkByItself(unittest.TestCase):
         unrelated = "try:\n    open(a)\nexcept OSError:\n    self.skipTest('no file')\n"
         self.assertEqual([], own_skips(unrelated))
 
-    def test_no_managed_suite_skips_on_a_link_by_itself(self):
+    def test_no_managed_suite_beside_this_one_skips_on_a_link_by_itself(self):
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
         suites = [path for path in manifest["files"]
                   if path.startswith(".claude/scripts/test_") and path.endswith(".py")]
