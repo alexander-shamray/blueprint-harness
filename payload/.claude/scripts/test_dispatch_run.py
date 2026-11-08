@@ -1652,7 +1652,7 @@ class WakeTests(InRoot):
                 kill.assert_called_once_with(gone, 0)
 
     def test_a_pid_past_the_c_int_range_is_dead_rather_than_a_traceback(self):
-        # A hand-edited pid file can hold one: os.kill raises OverflowError on it, and a DWORD would truncate it.
+        # A hand-edited pid file can hold one: os.kill raises OverflowError on both, and a DWORD would truncate 2**64.
         for pid in (2 ** 31, 2 ** 64):
             self.assertFalse(dr.alive(pid))
 
