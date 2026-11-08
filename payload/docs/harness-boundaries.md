@@ -1181,13 +1181,13 @@ judged, and a literal `cd` is followed, through a subshell's end as well.
 `find` is judged by what it writes: `-delete` as `rm -r` from each start, so
 `find .claude/hooks -delete` is refused and `.`, no start and `-files0-from` are
 not, and `-fprint`, `-fprint0`, `-fprintf` and `-fls` by their file. `git rm`,
-`git mv` and a checkout or a restore from another commit are held from a literal
-`-C`, and a restore from `HEAD` or the index, `--staged`, `--cached` and a dry run
-are not, since each leaves the file what it was. And `rm`, `mv`, `rmdir`, `shred`
-and `unlink` are refused the filesystem's root, the home directory and a strict
-parent of the checkout, a trailing `/*` read as the directory, so `rm -rf ..` and
-`rm -rf ../*` are refused from the root, and `rm -rf .`, `rm -rf ../foo*` and
-`mv notes.md ..` are not.
+`git mv` and a checkout or a restore from another commit are held from a
+literal `-C`, and a restore from `HEAD` or the index, `--staged`, `--cached` and
+a dry run are not, since each leaves the file what it was. And `rm`, `mv`,
+`rmdir`, `shred` and `unlink` are refused the filesystem's root, the home
+directory and a strict parent of the checkout, a trailing `/*` read as the
+directory, so `rm -rf ..` and `rm -rf ../*` are refused from the root, and
+`rm -rf .`, `rm -rf ../foo*` and `mv notes.md ..` are not.
 
 **What it cannot read it admits, and that is the narrowing, not a gap.** An
 unknown variable, a computed operand, or a relative target after a `cd` nothing
