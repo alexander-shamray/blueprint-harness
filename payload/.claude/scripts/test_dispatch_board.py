@@ -874,6 +874,17 @@ class WriteTests(unittest.TestCase):
         self.assertEqual((0, ""), self.rebuild(rebuilt))
         self.assertEqual(rebuilt.replace("\n", "\r\n"), self.read())
 
+    def test_a_list_board_refuses_keeps_its_read_copy_so_a_rewrite_can_repair_it(self):
+        # Run 20261106-202828 stopped at step 0 on a group spanning two waves, with no copy to rebuild from.
+        spanning = FIXTURE.replace("| 1 | S1 | 1683 |", "| 2 | S1 | 1683 |", 1)
+        self.start()
+        self.write(spanning)
+        self.assertEqual(2, self.board())
+        self.assertEqual(spanning, (self.run_dir / "tasks.read.md").read_text(encoding="utf-8"))
+        self.assertEqual((0, ""), self.rebuild(FIXTURE))
+        self.assertEqual(FIXTURE, self.read())
+        self.assertEqual(0, self.board())
+
     def test_a_rewrite_refuses_a_list_changed_since_board_read_it(self):
         self.start()
         self.write(FIXTURE)

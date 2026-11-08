@@ -937,11 +937,12 @@ def main(argv=None, body_source=None, open_source=None, branch_source=None, week
                     raise Refusal("--berserk is a dry run's: a run holds its own in state.json")
                 flag = dispatch_run.berserk(dispatch_run.load_state(directory))
             text = _read(args.tasks)
+            if directory is not None:
+                # What this board read is the only base `tasks rewrite` accepts a rebuild from, so it is kept
+                # before anything below can refuse: a list the board refuses is the one a rebuild must repair.
+                _write(directory / READ_COPY, text)
             bodies = _bodies(parse_tasks(text), directory, bodies_from)
             print("\n".join(board(text, today, bodies, set(open_from()), branch_from, *flag, owned=owned_from())))
-            if directory is not None:
-                # What this board read is the only base `tasks rewrite` accepts a rebuild from.
-                _write(directory / READ_COPY, text)
         elif args.command == "tasks":
             _tasks_command(args, today)
         else:
