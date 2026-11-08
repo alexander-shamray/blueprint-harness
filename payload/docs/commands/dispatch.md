@@ -295,7 +295,10 @@ executors that shared the system's one ran each other's scratch scripts
 user could plant. It stays outside every checkout, because
 `refresh-index.py`'s worker runs from it and the guards admit a mutation
 proof's scratch checkout only under it; `run` removes it, best effort, once
-the executor exits or fails to start (blueprint-harness#205).
+the executor exits or fails to start (blueprint-harness#205). After an
+executor it then runs `git worktree prune`, as best effort: a `git worktree
+add` the session made under that directory has lost its target, and would stay
+listed until something pruned it.
 
 On every wake it absorbs the result, verifies a merge, places what was
 filed, then asks `wake` what to launch; the outcome table is the spec's

@@ -297,6 +297,36 @@ class SyncDrop(Bound):
         self.assertEqual("no sync branch\n", run_cli(["sync-drop"]))
 
 
+class ATemporaryWorktree(Bound):
+    def test_one_the_executor_added_under_its_temp_directory_leaves_no_registration(self):
+        record_sync(oid=self.oid)
+        fake = Path("fake")
+        fake.mkdir()
+        (fake / "claude.py").write_text(
+            "import os, subprocess, sys\n"
+            "sys.stdin.buffer.read()\n"
+            'subprocess.run(["git", "worktree", "add", "-q", "--detach", os.path.join(os.environ["TMP"], "rendered")],'
+            " check=True)\n"
+            "print('{}')\n", encoding="utf-8")
+        with mock.patch.object(dr, "CLAUDE_COMMAND", [sys.executable, str((fake / "claude.py").resolve())]):
+            run_cli(["run", RUN, GID])
+        self.assertEqual([], list((self.root / "system-temp").iterdir()))
+        self.assertNotIn("rendered", git_in(".", "worktree", "list", "--porcelain"))
+
+    def test_a_refused_prune_still_writes_the_session_record(self):
+        record_sync(oid=self.oid)
+        real = dr.git
+
+        def refuse(root, *args):
+            if args[:2] == ("worktree", "prune"):
+                raise db.Refusal("prune refused")
+            return real(root, *args)
+
+        with self.fake(), mock.patch.object(dr, "git", refuse):
+            run_cli(["run", RUN, GID])
+        self.assertTrue((state_dir() / f"{GID}.session.json").is_file())
+
+
 class AMergeWithNoResult(Bound):
     """An executor that merged and wrote nothing, or nothing valid: `result` asks /ship step 0's own predicate."""
 
