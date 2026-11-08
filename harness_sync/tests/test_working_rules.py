@@ -1,7 +1,7 @@
 """`docs/harness/working-rules.md`'s rules held against the code, settings and sibling rules they depend on.
 
-No gate reads prose for meaning, so the board and base-deny cases tie a rule to what makes it true; the others pin
-that a rule stays stated.
+No gate reads prose for meaning, so the board, base-deny and gate-trigger cases tie a rule to what makes it true; the
+others pin that a rule stays stated.
 """
 
 import importlib.util
@@ -80,14 +80,24 @@ class WorkingRulesTests(unittest.TestCase):
         deny = json.loads(BASE.read_text(encoding="utf-8"))["permissions"]["deny"]
         self.assertIn("Bash(gh pr merge:*)", deny)
 
-    def test_a_check_red_on_main_is_an_update_the_conflict_rule_admits(self):
-        rule = _bullet(self.rules, "A check red on a pull request and on `main`")
+    def test_a_check_the_pull_request_touched_none_of_is_an_update_the_conflict_rule_admits(self):
+        rule = _bullet(self.rules, "A check red on a pull request that touched none of it")
+        self.assertIn("whether or not `main` ran red", rule)
         self.assertIn("is not changed to make it pass", rule)
         self.assertIn("`git-rebase-onto-main.sh`", rule)
         update = _bullet(self.rules, "A branch is updated for a conflict")
-        self.assertIn("a red `main` it waited on", update)
+        self.assertIn("once the fix for a check that belongs to `main` has landed", update)
+        self.assertNotIn("a red `main` it waited on", update)
         fix = _bullet(self.rules, "A red check is fixed at once")
-        self.assertIn("A check red on `main` as well", fix)
+        self.assertIn("A check the pull request touched none of is `main`'s", fix)
+
+    def test_the_gates_that_rule_names_have_no_run_on_main_to_go_red(self):
+        rule = _bullet(self.rules, "A check red on a pull request that touched none of it")
+        for gate in ("closure-gate", "comment-gate", "commit-gate", "harness-drift"):
+            self.assertIn(f"`{gate}`", rule)
+            workflow = (PAYLOAD / ".github" / "workflows" / f"{gate}.yml").read_text(encoding="utf-8")
+            block = re.search(r"^on:\n(.*?)(?=^\S)", workflow.replace("\r\n", "\n"), re.MULTILINE | re.DOTALL)
+            self.assertEqual(re.findall(r"^  (\w+):", block.group(1), re.MULTILINE), ["pull_request"], gate)
 
     def test_one_owner_per_fact_leaves_an_untouched_restatement_to_the_finding_bar(self):
         rule = _bullet(self.rules, "One owner per fact")
