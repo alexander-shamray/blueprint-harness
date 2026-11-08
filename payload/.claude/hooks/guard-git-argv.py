@@ -2401,6 +2401,21 @@ STDIN_DATA_ROUTE = (
 CACHEINFO_MODE = re.compile(r"^[0-7]{6}(?:,|$)")
 REMOTE_TRACKING = re.compile(r"^(?:refs/remotes/)?origin/")
 
+# The keys a written value runs a program from: what `git -c` is refused for, in
+# a file that outlives the command. Every other write stays admitted, so a read
+# of one, a removal, which sets nothing running, and `rerere.enabled` are not held.
+RUNNING_CONFIG_KEY = re.compile(
+    r"(?i)^(?:alias\..+|core\.pager|core\.hookspath|core\.sshcommand|diff\.external|.+\.cmd)$")
+CONFIG_VALUE_OPTIONS = frozenset({"-f", "--file", "--blob", "--type", "--default",
+                                  "--comment", "--value"})
+CONFIG_WRITE_OPTIONS = frozenset({"--add", "--replace-all"})
+CONFIG_OTHER_OPTIONS = frozenset({
+    "--edit", "-e", "--get", "--get-all", "--get-color", "--get-colorbool",
+    "--get-regexp", "--get-urlmatch", "--list", "-l", "--remove-section",
+    "--rename-section", "--unset", "--unset-all"})
+CONFIG_OTHER_ACTIONS = frozenset({"edit", "get", "list", "remove-section",
+                                  "rename-section", "unset"})
+
 
 def _is_push(segment):
     """Whether `segment` is a `git push`, located as `push_offence` locates it."""
@@ -2517,6 +2532,36 @@ def pull_offence(segment):
                 "Drop the option."
             )
     return None
+
+
+def config_offence(segment):
+    """The refusal for a `git config` writing a key that runs a program, or None."""
+    stripped = after_global_options(segment)
+    if not stripped or stripped[0] != "config":
+        return None
+    operands, options, position = [], set(), 1
+    while position < len(stripped):
+        word = stripped[position]
+        position += 1
+        if not word.startswith("-"):
+            operands.append(word)
+            continue
+        options.add(word.split("=", 1)[0])
+        if word in CONFIG_VALUE_OPTIONS:
+            position += 1
+    if options & CONFIG_OTHER_OPTIONS or (operands and operands[0] in CONFIG_OTHER_ACTIONS):
+        return None
+    if operands[:1] == ["set"]:
+        operands = operands[1:] + [""]
+    if len(operands) < 2 and not options & CONFIG_WRITE_OPTIONS:
+        return None
+    if not operands or not RUNNING_CONFIG_KEY.match(operands[0]):
+        return None
+    return (
+        f"`git config {operands[0]}` writes a key git runs a program from, the "
+        "`git -c` this guard refuses, in a file that outlives this command. "
+        "Hand it to the owner if it is wanted; other keys stay admitted."
+    )
 
 
 def trap_offence(segment):
@@ -3222,7 +3267,8 @@ def _offence(command, depth, judged, reading):
 
     for segment in git_segments(tokens):
         refusal = (push_offence(segment) or trap_offence(segment)
-                   or fetch_offence(segment) or pull_offence(segment))
+                   or fetch_offence(segment) or pull_offence(segment)
+                   or config_offence(segment))
         if refusal is not None:
             return refusal
 

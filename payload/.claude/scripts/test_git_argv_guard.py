@@ -3493,6 +3493,44 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
 
+    def test_a_persistent_key_that_runs_a_program_is_refused(self):
+        # The `git -c` this guard refuses, written where it outlives the command.
+        for command in (
+            "git config alias.p push",
+            "git config --global alias.p push",
+            "git config --add alias.p push",
+            "git config --replace-all alias.p push",
+            "git config set alias.p push",
+            "git config core.pager ./tools/run",
+            "git config core.hooksPath /tmp/hooks",
+            "git config CORE.SSHCOMMAND ./tools/run",
+            "git config --local core.sshCommand ./tools/run",
+            "git config diff.external ./tools/run",
+            "git config difftool.x.cmd ./tools/run",
+            "git config -f other alias.p push",
+            "git config --file=other alias.p push",
+            "git -C sub config alias.p push",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command)
+
+    def test_a_key_that_runs_nothing_and_a_read_stay_admitted(self):
+        for command in (
+            "git config rerere.enabled true", "git config user.email a@example.invalid",
+            "git config remote.origin.prune true", "git config --local rebase.backend apply",
+            "git config user.name", "git config alias.p", "git config core.pager",
+            "git config --get core.hooksPath", "git config --get-all alias.p",
+            "git config --get-regexp alias", "git config --list", "git config -l",
+            "git config get alias.p", "git config list",
+            "git config --type=bool core.sparseCheckout",
+            "git config --unset alias.p", "git config --unset-all core.hooksPath",
+            "git config --remove-section alias", "git config unset alias.p",
+            'git config --local "$key" value',
+            "git log --grep='git config alias.p push'", "echo git config alias.p push",
+        ):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
     def test_xargs_cannot_supply_a_push(self):
         for command in (
             "echo +HEAD:main | xargs git push origin some-branch",
