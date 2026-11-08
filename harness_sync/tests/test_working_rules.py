@@ -83,6 +83,7 @@ class WorkingRulesTests(unittest.TestCase):
     def test_a_check_the_pull_request_touched_none_of_is_an_update_the_conflict_rule_admits(self):
         rule = _bullet(self.rules, "A check red on a pull request that touched none of it")
         self.assertIn("whether or not `main` ran red", rule)
+        self.assertIn("a gate's refusal of its own commits, body or added lines is its own to fix", rule)
         self.assertIn("is not changed to make it pass", rule)
         self.assertIn("`git-rebase-onto-main.sh`", rule)
         update = _bullet(self.rules, "A branch is updated for a conflict")
