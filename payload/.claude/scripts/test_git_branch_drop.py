@@ -158,6 +158,7 @@ class ASupersededSyncGoesAndNothingElseDoes(Fixture):
                 rows = [self.closed(), self.row(state=other, oid=OTHER_OID, number=8)]
                 result = self.helper(SYNC, rows=rows)
                 self.assertEqual(7, result.returncode, result.stderr)
+                self.assertIn("nor is every pull request for it closed", result.stderr)
                 self.assertTrue(self.exists(SYNC))
 
     def test_no_pull_request_keeps_it(self):

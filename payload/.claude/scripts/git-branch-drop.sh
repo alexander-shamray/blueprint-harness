@@ -60,7 +60,8 @@ if ! { [[ "$landed" =~ ^[0-9]+$ ]] && [ "$landed" -gt 0 ]; }; then
     { echo "cannot read pr-for-branch.sh's answer for $branch, so whether it was superseded is unknown; it is kept" >&2
       exit 12; }
   [ "${closed%$'\r'}" = true ] ||
-    { echo "$branch was neither merged nor closed at its tip $tip; it is kept" >&2; exit 7; }
+    { echo "$branch has not landed, nor is every pull request for it closed with one at its tip $tip; it is kept" >&2
+      exit 7; }
   # Read from origin: a remote-tracking ref outlives the branch until a prune.
   held=$(git ls-remote --heads origin "refs/heads/$branch") ||
     { echo "cannot ask origin whether it still has $branch; it is kept" >&2; exit 12; }
