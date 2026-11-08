@@ -15,7 +15,7 @@ ISOLATED = re.compile(r"(?<![-\w])python -I -c\b")
 # shell handed a file, Python, a local action, or any step set to run inside the checkout.
 HEAD_CODE = re.compile(
     r"(?<![-\w])python3?(?:\.\d+)?(?=\s)|\bpytest\b|\bunittest\b"
-    r"|(?<![-\w])(?:bash|sh|source)[ \t]+\S|^\s*(?:run: )?[\w./-]*/[\w./-]+"
+    r"|(?<![-\w])(?:bash|sh|source)[ \t]+\S|^\s*(?:- )?(?:run: )?[\w./-]*/[\w./-]+"
     r"|^\s*(?:- )?uses: \./|^\s*working-directory:", re.M)
 
 
@@ -98,6 +98,11 @@ class TheReader(unittest.TestCase):
                          "        working-directory: .github/gate\n        run: make"):
             with self.subTest(spelling=spelling):
                 self.assertEqual(["step 0"], head_code_before_the_judge(workflow(spelling, JUDGES)))
+
+    def test_a_path_run_by_a_nameless_step_is_named(self) -> None:
+        text = ("jobs:\n  gate:\n    steps:\n      - run: ./.github/gate/suite.sh\n"
+                '      - run: python "$RUNNER_TEMP/gate/gate.py"\n')
+        self.assertEqual(["- run: ./.github/gate/suite.sh"], head_code_before_the_judge(text))
 
     def test_the_same_code_after_the_judge_is_not_named(self) -> None:
         self.assertEqual([], head_code_before_the_judge(workflow(JUDGES, "        run: python -m unittest")))
