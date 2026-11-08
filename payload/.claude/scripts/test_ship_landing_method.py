@@ -167,6 +167,22 @@ class ARefusedMergeIsAStop(unittest.TestCase):
         self.assertIn("task list", self.flat(bullet[:bullet.index("\n- **")]))
 
 
+class TheCiWaitIsCheap(unittest.TestCase):
+    """Off a terminal `--watch` reprints the table every ten seconds by default, all of it read at the wake."""
+
+    def test_every_spelling_of_the_wait_names_the_interval(self):
+        text = SHIP.read_text(encoding="utf-8")
+        waits = re.findall(r"^\s*gh pr checks .*$", text, re.M)
+        self.assertTrue(waits, "the runbook's wait went away")
+        for wait in waits:
+            with self.subTest(wait=wait):
+                self.assertIn("--watch --fail-fast --interval 60", wait)
+
+    def test_the_argument_says_why(self):
+        argument = (ROOT / "docs" / "commands" / "ship.md").read_text(encoding="utf-8")
+        self.assertIn("**`--interval 60`", argument)
+
+
 class TheMergeHelperRefusesWhatTheGrantAdmitted(unittest.TestCase):
     """The helper is run against a stubbed `gh`, and the stub records the merge.
 
