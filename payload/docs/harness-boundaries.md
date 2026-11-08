@@ -1722,9 +1722,12 @@ to the bound by the glob rather than by someone remembering it. macOS ships
 no `timeout`, and every helper reading through it exited 127 there (#191),
 so the file's `bounded`, which `gh_read`, `gh-issue-harness.sh` and
 `hint-bound.sh` all run under, takes GNU `timeout` where it is installed
-and otherwise a watchdog sending the same TERM, answering 124 the same way.
-`GH_READ_TIMEOUT` names the program it looks for, so the suites run each
-case under the watchdog on hosts that have `timeout` too.
+and otherwise a watchdog sending TERM to the command it started, answering
+124 the same way. Unlike `timeout`, it does not signal the command's process
+group, so a command that leaves work in a child it did not `exec` keeps that
+child past the bound; `gh` is one process. `GH_READ_TIMEOUT` names the
+program it looks for, so the stalled-read and pass-through cases and every
+`hint-bound.sh` case also run under the watchdog on hosts that have `timeout`.
 
 ## Sweep push denies and chained commands
 
