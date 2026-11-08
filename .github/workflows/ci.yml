@@ -54,18 +54,18 @@ jobs:
   # not live here, so this is the only place its tests run before a sync
   # carries it into a target.
 
-  # Linux runs everything, as backend's `review-helpers` job does. Windows and
-  # macOS run what only they can reach, on backend's `edit-target-guard`
-  # argument: junctions, `..` after a link, case folding, `msvcrt.locking` and
-  # the guard judging on Windows alone, in suites needing only Python and `git`.
-  # Windows adds the fixture steps below; two of them need `bash`, `grep`, `jq`.
+  # Every leg runs the whole `.claude/scripts` suite, so a helper that fails on one host is this repository's red
+  # before it is a target's: frontend's first whole run of it off Linux failed 132 cases on macOS and 10 on Windows
+  # (#191). The gates run on Linux alone, as backend's workflows run them, and Windows adds the comment gate's suite
+  # for its fixture. Git's bash runs the steps on Windows, so the one script below serves all three.
   payload-suites:
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    # Windows takes about sixteen minutes over the whole helpers suite, which twenty left no room above.
+    timeout-minutes: 45
     defaults:
       run:
         # Git's bash on Windows, so the one script below serves all three.
@@ -99,10 +99,14 @@ jobs:
           cp targets/blueprint-backend.config.json "$rendered/.harness/config.json"
           python -m harness_sync apply --payload payload --target "$rendered" --commit "$(git rev-parse HEAD)"
 
+      # `-v` and the version line for what the modules print: which link primitive was reached, which lock branch
+      # was chosen, and which bash read the helpers, since macOS's is 3.2.
       - name: Test the review helpers
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' || steps.reach.outputs.test != 'false'
         working-directory: ${{ runner.temp }}/rendered
-        run: python -m unittest discover -s .claude/scripts
+        run: |
+          bash --version | head -n 1
+          python -m unittest discover -s .claude/scripts -v
 
       # Every gate directory the payload ships a suite for, read from the
       # rendered tree rather than listed, so a gate added to the payload is
@@ -125,46 +129,8 @@ jobs:
           if [ "$ran" -eq 0 ]; then echo "no gate suite found under .github/" >&2; exit 1; fi
           exit "$failed"
 
-      # `-v` for the lines the modules print: which link primitive was reached
-      # and which lock branch was chosen are why these legs exist.
-      - name: Test the edit-target guard
-        if: matrix.os != 'ubuntu-latest' && steps.reach.outputs.test != 'false'
-        working-directory: ${{ runner.temp }}/rendered
-        run: python -m unittest discover -s .claude/scripts -p "test_edit_target_guard.py" -v
-
-      - name: Test the index hook
-        if: matrix.os != 'ubuntu-latest' && steps.reach.outputs.test != 'false'
-        working-directory: ${{ runner.temp }}/rendered
-        run: python -m unittest discover -s .claude/scripts -p "test_refresh_index.py" -v
-
-      - name: Test the sed line-ending guard
-        if: matrix.os != 'ubuntu-latest' && steps.reach.outputs.test != 'false'
-        working-directory: ${{ runner.temp }}/rendered
-        run: python -m unittest discover -s .claude/scripts -p "test_sed_crlf_guard.py" -v
-
-      # macOS alone: its bash is older than Ubuntu's, so the guard's reading
-      # of a heredoc closing inside a sum runs against the version it names.
-      - name: Test the git argv guard's older-bash reading
-        if: matrix.os == 'macos-latest' && steps.reach.outputs.test != 'false'
-        working-directory: ${{ runner.temp }}/rendered
-        run: |
-          bash --version | head -n 1
-          python -m unittest discover -s .claude/scripts -p "test_git_argv_guard.py" -k test_a_heredoc_closing_with_its_line_in_a_sum_opens_no_body -v
-
-      # Windows alone, for their fixtures rather than their subjects: a cleanup
-      # meeting git's read-only objects fails nowhere else. The first two also
-      # stand for the suites on `review_helpers.temp_root`, whose path bash and
-      # Python must both open; the comment gate's suite builds its own.
-      - name: Test the branch drop's fixture
-        if: matrix.os == 'windows-latest' && steps.reach.outputs.test != 'false'
-        working-directory: ${{ runner.temp }}/rendered
-        run: python -m unittest discover -s .claude/scripts -p "test_git_branch_drop.py" -v
-
-      - name: Test the trailer helpers' fixture
-        if: matrix.os == 'windows-latest' && steps.reach.outputs.test != 'false'
-        working-directory: ${{ runner.temp }}/rendered
-        run: python -m unittest discover -s .claude/scripts -p "test_git_pr_trailer_helpers.py" -v
-
+      # Windows alone, for its fixture rather than its subject: a cleanup meeting git's read-only objects fails
+      # nowhere else, and the suite builds its own tree rather than reading `review_helpers.temp_root`'s.
       - name: Test the comment gate's fixture
         if: matrix.os == 'windows-latest' && steps.reach.outputs.test != 'false'
         working-directory: ${{ runner.temp }}/rendered

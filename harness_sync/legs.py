@@ -1,7 +1,10 @@
 """Whether a run of `payload-suites` tests on its windows and macos legs: prints `test=true` or `test=false`.
 
 Their suites read the rendered tree, so a change reaches them through what renders that tree or the steps that test it.
-Only a pull request whose merge commit reads cleanly and reaches none of that skips; a wrong skip loses a run.
+Only a pull request whose merge commit reads cleanly and reaches none of that skips; a wrong skip loses a run. The legs
+run the whole `.claude/scripts` suite (#191), which reads commands, settings, docs and agents as well as the helpers,
+so the whole payload reaches them, and so do the root's `.gitignore`, which a case reads beside the nested ones, and
+`docs/harness-local.md`, which a target keeps as its own.
 """
 
 import subprocess
@@ -11,13 +14,10 @@ from pathlib import Path
 REACH = (
     ".gitattributes",
     ".github/workflows/ci.yml",
+    ".gitignore",
+    "docs/harness-local.md",
     "harness_sync/",
-    "payload/.claude/commands/branch.md",
-    "payload/.claude/hooks/",
-    "payload/.claude/scripts/",
-    "payload/.claude/skills/codebase-index/examples/",
-    "payload/.github/comment-gate/",
-    "payload/.harness/",
+    "payload/",
     "targets/",
 )
 
