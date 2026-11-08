@@ -666,6 +666,17 @@ carries on with the current branch, and the assumption is said aloud, with
 the branch and the directory named, so a tree that has drifted onto the
 wrong one is visible before anything is committed to it.
 
+**Then the change itself, and its code is found through the index before it is
+read.** The prompt-time hint cannot do this for a run: it reads a `/ship`
+argument as a question, and an issue number or a plan's task is none. So the
+runbook names the skill's `search`, `refs` and `impact` lines, and grants them,
+since the skill's own grant holds only once it is loaded and a dispatched run's
+every shell read has to be one its grants name. `update` and `index`, which write
+the cache, stay the skill's. **An empty `refs` or `impact` is never an absence**,
+the skill's confidence contract says when to read further, and a `cbx` that
+cannot answer is not one of the stops: a target may have no index, and the index
+speeds the run without being what makes it correct.
+
 ## Step 2: checks
 
 **The checks are the target's, and follow the class the PR body will
@@ -766,6 +777,17 @@ a lease would be satisfied by them because they have been fetched.
 told what the author thinks is a second copy of the author. Step 6 refuses a
 head no round read, so each round's `git rev-parse HEAD` is recorded when its
 input is written.
+
+**A full pass starts from the diff's blast radius.** `diff-impact` names the
+symbols and files the diff reaches through the graph, beyond the lines a reviewer
+quotes, and a contradiction outside the changed lines lives there. It is read
+against the merge base, which `git merge-base origin/main HEAD` answers under an
+exact grant, because its default of `HEAD` compares nothing on a clean branch. It
+names no absences, so a file it omits may still depend on the change. Admin
+writes it every round; here a recheck reads the diff and the findings and nothing
+else, so it would be read by nobody. The reviewer never names it in `skipped`,
+whose other entries stop the chain, since an index a target lacks is not a round
+that did not run.
 
 **The bar comes from `origin/main`, never from the branch.** A change under
 `docs/harness/` is ordinary here, so a reviewer taking its bar from the

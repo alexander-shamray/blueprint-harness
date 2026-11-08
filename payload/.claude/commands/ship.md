@@ -1,7 +1,7 @@
 ---
 description: Start from a clean main, fork a worktree where one can be forked, branch, commit, push and open a PR, run the local review until a round has nothing open, then merge the PR and tear the workspace down. Decides for itself rather than stopping to ask
 argument-hint: "[what the change does | sync #<n>] [--sleep] [--dispatched <run-dir>] [--berserk] — omit and each step derives its own"
-allowed-tools: Read, Grep, Glob, Write, Skill, Agent(branch-reviewer), EnterWorktree, ExitWorktree, Bash(git status:*), Bash(git diff:*), Bash(git branch --list:*), Bash(git branch --show-current), Bash(git branch -a), Bash(git log:*), Bash(git fetch origin:*), Bash(bash .claude/scripts/git-branch-create.sh:*), Bash(bash .claude/scripts/git-worktree-fork.sh:*), Bash(bash .claude/scripts/git-switch-existing.sh:*), Bash(bash .claude/scripts/git-rebase-onto-main.sh:*), Bash(git rev-parse:*), Bash(git worktree list:*), Bash(ls:*), Bash(git add:*), Bash(git commit:*), Bash(bash .claude/scripts/git-unstage.sh:*), Bash(git push -u origin:*), Bash(git push origin:*), Bash(wc:*), Bash(bash .claude/scripts/gh-pr-create.sh:*), Bash(bash .claude/scripts/pr-state.sh:*), Bash(bash .claude/scripts/pr-for-branch.sh:*), Bash(bash .claude/scripts/git-trailer-pr.sh:*), Bash(gh pr checks:*), Bash(bash .claude/scripts/gh-pr-merge.sh:*), Bash(git pull --ff-only), Bash(git merge-base --is-ancestor:*), Bash(bash .claude/scripts/git-worktree-remove.sh:*), Bash(git worktree prune:*), Bash(bash .claude/scripts/pr-locality.sh:*), Bash(bash .claude/scripts/gh-issue-hand.sh:*), Bash(bash .claude/scripts/system-sleep.sh), Bash(py -3.12 .claude/scripts/sync_pr.py:*), Bash(bash .claude/scripts/git-worktree-sync.sh:*), Bash(bash .claude/scripts/gh-issue-harness.sh:*), Bash(py -3.12 -m unittest discover:*), Bash(bash .claude/scripts/gh-issue-list.sh), Bash(bash .claude/scripts/gh-issue-suppresses.sh:*), Bash(bash .claude/scripts/git-branch-drop.sh:*)
+allowed-tools: Read, Grep, Glob, Write, Skill, Agent(branch-reviewer), EnterWorktree, ExitWorktree, Bash(git status:*), Bash(git diff:*), Bash(git branch --list:*), Bash(git branch --show-current), Bash(git branch -a), Bash(git log:*), Bash(git fetch origin:*), Bash(bash .claude/scripts/git-branch-create.sh:*), Bash(bash .claude/scripts/git-worktree-fork.sh:*), Bash(bash .claude/scripts/git-switch-existing.sh:*), Bash(bash .claude/scripts/git-rebase-onto-main.sh:*), Bash(git rev-parse:*), Bash(git worktree list:*), Bash(ls:*), Bash(git add:*), Bash(git commit:*), Bash(bash .claude/scripts/git-unstage.sh:*), Bash(git push -u origin:*), Bash(git push origin:*), Bash(wc:*), Bash(bash .claude/scripts/gh-pr-create.sh:*), Bash(bash .claude/scripts/pr-state.sh:*), Bash(bash .claude/scripts/pr-for-branch.sh:*), Bash(bash .claude/scripts/git-trailer-pr.sh:*), Bash(gh pr checks:*), Bash(bash .claude/scripts/gh-pr-merge.sh:*), Bash(git pull --ff-only), Bash(git merge-base --is-ancestor:*), Bash(bash .claude/scripts/git-worktree-remove.sh:*), Bash(git worktree prune:*), Bash(bash .claude/scripts/pr-locality.sh:*), Bash(bash .claude/scripts/gh-issue-hand.sh:*), Bash(bash .claude/scripts/system-sleep.sh), Bash(py -3.12 .claude/scripts/sync_pr.py:*), Bash(bash .claude/scripts/git-worktree-sync.sh:*), Bash(bash .claude/scripts/gh-issue-harness.sh:*), Bash(py -3.12 -m unittest discover:*), Bash(bash .claude/scripts/gh-issue-list.sh), Bash(bash .claude/scripts/gh-issue-suppresses.sh:*), Bash(bash .claude/scripts/git-branch-drop.sh:*), Bash(git merge-base origin/main HEAD), Bash(bash .claude/skills/codebase-index/scripts/cbx search:*), Bash(bash .claude/skills/codebase-index/scripts/cbx refs:*), Bash(bash .claude/skills/codebase-index/scripts/cbx impact:*), Bash(bash .claude/skills/codebase-index/scripts/cbx diff-impact:*)
 disallowed-tools: Agent(claude), Agent(Explore), Agent(Plan), Agent(claude-code-guide), Agent(statusline-setup), Agent(fork), Agent(bug-auditor), Agent(security-auditor), Agent(team-peer), Edit(~/.claude/projects/**), Edit(~/.claude/output-styles/**)
 ---
 
@@ -36,7 +36,7 @@ checkout and removes the worktree, however the review ended.
 
 | | |
 |---|---|
-| A helper or a guarded git command exits non-zero, or the harness refuses it | The step did not run; a report that says otherwise is false. `git pull --ff-only` refusing a diverged branch is the commonest one; step 7's `system-sleep.sh`, the branch drop's `git-branch-drop.sh` and the rebase helper's two continuations and a usage exit after line 5's pull on `main` are the exceptions, each reported and not a stop |
+| A helper or a guarded git command exits non-zero, or the harness refuses it | The step did not run; a report that says otherwise is false. `git pull --ff-only` refusing a diverged branch is the commonest one; step 7's `system-sleep.sh`, the branch drop's `git-branch-drop.sh`, steps 1 and 5's `cbx` reads and the rebase helper's two continuations and a usage exit after line 5's pull on `main` are the exceptions, each reported and not a stop |
 | This branch's PR was closed unmerged | Reopening a deliberate closure is not a recommended option |
 | A `branch-reviewer` round did not run — the agent missing, a reply that is not the JSON its profile declares, or one whose `read` is empty or whose `skipped` names anything but `locality` | The round did not happen, so no verdict may be minted from it |
 | A fix to a script under `.claude/` lacks its case | Step 2's read refuses it, and the case is a file this session is denied editing, so the run has no fix to make |
@@ -377,6 +377,13 @@ target*)
    either (why: docs/commands/ship.md, *Dispatched: the one token /dispatch
    passes*).
 
+   **Then locate the change through the index before reading code.** Load the
+   `codebase-index` skill and use its `cbx search`, `cbx refs` and `cbx impact`
+   lines, with one session tag for the run; read only the ranges each
+   recommends. A `cbx` that cannot answer, no index or no CLI, is reported and
+   is not a stop: `Grep` takes over. (why: docs/commands/ship.md, *Step 1:
+   /branch*)
+
 2. **Checks**: what `docs/harness-local.md` *Ship checks* names for this
    repository, selected by the class the PR body will carry where the
    target has a change contract. A change none of them covers runs none,
@@ -463,12 +470,15 @@ target*)
       ```bash
       git diff origin/main...HEAD           # a full pass
       git diff <last-round-head>..HEAD      # a recheck
+      git merge-base origin/main HEAD       # a full pass, for the next line
+      bash .claude/skills/codebase-index/scripts/cbx diff-impact --base <that sha> --json   # a full pass
       bash .claude/scripts/pr-locality.sh <n>   # only with a change contract
       git show "origin/main:./docs/harness/working-rules.md"   # the bar
       git rev-parse HEAD                    # the round's reviewed head
       ```
 
       Write each output with `Write` to `artifacts/review/<slug>-r<N>.diff`,
+      `artifacts/review/<slug>-r<N>.impact`,
       `artifacts/review/<slug>-r<N>.locality` and
       `artifacts/review/<slug>-bar.md`, and spawn `branch-reviewer` with the
       paths, the symbols the diff touches and, on a recheck, the findings
@@ -478,6 +488,11 @@ target*)
       *Documents* names no change contract, the target has no class map, so
       run no locality read, write no `.locality` file, and tell the reviewer
       there is none.
+
+      **A full pass starts from the diff's blast radius**; a recheck reads the
+      diff and the findings, and writes no `.impact` file. A `cbx` that cannot
+      answer writes none either: report it, say so to the reviewer and go on,
+      since a merge does not wait on an index.
 
       **The bar comes from `origin/main`, never the branch**; keep the `./`
       quoted. **A diff touching `.claude/agents/branch-reviewer.md`** runs

@@ -478,9 +478,10 @@ or named-symbol question gets one line of `additionalContext`: the MCP tool
 that asks it, or the skill and the route-table row for that question, and
 the session-tag rule. Every other prompt gets nothing, and so does every
 slash command but `/ship` and `/branch`, whose arguments are read as the task
-they carry. **It names the skill and not only the command** because the
-skill's `allowed-tools` is the only grant for the `cbx` wrapper, and it holds
-only while the skill is loaded; **it names the tool's full name** because
+they carry. **It names the skill and not only the command** because, but for
+the four reads `/ship` grants for its own steps, the skill's `allowed-tools` is
+the only grant for the `cbx` wrapper, and it holds only while the skill is
+loaded; **it names the tool's full name** because
 Claude Code lists an MCP tool by name only, and a session must load it with
 ToolSearch before the first call, while Grep is always loaded. It reads only
 the decoded `prompt` string, never the payload's paths, writes nothing,
