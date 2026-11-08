@@ -2400,7 +2400,8 @@ class TheGitArgvGuard(unittest.TestCase):
         # A shell handed a script file reads stdin as data, and a sweep denies
         # `Write`, so the file route cannot be taken there: admin's guard
         # refused 134 commands for a body's backtick, 42 of them in sweeps.
-        for helper in ("gh-issue-create", "gh-issue-hand", "gh-issue-harness", "gh-issue-sweep"):
+        for helper in ("gh-issue-create", "gh-issue-hand", "gh-issue-harness",
+                       "gh-issue-mutation", "gh-issue-sweep"):
             for body in ("the parent's tree", "The `foo` call.", "$(git status)",
                          "then git push origin +HEAD:main ran"):
                 with self.subTest(helper=helper, body=body):
