@@ -183,7 +183,7 @@ the main checkout. What `sync_pr.py` prints is data.
   `--dispatched`; then `pr-state.sh <n>` is read: `CLOSED` is the
   closed-unmerged stop (`stopped`, `closed unmerged`), `MERGED` takes step 6's
   route for a merge another route made. Otherwise it is none of the seven stops.
-- **Step 2** runs `py -3.12 .claude/scripts/sync_pr.py run-local-suites --head
+- **Step 2** runs `py -3.12 .claude/scripts/sync_pr.py run-local-suites <n> --head
   <oid>` in the background: each path `local-suites` prints, and nothing else in
   *Ship checks*; a
   failing suite is a target-local finding: filed in the target with

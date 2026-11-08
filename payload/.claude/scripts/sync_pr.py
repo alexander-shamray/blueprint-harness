@@ -482,12 +482,18 @@ def local_suites():
     return sorted(found)
 
 
-def run_local_suites(pin):
-    """The exit of running `local_suites`, each as its own discover from the root, on the proved head in a clean tree.
+def run_local_suites(number, pin):
+    """The exit of running `local_suites`, each as its own discover from the root, on a proved sync in a clean tree.
 
-    No argument names what runs: a grant that took `-s <dir> -p <file>` ran a file written anywhere
-    (docs/harness-boundaries.md). Each suite's output is printed whole when it ends, under its path.
+    No argument names what runs, and this runs tree code where the settings allow this script to every session, so
+    the proof comes first and is this function's own (docs/harness-boundaries.md). Each suite's output is printed
+    whole when it ends, under its path.
     """
+    failures, _ = verify(number, pin)
+    if failures:
+        print("\n".join(failures))
+        print("not a proved sync, so no suite ran")
+        return 1
     here = read(["git", "rev-parse", "HEAD"]).strip()
     if here != pin:
         print(f"HEAD is {here}, not {pin}, so no suite ran")
@@ -534,6 +540,7 @@ def _parser():
     review.add_argument("--head", type=_oid)
     sub.add_parser("local-suites")
     suites = sub.add_parser("run-local-suites")
+    suites.add_argument("number", type=_number)
     suites.add_argument("--head", type=_oid, required=True)
     return parser
 
@@ -565,7 +572,7 @@ def main(argv=None):
             target.write_text(text, encoding="utf-8", newline="\n")
             print(args.out)
         elif args.command == "run-local-suites":
-            return run_local_suites(args.head)
+            return run_local_suites(args.number, args.head)
         else:
             if suites := local_suites():
                 print("\n".join(suites))

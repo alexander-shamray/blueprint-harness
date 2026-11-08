@@ -161,7 +161,7 @@ class TheSyncRow(unittest.TestCase):
     def test_the_bind_is_argued_and_scoped_in_the_boundaries(self):
         boundaries = flat((ROOT / "docs" / "harness-boundaries.md").read_text(encoding="utf-8"))
         self.assertNotIn("A dispatched sync's step 2 runs", boundaries)
-        self.assertIn("a sync's step 2 runs sync_pr.py run-local-suites --head <oid>", boundaries)
+        self.assertIn("a sync's step 2 runs sync_pr.py run-local-suites <n> --head <oid>", boundaries)
         self.assertIn("which dispatch_board.py sync-launch and run compare before a --dispatched run starts in it",
                       boundaries)
         self.assertNotIn("holding no proof", boundaries)
@@ -217,7 +217,7 @@ class TheSyncRow(unittest.TestCase):
 
     def test_step_2_runs_the_target_local_suites_as_ci_does(self):
         step = bullet("Step 2")
-        self.assertIn("py -3.12 .claude/scripts/sync_pr.py run-local-suites --head <oid>", step)
+        self.assertIn("py -3.12 .claude/scripts/sync_pr.py run-local-suites <n> --head <oid>", step)
         self.assertIn("each path local-suites prints", step)
         self.assertIn("nothing else in *Ship checks*", step)
         # Step 2 otherwise says to fix what the checks find, and a sync branch is never committed to.
