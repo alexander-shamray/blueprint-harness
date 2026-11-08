@@ -58,9 +58,9 @@ paragraph below the moment it moved. Not one argument was shortened, and no
 paragraph was dropped. Three were later moved out when the file became the
 harness's, because only backend's own commands make them true: the callout
 on what backend's link and blueprint checks read, the paragraph on its
-mutation sweep, and the ninth entry's argument on a build tool's grants (the
-dotnet half), which that entry now summarises and hands over. They are
-backend's residuals now.
+mutation sweep, and the ninth entry's argument on a build tool's grants,
+which that entry now summarises and hands over. They are backend's
+residuals now.
 
 **The second of those was found by review rather than by the move**, which is
 worth recording where the edits are listed: a self-reference that stays *true
