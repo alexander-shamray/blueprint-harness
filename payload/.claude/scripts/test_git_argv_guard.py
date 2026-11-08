@@ -3823,13 +3823,17 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
             "git diff origin/main -- .claude/settings.json", "git show origin/main:.claude/settings.json",
             'git -C "$d" rm .claude/hooks/x', "git -C /tmp/elsewhere rm .claude/hooks/x",
             "git checkout $ref -- docs/a.md",
+        )
+        # A computed source: the path can be read, so the path is what is judged.
+        self.refused(
+            "git restore -Ws x .claude/settings.json",
             'git restore -s "$ref" .claude/settings.json',
             'git restore --source="$ref" .claude/settings.json',
             "git restore --source $(pick) .claude/settings.json",
             'git checkout "$ref" -- .claude/settings.json',
             "git checkout $(pick) -- .claude/settings.json",
         )
-        self.refused("git restore -Ws x .claude/settings.json")
+        self.admitted("git checkout $(pick) -- docs/a.md", 'git restore -s "$ref" docs/a.md')
 
     def test_a_linked_worktree_writes_a_denied_path_in_its_own_diff(self):
         # The replay's four: a sync's local files, a config moved, a review's

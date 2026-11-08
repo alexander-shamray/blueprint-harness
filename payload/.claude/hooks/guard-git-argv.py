@@ -3187,7 +3187,8 @@ def git_path_offence(words, cwd, command):
             words, literals, {"-b", "-B", "--orphan", "--conflict", "--pathspec-from-file"})
         if set(options) & {"-b", "-B", "--orphan"}:
             return None
-        source = target_literal(before[0]) if before else None
+        # A source nothing can read is judged by its paths, which can be read.
+        source = (target_literal(before[0]) or "$") if before else None
         # As git disambiguates: with no `--`, a first word naming a path is one.
         first = written_path(before[0], cwd, command) if before and not after else None
         if first is not None and os.path.lexists(first):
@@ -3206,8 +3207,7 @@ def git_path_offence(words, cwd, command):
         paths = before + after
     else:
         return None
-    # A computed source is admitted, as `written_path` admits a computed target.
-    if source is None or source in ("HEAD", "@") or "$" in source:
+    if source is None or source in ("HEAD", "@"):
         return None
     for word in paths:
         refusal = destination_offence(word, cwd, command, f"`git {verb}` from `{source}`", True)
