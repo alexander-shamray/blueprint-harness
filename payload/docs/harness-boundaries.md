@@ -1352,11 +1352,16 @@ is named and the start refuses a dirty tree; `--merge` keeps the apply backend
 out, which leaves a commit it never applied looking like one a resolution
 emptied), takes one branch name that has to equal the one checked out, refuses
 `main` by name before it reads the checkout at all, refuses a remote holding
-commits this checkout lacks, and leases the push against the commit the same
-run read. **A rule could have bought none of that**: a permission pattern
-matches the text of a command, and every guard in that list is a fact about
-the checkout. Which is the general form — where the safety is a property of
-the state rather than of the words, the grant has to be a helper.
+commits this checkout lacks, leases the push against the commit the same run
+read, and refuses (exit 7) an `origin` with more than one push URL, or whose
+one URL, after `pushurl`, `pushInsteadOf` and `insteadOf`, names another host
+or path than the URL the remote was added with. A protocol rewrite on one host
+passes, and a URL with no host and path to compare has no key and is refused:
+`file://`, `ext::`, a one-component hosted path, a dot or empty segment, a
+query or a fragment. **A rule could have bought none of that**: a permission
+pattern matches the text of a command, and every guard in that list is a fact
+about the checkout. Which is the general form — where the safety is a property
+of the state rather than of the words, the grant has to be a helper.
 
 **A second helper rewrites published commits, and is a second force push.**
 `git-trailer-pr.sh` adds `PR: #<n>` to the commits of the branch checked out,
