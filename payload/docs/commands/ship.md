@@ -68,6 +68,23 @@ the report: the push did not happen, the `! git push -u origin <branch>` line
 for the caller, and the user-level `autoMode.environment` setting that removes
 the need. A resumed run lands at the *clean and pushed* row.
 
+**A refused merge is the same stop at the other end of the chain.** The
+auto-mode classifier can refuse `gh-pr-merge.sh` with no exit code and no hook
+reason after every step 6 gate has passed: blueprint-admin measured it (its
+#613), as "Merge Without Review" with a clean review behind it and `/ship`'s own
+grant on the helper, and it let another merge through the same day. So the step
+is tried rather than skipped, and a refusal is reported, never retried by another
+spelling and never answered with a branch update, which would rewrite a reviewed
+head and answer nothing, since GitHub was not what refused. The PR did not merge,
+and the caller gets the `! bash .claude/scripts/gh-pr-merge.sh <n> <oid>` line
+with the oid the gates read. The owner's merge leaves the run at the *already
+merged* row: step 0 tears the workspace down, and the task list row step 6's
+teardown would have deleted goes then. What lifts it is the user's own
+`autoMode` settings, not a grant here, and admin's `autoMode.allow` entry for the
+helper is the expected remedy rather than a measured one; that record is admin's,
+and `docs/harness/pitfalls.md` says only that the classifier refuses some outward
+writes.
+
 **The review hitting its ceiling is not in the runbook's stop table.** A
 ceiling ends the review — it reports itself unconverged and step 6 merges
 anyway, because a budget running out is not a verdict. Reading it as a
@@ -962,7 +979,10 @@ asks for a rebase**, which replays each commit and can conflict where
 merging the same branch would not. So the landing may be refused after this
 read said yes. That failure is loud and it lands *before* the teardown, so
 the workspace is intact when the chain stops: report the refusal rather
-than reaching for another method.
+than reaching for another method. **This is GitHub refusing the rebase, and the
+helper exits non-zero.** A refusal by the auto-mode classifier, with no exit
+code, is the refused-merge stop instead (*It runs to the end*), and no branch
+update answers it.
 
 `git-rebase-onto-main.sh`, the runbook's step 6 branch update, replays the
 branch onto `origin/main` and publishes the result under a lease. **A conflict

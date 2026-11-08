@@ -47,6 +47,14 @@ checkout and removes the worktree, however the review ended.
 - **A refused push stops the chain before any PR exists**: it has no exit
   code, only the harness's "has been denied" text; `/pr` reports it. (why:
   docs/commands/ship.md, *It runs to the end, and the end is a merged PR*)
+- **A refused merge is the same stop at step 6**: the auto-mode classifier can
+  refuse `gh-pr-merge.sh` with no exit code after every gate passed. Report it,
+  never retry it by another spelling or answer it with a branch update, and
+  hand over the `! bash .claude/scripts/gh-pr-merge.sh <n> <oid>` line with the
+  oid the gates read. The owner's merge leaves the run at the *already merged*
+  row: step 0 tears down, and this change's task list row goes then. Under
+  `--dispatched` it is the `stopped` ending, with the line in `reason`. (why:
+  docs/commands/ship.md, *It runs to the end, and the end is a merged PR*)
 - **Under the standalone token `--dispatched <run-dir>`**, three more
   things, beyond the sync section's own, hand the change back unmerged: it
   needs an edit under `.claude/`; it needs a resource only the owner has; or
@@ -584,9 +592,11 @@ target*)
      added, or on a plan PR whatever *A plan is reviewed once, for
      contradiction* leaves it, then return to the **top of this step**, not
      to this gate.
-   - A rebase landing refused after `MERGEABLE` read yes: report the refusal
-     rather than reaching for another method. What resolves it is a branch
-     update, and a branch update is a rebase:
+   - A rebase landing refused after `MERGEABLE` read yes, GitHub's refusal,
+     where the helper exits non-zero: report the refusal rather than reaching
+     for another method. A refusal with no exit code is the refused-merge stop
+     instead, and no branch update answers it. What resolves GitHub's is a
+     branch update, and a branch update is a rebase:
 
    ```bash
    bash .claude/scripts/git-rebase-onto-main.sh <branch> start
