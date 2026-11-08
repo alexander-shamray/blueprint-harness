@@ -255,7 +255,7 @@ class TheDispatchedTokenChangesOnlyWhatTheSpecLists(unittest.TestCase):
     def test_the_in_progress_row_carries_its_group(self):
         step = flat(branch_step_5())
         self.assertIn("the issue's group from *Remaining* or —; #n, or owed (not filed) with no issue; what; "
-                      "branch and worktree in one cell; started", step)
+                      "branch, then worktree, in one cell, each in backticks; started", step)
         self.assertEqual(dispatch_board.HEADERS["In progress"][:2], ("Group", "#"),
                          "the row's description follows the table's column order")
 
@@ -268,6 +268,12 @@ class TheDispatchedTokenChangesOnlyWhatTheSpecLists(unittest.TestCase):
         row = dispatch_board._row("In progress",
                                   f"| — | {dispatch_board.OWED} | x | `fix/x`, `.claude/worktrees/x` | started |")
         self.assertEqual(dispatch_board.row_branch(row), "fix/x", "the one cell names the branch first")
+        # These two parse and name no branch, so the claim loses the branch's paths with nothing refused: hence
+        # the step's "each in backticks".
+        for cell in ("fix/x, .claude/worktrees/x", "`fix/x, .claude/worktrees/x`"):
+            with self.subTest(cell=cell):
+                self.assertIsNone(dispatch_board.row_branch(
+                    dispatch_board._row("In progress", f"| — | 1 | x | {cell} | started |")))
         with self.assertRaisesRegex(dispatch_board.Refusal, "names no issue number and is not owed"):
             dispatch_board._row("In progress", "| — | — | x | `fix/x` | started |")
 

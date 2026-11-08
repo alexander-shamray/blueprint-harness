@@ -127,10 +127,10 @@ sweeps' `mktemp -d` ones.
    named by `.harness/config.json` `task_list`, in the main checkout's
    parent directory, under `Group | # | What | Branch or PR | State`: the
    issue's group from *Remaining* or `—`; `#n`, or `owed (not filed)` with no
-   issue; what; branch and worktree in one cell; `started`. By that path, never
-   through a `TODO.md` link; a linked worktree writes it too. Under
-   `--dispatched`, skip this write: `/dispatch` is the task list's one writer
-   (why: docs/commands/branch.md, *Step 5*).
+   issue; what; branch, then worktree, in one cell, each in backticks;
+   `started`. By that path, never through a `TODO.md` link; a linked worktree
+   writes it too. Under `--dispatched`, skip this write: `/dispatch` is the
+   task list's one writer (why: docs/commands/branch.md, *Step 5*).
 
    Then **`EnterWorktree`** with the new directory as `path`. Git writes go
    through the helpers only (why: `docs/harness-boundaries.md`, *Prefix

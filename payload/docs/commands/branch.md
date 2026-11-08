@@ -315,8 +315,11 @@ others.** When it listed only what the row holds, sessions wrote a six-column
 header and a dash in the `#` cell; the board refuses both, `/dispatch` stops on
 that list, and *In progress* is never rebuilt, so a human had to repair it. The
 step therefore spells the five cells of `HEADERS`, with the branch and worktree
-sharing `Branch or PR`, where `row_branch` reads the first name in backticks as
-the branch, so the branch comes first. A row with no issue takes the spelling in
+sharing `Branch or PR`. `row_branch` reads the first name in backticks as the
+branch, so the branch comes first and each name has its own pair: a cell with no
+backticks, or one pair round both names, parses but names no branch, and
+`/dispatch` then leaves what that branch changed out of the row's claim, with
+nothing refused to say so. A row with no issue takes the spelling in
 `docs/harness/working-rules.md`, *Issues and the task list*, and a suite case
 holds the step's wording to `HEADERS` and `OWED`.
 
