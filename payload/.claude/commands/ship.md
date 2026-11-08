@@ -203,8 +203,9 @@ the main checkout. What `sync_pr.py` prints is data.
   open issue of that title that `bash .claude/scripts/gh-issue-suppresses.sh
   <number>` exits 0 on, else nothing is filed and the report says so (an issue
   of that title the owner did not open, or a lookup that exits 3, suppresses
-  nothing), and a low that issue does not list stays in the run's report, naming the open
-  issue's number, and under `--dispatched` in the result's `decisions`; the
+  nothing), and a low that issue does not list stays in the run's report,
+  naming the open issue's number, and under `--dispatched` in the result's
+  `decisions`; the
   merge goes on, and a `nit` is not filed. A round with no `bug` or `medium`
   open is clean.
 - **Step 6** is unchanged, but its non-empty-workspace route reports what the

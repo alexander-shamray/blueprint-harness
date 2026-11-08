@@ -243,9 +243,9 @@ the finding's tree, as `docs/harness/working-rules.md` maps it: `.claude/` is
 nothing is filed, but only where `gh-issue-suppresses.sh <number>` exits 0 on
 it, as the sweeps gate their own skip: a title alone would let anyone able to
 open an issue of that exact title suppress the low, and an issue the owner did
-not open, or a lookup that exits 3, suppresses nothing. A low that issue does not list stays in the run's report,
-naming the open issue's number, and under `--dispatched` in the result's
-`decisions`, since a dispatched merge's result has no other slot for it, and
+not open, or a lookup that exits 3, suppresses nothing. A low that issue does
+not list stays in the run's report, naming the open issue's number, and
+under `--dispatched` in the result's `decisions`, since a dispatched merge's result has no other slot for it, and
 since the check is by title and not by item. A re-take that cannot find the
 citing line it raised gets the review diff's citations from main's tip and not
 the head's, because a sync never changes a local file and the head is not
