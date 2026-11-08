@@ -38,6 +38,27 @@ ROW_READ = "bash .claude/scripts/pr-for-branch.sh <branch>"
 RETIRED_READS = ("git log origin/main..HEAD", "git cherry", "git log --merges --cc")
 
 
+class TheConflictAndTheWorktreeTheRunbookNames(unittest.TestCase):
+    """Two places the runbook and what actually happens had parted (#269, #235)."""
+
+    def setUp(self):
+        self.text = " ".join(SHIP.read_text(encoding="utf-8").split()).replace("`", "")
+
+    def test_a_conflict_takes_the_rebase_the_working_rule_gives_it(self):
+        rule = " ".join((ROOT / "docs" / "harness" / "working-rules.md").read_text(encoding="utf-8").split())
+        self.assertIn("only when GitHub reports it conflicting", rule)
+        self.assertIn("What resolves GitHub's, and a CONFLICTING read before any wait, is a rebase:", self.text)
+        self.assertNotIn("Conflicts are the caller's tree", self.text)
+        # The route is the one a refused landing already takes, and the helper is what it runs.
+        at = self.text.index("a CONFLICTING read before any wait")
+        self.assertLess(at, self.text.index("bash .claude/scripts/git-rebase-onto-main.sh <branch> start"))
+
+    def test_the_conflict_stop_is_left_only_for_the_update_having_answered(self):
+        self.assertIn("| CONFLICTING again on a head rebased onto the current origin/main |", self.text)
+        self.assertIn("Bash(git merge-base origin/main HEAD)", self.text)
+
+
+
 def setUpModule():
     # Not a skip: a skip on a missing tool reports a pass.
     if BASH is None:

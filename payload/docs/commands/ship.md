@@ -560,8 +560,8 @@ shapes:
 **Neither branching from `HEAD` nor forking past the commits makes them
 safe, and neither is this chain's decision.** Commits sitting on `main`
 want pushing, moving to a branch, or dropping, and picking one of those is
-the caller's call in exactly the sense a merge conflict is. It is in the
-stop table for that reason and not because the run gave up.
+the caller's call. It is in the stop table for that reason and not because
+the run gave up.
 
 **It is also the one stop that fires before anything has happened**, which
 is the cheapest place a stop can be. Nothing is branched, committed,
@@ -997,9 +997,21 @@ PR was mergeable, so that everything between that decision and the merge is
 something the merge can refuse.
 
 `mergeable` must be `MERGEABLE` and every check must pass. **A merge onto a
-red `main` is not a recommended option**, and a conflicted branch is a
-question about the caller's tree that this chain cannot answer. Either one
-stops here and is reported as what it is.
+red `main` is not a recommended option**, so a failed check stops here and is
+reported as what it is.
+
+**A conflicted branch is a branch update, not a stop.** This row used to call
+it a question about the caller's tree, while `docs/harness/working-rules.md`,
+*Pull requests*, has a session rebase a branch it owns when GitHub reports it
+conflicting, and the helper is granted. #265 met the difference when `main`
+moved during its checks wait and the pull request read `CONFLICTING` over one
+bullet (#269). The rule won, because a run already resolves a replay's conflict
+in the replayed commit when a landing is refused after `MERGEABLE`, and the
+answer to the opposite choice, handing back every branch `main` moved under, is
+a chain that stops on the ordinary course of two pull requests. So `CONFLICTING`
+takes that same route before the wait, which on it has nothing to report. What
+is left of the stop is `CONFLICTING` read again on a head replayed onto the
+`origin/main` still current: the update has answered and GitHub disagrees.
 
 **An open `main is red` issue is a red check, and the pull request's own
 checks cannot show it.** A `pull_request` run is pinned to the merge ref of the
@@ -1111,7 +1123,7 @@ the answer still being worked out. Poll while it reads `UNKNOWN`, and take
 first: a run that captured the oid up front and then waited would bind the
 merge to a head that a push during the wait had already replaced, and the
 merge would fail on a branch that was fine. Only a *known* non-mergeable
-result stops the chain.
+result is acted on.
 
 **CI runs on the head commit, not on the PR**, so check the oid: a review
 round that pushed a fix invalidates the previous run, and `gh pr checks`
