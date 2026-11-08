@@ -63,7 +63,8 @@ class ApplyTests(unittest.TestCase):
     def test_apply_copies_managed_and_writes_manifest(self) -> None:
         self.put(self.payload, ".claude/commands/x.md", b"x\r\n")
         result = apply(self.payload, self.target, COMMIT)
-        self.assertEqual((self.target / ".claude/commands/x.md").read_bytes(), b"x\r\n")
+        # A Windows checkout under core.autocrlf holds the payload as CRLF; the target gets LF.
+        self.assertEqual((self.target / ".claude/commands/x.md").read_bytes(), b"x\n")
         self.assertIn(".claude/commands/x.md", result.written)
         self.assertIn(".claude/settings.json", result.written)
         manifest = self.manifest()
