@@ -1206,7 +1206,7 @@ Running line 7 anyway exits non-zero against a worktree that never existed
 and stops the chain on a helper failure with nothing behind it.
 
 **The task-list rows of this change are re-derived once the merge is verified**,
-which deletes the row `/branch` added,
+which deletes the row `/branch` added unless its issue stays open,
 after the pull, by the file's own path, which `.harness/agent-rules.md`,
 *Working in a target*, puts outside every checkout so that the isolation refuses
 it to no workspace. Nothing else removes it: a row left behind reads as work
