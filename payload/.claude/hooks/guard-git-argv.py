@@ -1734,7 +1734,7 @@ ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\[[^\]]*\])?\+?=")
 # redirection before the helper is what `bash < a.sh <<EOF` runs the text with.
 ISSUE_HELPER_RUN = re.compile(
     r"\s*(?:bash|sh)[ \t]+(?:\./)?\.claude/scripts/"
-    r"gh-issue-(?:create|hand|harness|sweep)\.sh(?=[\s<>]|$)")
+    r"gh-issue-(?:create|hand|harness|mutation|sweep)\.sh(?=[\s<>]|$)")
 
 # Reserved words the next word of a run is a command word after. `done`, `fi`
 # and `}` end a construct and lead nothing.

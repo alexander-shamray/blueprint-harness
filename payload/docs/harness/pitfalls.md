@@ -36,8 +36,9 @@ when a step behaves unexpectedly.
   takes it.** `guard-git-argv.py` reads what a shell running a script gets
   on stdin as that script, and a body fails for a backtick, a `$(`, an odd
   count of apostrophes outside double quotes (a possessive) or a spelled-out
-  push. The four issue helpers (`gh-issue-create.sh`, `gh-issue-hand.sh`,
-  `gh-issue-harness.sh`, `gh-issue-sweep.sh`) take it as data, but only as
+  push. The five issue helpers (`gh-issue-create.sh`, `gh-issue-hand.sh`,
+  `gh-issue-harness.sh`, `gh-issue-mutation.sh`, `gh-issue-sweep.sh`) take it
+  as data, but only as
   the command's first run, `bash .claude/scripts/<helper> <args> <<'DELIM'`:
   an assignment, a wrapper or a `cd` before it and it is a script again.
   A 2026-10-18 sweep also had bodies refused for an exclamation mark, a
