@@ -68,14 +68,18 @@ def _task_lists() -> set[str]:
     return {json.loads(c.read_text(encoding="utf-8")).get("task_list", "") for c in configs} - {""}
 
 
-def stack_sites(text: str) -> tuple[set[str], set[tuple[str, int]]]:
-    """The directories and the (file, line) sites `IMPORT.md` *Stack mentions left verbatim* lists."""
+def stack_sites(text: str) -> tuple[set[str], set[tuple[str, str]]]:
+    """The directories and the (file, anchor) sites `IMPORT.md` *Stack mentions left verbatim* lists.
+
+    A site is written `path#anchor`: the anchor is a space-free run of the listed line's own text, so an edit
+    elsewhere in the file does not move it, where a line number would.
+    """
     section = text.split("## Stack mentions left verbatim", 1)[1].split("\n## ", 1)[0]
     dirs: set[str] = set()
-    sites: set[tuple[str, int]] = set()
+    sites: set[tuple[str, str]] = set()
     last_dir = ""
     for token in _STACK_TOKEN.findall(section):
-        path, _, spec = token.partition(":")
+        path, _, anchor = token.partition("#")
         if "/" not in path and last_dir:
             path = last_dir + path
         if path.endswith("/"):
@@ -86,11 +90,24 @@ def stack_sites(text: str) -> tuple[set[str], set[tuple[str, int]]]:
             continue
         if "/" in path:
             last_dir = path.rsplit("/", 1)[0] + "/"
-        for part in filter(None, spec.split(",")):
-            low, _, high = part.partition("-")
-            if low.isdigit():
-                sites.update((path, n) for n in range(int(low), int(high or low) + 1))
+        if anchor:
+            sites.add((path, anchor))
     return dirs, sites
+
+
+def at_site(sites: set[tuple[str, str]], rel: str, line: str) -> bool:
+    """Whether the line is one a listed site exempts: in that file and carrying that anchor."""
+    return any(path == rel and anchor in line for path, anchor in sites)
+
+
+def stale_sites(payload: Path, import_text: str) -> list[str]:
+    """The listed sites no line of the payload file carries any more: the list is what reads as wrong, not the file."""
+    found = []
+    for path, anchor in sorted(stack_sites(import_text)[1]):
+        target = payload / path
+        if not target.is_file() or anchor not in target.read_text(encoding="utf-8"):
+            found.append(f"{path}#{anchor}")
+    return found
 
 
 def _normalise(cited: str) -> str | None:
@@ -122,7 +139,7 @@ def unresolved(payload: Path, held: set[str], import_text: str) -> list[str]:
         if any(rel.startswith(d) for d in dirs):
             continue
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if (rel, number) in sites:
+            if at_site(sites, rel, line):
                 continue
             for match in _PATH.finditer(line):
                 if not resolves(match.group(1), payload, held, rel):
@@ -209,7 +226,7 @@ def local_scripts_named(payload: Path, names: set[str], import_text: str) -> lis
     for path in payload_files(payload):
         rel = path.relative_to(payload).as_posix()
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if (rel, number) not in sites:
+            if not at_site(sites, rel, line):
                 found += [f"{rel}:{number}: {m.group(1)}" for m in pattern.finditer(line)]
     return found
 
@@ -222,7 +239,7 @@ def stack_names(payload: Path, import_text: str) -> list[str]:
         if any(rel.startswith(d) for d in dirs):
             continue
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if (rel, number) not in sites:
+            if not at_site(sites, rel, line):
                 found += [f"{rel}:{number}: {m.group(0)}" for m in _STACK_NAME.finditer(line)]
     return found
 
@@ -272,6 +289,9 @@ class PayloadReferences(unittest.TestCase):
         # Backend lists it under local, as README says a target does, and the payload's suites name it.
         self.assertIn(".claude/scripts/local_commands.py", _local_globs())
         self.assertNotIn("local_commands.py", local_scripts())
+
+    def test_listed_stack_site_still_exists(self) -> None:
+        self.assertEqual(stale_sites(PAYLOAD, IMPORT.read_text(encoding="utf-8")), [])
 
     def test_stack_name_only_at_a_listed_site(self) -> None:
         self.assertEqual(stack_names(PAYLOAD, IMPORT.read_text(encoding="utf-8")), [])
@@ -341,22 +361,35 @@ class PlantedCitations(unittest.TestCase):
                          [".claude/commands/ship.md: docs/harness-local.md, *Ship check*"])
 
     def test_stack_site_skips_its_line_and_no_other(self) -> None:
-        self.plant(".claude/commands/pr.md", "Cite `docs/gone.md`.\nCite `docs/gone.md`.\n")
+        self.plant(".claude/commands/pr.md", "Cite `docs/gone.md`.\nsecond Cite `docs/gone.md`.\n")
         self.plant("tools/x.md", "Cite `docs/gone.md`.\n")
-        stack = "## Stack mentions left verbatim\n\n- `.claude/commands/pr.md:2` and `tools/`, backend's.\n"
+        stack = "## Stack mentions left verbatim\n\n- `.claude/commands/pr.md#second` and `tools/`, backend's.\n"
         self.assertEqual(unresolved(self.payload, TARGET_HELD, stack),
                          [".claude/commands/pr.md:1: docs/gone.md", "tools/x.md:1: docs/gone.md"])
 
+    def test_stack_site_survives_an_edit_above_it(self) -> None:
+        stack = "## Stack mentions left verbatim\n\n- `.claude/commands/pr.md#second`\n"
+        self.plant(".claude/commands/pr.md", "Cite `docs/gone.md`.\nsecond Cite `docs/gone.md`.\n")
+        self.assertEqual(unresolved(self.payload, TARGET_HELD, stack), [".claude/commands/pr.md:1: docs/gone.md"])
+        self.plant(".claude/commands/pr.md", "A new line.\nAnd another.\nCite `docs/gone.md`.\nsecond Cite `docs/gone.md`.\n")
+        self.assertEqual(unresolved(self.payload, TARGET_HELD, stack), [".claude/commands/pr.md:3: docs/gone.md"])
+
+    def test_stale_site_is_reported(self) -> None:
+        self.plant(".claude/commands/pr.md", "Nothing here names the anchor.\n")
+        stack = "## Stack mentions left verbatim\n\n- `.claude/commands/pr.md#MSBuild`, `.claude/commands/gone.md#x`\n"
+        self.assertEqual(stale_sites(self.payload, stack),
+                         [".claude/commands/gone.md#x", ".claude/commands/pr.md#MSBuild"])
+
     def test_local_script_is_reported_off_a_stack_site(self) -> None:
         self.plant(".claude/scripts/drop.sh", "# reports mutation-run.sh wrote\n# and dotnet-test.sh\n")
-        stack = "## Stack mentions left verbatim\n\n- `.claude/scripts/drop.sh:2`\n"
+        stack = "## Stack mentions left verbatim\n\n- `.claude/scripts/drop.sh#dotnet-test.sh`\n"
         self.assertEqual(local_scripts_named(self.payload, {"mutation-run.sh", "dotnet-test.sh"}, stack),
                          [".claude/scripts/drop.sh:1: mutation-run.sh"])
 
     def test_stack_name_is_reported_off_a_stack_site(self) -> None:
         self.plant(".claude/commands/pr.md", "State the dotnet test result.\nGlob Platform.slnx.\n")
         self.plant(".github/output-gate/README.md", "MSBuild and Roslyn.\n")
-        stack = "## Stack mentions left verbatim\n\n- `.claude/commands/pr.md:2`\n- `.github/output-gate/`\n"
+        stack = "## Stack mentions left verbatim\n\n- `.claude/commands/pr.md#slnx`\n- `.github/output-gate/`\n"
         self.assertEqual(stack_names(self.payload, stack), [".claude/commands/pr.md:1: dotnet"])
 
     def test_contract_section_number_is_reported(self) -> None:

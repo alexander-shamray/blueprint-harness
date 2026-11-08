@@ -153,17 +153,20 @@ right in every target, and `dispatch_board.py` takes the task list as
 Payload files that still name a backend stack value, each with why it stays.
 `harness_sync/tests/test_payload_references.py` reads this section and refuses
 the four names its `_STACK_NAME` holds anywhere else in the payload, its suites
-aside. A shape those names cannot see, such as a C# sample, rests on review.
+aside. A site is written as its path, a hash and an anchor, the anchor a
+space-free run of the listed line's own text, so an edit elsewhere in the file
+does not move it; the same file refuses a listed site no line carries any more.
+A shape those names cannot see, such as a C# sample, rests on review.
 
 - `.github/output-gate/` — the gate itself checks .NET build output against
   `Platform.slnx`. Delivered only where a .NET build runs: a target without
   one puts `.github/output-gate/**` under `exclude` in its config, as this
   repository does. #85 moves it backend-local.
-- `.github/comment-gate/README.md:24,33` — `MSBuild` as a file kind the gate
+- `.github/comment-gate/README.md#MSBuild` — `MSBuild` as a file kind the gate
   reads: true in any target.
 - Test fixtures that use a `dotnet` command line as a sample string
-  (`test_git_argv_guard.py:241-246`, `test_index_search_hint.py:118`,
-  `test_watch_session.py:28-29`, `test_cbx.py:54`) — data, right in any
+  (`test_git_argv_guard.py`, `test_index_search_hint.py`,
+  `test_watch_session.py`, `test_cbx.py`) — data, right in any
   target.
 
 ## References to backend-local commands and documents
