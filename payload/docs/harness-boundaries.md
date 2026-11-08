@@ -517,15 +517,19 @@ its profile may hold neither the MCP tools nor a shell.
 starts with `--root .` in the directory the session started in, and
 `EnterWorktree` does not restart it, so after the move its answers describe
 the main checkout's index and not the branch's edits (#563); `cbx`, run from
-the worktree, reads the worktree's own seeded index. So in a `/branch`
-worktree the reason names the skill and the CLI alone, each command alone on
-its line because `guard-index-argv.py` refuses a shared one, and elsewhere
-the MCP tools alone, with the ToolSearch spelling that loads them. A server
-that follows the session is not something `.mcp.json` can say.
-`test_index_search_hint.py` holds the wiring, what is refused and when, and
-the commands it emits to prefixes the skill approves;
-`test_index_query_hint.py` holds the two hooks to one map from question to
-tool.
+the worktree, reads the worktree's own seeded index. So where the session
+stands in another checkout than the one `CLAUDE_PROJECT_DIR` names, the reason
+names the skill and the CLI alone, each command alone on its line because
+`guard-index-argv.py` refuses a shared one, and elsewhere the MCP tools alone,
+with the ToolSearch spelling that loads them. That is the comparison
+`index-mcp-root.py` below refuses a call on, so a session started in a worktree
+is sent to the MCP tools there, and one that moved back to the main checkout
+to the CLI. With no such variable, or no checkout at either end, a linked
+worktree is taken to be off the server. A server that follows the session is
+not something `.mcp.json` can say. `test_index_search_hint.py` holds the wiring,
+what is refused and when, the route against that hook's refusal, and the
+commands it emits to prefixes the skill approves; `test_index_query_hint.py`
+holds the two hooks to one map from question to tool.
 
 **`PreToolUse` runs `.claude/hooks/index-mcp-root.py` before every
 `codebase-index` MCP tool, because naming the CLI did not stop the MCP
