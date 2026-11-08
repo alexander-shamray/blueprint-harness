@@ -234,7 +234,7 @@ keeping the guide's *Comments* rules be reworded, completed or expanded.
 
   | State | Where |
   |---|---|
-  | Open issue not labelled `tracking`, nothing built for it | *Remaining*, in its wave |
+  | Open issue not labelled `tracking`, no work under way and no open pull request | *Remaining*, in its wave |
   | Open issue labelled `tracking`, not `paused`: it records work done elsewhere or a measurement over time, and no pull request implements it | *Tracking*, in its wave |
   | Open issue labelled `paused` | *Paused*, whatever else is true of it |
   | Work a session has taken up (about to be branched, or with a branch or a worktree), with or without an issue, and no open pull request | *In progress*, with the branch once it is named |
@@ -242,15 +242,15 @@ keeping the guide's *Comments* rules be reworded, completed or expanded.
   | Closed issue; merged or closed pull request | No row, and no note of what landed, which git and the closed issues already keep |
 
   A row with no issue reads `owed (not filed)` in its `#` cell, the form
-  `dispatch_board.py` parses beside a number. Work that stops without landing
-  (a claim abandoned, a pull request closed unmerged, or one merged without
-  closing its issue) leaves the issue open and ends its claim, so its row is
-  re-derived by the table: *In progress* with the branch if one remains,
-  otherwise back to its wave. What the work found and filed has its own row
-  by the same table, written when it is filed. `/dispatch` is the list's one
-  writer from its step 0 to its report, and sends a hand-back or a stop back
-  to its wave marked `OWNER` (`docs/commands/dispatch.md`, *One writer of the
-  task list* and *Waking*). When in doubt, rebuild the list from
+  `dispatch_board.py` parses beside a number. Work that ends with its issue
+  still open (a claim abandoned, a pull request closed unmerged, or one merged
+  without closing its issue) leaves its row to the table: *In progress* while
+  a branch remains, which holds its paths and which `/dispatch` names to the
+  owner, otherwise back to its wave. What the work found and filed has its
+  own row by the same table, written when it is filed. `/dispatch` is the
+  list's one writer from its step 0 to its report, and sends a hand-back or a
+  stop back to its wave marked `OWNER` (`docs/commands/dispatch.md`, *One
+  writer of the task list* and *Waking*). When in doubt, rebuild the list from
   `gh pr list --limit 1000` and `gh issue list --limit 1000`, because the
   default of 30 truncates silently; another session's *In progress* row stays.
 

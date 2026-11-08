@@ -65,7 +65,7 @@ class WorkingRulesTests(unittest.TestCase):
 
     def test_stopped_work_and_the_dispatcher_each_say_where_their_row_goes(self):
         task_list = _bullet(self.rules, "The task list")
-        self.assertIn("leaves the issue open and ends its claim", task_list)
+        self.assertIn("Work that ends with its issue still open", task_list)
         self.assertIn("`/dispatch` is the list's one writer", task_list)
 
     def test_a_rebuild_asks_past_the_default_cut_of_both_lists(self):
