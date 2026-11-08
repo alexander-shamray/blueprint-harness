@@ -34,6 +34,29 @@ printf '%s\\n\\nThe body.\\n\\nCo-Authored-By: C <c@example.invalid>\\n%s' "$3" 
 """
 
 
+FAILING_REBASE = """\
+git() {
+  if [ "$1" = rebase ] && [ "$2" != --abort ]; then
+    n=$(cat "$SHIM_COUNT" 2>/dev/null || echo 0)
+    echo $((n + 1)) > "$SHIM_COUNT"
+    if [ "$n" -lt "$SHIM_FAILS" ]; then
+      if [ -n "$SHIM_MESSAGE" ]; then
+        echo "$SHIM_MESSAGE" >&2
+        return 1
+      fi
+      lock=$(command git rev-parse --git-path index.lock)
+      : > "$lock"
+      command git "$@"
+      status=$?
+      rm -f "$lock"
+      return "$status"
+    fi
+  fi
+  command git "$@"
+}
+"""
+
+
 def sh(script, **env):
     result = run_bash(
         "set -eu\n" + script,
@@ -73,11 +96,11 @@ class Fixture(unittest.TestCase):
     def branch(self, name="feat/x"):
         self.git("checkout", "-q", "-b", name)
 
-    def run_helper(self, helper, pr="7", row="OPEN\tfeat/x\tmain\tfalse"):
+    def run_helper(self, helper, pr="7", row="OPEN\tfeat/x\tmain\tfalse", **env):
         return sh(
             f'cd "$WORK"\nbash "$HELPER" "$PR"',
             WORK=self.work, HELPER=str(helper), PR=pr, GH_ROW=row,
-            PATH=self.shim + os.pathsep + os.environ["PATH"])
+            PATH=self.shim + os.pathsep + os.environ["PATH"], **env)
 
     def subjects_and_trailers(self, rev):
         return self.git("log", "--format=%s|%(trailers:key=PR,valueonly,separator=,)", rev).splitlines()
@@ -199,6 +222,42 @@ class TrailerHelper(Fixture):
         for bad in ("", "x7", "7 8", "-1"):
             with self.subTest(pr=bad):
                 self.assertEqual(2, self.run_helper(TRAILER, pr=bad).returncode)
+
+    def failing_rebase(self, fails, message=""):
+        """The environment that fails the helper's first `fails` rebases and counts them all: a real `index.lock`
+        held for the attempt, as a concurrent git reader holds it, or `message` where one is given. A shell function
+        through BASH_ENV, because the helper runs none of the repository's hooks and a `git` first on PATH loses to
+        the one Git's bash launcher puts there."""
+        shim = Path(self.root, "git-shim.sh")
+        shim.write_text(FAILING_REBASE, encoding="utf-8", newline="\n")
+        return {"BASH_ENV": shim.as_posix(), "SHIM_COUNT": f"{self.root}/count", "SHIM_FAILS": str(fails),
+                "SHIM_MESSAGE": message}
+
+    def rebases_run(self):
+        return int(Path(self.root, "count").read_text(encoding="utf-8").strip())
+
+    def test_a_single_index_lock_failure_is_retried_once_and_succeeds(self):
+        self.two_commit_branch()
+        out = self.run_helper(TRAILER, **self.failing_rebase(1))
+        self.assertEqual(0, out.returncode, out.stderr)
+        self.assertEqual(["docs: two|#7", "feat(x): one|#7"], self.subjects_and_trailers("origin/main..HEAD"))
+        self.assertEqual(2, self.rebases_run())
+
+    def test_a_persistent_index_lock_failure_stops_after_two_attempts_with_the_branch_as_it_was(self):
+        self.two_commit_branch()
+        before = self.git("rev-parse", "HEAD")
+        out = self.run_helper(TRAILER, **self.failing_rebase(99))
+        self.assertEqual(6, out.returncode, out.stderr)
+        self.assertIn("index.lock", out.stderr)
+        self.assertEqual(2, self.rebases_run())
+        self.assertEqual(before, self.git("rev-parse", "HEAD"))
+
+    def test_a_failure_that_is_not_a_lock_is_not_retried(self):
+        self.two_commit_branch()
+        out = self.run_helper(TRAILER, **self.failing_rebase(99, "boom"))
+        self.assertEqual(6, out.returncode, out.stderr)
+        self.assertIn("boom", out.stderr)
+        self.assertEqual(1, self.rebases_run())
 
     def test_the_repositorys_own_hooks_do_not_run_inside_the_rewrite(self):
         # A `post-rewrite` hook in the repository runs after an amend or a rebase, and this helper rewrites published

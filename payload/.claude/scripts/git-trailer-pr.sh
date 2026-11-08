@@ -81,11 +81,20 @@ if [ "$owned" -lt "$total" ]; then
   # The flags are spelled, as git-rebase-onto-main.sh spells them, and the result is force-pushed. The last three are
   # defensive: git limits `rebase.autoSquash` to interactive mode and takes no fork point when a base is named, so
   # they hold against a change of git's version or mode.
-  if ! GIT_SEQUENCE_EDITOR=true git rebase --quiet --no-rebase-merges --no-update-refs --no-autosquash \
-      --no-fork-point --no-autostash -x "$exec_cmd" "$base_oid"; then
+  #
+  # A concurrent git reader can hold the worktree index for an instant, which fails the rewrite with an `index.lock`
+  # message and nothing wrong. One more attempt after the abort is safe, since the abort restores the branch; any other
+  # failure, and a second lock failure, stops.
+  attempt=1
+  until err=$(GIT_SEQUENCE_EDITOR=true git rebase --quiet --no-rebase-merges --no-update-refs --no-autosquash \
+      --no-fork-point --no-autostash -x "$exec_cmd" "$base_oid" 2>&1); do
     git rebase --abort || true
+    if [ "$attempt" -eq 1 ] && [[ "$err" == *index.lock* ]]; then
+      attempt=2; sleep 1; continue
+    fi
+    printf '%s\n' "$err" >&2
     echo "adding the trailer failed; the branch is as it was" >&2; exit 6
-  fi
+  done
 fi
 
 git push --quiet --force-with-lease="refs/heads/$branch:$remote" origin "HEAD:refs/heads/$branch" ||
