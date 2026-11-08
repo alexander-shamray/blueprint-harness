@@ -1517,7 +1517,7 @@ unknown.
 **A reader of pull requests is granted by its whole command line.** `Bash(py
 -3.12 .claude/scripts/sync_pr.py:*)` admits `list`, `verify <n>`, `review-diff
 <n> <out>`, `local-suites` and `run-local-suites <n> --head <oid>`, the one that
-runs anything, as the paragraph on `unittest discover` below says, and nothing
+runs a suite, as the paragraph on `unittest discover` below says, and nothing
 in it writes to GitHub: its `gh`
 calls are `pr list` with a fixed field set and `gh api` reads of the harness
 repository's `git/trees` and `compare`, which it spells itself, so no caller
