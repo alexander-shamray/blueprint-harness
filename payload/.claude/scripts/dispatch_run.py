@@ -344,6 +344,29 @@ def _bound_to(root, worktree, oid):
         raise Refusal(f"{worktree} is not clean: {one_line(held, 200)}")
 
 
+def _landed(root, entry):
+    """What a sync's moved head may mean: step 6's rebase moved it and the merge landed, which is no crash.
+
+    A read that fails or answers out of shape adds nothing, so the refusal it extends stands as it was.
+    """
+    pr = entry.get("pr")
+    if not _number(pr):
+        return ""
+    try:
+        view = json.loads(helper(root, "pr-state.sh", str(pr)))
+    except (Refusal, ValueError):
+        return ""
+    if isinstance(view, dict) and view.get("state") == "MERGED":
+        return f"; #{pr} is MERGED, so the head moved because the merge landed: verify the merge, relaunch nothing"
+    return ""
+
+
+def _claimed(entries):
+    """The sync groups whose merge is claimed and not yet verified: `main` is not confirmed to hold it."""
+    return [gid for gid, entry in entries.items()
+            if isinstance(entry, dict) and entry.get("kind") == "sync" and entry.get("status") == "merged-claimed"]
+
+
 def launch(root, run, gid, tasks_path, branch, worktree, owned_source):
     directory = run_dir(root, run)
     state = load_state(directory)
@@ -398,6 +421,9 @@ def sync_launch(root, run, pr, branch, worktree, oid):
     for other, entry in entries.items():
         if isinstance(entry, dict) and entry.get("status") in ACTIVE:
             raise Refusal(f"{other} is {entry['status']}; a sync is launched alone")
+    claimed = _claimed(entries)
+    if claimed:
+        raise Refusal(f"{claimed[0]}'s merge is claimed and not verified; a sync is launched alone")
     if not SYNC_HEAD.fullmatch(branch):
         raise Refusal(f"{branch!r} is not a sync head")
     if not _oid(oid):
@@ -461,7 +487,10 @@ def _launch(root, directory, run, gid, entry, flag=False):
         raise Refusal(f"{entry['worktree']} is not a directory")
     if entry.get("kind") == "sync":
         # A relaunch takes its <oid> from HEAD too, so what a crash left in the tree is held to the same head.
-        _bound_to(root, entry["worktree"], _field(entry, gid, "oid", _oid))
+        try:
+            _bound_to(root, entry["worktree"], _field(entry, gid, "oid", _oid))
+        except Refusal as moved:
+            raise Refusal(f"{moved}{_landed(root, entry)}") from None
     command = list(CLAUDE_COMMAND) if CLAUDE_COMMAND else [path_which("claude")]
     if not command[0]:
         raise Refusal("no claude on PATH")
@@ -1258,6 +1287,10 @@ def wake(root, run, tasks_path, today, body_source, open_source, branch_source, 
     # A group launched beside a sync would run under the settings the sync is about to replace.
     if any(entries[gid].get("kind") == "sync" for gid in active):
         return out + ["launch: none"]
+    # Nor before `main` is confirmed to hold a sync whose merge was only claimed.
+    claimed = _claimed(entries)
+    if claimed:
+        return out + [f"held: {', '.join(claimed)} merge claimed, not yet verified", "launch: none"]
     tasks = parse_tasks(_read(tasks_path))
     bodies = _bodies(tasks, directory, body_source)
     open_set = set(open_source())
