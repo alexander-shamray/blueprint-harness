@@ -29,6 +29,7 @@ the whole is about 31k. `Grep -n "^## <title>"` gives its first line.
 | Normalisation, residuals and the sweeps | Unicode and per-directory traits, the .. admission, out-of-tree residual, how the sweeps share worktrees, and their slice lists and ref. |
 | The sed line-ending guard | guard-sed-crlf.py refusing `sed -i` on a tracked CRLF file: what it reads, what a crafted path makes it run, where it fails open, and its residuals. |
 | Headless dispatched sessions | Unattended `claude -p` executors, what holds them, why no grant was added, and the night's residuals: a refusal read in the morning, and the weekly stop. |
+| The suite's shard runner | shard-harness-suite.py dealing the `.claude/scripts` classes to parallel workers, what it may never stop placing, its tables, and its one-run-per-user lock. |
 | Managed files | Which paths blueprint-harness owns and where they are changed, the `local` paths a repository keeps, and the drift gate that holds them. |
 
 ## Purpose and provenance of this file
@@ -2418,6 +2419,51 @@ crash, never a success.
   and held, and the rebuild and the interview read its text. A collaborator's
   is held like a stranger's, and under a repository an organisation owns every
   row is, since no author is the organisation's login: the cautious side.
+
+## The suite's shard runner
+
+**`py -3.12 .claude/scripts/shard-harness-suite.py` is the `.claude/scripts`
+suite, run in parallel.** It takes no arguments and exits 0 only when every
+discovered test ran and passed. `.claude/scripts` is its one root, the tree
+every target holds; a gate's suite or a stack's root is the target's to run
+beside it. `python` will do where `py` is not installed.
+
+**It deals classes from a queue to parallel workers.** The unit is the class,
+since a class is what shares a fixture, and the count is the host's cores
+capped at the measured knee. A worker takes the next unit when it finishes the
+last, longest first, so a wrong guess at a class's cost costs that class rather
+than a whole worker.
+
+**What a splitter may never do is stop placing a class.** Every worker green
+and one class never run is the most-repeated failure of
+`.harness/agent-rules.md` in its cheapest form. So placement comes from
+discovery, with no list written by hand, and `test_harness_shards.py` compares
+the units back against discovery. Every unit has to come back finished, a
+worker refuses an id discovery does not hold rather than reporting a pass, and
+a root that discovers nothing refuses the run. A unit is claimed by creating
+its claim file exclusively, and a rename is not exclusive on Windows.
+
+**Each class runs as its own suite.** Its time is measured whole, and module
+cleanups run between two classes of one worker, so a fixture a module caches
+has to be built again after one. Class sharding cannot split a class, so the
+run never takes less than its slowest one, which is why the worker count is
+capped rather than tuned.
+
+**Two of its three tables are not about speed.** `SERIAL` holds the classes
+whose subject is elapsed time, `TOGETHER` the ones sharing the `secsweep-*`
+namespace in the temp root and this checkout's own `.git`, and `WEIGHT` only
+orders the queue. A name in any of them that no longer resolves fails a test, so
+a renamed class loses its pinning loudly. A target's `local` test module is
+placed on its test count and needs no entry.
+
+**One run at a time, per user.** A run takes a lock named for the user in their
+temp directory before it discovers anything, and a second run, from another
+session, worktree or target, waits and says so. Two at once ran twice the
+workers the host holds and each took about three times as long. The lock spans
+what one user runs, which on a developer's machine is every session that could
+collide; another user's runs, or one under a different `TMPDIR`, are not held by
+it. The operating system drops the lock with the process that held it, so there
+is nothing stale to clear.
 
 ## Managed files
 

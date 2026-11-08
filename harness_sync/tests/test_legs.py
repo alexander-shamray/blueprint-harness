@@ -168,6 +168,11 @@ class WhatTheFilterLooksAtTests(unittest.TestCase):
         self.assertEqual(len(gated), len(re.findall(r'-p "test_', "\n".join(_code_lines(CI)))))
         self.assertEqual(len(conditions), len(gated) + 1, "only the decision itself is ungated")
 
+    def test_the_ubuntu_leg_runs_the_suite_through_the_shard_runner(self) -> None:
+        code = "\n".join(_code_lines(CI))
+        branch = code.split('if [ "$RUNNER_OS" = Linux ]; then', 1)[1].split("else", 1)[0]
+        self.assertEqual("python .claude/scripts/shard-harness-suite.py", branch.strip())
+
     def test_the_decision_runs_with_the_parent_it_reads(self) -> None:
         code = "\n".join(_code_lines(CI))
         self.assertIn("id: reach", code)
