@@ -154,6 +154,20 @@ _PY_WRONG_VERSION_STUB = (
     "    raise SystemExit(0)\n"
     "raise SystemExit(1)\n"
 )
+# A 3.11 that holds `codebase_index`: every -c asking for 3.12 fails, any
+# other succeeds, and `-m` would run the module.
+_PY_311_WITH_MODULE_STUB = (
+    "import sys\n"
+    "args = sys.argv[1:]\n"
+    "if '-c' in args[:3]:\n"
+    "    i = args.index('-c')\n"
+    "    payload = args[i + 1] if i + 1 < len(args) else ''\n"
+    "    raise SystemExit(1 if 'version_info[:2] == (3, 12)' in payload else 0)\n"
+    "if '-m' in args:\n"
+    "    print('MODULE')\n"
+    "    raise SystemExit(0)\n"
+    "raise SystemExit(1)\n"
+)
 
 
 def _checkout_module(directory):
@@ -560,6 +574,8 @@ class CbxWrapper(unittest.TestCase):
             self.assertIn("MODULE search X", out.stdout)
 
     def test_powershell_python_fallback_rejects_a_non_312_interpreter(self):
+        """The index gate asks for the same 3.12 first, so a 3.11 is refused
+        there, exit 4, before any fallback could take it."""
         with tempfile.TemporaryDirectory(prefix="cbx-ps-py311-") as fake:
             _write_ps_stub(fake, "python", _PY_WRONG_VERSION_STUB)
             env = {
@@ -569,6 +585,23 @@ class CbxWrapper(unittest.TestCase):
             out = _ps_invoke(CBX_PS1, "search", "X", env=env)
             self.assertEqual(4, out.returncode, out.stderr)
             self.assertIn("no Python 3.12", out.stderr)
+            self.assertNotIn("MODULE", out.stdout)
+
+    def test_powershell_fallback_on_another_version_is_not_taken_behind_a_312_gate(self):
+        """`py -3.12` lacking the package passes the gate, and a `python`
+        holding the package is a 3.11: only that fallback's version check
+        stops it from being run."""
+        with tempfile.TemporaryDirectory(prefix="cbx-ps-py-mixed-") as fake:
+            _write_ps_stub(fake, "py", _PY_NO_MODULE_STUB)
+            _write_ps_stub(fake, "python", _PY_311_WITH_MODULE_STUB)
+            env = {
+                **os.environ,
+                "PATH": fake + os.pathsep + _path_without_launchers(*_PS_HIDDEN),
+            }
+            out = _ps_invoke(CBX_PS1, "search", "X", env=env)
+            self.assertIn("GATE", out.stdout, out.stdout + out.stderr)
+            self.assertEqual(127, out.returncode, out.stderr)
+            self.assertIn("not on PATH", out.stderr)
             self.assertNotIn("MODULE", out.stdout)
 
     def test_python_fallback_does_not_import_a_checkout_module(self):
