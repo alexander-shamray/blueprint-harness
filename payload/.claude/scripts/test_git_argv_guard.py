@@ -3801,6 +3801,12 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
     def test_a_git_path_write_that_restores_or_leaves_a_denied_file_stays_admitted(self):
         self.admitted(
             "git checkout -- .claude/settings.json", "git checkout HEAD -- .claude/settings.json",
+    def test_a_first_word_naming_a_path_is_a_path_as_git_reads_it(self):
+        os.makedirs(os.path.join(self.root, ".claude", "hooks"))
+        with open(os.path.join(self.root, ".claude", "settings.json"), "w", encoding="utf-8") as handle:
+            handle.write("{}")
+        self.admitted("git checkout .claude/settings.json .claude/hooks/x")
+
             "git checkout @ -- .claude/settings.json", "git checkout .claude/settings.json",
             "git checkout --theirs -- .claude/settings.json",
             "git restore .claude/settings.json", "git restore --source=HEAD .claude/settings.json",

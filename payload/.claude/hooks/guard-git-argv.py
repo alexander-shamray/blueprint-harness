@@ -3188,6 +3188,10 @@ def git_path_offence(words, cwd, command):
         if set(options) & {"-b", "-B", "--orphan"}:
             return None
         source = target_literal(before[0]) if before else None
+        # As git disambiguates: with no `--`, a first word naming a path is one.
+        first = written_path(before[0], cwd, command) if before and not after else None
+        if first is not None and os.path.lexists(first):
+            source = None
         paths = after or before[1:]
     elif verb == "restore":
         options, before, after = _git_operands(
