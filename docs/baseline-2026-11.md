@@ -137,12 +137,12 @@ drops it, as *Limits of the measure* says and #276 files. Counted with them, as
 sessions whose first two genuine messages are `/clear` and `/ship`, which no
 command line offers yet, and read at 16:02 UTC with each window's sessions by
 when they started, each cell is the median, then the total, then the largest
-session:
+session, and `user_turns` counts what follows the `/ship`:
 
 | Frontend `ship`, those included | Sessions | ask_user | action_required | permission_refused | user_turns |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Baseline, to 2026-11-02 | 11 | 0; 3, max 3 | 1; 16, max 6 | 0; 2, max 2 | 1; 14, max 3 |
-| Since #382 | 12 | 0; 0, max 0 | 1; 17, max 5 | 0; 3, max 2 | 1; 10, max 2 |
+| Baseline, to 2026-11-02 | 11 | 0; 3, max 3 | 1; 16, max 6 | 0; 2, max 2 | 0; 8, max 3 |
+| Since #382 | 12 | 0; 0, max 0 | 1; 17, max 5 | 0; 3, max 2 | 0; 4, max 1 |
 
 Read that way `action_required` does not rise per session, and
 `permission_refused` goes from 2 to 3. The six the tool counted are not a fair
