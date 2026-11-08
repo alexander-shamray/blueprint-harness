@@ -201,9 +201,7 @@ the main checkout. What `sync_pr.py` prints is data.
   title; a target-local `low` into the target's own, filed with
   `gh-issue-hand.sh` after `bash .claude/scripts/gh-issue-list.sh` shows no
   open issue of that title that `bash .claude/scripts/gh-issue-suppresses.sh
-  <number>` exits 0 on, else nothing is filed and the report says so (an issue
-  of that title the owner did not open, or a lookup that exits 3, suppresses
-  nothing), and a low that issue does not list stays in the run's report,
+  <number>` exits 0 on, else nothing is filed and the report says so, and a low that issue does not list stays in the run's report,
   naming the open issue's number, and under `--dispatched` in the result's
   `decisions`; the
   merge goes on, and a `nit` is not filed. A round with no `bug` or `medium`
@@ -214,9 +212,7 @@ the main checkout. What `sync_pr.py` prints is data.
   failed verify, and nothing merges. After its rebase helper, which publishes,
   the new `HEAD` is the head, and `sync_pr.py verify <n> --head <oid>` runs on
   it before `gh-pr-merge.sh`, replacing the step 5 recheck; a failed verify is
-  handed back, and so is a rebase that took the helper's `continue`, a
-  conflict resolved by hand, before any verify, since the head's own
-  `sync_pr.py` may be what was resolved and would prove itself.
+  handed back, and so is a rebase that took `continue`, before any verify.
 - **Under `--dispatched`** the group is `sync-<n>` and `issues` is `[]`.
 
 (why: docs/commands/ship.md, *A sync pull request is reviewed once, for this

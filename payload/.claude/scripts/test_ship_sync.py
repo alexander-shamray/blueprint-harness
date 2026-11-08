@@ -244,8 +244,7 @@ class TheSyncRow(unittest.TestCase):
         self.assertIn("After its rebase helper, which publishes, the new HEAD is the head, and sync_pr.py verify <n> --head <oid> "
                       "runs on it before gh-pr-merge.sh", step)
         self.assertIn("replacing the step 5 recheck", step)
-        self.assertIn("a failed verify is handed back, and so is a rebase that took the helper's continue, a conflict "
-                      "resolved by hand, before any verify", step)
+        self.assertIn("a failed verify is handed back, and so is a rebase that took continue, before any verify", step)
         # Step 6 merges the head that was proved: a differing headRefOid is a moved sync and merges nothing.
         self.assertIn("its <oid> must be that head: a headRefOid that differs is a moved sync, a failed verify, "
                       "and nothing merges", step)
