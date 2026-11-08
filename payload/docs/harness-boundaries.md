@@ -174,10 +174,10 @@ reason `skills/` is on it.
 styles.** `~/.claude/projects/*/memory/` is loaded into later sessions as the
 user's own standing instruction, and `~/.claude/output-styles/` shapes how they
 answer; a command that reads a branch diff and holds `Write` could otherwise
-plant one. `guard-edit-target.py` admits what sits below `~/.claude`, since a
-session's own memory and scratch writes live there and it cannot tell a save from
-an injection,
-so `Edit(~/.claude/projects/**)` and `Edit(~/.claude/output-styles/**)` sit in
+plant one. `guard-edit-target.py` refuses only named control paths below
+`~/.claude`, and these two are not among them, since a session's own memory lives
+there and it cannot tell a save from an injection, so
+`Edit(~/.claude/projects/**)` and `Edit(~/.claude/output-styles/**)` sit in
 `disallowed-tools` of `/ship`, `/pr`, `/style-pass`, `/dispatch` and `/team`, and
 `AWritingCommandDeniesTheUsersMemoryAndOutputStyles` fails when a managed command
 that grants either tool lacks them. Like every frontmatter deny they last only the
