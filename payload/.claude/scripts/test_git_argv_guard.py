@@ -3813,6 +3813,22 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
             "git checkout $ref -- docs/a.md",
         )
 
+    def test_a_linked_worktree_writes_a_denied_path_in_its_own_diff(self):
+        # The replay's four: a sync's local files, a config moved, a review's
+        # restore and misplaced inputs removed, each in a pull request's diff.
+        worktree = os.path.join(self.root, ".claude", "worktrees", "linked")
+        os.makedirs(worktree)
+        with open(os.path.join(worktree, ".git"), "w", encoding="utf-8") as handle:
+            handle.write("gitdir: elsewhere\n")
+        written = ("git checkout chore/prep -- .claude/scripts/x.py",
+                   "git checkout 39772d4 -- .harness/config.json",
+                   "git rm -q -r .claude/scripts/artifacts", "git mv .harness/a .harness/b",
+                   "git restore --source=x .claude/settings.json")
+        self.admitted(*written, cwd=worktree)
+        self.admitted(*written, cwd=os.path.join(self.root, ".claude", "worktrees", "gone"))
+        self.admitted("cd .claude/worktrees/linked && git rm .claude/hooks/x")
+        self.refused(*written)
+
     def test_a_rule_is_read_in_the_permission_grammar(self):
         # `/x` is the project root's, `//x` absolute and `~/x` the home's.
         hook = self.hook_denying("/package.json", "/.github/**", "//notes/**", "~/notes/**")

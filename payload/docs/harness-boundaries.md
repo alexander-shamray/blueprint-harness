@@ -1213,8 +1213,10 @@ judged, and a literal `cd` is followed, through a subshell's end as well.
 `find .claude/hooks -delete` is refused and `.`, no start and `-files0-from` are
 not, and `-fprint`, `-fprint0`, `-fprintf` and `-fls` by their file. `git rm`,
 `git mv` and a checkout or a restore from another commit are held from a
-literal `-C`, and a restore from `HEAD` or the index, `--staged`, `--cached` and
-a dry run are not, since each leaves the file what it was. And `rm`, `mv`,
+literal `-C`, in a main checkout alone: in a linked worktree each is in the
+pull request's diff, and the replay found agents typing all three there. A
+restore from `HEAD` or the index, `--staged`, `--cached` and a dry run are not
+held, since each leaves the file what it was. And `rm`, `mv`,
 `rmdir`, `shred` and `unlink` are refused the filesystem's root, the home
 directory and a strict parent of the checkout, a trailing `/*` read as the
 directory, so `rm -rf ..` and `rm -rf ../*` are refused from the root, and
