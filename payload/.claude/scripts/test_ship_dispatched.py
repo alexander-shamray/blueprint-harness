@@ -43,7 +43,8 @@ INDEX_GRANTS = ("Bash(git merge-base origin/main HEAD)",
                 "Bash(bash .claude/skills/codebase-index/scripts/cbx impact:*)",
                 "Bash(bash .claude/skills/codebase-index/scripts/cbx diff-impact:*)")
 # The sync row's grants (test_ship_sync.py): a dispatched sync's reads and its one filing must be named by the
-# run's own grants, since an ungranted command is the auto classifier's to refuse.
+# run's own grants, since an ungranted command is the auto classifier's to refuse. The shard runner sits among them
+# for its place in the frontmatter: it serves a target's *Ship checks*, not the sync.
 SYNC_GRANTS = ("Bash(py -3.12 .claude/scripts/sync_pr.py:*)", "Bash(bash .claude/scripts/git-worktree-sync.sh:*)",
                "Bash(bash .claude/scripts/gh-issue-harness.sh:*)",
                "Bash(py -3.12 .claude/scripts/shard-harness-suite.py)",
