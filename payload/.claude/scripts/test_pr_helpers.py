@@ -441,18 +441,18 @@ class NoCommandReadsAPullRequestFeedUnfiltered(unittest.TestCase):
             ["class D", "inside docs/x.md", "inside docs/a.md", "inside docs/b.md",
              "inside docs/y.md", "outside docs/z.md"],
             r.stdout.splitlines())
-        for cell in (
-            "docs/x.md (the reason)",
-            "`docs/x.md` (open reason",
-            "`docs/x.md` (a (nested) reason)",
-            "`docs/x.md` (a `quoted` reason)",
-            "`docs/x.md` (why) and also everything else",
+        for cell, message in (
+            ("docs/x.md (the reason)", "the Touch set row is not a path list"),
+            ("`docs/x.md` (open reason", "the Touch set row has an unbalanced parenthesis"),
+            ("`docs/x.md` (a (nested) reason)", "the Touch set row has a reason outside its grammar"),
+            ("`docs/x.md` (a `quoted` reason)", "the Touch set row has a reason outside its grammar"),
+            ("`docs/x.md` (why) and also everything else", "the Touch set row has a reason outside its grammar"),
         ):
             with self.subTest(cell=cell):
                 r = self._run_locality_with_gh(self._gh_printing(f"| Class | D |\n| Touch set | {cell} |\n"))
                 self.assertEqual(3, r.returncode, r.stderr)
                 self.assertEqual("", r.stdout)
-                self.assertNotIn("reason", r.stderr)
+                self.assertEqual(message + "\n", r.stderr)
 
     def test_a_second_row_is_refused_before_either_is_read(self):
         # With two Class rows, `grep -q` passes on the valid first and a print
