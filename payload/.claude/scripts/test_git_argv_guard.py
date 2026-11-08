@@ -3718,8 +3718,8 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                       hook=hook)
 
     def test_a_double_star_deny_holds_a_file_at_the_root(self):
-        # #228: `fnmatchcase` wants a `/` before `**/`, so the root's own file
-        # passed a rule that names it at every depth.
+        # `fnmatchcase` wants a `/` before `**/`, so the root's own file passed
+        # a rule that names it at every depth.
         hook = self.hook_denying("**/package.json", "**/Directory.Build.*",
                                  "**/obj/**", "**/*.csproj.user")
         self.refused("ls > package.json", "ls > PACKAGE.JSON", "ls > Directory.Build.props",

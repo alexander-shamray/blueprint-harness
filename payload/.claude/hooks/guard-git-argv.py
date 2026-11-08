@@ -188,10 +188,8 @@ def edit_denies():
 def denied_path(relative, whole=False):
     """The deny that holds `relative`, a path from a checkout's root, or `None`.
 
-    Anchored at the root and folded: `.CLAUDE/hooks/x` is held, `.claude/worktrees/x`
-    is not. With `whole`, a write to a tree, a parent of a deny's prefix counts.
-    `fnmatchcase` wants a `/` before `**/`, so a rule at every depth is asked
-    again without it, for the file at the root.
+    Anchored at the root and folded. With `whole`, a parent of a deny's prefix counts.
+    `fnmatchcase` wants a `/` before `**/`, so such a rule is asked again without it.
     """
     parts = [part for part in re.split(r"[\\/]+", relative)
              if part not in ("", ".")]
@@ -1896,9 +1894,8 @@ def forwards_to_evaluator(command, position, ordinary):
 def _helper_reads_stdin_as_data(command, start):
     """Whether the run at `start` is a shell handed an issue helper as its script file.
 
-    A shell handed a file reads stdin as data. Only the one literal shape:
-    `bash /dev/stdin`, an assignment, a wrapper or a `cd` before it runs the
-    text or moves what the path names. An unquoted body is judged regardless.
+    A shell handed a file reads stdin as data. Only this literal shape: an
+    assignment, a wrapper or a `cd` before it runs the text or moves the path.
     """
     return not command[:start].strip() and ISSUE_HELPER_RUN.match(command, start) is not None
 
@@ -3156,9 +3153,8 @@ def _restore_source(options):
 def git_path_offence(words, cwd, command):
     """The reason to refuse a git verb writing a denied path, or `None`.
 
-    `git rm`, `git mv` and a checkout or restore from another commit, each from
-    the literal `-C` it names. A restore from `HEAD` or the index puts back what
-    the file already was, and `--cached` and `--staged` leave the file alone.
+    `git rm`, `git mv` and a checkout or restore from another commit, from a literal
+    `-C`. A restore from `HEAD` or the index puts back what the file was.
     """
     literals = [target_literal(word) for word in words]
     lead = leading_command([word or "" for word in literals])
