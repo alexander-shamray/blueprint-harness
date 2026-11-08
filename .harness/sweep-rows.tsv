@@ -3,7 +3,9 @@
 # both), a POSIX extended regular expression over the whole path, anchored here,
 # the row, and what the row holds, which the sweeps read for each row. The first
 # matching line wins; row - owns nothing, so a path it matches refuses the run.
-# The samples row is read for its fenced code alone.
+# The samples row is read for its fenced code alone. A row `=<dir>/` is a mirror:
+# a matching file equal to its counterpart under <dir>/ is counted and not listed.
+*	^(\.claude|\.github|\.harness|docs)/	=payload/	the rendered root's managed copies: a file byte-equal to its `payload/` counterpart is owned and counted, and the payload row reads it once; a copy that differs falls to the next row that matches it
 *	^(\.claude|\.github|\.harness)/	tooling	the rendered harness: hooks, scripts, commands, agents, skills, CI and the gates, and `.harness/`
 *	^harness_sync/	sync	the sync tool and its suites: apply, render, check, the ruleset and sync-PR reads
 *	^measure/	measure	the stop counter and its suites
