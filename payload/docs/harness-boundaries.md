@@ -8,7 +8,7 @@ the whole is about 31k. `Grep -n "^## <title>"` gives its first line.
 | Section | What it covers |
 |---|---|
 | Purpose and provenance of this file | Why the section left backend's CLAUDE.md, the four edits made in the move, and the three passages since moved to backend's residuals. |
-| Edit denies and agent self-protection | Edit-only file rules, the denied .claude trees, and why the skill and index-wrapper grants need guarding. |
+| Edit denies and agent self-protection | Edit-only file rules, the denied .claude and .harness trees, and why the skill and index-wrapper grants need guarding. |
 | Index refresh and worktree seeding | The PostToolUse refresh hook, seeding worktree indexes, carrying MCP approval into forks, and the SessionStart refresh. |
 | Index hint hooks and hook wiring | Query, search and MCP-root hooks, MCP_TIMEOUT, and why hook commands run without a shell. |
 | Settings self-lock and permission root | The settings.json self-lock and its delay, settings.local.json, how EnterWorktree moves rules, and the hooks deny. |
@@ -149,6 +149,17 @@ in the code can reach a second peer as a claim. The residual is that
 supports the claim; the owner's decision at the end, made with the shell
 the peers were denied, is the only check of that
 ([`docs/commands/team.md`](commands/team.md)).
+
+**`.harness/**` is the same argument one level further up.** Its
+`config.json` is what the next sync renders `.claude/settings.json`'s denies
+from, and its `sweep-rows.tsv` decides what the sweeps read; the rest is
+managed or written by `apply`. A session that could edit the config could
+not unlock itself, since the change shows in its pull request's diff and
+takes a render to apply, but it would hand every reviewer a deny list to
+re-read for what went missing. So a change to anything under `.harness/`
+is the owner's, as one to `.claude/settings.json` is; the deny names the
+whole directory rather than the config alone, because a sweep able to
+narrow its own rows has audited less than it reports.
 
 **`.claude/skills/**` is the same argument one directory over.** A skill's
 `allowed-tools` is auto-approval, so a session that can rewrite `SKILL.md`
@@ -2407,7 +2418,9 @@ repository's own file and never in the manifest. That is the one change a
 target makes to a managed path itself: a pull request that changes the
 config carries the re-rendered `.claude/settings.json` and
 `.harness/manifest.json`, rendered at the commit the manifest already names
-(the drift gate's README, *Changing this repository's config*).
+(the drift gate's README, *Changing this repository's config*). The config
+is Edit-denied with the rest of `.harness/` (*Edit denies and agent
+self-protection*), so that change is the owner's to make or lift.
 
 **A path the config lists under `local` is the repository's own**, even
 inside a managed directory: a sync neither writes nor deletes it.
