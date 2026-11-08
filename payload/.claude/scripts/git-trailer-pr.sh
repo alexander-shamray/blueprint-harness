@@ -78,14 +78,13 @@ fi
 # The exec skips a commit that has the trailer, so a rerun after a failed push changes nothing already done.
 if [ "$owned" -lt "$total" ]; then
   exec_cmd="git log -1 --format=%B | git interpret-trailers --parse | grep -qx '$wanted' || git commit --amend --no-edit --trailer '$wanted'"
-  # The flags are spelled, as git-rebase-onto-main.sh spells them, and the result is force-pushed. The last three are
-  # defensive: git limits `rebase.autoSquash` to interactive mode and takes no fork point when a base is named, so
-  # they hold against a change of git's version or mode.
-  #
   # A concurrent git reader can hold the worktree index for an instant, which fails the rewrite with an `index.lock`
   # message and nothing wrong. One more attempt after the abort is safe, since the abort restores the branch; any other
   # failure, and a second lock failure, stops.
   attempt=1
+  # The flags are spelled, as git-rebase-onto-main.sh spells them, and the result is force-pushed. The last three are
+  # defensive: git limits `rebase.autoSquash` to interactive mode and takes no fork point when a base is named, so
+  # they hold against a change of git's version or mode.
   until err=$(GIT_SEQUENCE_EDITOR=true git rebase --quiet --no-rebase-merges --no-update-refs --no-autosquash \
       --no-fork-point --no-autostash -x "$exec_cmd" "$base_oid" 2>&1); do
     git rebase --abort || true
