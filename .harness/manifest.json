@@ -1,5 +1,5 @@
 {
-  "harness_commit": "5e794548b5e8f0bb2b818f0e3690a3289de5a519",
+  "harness_commit": "c342696df869fa54bc68874cfd470e37a14c7a97",
   "files": {
     ".claude/agents/branch-reviewer.md": "a930476f4481dfa1e5bb25f162f3b944eb1a13ecd2a7ec909d36825285394c4d",
     ".claude/agents/bug-auditor.md": "6219201313c10252798ff249570298f4de6ad6a66690f3dc40510fd76859b4d7",
@@ -30,7 +30,7 @@
     ".claude/scripts/dispatch_run.py": "696f87357d72451ec0e3a98629e7360199c1dfc84cff8c7caab688450c1450ae",
     ".claude/scripts/gh-issue-create.sh": "0c5c0813e192fc2a9e03c42374cd4d8e274f754a1d80b0fb68773d129b3013ad",
     ".claude/scripts/gh-issue-hand.sh": "fc6527698c4895f3d4871a4d658d3c52e23784a8d10c1dd964b512be71cf9458",
-    ".claude/scripts/gh-issue-harness.sh": "844a9cc199245ea338e7c2e5b397721fc00543cb4f19390fce95702fa7713985",
+    ".claude/scripts/gh-issue-harness.sh": "7d1a1d021fe2ac31ff87683cc4a65d406a60cfd53e4821629355b70b1c30b1c0",
     ".claude/scripts/gh-issue-list.sh": "6bf35ce95019855056db1e7659dfcc4fd7cacf5895a2e642a96cff725d0ef6a5",
     ".claude/scripts/gh-issue-mutation.sh": "b7f51cb5e7402b317413a34fbca274dd0aeb21c97521fa19f11b0bef515cd6af",
     ".claude/scripts/gh-issue-owned.sh": "6f6a3675b72565e670387268e4190256490b2f5f6db42041e306a829ee0a1c18",
@@ -74,7 +74,7 @@
     ".claude/scripts/test_dispatch_sync.py": "ec71bfe92336e41bf185b05da26f53c338ac00d563aad994a5bf0037b3c913dd",
     ".claude/scripts/test_edit_target_guard.py": "fbe60b5bf3e05e4ce699d913e1eabd220860f4cd005beb1d7d3eeb880cc94940",
     ".claude/scripts/test_gh_issue_create.py": "831cea4d83f73bf1c48201a46e53548cccb44e0670b980fd368e89e404c08e81",
-    ".claude/scripts/test_gh_issue_harness.py": "c2fcd1798275d9d3259d68ed0b4862f24e5545352146cb01c711343c1a4502b8",
+    ".claude/scripts/test_gh_issue_harness.py": "995ab00a34e11784c0ff5a9469510edf28eec9d5f5ab5c697272bb6ecfbf3ba4",
     ".claude/scripts/test_gh_issue_owned.py": "895b72722141d0ddfdcf6a470ecd42f4144b2c54dff8e86fcc2c8ede7300abd6",
     ".claude/scripts/test_gh_issue_suppresses.py": "9cebfd3c8e2a197a3e87b042e73277e8d328dcf9d3f7f8bd3621f6a53e19113d",
     ".claude/scripts/test_gh_label_ensure.py": "5b593c11675b5d94e082fe3dbb27afca6d03b85cf7fe47bdfb71148d003bae4a",
