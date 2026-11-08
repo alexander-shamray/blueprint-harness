@@ -35,10 +35,13 @@ GIT_TIMEOUT = 120
 LIST_LIMIT = "200"
 CITATIONS = 50
 TEXT_CAP = 300
-# Payload suites that walk the target's own commands and settings; they run from the checkout, where a target's
-# `local_commands.py` is, and CI is not the only place to meet a target-local command they refuse.
+# Payload suites whose subject is the target's own commands or settings, and which read its `local_commands.py`:
+# they run from the checkout, since CI is not the only place to meet a local command they refuse. The suites that
+# only test a helper over the commands (test_pr_helpers.py and the like) are not here: they are minutes long
+# and a local command does not change what they prove.
 COMMAND_WALKERS = tuple(f".claude/scripts/{name}" for name in
-                        ("test_command_grants.py", "test_grants_name_existing_helpers.py"))
+                        ("test_command_grants.py", "test_command_runbooks.py",
+                         "test_grants_name_existing_helpers.py"))
 
 
 class Refusal(Exception):
