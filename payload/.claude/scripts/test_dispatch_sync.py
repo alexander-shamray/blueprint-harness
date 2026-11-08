@@ -17,7 +17,7 @@ from unittest import mock
 
 import dispatch_board as db
 import dispatch_run as dr
-from test_dispatch_board import FIXTURE, NO_BRANCH, line, tasks_of
+from test_dispatch_board import FIXTURE, NO_BRANCH, line, stub, tasks_of
 from test_dispatch_run import (FAKE_CLAUDE, NOW, OID, RUN, SUCCESS, InRoot, finished_pid, group_state, record,
                                run_cli, state_dir)
 
@@ -241,6 +241,70 @@ class SyncLaunch(Bound):
     def test_a_sync_this_run_holds_is_never_launched_again(self):
         record_sync(status="closed", closed_from="handed-back", worktree=WORKTREE)
         self.refused(f"{GID} is already in this run; a new take is a new group")
+
+
+class AMergeWithNoResult(Bound):
+    """An executor that merged and wrote nothing, or nothing valid: `result` asks /ship step 0's own predicate."""
+
+    def github(self, state="MERGED", head=None, base="main", merge_oid=OID, number=1690):
+        row = {"number": number, "state": state, "url": "https://example.invalid/pr", "headRefOid": head or self.oid,
+               "baseRefName": base}
+        view = {"state": state, "mergeable": "UNKNOWN", "mergeStateStatus": "UNKNOWN", "headRefOid": head or self.oid,
+                "mergeCommit": {"oid": merge_oid} if merge_oid else None}
+        stub(".", "pr-for-branch.sh", f"echo '{json.dumps([row])}'\n")
+        stub(".", "pr-state.sh", f"echo '{json.dumps(view)}'\n")
+
+    def ended(self, result=None, gid="S1"):
+        if gid == "S1":
+            record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
+            (state_dir() / "S1.task.txt").write_text("Narrow the grants\n", encoding="utf-8")
+        self.run_group(gid=gid)
+        if result is not None:
+            self.write_result(result, gid=gid)
+        return run_cli(["result", RUN, gid]).splitlines()[0]
+
+    def test_a_merge_at_the_tip_is_claimed_and_verifies(self):
+        self.github()
+        self.assertEqual("S1: merged-claimed pr #1690 - merged with no review round", self.ended())
+        entry = group_state(RUN, "S1")
+        self.assertEqual(("merged-claimed", 1690, OID, 0), (entry["status"], entry["pr"], entry["merge_oid"],
+                                                            entry["crashes"]))
+        self.assertEqual([dr.NO_RESULT_MERGED], entry["decisions"])
+        self.assertEqual(f"verified {OID}\n", run_cli(["verify", RUN, "S1"]))
+
+    def test_an_invalid_result_beside_a_merge_is_claimed_too(self):
+        self.github()
+        self.assertTrue(self.ended({"group": "S1"}).startswith("S1: merged-claimed pr #1690"))
+
+    def test_a_sync_keeps_its_own_pull_request(self):
+        self.github(number=PR)
+        record_sync(oid=self.oid)
+        self.assertTrue(self.ended(gid=GID).startswith(f"{GID}: merged-claimed pr #{PR}"))
+        self.assertEqual(PR, group_state(RUN, GID)["pr"])
+
+    def test_anything_short_of_the_predicate_is_still_the_crash(self):
+        cases = {"open": {"state": "OPEN"}, "closed": {"state": "CLOSED"}, "another base": {"base": "release"},
+                 "later work": {"head": OID}, "no merge oid": {"merge_oid": None}}
+        for name, fields in cases.items():
+            with self.subTest(case=name):
+                self.github(**fields)
+                self.assertEqual("S1: relaunch - no result; exit 0", self.ended())
+
+    def test_a_dirty_tree_is_still_the_crash(self):
+        self.github()
+        (self.tree / "dirty").write_text("x\n", encoding="utf-8")
+        self.assertEqual("S1: relaunch - no result; exit 0", self.ended())
+
+    def test_a_read_that_fails_or_answers_out_of_shape_is_still_the_crash(self):
+        self.github()
+        for script, body in (("pr-for-branch.sh", "exit 1\n"), ("pr-for-branch.sh", "echo not-json\n"),
+                             ("pr-for-branch.sh", "echo '{}'\n")):
+            with self.subTest(script=script, body=body):
+                stub(".", script, body)
+                self.assertEqual("S1: relaunch - no result; exit 0", self.ended())
+        self.github()
+        stub(".", "pr-state.sh", "exit 1\n")
+        self.assertEqual("S1: relaunch - no result; exit 0", self.ended())
 
 
 class RunningASync(Bound):

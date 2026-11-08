@@ -1024,6 +1024,36 @@ def _unrecorded(directory, state, gid, entry, line):
     return [f"{gid}: {status} - {reason}", "transcript: not found"]
 
 
+NO_RESULT_MERGED = "the executor left no valid result: its merge was read from GitHub"
+
+
+def _merged_unreported(root, gid, entry, worktree, issues):
+    """The Result of an executor that merged and left none, or None: /ship step 0's finished predicate, asked here
+    because all a relaunch could do is read the same merge. `verify` still holds it to GitHub; a read that fails or
+    answers out of shape claims nothing, so the crash stands."""
+    branch = entry.get("branch")
+    if not isinstance(branch, str) or not BRANCH_NAME.fullmatch(branch):
+        return None
+    tree = Path(root) / worktree
+    try:
+        if git(tree, "status", "--porcelain").strip():
+            return None
+        tip = git(tree, "rev-parse", "HEAD").strip()
+        rows = json.loads(helper(root, "pr-for-branch.sh", branch))
+        row = next((r for r in rows if isinstance(r, dict) and r.get("state") == "MERGED"
+                    and r.get("baseRefName") == "main" and r.get("headRefOid") == tip), None)
+        if row is None or not _number(row.get("number")):
+            return None
+        view = json.loads(helper(root, "pr-state.sh", str(row["number"])))
+        merged = view.get("mergeCommit", {}).get("oid") if view.get("state") == "MERGED" else None
+    except (Refusal, ValueError, TypeError, AttributeError):
+        return None
+    if not _oid(merged):
+        return None
+    return Result(gid, tuple(issues), "merged", row["number"], None, merged, (), None, (), None,
+                  {"worktree": worktree, "removed": False}, (NO_RESULT_MERGED,))
+
+
 def absorb(root, run, gid, run_refused=None):
     """Copy, validate and classify one executor's result and session, record them, and say what happened.
 
@@ -1068,7 +1098,10 @@ def absorb(root, run, gid, run_refused=None):
             copy.unlink(missing_ok=True)
     except OSError as error:
         raise Refusal(f"could not copy {source}: {error}") from None
-    result = load_result(copy, gid, _field(entry, gid, "issues", _numbers_list))
+    issues = _field(entry, gid, "issues", _numbers_list)
+    result = load_result(copy, gid, issues)
+    if not isinstance(result, Result):
+        result = _merged_unreported(root, gid, entry, worktree, issues) or result
     end = session_end(raw)
     crashes = _field(entry, gid, "crashes", _count, 0)
     decision = classify(end, result, crashes, now())

@@ -302,6 +302,21 @@ filed, then asks `wake` what to launch; the outcome table is the spec's
 §6.4. A hand-back or a stop goes back into its wave marked `OWNER` and is
 not retried (spec §2); a crash is relaunched once (spec §6.4).
 
+A crash that merged is not one. An executor that wrote no result, or none
+valid, and whose worktree meets `/ship` step 0's finished predicate — clean,
+its tip the head of a row `MERGED` into `main` — has nothing a relaunch could
+do but read the merge, so `result` takes it as `merged-claimed`, from GitHub's
+fields and with `verify` still to come, and its `decisions` say the result
+came from there. The rounds it ran went with the file, so it goes to *Needs a
+human* as a merge with no review round unless its transcript shows a reviewer.
+A read that fails, or a predicate that does not hold, leaves the crash as it
+was. Run 20261108-071135 relaunched five groups of twenty-one: one had merged
+and written its result to the main checkout's run directory rather than its
+worktree's, which `result` does not read, and four had ended the turn on
+`/commit`'s report, before any merge, which only a relaunch can recover. A
+turn ended there ends a `claude -p` session, which is why `/ship --dispatched`
+says a step's status is not a reply.
+
 A `Model` cell `launch` would refuse holds its group at `board` and `wake`,
 since `launch` comes after the fork and `tasks move`, and a refusal there
 leaves an empty worktree behind.
