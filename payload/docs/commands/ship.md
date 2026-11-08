@@ -209,8 +209,11 @@ never runs is the target-local test or command a payload change can trip
 (`docs/harness/working-rules.md`). Each is run as CI runs it, with `discover -s
 <dir> -p <file>`, because it imports its siblings from its own directory and a
 dotted module name cannot be formed from `.claude/` or `.github/comment-gate/`.
-The command is granted in the frontmatter, since a dispatched run's reads must
-be named by its own grants. A failing suite has no ending of its own, since step
+`sync_pr.py run-local-suites <n> --head <oid>` runs each of them so, and the
+frontmatter's grant on `sync_pr.py` is what names it, since a dispatched run's
+reads must be named by its own grants; it takes no path, since a grant on
+`discover` itself ran a file written anywhere (`docs/harness-boundaries.md`). A
+failing suite has no ending of its own, since step
 2 otherwise says to fix what the checks find and a sync branch is never
 committed to: it is a target-local finding, filed in the target, and the sync
 ends unmerged or is handed back with no round run, because the code under test
