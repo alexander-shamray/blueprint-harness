@@ -408,14 +408,17 @@ def launch(root, run, gid, tasks_path, branch, worktree, owned_source):
     save_state(directory, state)
 
 
-def sync_launch(root, run, pr, branch, worktree, oid):
-    """Record a proved sync as its group, first and alone: it holds no task-list row, so no list is read or written."""
+def sync_ready(root, run, pr):
+    """Refuse a sync `sync-launch` would refuse whatever its tree holds, before there is a tree: a sync that only waits
+    may be superseded before its turn, and the worktree and branch made for it would have no launch to end them."""
     directory = run_dir(root, run)
     state = load_state(directory)
     if not _number(pr):
         raise Refusal(f"{pr!r} is not a pull request number")
-    gid = f"sync-{pr}"
-    entries = state.setdefault("groups", {})
+    _sync_may_launch(directory, state.get("groups", {}), f"sync-{pr}")
+
+
+def _sync_may_launch(directory, entries, gid):
     if gid in entries:
         raise Refusal(f"{gid} is already in this run; a new take is a new group")
     if (directory / "STOP").exists():
@@ -431,6 +434,17 @@ def sync_launch(root, run, pr, branch, worktree, oid):
     claimed = _claimed(entries)
     if claimed:
         raise Refusal(f"{claimed[0]}'s merge is claimed and not verified; a sync is launched alone")
+
+
+def sync_launch(root, run, pr, branch, worktree, oid):
+    """Record a proved sync as its group, first and alone: it holds no task-list row, so no list is read or written."""
+    directory = run_dir(root, run)
+    state = load_state(directory)
+    if not _number(pr):
+        raise Refusal(f"{pr!r} is not a pull request number")
+    gid = f"sync-{pr}"
+    entries = state.setdefault("groups", {})
+    _sync_may_launch(directory, entries, gid)
     if not SYNC_HEAD.fullmatch(branch):
         raise Refusal(f"{branch!r} is not a sync head")
     if not _oid(oid):
@@ -1209,6 +1223,20 @@ def _worktree_kept(root, entry):
     return _path_text(worktree) and (Path(root) / worktree).is_dir()
 
 
+def sync_drop(root):
+    """One line for each local sync head offered to git-branch-drop.sh, which alone decides whether it goes."""
+    lines = []
+    for ref in git(root, "for-each-ref", "--format=%(refname)", "refs/heads/chore/harness-sync-*").splitlines():
+        branch = ref.removeprefix("refs/heads/")
+        if not SYNC_HEAD.fullmatch(branch):
+            continue
+        try:
+            lines.append(one_line(helper(root, "git-branch-drop.sh", branch)))
+        except Refusal as kept:
+            lines.append(f"kept {branch}: {kept}")
+    return lines or ["no sync branch"]
+
+
 def sync_close(root, run, gid):
     directory = run_dir(root, run)
     state = load_state(directory)
@@ -1673,6 +1701,10 @@ def add_commands(sub):
     s.add_argument("pr", type=int)
     for option in ("branch", "worktree", "oid"):
         s.add_argument(f"--{option}", required=True)
+    s = sub.add_parser("sync-ready")
+    s.add_argument("run")
+    s.add_argument("pr", type=int)
+    sub.add_parser("sync-drop")
     w = sub.add_parser("wake")
     w.add_argument("run")
     w.add_argument("--tasks", required=True)
@@ -1713,6 +1745,10 @@ def command(args: argparse.Namespace, today, bodies_from, open_from, branch_from
         launch(root, args.run, args.group, args.tasks, args.branch, args.worktree, owned_from)
     elif args.command == "sync-launch":
         sync_launch(root, args.run, args.pr, args.branch, args.worktree, args.oid)
+    elif args.command == "sync-ready":
+        sync_ready(root, args.run, args.pr)
+    elif args.command == "sync-drop":
+        print("\n".join(sync_drop(root)))
     elif args.command == "sync-close":
         sync_close(root, args.run, args.group)
     elif args.command == "run":

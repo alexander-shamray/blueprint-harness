@@ -49,6 +49,10 @@ class SyncPrConstants(unittest.TestCase):
         self.assertEqual([pr.SYNC_HEAD.pattern], found)
         self.assertFalse(pr.SYNC_HEAD.pattern.startswith("^") or pr.SYNC_HEAD.pattern.endswith("$"))
 
+    def test_the_branch_drop_takes_a_closed_pull_requests_branch_only_for_the_sync_head(self):
+        text = (SCRIPTS / "git-branch-drop.sh").read_text(encoding="utf-8")
+        self.assertEqual([pr.SYNC_HEAD.pattern], re.findall(r'\[\[ "\$branch" =~ \^(chore/\S+)\$ \]\]', text))
+
     def test_the_glob_matcher_is_apply_s(self):
         cases = [("a.md", "a.md"), ("*.md", "d/a.md"), ("**/*.md", "a.md"), ("d/**", "d/e/f"), ("d/**", "d"),
                  ("d/?.md", "d/ab.md"), ("(x)+", "(x)+"), ("a.b", "aXb")]

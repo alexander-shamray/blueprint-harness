@@ -243,6 +243,60 @@ class SyncLaunch(Bound):
         self.refused(f"{GID} is already in this run; a new take is a new group")
 
 
+class SyncReady(Bound):
+    """What refuses a launch whatever the tree holds, asked before the worktree exists, so a wait leaves none."""
+
+    def ready(self, pr=PR):
+        return run_cli(["sync-ready", RUN, str(pr)])
+
+    def test_nothing_in_the_way_says_nothing_and_records_nothing(self):
+        before = dr.load_state(state_dir())
+        self.assertEqual("", self.ready())
+        self.assertEqual(before, dr.load_state(state_dir()))
+
+    def test_it_refuses_what_sync_launch_refuses_before_the_tree(self):
+        record(RUN, "S1", status="running")
+        self.assertIn("refused: S1 is running; a sync is launched alone", self.ready())
+        self.assertIn("refused: S1 is running; a sync is launched alone", self.sync_launch())
+        record(RUN, "S1", status="done")
+        record_sync(pr=6, status="merged-claimed", branch="chore/harness-sync-1234567")
+        self.assertIn("refused: sync-6's merge is claimed and not verified", self.ready())
+        record_sync(pr=6, status="closed")
+        self.assertIn("refused: sync-6 is already in this run", self.ready(6))
+        (state_dir() / "STOP").write_text("", encoding="utf-8")
+        self.assertIn("refused: stop file", self.ready())
+
+    def test_it_reads_no_tree(self):
+        # The worktree does not exist yet when it runs, so a gone head or a dirty tree is sync-launch's alone.
+        (self.tree / "dirty").write_text("x\n", encoding="utf-8")
+        self.assertEqual("", self.ready())
+        self.assertIn("is not clean", self.sync_launch())
+
+
+class SyncDrop(Bound):
+    """Every local sync branch offered to the drop helper, which alone decides, and nothing else offered."""
+
+    def setUp(self):
+        super().setUp()
+        for name in ("chore/harness-sync-1234567", "chore/harness-sync-workflow", "feat/other"):
+            git_in(".", "branch", name)
+        stub(".", "git-branch-drop.sh",
+             'if [ "$1" = chore/harness-sync-1234567 ]; then echo "dropped $1, superseded"; exit 0; fi\n'
+             'echo "$1 is in use, and kept" >&2; exit 4\n')
+
+    def test_each_sync_head_is_offered_and_each_answer_is_a_line(self):
+        self.assertEqual([f"kept {BRANCH}: git-branch-drop.sh {BRANCH} exited 4: {BRANCH} is in use, and kept",
+                          "dropped chore/harness-sync-1234567, superseded"],
+                         sorted(run_cli(["sync-drop"]).splitlines(), reverse=True))
+
+    def test_no_sync_branch_is_said_so(self):
+        for name in ("chore/harness-sync-1234567", "chore/harness-sync-workflow", "feat/other"):
+            git_in(".", "branch", "-D", name)
+        git_in(".", "worktree", "remove", "--force", WORKTREE)
+        git_in(".", "branch", "-D", BRANCH)
+        self.assertEqual("no sync branch\n", run_cli(["sync-drop"]))
+
+
 class AMergeWithNoResult(Bound):
     """An executor that merged and wrote nothing, or nothing valid: `result` asks /ship step 0's own predicate."""
 
@@ -720,6 +774,9 @@ class Runbook(unittest.TestCase):
                       loop)
         self.assertIn("a sync opening mid-night, or found by a resumed run with a group active, waits for the running "
                       "groups, new launches can overtake it, and the morning's list shows it", loop)
+        self.assertLess(loop.index("dispatch_board.py sync-ready <run> <n>"),
+                        loop.index("git-worktree-sync.sh .claude/worktrees/sync-<sha7> <head>"),
+                        "a sync that only waits would leave a worktree nothing removes")
         self.assertLess(loop.index("git-worktree-sync.sh .claude/worktrees/sync-<sha7> <head>"),
                         loop.index("sync-launch <run> <n> --branch <head> --worktree .claude/worktrees/sync-<sha7> "
                                    "--oid <oid>"))
@@ -735,6 +792,12 @@ class Runbook(unittest.TestCase):
                       "the removal and the drop on a merge", part)
         self.assertIn("A failed pull or containment read runs none of tasks done, the removal, the drop and sync-close",
                       part)
+
+    def test_the_morning_drops_what_each_sync_left_and_says_so(self):
+        text = self.text()
+        morning = text[text.index("3. **The morning report.**"):text.index("## Resume")]
+        self.assertLess(morning.index("dispatch_board.py sync-drop"), morning.index("dispatch_board.py report <run>"))
+        self.assertIn("sync-drop's lines", morning)
 
     def test_the_report_has_seven_sections(self):
         text = self.text()

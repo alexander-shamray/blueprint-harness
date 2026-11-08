@@ -1434,7 +1434,11 @@ too from git 2.38. It deletes only when `pr-for-branch.sh` reports a pull
 request for the branch `MERGED` into `main` whose head is the branch's tip,
 which is `/ship` step 0's finished predicate: a commit added after the merge
 is work no merge holds, and keeps the branch, and the helper reads only this
-repository's rows, so a fork's same-named pull request lands nothing. The
+repository's rows, so a fork's same-named pull request lands nothing. A branch
+named as a sync head, and no other, also goes when every row reads `CLOSED`,
+one into `main` at its tip, and origin no longer has it: `harness_sync` closes a
+superseded sync that way, so no merge can land it and nobody can reopen it.
+Exit 12 is an origin it cannot ask. The
 delete is `git update-ref --no-deref -d` against the tip that was checked, a
 compare-and-swap, rather than `git branch -D`, which deletes whatever the
 branch holds when it runs: the read of the pull requests takes seconds, and a
