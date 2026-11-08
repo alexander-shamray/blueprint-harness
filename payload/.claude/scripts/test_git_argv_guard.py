@@ -3729,6 +3729,23 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         self.admitted("ls > package.json.bak", "ls > notes/x.md", "rm -rf obj",
                       "rm -rf notes/obj", hook=hook)
 
+    def test_a_find_is_judged_by_the_starts_it_deletes_and_the_files_it_prints(self):
+        self.refused("find .claude/hooks -delete", "find .claude -name x -delete",
+                     "find -L .claude/hooks -delete", "find ./.claude/hooks -type f -delete",
+                     "sudo find .claude/hooks -delete", "cd .claude && find hooks -delete",
+                     "find . -fprint .claude/settings.json", "find . -fprint0 .claude/hooks/x",
+                     "find . -fls .claude/hooks/x", "find . -fprintf .claude/hooks/x %p")
+        self.admitted("find . -delete", "find -name x -delete", "find docs -name '*.pyc' -delete",
+                      "find .claude/worktrees/x -delete", "find .claude/hooks -name x",
+                      "find .claude/hooks -print", "find . -fprint notes/out.txt",
+                      "find . -files0-from list -delete", "find /tmp/x -delete",
+                      'find "$dir" -delete', "find . -name '*.md' -exec echo {} \\;",
+                      "find .claude/hooks -name x -exec cat {} \\;")
+
+    def test_a_find_delete_started_above_the_checkout_is_refused(self):
+        self.refused(f"find {self.spelled('..')} -name x -delete", "find .. -delete",
+                     "find / -name x -delete", "find ~ -name x -delete")
+
     def test_removing_what_holds_the_checkout_is_refused(self):
         env = {"HOME": os.path.join(self.root, "notes")}
         self.refused("rm -rf ..", "rm -rf ../", "rm -rf ../..", "rmdir ..", "unlink ..",
