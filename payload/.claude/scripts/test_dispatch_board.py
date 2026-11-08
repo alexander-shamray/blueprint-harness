@@ -203,7 +203,7 @@ class ReadyTests(unittest.TestCase):
         self.assertEqual((True, ""), self.ready(line(number=7), bodies={7: "see claude and my.claudex"}))
 
     def test_a_body_that_only_mentions_the_claude_tree_names_no_file_there(self):
-        # #43's body: its change was a harness_sync test, its prose named the tree the names could be checked under.
+        # A real night's body: its change was a harness_sync test, its prose named the tree names are checked under.
         prose = "bare names could be checked against the payload's files under `.claude/` and `.github/`"
         for task, body in (("Fix `harness_sync/tests/x.py`", prose), ("Say what the .claude/ tree holds", ""),
                            ("Fix `x.py`", "the .claude tree, and .claude\\ on Windows")):

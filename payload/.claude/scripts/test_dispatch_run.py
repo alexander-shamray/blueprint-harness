@@ -835,7 +835,7 @@ class ResultCommandTests(InRoot):
         entry = group_state(RUN, "S1")
         self.assertEqual(({"input_tokens": 100}, ["modelUsage"]), (entry["usage"], entry["usage_sources"]))
         self.assertEqual(({"m": {"input_tokens": 100}}, 0.5), (entry["usage_models"], entry["cost_usd"]))
-        # Its spend is unknown, so the group's row must not read as the whole cost (#105).
+        # Its spend is unknown, so the group's row must not read as the whole cost.
         self.assertEqual(1, entry["usage_uncounted"])
         self.assertEqual(["S1: 100 tokens (input 100, cache write 0, cache read 0, output 0), $0.50, from modelUsage, "
                           "1 session left no usage, not counted"], dr._usage_lines("S1", entry))
