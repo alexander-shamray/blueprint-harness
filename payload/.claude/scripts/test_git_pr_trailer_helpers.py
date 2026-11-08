@@ -36,7 +36,11 @@ printf '%s\\n\\nThe body.\\n\\nCo-Authored-By: C <c@example.invalid>\\n%s' "$3" 
 
 FAILING_REBASE = """\
 sleep() {
-  echo sleep >> "$SHIM_TRACE"
+  if [ "$1" = 1 ]; then
+    echo sleep >> "$SHIM_TRACE"
+  else
+    command sleep "$@"
+  fi
 }
 git() {
   if [ "$1" = rebase ] && [ "$2" = --abort ]; then
@@ -252,10 +256,18 @@ class TrailerHelper(Fixture):
         return Path(self.root, "trace").read_text(encoding="utf-8").split()
 
     def test_the_wait_comes_before_the_abort_which_wants_the_same_lock(self):
-        self.two_commit_branch()
-        out = self.run_helper(TRAILER, **self.failing_rebase(1))
-        self.assertEqual(0, out.returncode, out.stderr)
-        self.assertEqual(["sleep", "abort"], self.trace())
+        # Also over gh-read-bound.sh's watchdog, which sleeps too, and which a runner with no `timeout` takes.
+        for program in ("timeout", "no-such-timeout"):
+            with self.subTest(program=program):
+                Path(self.root, "trace").unlink(missing_ok=True)
+                Path(self.root, "count").unlink(missing_ok=True)
+                self.git("checkout", "-q", "main")
+                self.branch(f"feat/{program}")
+                self.commit("one", f"feat(x): {program}")
+                out = self.run_helper(TRAILER, row=f"OPEN\tfeat/{program}\tmain\tfalse", GH_READ_TIMEOUT=program,
+                                      **self.failing_rebase(1))
+                self.assertEqual(0, out.returncode, out.stderr)
+                self.assertEqual(["sleep", "abort"], self.trace())
 
     def test_an_abort_that_fails_too_is_not_called_the_branch_as_it_was(self):
         self.two_commit_branch()
