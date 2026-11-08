@@ -1063,6 +1063,9 @@ def _merged_unreported(root, gid, entry, worktree, issues):
         if git(tree, "status", "--porcelain").strip():
             return None
         tip = git(tree, "rev-parse", "HEAD").strip()
+        # A sync's proof binds one head: a tree elsewhere stays `run`'s refusal, which the report's Syncs line names.
+        if entry.get("kind") == "sync" and tip != entry.get("oid"):
+            return None
         rows = json.loads(helper(root, "pr-for-branch.sh", branch))
         row = next((r for r in rows if isinstance(r, dict) and r.get("state") == "MERGED"
                     and r.get("baseRefName") == "main" and r.get("headRefOid") == tip), None)

@@ -366,6 +366,16 @@ class AMergeWithNoResult(Bound):
         self.assertTrue(self.ended(gid=GID).startswith(f"{GID}: merged-claimed pr #{PR}"))
         self.assertEqual(PR, group_state(RUN, GID)["pr"])
 
+    def test_a_sync_away_from_its_proved_head_is_still_the_crash(self):
+        # The proof binds one head, so the merge at another tip is `run`'s refusal to name, as *The proof binds* says.
+        self.github(number=PR)
+        record_sync(oid=OID)
+        directory = state_dir()
+        (directory / f"{GID}.session.json").write_text(json.dumps(
+            {"exit": 0, "started": NOW.isoformat(), "ended": NOW.isoformat(), "seconds": 1,
+             "stdout": json.dumps(SUCCESS), "stderr": ""}), encoding="utf-8")
+        self.assertEqual(f"{GID}: relaunch - no result; exit 0", run_cli(["result", RUN, GID]).splitlines()[0])
+
     def test_anything_short_of_the_predicate_is_still_the_crash(self):
         cases = {"open": {"state": "OPEN"}, "closed": {"state": "CLOSED"}, "another base": {"base": "release"},
                  "later work": {"head": OID}, "no merge oid": {"merge_oid": None}}

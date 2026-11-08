@@ -313,7 +313,8 @@ fields and with `verify` still to come, and its `decisions` say the result
 came from there. The rounds it ran went with the file, so it goes to *Needs a
 human* as a merge with no review round unless its transcript shows a reviewer.
 A read that fails, or a predicate that does not hold, leaves the crash as it
-was. Run 20261108-071135 relaunched five groups of twenty-one: one had merged
+was, and so does a sync whose tip is not the head its proof bound (*The proof
+binds*). Run 20261108-071135 relaunched five groups of twenty-one: one had merged
 and written its result to the main checkout's run directory rather than its
 worktree's, which `result` does not read, and four had ended the turn on
 `/commit`'s report, before any merge, which only a relaunch can recover. A
