@@ -240,7 +240,10 @@ the finding's tree, as `docs/harness/working-rules.md` maps it: `.claude/` is
 `harness` or `code` for a suite. A target-local low goes through
 `gh-issue-hand.sh`, which always creates, so a re-take reads
 `gh-issue-list.sh` first, and where an open issue already holds that title
-nothing is filed. A low that issue does not list stays in the run's report,
+nothing is filed, but only where `gh-issue-suppresses.sh <number>` exits 0 on
+it, as the sweeps gate their own skip: a title alone would let anyone able to
+open an issue of that exact title suppress the low, and an issue the owner did
+not open, or a lookup that exits 3, suppresses nothing. A low that issue does not list stays in the run's report,
 naming the open issue's number, and under `--dispatched` in the result's
 `decisions`, since a dispatched merge's result has no other slot for it, and
 since the check is by title and not by item. A re-take that cannot find the
@@ -255,7 +258,9 @@ rebase rewrites the head, so what was proved is gone, and `verify` on the new
 head is the proof again. The step's ordinary route re-enters step 5 for a
 recheck after a rebase; a sync keeps its one round, because the verify compares
 the new head's managed files by blob id. A failed verify is handed back, as the
-first one is.
+first one is, and so is a rebase that took the helper's `continue`: a conflict
+resolved by hand may have changed the head's own `sync_pr.py`, and the verify
+would then run the very file it is proving.
 
 **What was proved is what runs and merges, so the proof carries the head, and
 the first proof is not made by the tree it proves.** A `verify` run inside the
