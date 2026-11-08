@@ -1472,8 +1472,8 @@ like a sync, which it checks out and runs nothing in.
 
 **`Bash(py -3.12 -m unittest discover:*)` runs the code of whatever tree it is
 pointed at, and is `/ship`'s alone.** A sync's step 2 runs the target-local
-suites, and the payload suites that walk its commands, with it, and a prefix grant cannot pin `-s`, so what bounds it is where
-it runs: only in a worktree whose `HEAD` equals the proved oid and whose `git
+suites with it, as it runs the payload suites that walk its commands, and a
+prefix grant cannot pin `-s`, so what bounds it is where it runs: only in a worktree whose `HEAD` equals the proved oid and whose `git
 status --short` is empty, which the sync section requires before anything in the
 tree runs, and which `dispatch_board.py sync-launch` and `run` compare before a
 `--dispatched` run starts in it. The settings do not allow it, so no other
