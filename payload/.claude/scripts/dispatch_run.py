@@ -541,7 +541,8 @@ def executor_temp(root, run, gid):
 
 def _remove_temp(scratch):
     """The executor's temp directory removed once it has exited. Best effort: a process the executor left holding
-    a file in it is the system's to clear later, and must not fail the run whose result is already written."""
+    a file in it is the system's to clear later, and must not stop `run` writing the session record or the refusal
+    that follows."""
     shutil.rmtree(scratch, ignore_errors=True)
 
 
