@@ -34,7 +34,7 @@ class HarnessControlSurfaceIsDenied(unittest.TestCase):
         deny = self.deny()
         # `hooks/**` is on the list because a hook runs on every Bash call: a
         # session able to rewrite one could delete its own guard and then act.
-        # `.harness/**` holds the config the next sync renders these denies from.
+        # `.harness/**` holds the base settings these denies render from.
         for path in (".claude/scripts/**", ".claude/commands/**", ".claude/agents/**",
                      ".claude/hooks/**", ".claude/skills/**",
                      ".claude/settings.json", ".claude/settings.local.json", ".harness/**"):
