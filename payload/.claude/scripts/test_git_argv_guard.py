@@ -3792,7 +3792,17 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
             "git restore --source=x --staged --worktree .claude/settings.json",
             "git restore -SW -s x .claude/settings.json",
             "git restore -sStaging .claude/settings.json",
+            "git restore -Ws x .claude/settings.json",
             "git checkout no-such-ref .claude/settings.json",
+            # A source nothing can read: the path can be, so it is what is judged.
+            'git restore -s "$ref" .claude/settings.json',
+            'git restore --source="$ref" .claude/settings.json',
+            "git restore --source $(pick) .claude/settings.json",
+            "git restore --source=$(pick) .claude/settings.json",
+            '"git" restore "--source=$(pick)" .claude/settings.json',
+            "git restore -s$(pick) .claude/settings.json",
+            'git checkout "$ref" -- .claude/settings.json',
+            "git checkout $(pick) -- .claude/settings.json",
             "git rm .claude/hooks/x", "git rm -f .claude/settings.json", "git rm -r .claude",
             "git mv .claude/settings.json x.json", "git mv notes/a .claude/hooks/a",
             "git -C .claude rm -f settings.json",
@@ -3823,17 +3833,9 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
             "git diff origin/main -- .claude/settings.json", "git show origin/main:.claude/settings.json",
             'git -C "$d" rm .claude/hooks/x', "git -C /tmp/elsewhere rm .claude/hooks/x",
             "git checkout $ref -- docs/a.md",
+            "git checkout $(pick) -- docs/a.md", 'git restore -s "$ref" docs/a.md',
+            "git restore --source=$(pick) docs/a.md",
         )
-        # A computed source: the path can be read, so the path is what is judged.
-        self.refused(
-            "git restore -Ws x .claude/settings.json",
-            'git restore -s "$ref" .claude/settings.json',
-            'git restore --source="$ref" .claude/settings.json',
-            "git restore --source $(pick) .claude/settings.json",
-            'git checkout "$ref" -- .claude/settings.json',
-            "git checkout $(pick) -- .claude/settings.json",
-        )
-        self.admitted("git checkout $(pick) -- docs/a.md", 'git restore -s "$ref" docs/a.md')
 
     def test_a_linked_worktree_writes_a_denied_path_in_its_own_diff(self):
         # The replay's four: a sync's local files, a config moved, a review's
