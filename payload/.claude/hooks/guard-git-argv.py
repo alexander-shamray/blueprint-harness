@@ -2639,6 +2639,8 @@ LONG_VALUE_OPTIONS = {
     "truncate": ("--reference", "--size"),
 }
 FIND_EXECUTORS = frozenset({"-exec", "-execdir", "-ok", "-okdir"})
+FIND_OUTPUT_FILES = frozenset({"-fls", "-fprint", "-fprint0", "-fprintf"})
+FIND_VALUE_OPTIONS = frozenset({"-D"})
 DIRECTORY_CHANGES = frozenset({"cd", "pushd", "popd"})
 DIRECTORY_WRAPPERS = frozenset({"builtin", "command"})
 
@@ -3020,6 +3022,45 @@ def landings(destination, sources, into, cwd, command):
     return names or [None]
 
 
+def find_offence(words, cwd, command):
+    """The reason to refuse `find`'s own words: `-delete` from a start, an output file.
+
+    `-delete` is `rm -r` from each start, so `.`, no start and `-files0-from` are
+    the checkout at most. What an `-exec` runs is that verb's own to answer for.
+    """
+    literals = [target_literal(word) for word in words]
+    position, starts, files, deleting = 0, [], [], False
+    while position < len(words) and (literals[position] or "") in (
+            "-H", "-L", "-P", *FIND_VALUE_OPTIONS) or (
+            position < len(words) and (literals[position] or "").startswith("-O")):
+        position += 2 if literals[position] in FIND_VALUE_OPTIONS else 1
+    while position < len(words) and not (
+            literals[position] and literals[position][0] in "-(!),"):
+        starts.append(words[position])
+        position += 1
+    while position < len(words):
+        literal = literals[position]
+        position += 1
+        if literal == "-delete":
+            deleting = True
+        elif literal in FIND_OUTPUT_FILES and position < len(words):
+            files.append(words[position])
+            position += 1
+        elif literal in FIND_EXECUTORS:
+            while position < len(words) and literals[position] not in (";", "+"):
+                position += 1
+    for start in starts if deleting else ():
+        refusal = (removal_offence(start, cwd, command, "`find -delete`")
+                   or destination_offence(start, cwd, command, "`find -delete`", True))
+        if refusal is not None:
+            return refusal
+    for word in files:
+        refusal = destination_offence(word, cwd, command, "`find`")
+        if refusal is not None:
+            return refusal
+    return None
+
+
 def writing_verb_offence(words, cwd, command):
     """The reason to refuse a writing verb in the run `words`, or `None`.
 
@@ -3034,6 +3075,10 @@ def writing_verb_offence(words, cwd, command):
         if literal is None or ASSIGNMENT.match(words[index]):
             continue
         verb = program_name(literal)
+        if verb == "find":
+            refusal = find_offence(words[index + 1:], cwd, command)
+            if refusal is not None:
+                return refusal
         if verb not in WRITING_VERBS:
             continue
         operands = words[index + 1:]
