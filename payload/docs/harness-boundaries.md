@@ -7,7 +7,7 @@ the whole is about 31k. `Grep -n "^## <title>"` gives its first line.
 
 | Section | What it covers |
 |---|---|
-| Purpose and provenance of this file | Why the section left backend's CLAUDE.md, the four edits made in the move, and the two passages since moved to backend's residuals. |
+| Purpose and provenance of this file | Why the section left backend's CLAUDE.md, the four edits made in the move, and the three passages since moved to backend's residuals. |
 | Edit denies and agent self-protection | Edit-only file rules, the denied .claude trees, and why the skill and index-wrapper grants need guarding. |
 | Index refresh and worktree seeding | The PostToolUse refresh hook, seeding worktree indexes, carrying MCP approval into forks, and the SessionStart refresh. |
 | Index hint hooks and hook wiring | Query, search and MCP-root hooks, MCP_TIMEOUT, and why hook commands run without a shell. |
@@ -55,10 +55,12 @@ count of rotted totals said "in this file" of `CLAUDE.md` and named two siblings
 that now live in two other files, and the sandbox residual said the commands
 cite "this file" — true while it sat in `CLAUDE.md`, and a contradiction of the
 paragraph below the moment it moved. Not one argument was shortened, and no
-paragraph was dropped. Two were later moved out when the file became the
+paragraph was dropped. Three were later moved out when the file became the
 harness's, because only backend's own commands make them true: the callout
-on what backend's link and blueprint checks read, and the paragraph on its
-mutation sweep. They are backend's residuals now.
+on what backend's link and blueprint checks read, the paragraph on its
+mutation sweep, and the ninth entry's argument on a build tool's grants (the
+dotnet half), which that entry now summarises and hands over. They are
+backend's residuals now.
 
 **The second of those was found by review rather than by the move**, which is
 worth recording where the edits are listed: a self-reference that stays *true
@@ -1704,7 +1706,7 @@ authority, an `outside` or `outside-class` line is a finding, and an
 tree needs.** It admits `@` and `+`, as a changed path may. A target's own
 locality gate is that target's file and must be widened in step, and a gate
 that is not refuses them: until it is, a row naming `@` or `+` reads `inside`
-here and is refused in CI. Backend's gate is such a one today. A token both
+here and is refused in CI. A token both
 admit is held to one answer by the target's own suite, not by this one.
 
 **Every `gh` read these helpers make is bounded, because one that stalls
