@@ -219,9 +219,10 @@ which is `CLAUDE.md`; `style-pass.md` and the runbooks say what a build or a
 formatter does without naming one. `issue_form_gate.py` now reads the
 vocabulary from working-rules' own bullet, so the two cases #5 split out to
 backend, which read the gate's default file, came back to the payload's
-suite. Two passages of `docs/harness-boundaries.md` only backend's tree makes
-true, the ninth entry's build grants and the quality sets' scoring runs, went
-to backend's own *Residuals*; blueprint-backend#1773 carries them.
+suite. A third passage of `docs/harness-boundaries.md` only backend's tree
+makes true, the ninth entry's argument on a build tool's grants, went later to
+backend's own *Residuals*, three moved in all; blueprint-backend#1773 carries
+them.
 
 ## Decided after review
 
@@ -747,7 +748,7 @@ which E's row ports.
 | docs/harness-boundaries.md:11 | Bare #NN in .claude or this file names a backend issue | - | residual |  | Stays true in frontend after sync, false in backend, so a session chases the wrong tracker. Add to frontend's Residuals. |  |
 | docs/harness-boundaries.md:111 | Limit: no command here audits this file, so its drift goes uncaught | - | residual |  | Frontend lacks backend's link and blueprint checks, the counterpart of backend's own residual. Move to frontend's Residuals, narrowed for the destructive-classes table. |  |
 | docs/harness-boundaries.md:1194 | Limit: unattended push refused under auto mode, cause unestablished, user-level remedy | - | residual |  | Inference rests on autoMode.environment trusting only backend's remote, while payload still says the push never prompts. Move :1194-:1214 to Residuals. |  |
-| docs/harness-boundaries.md:1383 | Limit: a build config not yet existing escapes any deny enumerated from the tree | docs/harness-boundaries.md:1466 | residual |  | Payload hands the ninth entry to each target's Residuals; carry frontend's npm form, :1383-:1413, there. |  |
+| docs/harness-boundaries.md:1383 | Limit: a build config not yet existing escapes any deny enumerated from the tree | docs/harness-boundaries.md:1466 | residual |  | Payload leaves the ninth entry's dotnet half to backend's Residuals alone; carry frontend's npm form, :1383-:1413, to frontend's own. |  |
 | docs/harness-boundaries.md:2491 | Limit: eslint.config.js and .prettierrc stay editable, and the checks run them | - | residual |  | Accepted by frontend#224 for /style-pass and npm-checks; frontend-only and still true after sync. Move to Residuals. |  |
 | docs/harness-boundaries.md:2504 | Limit: a new tool's .config.ts stays editable until someone names it | - | residual |  | Frontend's named deny list stays in config (*Decisions*), so the cost stays; composition-root carve-out belongs in Residuals beside it. |  |
 | docs/harness-boundaries.md:2108 | MCP server started through a Node launcher running the index gate | - | local |  | *Decisions*: mcp-launch.mjs assumes Node and .mcp.json is outside managed directories; stays frontend's. | TheMcpServerStartsOnlyOverAnIndexTheHookWouldOpen |
