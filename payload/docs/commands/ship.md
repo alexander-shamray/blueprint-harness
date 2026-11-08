@@ -1143,7 +1143,11 @@ rule rather than complied with it.
 four of them depend on which outcome step 1 produced; the line numbers
 below are that block's.
 
-**A usage exit after the pull is repeated from the pulled text.** The run's
+**A usage exit after line 5's pull is repeated from the pulled text.** Step 6
+has a second pull, the fast-forward before a recheck, and a usage exit after
+that one is not this exception. Off `main` line 5 fetches only and the checked-out
+file is unchanged, so the run reads the teardown from `origin/main`'s copy
+(`git show "origin/main:./.claude/commands/ship.md"`). The run's
 `/ship` text was loaded before the merge, and line 5's pull can bring a helper
 whose arguments a sync changed (`git-worktree-remove.sh` gaining `<branch>`:
 line 7 exited 2 on the old text's missing `<branch>`, and the drop then exited
