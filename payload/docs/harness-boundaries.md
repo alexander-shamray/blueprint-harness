@@ -1389,7 +1389,9 @@ It takes one number and spells the `git rebase -x` command itself, so no
 folded as the rebase helper folds it, a pull request that is not an open,
 same-repository one into `main` for this branch, a dirty tree, a remote that
 differs from the checkout in either direction, a merge commit, and a commit
-that already names another pull request. Its residual is a push that fails
+that already names another pull request. A rewrite failing on `index.lock`, as
+one does when a concurrent git reader holds the index, is aborted and tried
+once more; any other failure stops. Its residual is a push that fails
 after the rewrite: the local branch then carries the trailers and origin's
 does not, and a rerun finishes it, because a commit that has the trailer is
 skipped. `git-revert-pr.sh` writes no remote; it reads trailers off
