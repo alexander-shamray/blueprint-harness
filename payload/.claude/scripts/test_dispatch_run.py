@@ -845,6 +845,8 @@ class ResultCommandTests(InRoot):
         self.assertEqual(2, entry["usage_uncounted"])
         self.assertEqual(["S1: 2 sessions left no usage, not counted"],
                          dr._usage_lines("S1", entry))
+        self.assertEqual(["S1: $0.25, 1 session left no usage, not counted"],
+                         dr._usage_lines("S1", {"usage": {}, "cost_usd": 0.25, "usage_uncounted": 1}))
         self.absorb(MERGED_S1)
         self.assertEqual(0, group_state(RUN, "S1")["usage_uncounted"])
 
