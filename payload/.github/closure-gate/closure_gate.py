@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """What a pull request says it closes must match what merging it will close.
 
-The README beside this file owns the argument; the live invocation is in
-`.github/workflows/closure-gate.yml` and in the `/pr` command.
+The README beside this file owns the argument; the invocation is in closure-gate.yml and `/pr`.
 """
 
 from __future__ import annotations
@@ -20,12 +19,7 @@ _KEYWORD = r"(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?)"
 # Every keyword and the token after it, classified afterwards: a keyword whose
 # reference this gate cannot parse is a finding, not a non-match. The token is
 # a lookahead, so a keyword used as the token still matches: "fix closes it".
-#
-# `\b` is not the boundary: it does not fall after `_`, so `_Closes #5` and
-# `pre_closes #5` would drop out. A keyword is bounded by anything that is not
-# a letter or digit. Markup may sit between the keyword and its separator
-# (`**Closes**: #5`, `**Closes:** #5`), and a colon needs no space after it
-# (`Closes:#5`); a bare keyword needs whitespace, so `fix(#12): x` is not one.
+# Markup may sit around the colon, which needs no space; a bare keyword does.
 _NOT_ALNUM_BEFORE = r"(?<![^\W_])"
 _NOT_ALNUM_AFTER = r"(?![^\W_])"
 _MARKUP = r"[*_`~]*"
@@ -92,12 +86,9 @@ ISSUE_URL = re.compile(r"^https?://github\.com/(?P<repo>[\w.-]+/[\w.-]+)/issues/
 
 
 def linked_issues(entries: list[dict], repository: str) -> tuple[set[int], list[str]]:
-    """This repository's numbers among GitHub's closing references, and the foreign ones.
+    """This repository's closing numbers, and a description of each foreign entry.
 
-    An entry's number means an issue only in the repository its `url` names, so
-    `other/repo#7` must not cover a commit that closes this repository's #7.
-    An entry with no `url` is read as local; one whose `url` names another
-    repository, or none this gate can read, is returned as a description of it.
+    No `url` reads as local; a `url` that is another repository's, or unreadable, is foreign.
     """
     numbers: set[int] = set()
     foreign: list[str] = []
