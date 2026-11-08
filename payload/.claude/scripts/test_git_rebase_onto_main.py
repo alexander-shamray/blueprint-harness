@@ -71,6 +71,7 @@ def template():
     if not _template:
         holder = tempfile.TemporaryDirectory()
         unittest.addModuleCleanup(holder.cleanup)
+        unittest.addModuleCleanup(_template.clear)
         root = Path(holder.name).as_posix()
         built = run_bash(BUILD, root=root)
         if built.returncode != 0:
@@ -1445,6 +1446,18 @@ class AStoppedReplayIsNotAlwaysAConflict(unittest.TestCase):
         self.assertEqual("mine\n", self.at("cat a.txt").stdout)
         self.assertEqual(self.at("git rev-parse HEAD").stdout.strip(),
                          self.at("git rev-parse refs/remotes/origin/feat/x").stdout.strip())
+
+
+class TheTemplateOutlivesAModuleCleanup(unittest.TestCase):
+    """`shard-harness-suite.py` runs each class as its own suite, so module cleanups run between two classes of one
+    worker, and the next class must not be handed a template they removed."""
+
+    def test_a_removed_template_is_built_again(self):
+        first = template()
+        self.assertTrue(Path(first, "work").is_dir(), "the control: the template holds its checkout")
+        unittest.doModuleCleanups()
+        self.assertFalse(Path(first).exists(), "the cleanup this case is about did not run")
+        self.assertTrue(Path(template(), "work").is_dir())
 
 
 class EveryFixtureSaysItWasBuilt(unittest.TestCase):
