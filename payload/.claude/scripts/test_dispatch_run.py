@@ -1611,6 +1611,14 @@ class WakeTests(InRoot):
                 with mock.patch.object(ctypes, "WinDLL", return_value=kernel), \
                         mock.patch.object(ctypes, "get_last_error", return_value=error):
                     self.assertEqual(expected, dr.alive(4242))
+        else:
+            # The kernel's answer, not a Linux path (#191: macOS has no `/proc`): another user's process is alive,
+            # and only a pid with no process behind it is dead. The pid is a finished one, so `/proc` would say dead.
+            gone = finished_pid()
+            for error, expected in ((PermissionError, True), (ProcessLookupError, False)):
+                with mock.patch.object(dr.os, "kill", side_effect=error) as kill:
+                    self.assertEqual(expected, dr.alive(gone))
+                kill.assert_called_once_with(gone, 0)
 
     def test_resume_adopts_only_its_own_dead_groups(self):
         FINISHED_PID = finished_pid()

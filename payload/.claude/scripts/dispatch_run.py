@@ -830,8 +830,16 @@ def alive(pid):
     if not _number(pid):
         return False
     if os.name != "nt":
-        # Linux is the only other host, CI's; os.kill is never the probe, since on Windows it terminates.
-        return Path(f"/proc/{pid}").exists()
+        # Signal 0 asks the kernel and delivers nothing, on Linux and macOS alike; `/proc` was Linux's alone, so on
+        # macOS every executor read as dead (#191). Never the probe on Windows, where os.kill terminates.
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            # Another user's process still exists; only a pid with no process behind it is dead.
+            return True
+        return True
     import ctypes
     from ctypes import wintypes
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
