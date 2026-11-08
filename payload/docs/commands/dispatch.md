@@ -258,8 +258,8 @@ one.
 
 The executor writes `<group>.json` in its own worktree, and `result` copies
 it into the run and checks it as untrusted data: a missing, unparsable or
-mis-shaped result is a crash, never a success (spec §6.3). A claimed merge
-is believed only once `verify` has read it from GitHub — merged, at that
+mis-shaped result is a crash, never a success (spec §6.3), unless GitHub shows
+the merge at the worktree's tip (*Waking*). A claimed merge is believed only once `verify` has read it from GitHub — merged, at that
 oid, from that branch, into `main` — and the main checkout, pulled, holds
 it. A read that fails leaves the claim to be checked again; a contradiction
 is a stop. The schema is `dispatch_run.py`'s, and `/ship`'s runbook shows
