@@ -230,10 +230,10 @@ git() {
 
 
 class ARemovalGitLeftHalfDone(unittest.TestCase):
-    """Git unregisters a worktree and then deletes its tree, so on Windows a process holding the tree fails the
-    delete with the registration already gone. The helper's `set -e` then ended it before the lists beside the tree
-    were reached, and nothing named the directory. A `git` function through BASH_ENV removes for real and then does
-    that, since a shim first on PATH loses to the directories Git's bash launcher puts there.
+    """On Windows a process holding the tree fails git's delete of it, and git then drops the registration anyway.
+    The helper's `set -e` then ended it before the lists beside the tree were reached, and nothing named the
+    directory. A `git` function through BASH_ENV removes for real and then does that, since a shim first on PATH loses
+    to the directories Git's bash launcher puts there.
     """
 
     def setUp(self):
