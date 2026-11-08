@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import zoneinfo
 from dataclasses import dataclass, field
@@ -57,6 +58,8 @@ STILL_ACTIVE = 259
 ERROR_ACCESS_DENIED = 5
 # The executor's command, resolved from PATH when None; a suite points it at a fake, never through the environment.
 CLAUDE_COMMAND = None
+# The root of the executors' temp directories, the system's when None; a suite points it at its own directory.
+TEMP_ROOT = None
 PROJECTS = Path.home() / ".claude" / "projects"
 SLEEP = time.sleep
 
@@ -499,7 +502,7 @@ def _launch(root, directory, run, gid, entry, flag=False):
     if not command[0]:
         raise Refusal("no claude on PATH")
     _remove_stale(worktree / "artifacts" / "dispatch" / run / f"{gid}.json")
-    scratch = executor_temp(worktree, run)
+    scratch = executor_temp(root, run, gid)
     try:
         scratch.mkdir(parents=True, exist_ok=True)
     except OSError as error:
@@ -523,10 +526,12 @@ def _launch(root, directory, run, gid, entry, flag=False):
     return child, text, started
 
 
-def executor_temp(worktree, run):
-    """The one temp directory an executor gets: inside its own worktree's ignored artifacts/, so it is the group's
-    alone, is a path the session may write, and goes when /dispatch removes the worktree."""
-    return (Path(worktree) / "artifacts" / "dispatch" / run / "tmp").resolve()
+def executor_temp(root, run, gid):
+    """The one temp directory an executor gets, the group's alone, under the system temp root and so outside every
+    checkout: refresh-index.py's worker runs from it, which Windows would not let a worktree removal delete, and
+    guard-git-argv.py admits a mutation proof's scratch checkout only under it and outside the session's own."""
+    base = Path(TEMP_ROOT) if TEMP_ROOT else Path(tempfile.gettempdir())
+    return (base / f"dispatch-{Path(root).resolve().name}" / run / gid).resolve()
 
 
 def _remove_stale(*paths):
