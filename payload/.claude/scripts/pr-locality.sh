@@ -161,14 +161,10 @@ done <"$map"
 for member in A B C D E; do
   case "$stocked" in *" $member "*) : ;; *) refuse "classes.yml gives class $member no tree set" ;; esac
 done
-# The changed paths are the diff's own, and each gets the one word this
-# script chooses for it: `filename`, and a rename's `previous_filename`, since a
-# move out of a tree changes that tree, as the CI gate judges it. Each is read
-# as a JSON string so that a newline inside a name cannot be a second line: a
-# name that needed an escape is refused rather than decoded. `changedFiles` is
-# GitHub's own count, which the names are held to below, and a rename's source is
-# tagged because it is no changed file of its own; the same one read is judged
-# and counted.
+# The changed paths are the diff's own, each with the one word this script chooses: `filename`, and a rename's
+# `previous_filename`, since a move out of a tree changes that tree, as the CI gate judges it. Each is a JSON string, so
+# a newline inside a name cannot be a second line and a name needing an escape is refused. A source is tagged because
+# `changedFiles` counts a rename as one file, and the one read judged is the one counted.
 changed=$(gh_read pr view "$pr" --json changedFiles --jq .changedFiles)
 case "$changed" in ''|*[!0123456789]*) refuse "changedFiles is not a count" ;; esac
 files=$(gh_read api "repos/{owner}/{repo}/pulls/$pr/files" --paginate \
