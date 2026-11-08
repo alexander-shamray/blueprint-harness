@@ -26,6 +26,8 @@ slash command. The median is taken per count across the sessions.
 - A session that was resumed later has a later modification time, so it can
   enter the window on its last day of use, not its first.
 - A median of zero hides a skewed tail; the totals below show it.
+- A session a `/clear` opens has that as its first genuine message, so
+  `--command` drops it (#276). *After plan 5* gives frontend's count with them.
 
 ## Command lines
 
@@ -126,11 +128,29 @@ earliest at 06:01 UTC, so the window holds only sessions since #382.
 
 Against the two tables, same command and same repository, `action_required`
 rose: the median from 0 to 0.5, the total from 5 to 7, the largest session
-from 3 to 5. The other three fell or held. The rise is filed as #272. Six of
-the seven hand the owner an edit to a `local` path under `.claude/`, which a
-session is denied, and one session carries five. The route is older than the
-sync, and this window is one day straight after it against the baseline's
-fourteen, so whether the rise lasts is not yet measured.
+from 3 to 5. The other three fell or held. By the plan's rule the rise is a
+harness defect, filed as #272.
+
+Those tables hold about half of frontend's `ship` sessions, on both sides. A
+session a `/clear` opens has that as its first genuine message, so `--command`
+drops it, as *Limits of the measure* says and #276 files. Counted with them, as
+sessions whose first two genuine messages are `/clear` and `/ship`, which no
+command line offers yet, and read at 16:02 UTC with each window's sessions by
+when they started, each cell is the median, then the total, then the largest
+session:
+
+| Frontend `ship`, those included | Sessions | ask_user | action_required | permission_refused | user_turns |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Baseline, to 2026-11-02 | 11 | 0; 3, max 3 | 1; 16, max 6 | 0; 2, max 2 | 1; 14, max 3 |
+| Since #382 | 12 | 0; 0, max 0 | 1; 17, max 5 | 0; 3, max 2 | 1; 10, max 2 |
+
+Read that way `action_required` does not rise per session, and
+`permission_refused` goes from 2 to 3. The six the tool counted are not a fair
+sample of the twelve: one of them carries five of its seven handovers. Of the
+seventeen, fifteen hand the owner a script editing a path a session may not,
+under `.claude/` or `.github/`, a route older than the sync. This window is
+also one day straight after the sync against the baseline's fourteen, so the
+owner met all seventeen in a day, and whether that lasts is not yet measured.
 
 ### What a frontend session loads
 
