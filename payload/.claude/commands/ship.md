@@ -574,7 +574,7 @@ target*)
      head; either failing stops.
    - **A head no round reviewed is not merged.** If `headRefOid` is not one
      of the recorded reviewed heads, run `git pull --ff-only` (a refusal
-     stops), so this checkout is that commit, re-enter step 5 for a recheck
+     stops), re-enter step 5 for a recheck
      of what changed, then return to the **top of this step**; on a plan PR
      nothing re-enters, and the report says the head merged unreviewed.
      With the ceiling spent, that recheck still runs once and what it finds
@@ -647,8 +647,8 @@ target*)
    - Run lines 4 to 6 and the prune on both paths; report containment,
      never equality: the oid `main` landed on, and that the merge is in
      its history.
-   - **A usage exit after the pull is not a stop**: rerun lines 7 to 9 as the
-     pulled `ship.md` spells them, and report it.
+   - **A usage exit after the pull is not a stop**: rerun from the exiting line
+     as the pulled `ship.md` spells it, and report it.
    - Once the merge is verified, delete this change's row from *In
      progress* in the task list named by `.harness/config.json`
      `task_list`, in the main checkout's parent directory, by that path (why:
