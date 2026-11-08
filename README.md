@@ -38,13 +38,14 @@ tool renders them into each target through an ordinary pull request.
   reaches them. On a push to `main` that does not pass, its `main-red` job
   files `main is red: ci`, the issue `/ship` step 6 stops on.
   A red push run of `rulesets.yml` or `sync.yml` files none, on purpose: that
-  issue stops every landing and opens by asking for a revert, and neither red
-  has a commit to revert. A live ruleset that differs turns every pull
-  request's required `rulesets` check red anyway, and its scheduled run files
-  an issue of its own; a red sync leaves the targets behind until a rerun or
-  the next payload merge, which stopping landings would not bring nearer. A
-  `ci.yml` GitHub cannot start reports no required check, so its pull request
-  cannot land.
+  issue stops every landing and opens by asking for a revert, which does not
+  answer a ruleset changed by hand or a failure on a target's side. A live
+  ruleset that differs turns every pull request's required `rulesets` check red
+  anyway, and its scheduled run files an issue of its own; a red sync leaves the
+  targets behind until a rerun or the next payload merge, which stopping
+  landings would not bring nearer. A defect in `harness_sync` that turns either
+  red is seen in that run and is reverted as any other. A `ci.yml` GitHub cannot
+  start reports no required check, so its pull request cannot land.
 - `.github/workflows/sync.yml` — the sync pull request a merge to `main` opens
   in each target (*The sync workflow*).
 
