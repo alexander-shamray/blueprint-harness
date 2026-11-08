@@ -584,7 +584,7 @@ class OneRoute(Scratch):
             self.assertTrue(hook.off_server(str(tree)))
             self.assertFalse(hook.off_server(str(main)))
 
-    def test_it_sends_a_session_to_the_cli_exactly_where_the_mcp_call_is_refused(self):
+    def test_with_both_checkouts_known_it_names_the_cli_where_the_mcp_call_is_refused(self):
         """Naming the MCP tools where `index-mcp-root.py` refuses them sends the
         session to a second refusal."""
         spec = importlib.util.spec_from_file_location("index_mcp_root", CLAUDE / "hooks" / "index-mcp-root.py")
