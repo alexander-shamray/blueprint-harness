@@ -39,7 +39,8 @@ sleep() {
   if [ "$1" = 1 ]; then
     echo sleep >> "$SHIM_TRACE"
   else
-    command sleep "$@"
+    # The watchdog backgrounds this and kills its pid, which `exec` keeps the real sleep's.
+    exec sleep "$@"
   fi
 }
 git() {
