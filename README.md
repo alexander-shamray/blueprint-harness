@@ -35,7 +35,8 @@ tool renders them into each target through an ordinary pull request.
   Linux, and Windows adds the comment gate's suite for its fixture. A pull
   request that reaches nothing the windows and macos legs test skips their
   test steps and still reports the check; `harness_sync/legs.py` owns what
-  reaches them.
+  reaches them. On a push to `main` that does not pass, its `main-red` job
+  files `main is red: ci`, the issue `/ship` step 6 stops on.
 - `.github/workflows/sync.yml` — the sync pull request a merge to `main` opens
   in each target (*The sync workflow*).
 
