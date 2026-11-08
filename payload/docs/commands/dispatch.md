@@ -444,8 +444,9 @@ nothing records, so the row ends with how many sessions it did not count, and
 a group whose every such session left none still gets a row saying so: a
 relaunched group's figure would otherwise read as its whole cost. A session
 with no record at all (`absorb`'s `_unrecorded`, a `run` that exited refused)
-is not counted: it goes to the report as a crash hand-back or a pre-launch
-refusal, with `transcript: not found`, and adds nothing to the row.
+is not counted: `result` prints `transcript: not found` for it, and the
+report lists the group under *Needs a human* as a crash hand-back or a
+pre-launch refusal, adding nothing to the row.
 
 The report is `report`'s English facts written up in `--lang`, in seven
 sections, the spec's §10's and *Syncs*, eight on a `--berserk` run (*The
