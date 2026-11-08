@@ -631,6 +631,17 @@ lift granted again. That happened on the PR that added the argv guard — the
 guard shipped refusing its own commit message, and the fix needed a second
 lift.
 
+**A lift lags the same way, and a relaunch is what ends it.** Measured in
+blueprint-backend on 2026-09-21: with the four `Edit(...)` deny lines deleted
+from the worktree's `.claude/settings.json` and the file read back, an `Edit`
+of `.claude/commands/ship.md` was still refused as *in a directory that is
+denied by your permission settings*. So a session needing an edit under
+`.claude/` has the owner lift the deny and relaunch Claude Code from the
+worktree directory, where `/ship` step 0 stays in the unfinished worktree;
+launched from the main checkout, `/branch` stops on a slug already taken.
+The denies name directories, not the manifest, so a path a target lists
+under `local` in a denied directory is refused exactly as a managed one is.
+
 **`.claude/settings.local.json` was the gap a review found**, and it is the
 enumeration lesson in miniature: an exact-file rule cannot cover a sibling, and
 Claude Code loads both files. Denying `.claude/**` wholesale was considered and
