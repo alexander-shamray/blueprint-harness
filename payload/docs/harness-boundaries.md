@@ -1494,7 +1494,7 @@ unknown.
 
 **A reader of pull requests is granted by its whole command line.** `Bash(py
 -3.12 .claude/scripts/sync_pr.py:*)` admits `list`, `verify <n>`, `review-diff
-<n> <out>` and `local-suites`, and nothing in it writes to GitHub: its `gh`
+<n> <out>`, `local-suites` and `run-local-suites --head <oid>`, and nothing in it writes to GitHub: its `gh`
 calls are `pr list` with a fixed field set and `gh api` reads of the harness
 repository's `git/trees` and `compare`, which it spells itself, so no caller
 chooses a field, a repository or a method. A pull request's body is text anyone
@@ -1544,16 +1544,24 @@ index, and a session an owner opens there sees `codebase-index` pending until
 they approve it. Seeding would add a read of the main checkout's `.mcp.json`
 and settings to a grant that is meant to do two git commands and nothing else.
 
-**`Bash(py -3.12 -m unittest discover:*)` runs the code of whatever tree it is
-pointed at, and is `/ship`'s alone.** A sync's step 2 runs the target-local
-suites with it, as it runs the payload suites `sync_pr.py` names as walking its
-commands, and a prefix grant cannot pin `-s`, so what bounds it is where it
-runs: only in a worktree whose `HEAD` equals the proved oid and whose `git
-status --short` is empty, which the sync section requires before anything in the
-tree runs, and which `dispatch_board.py sync-launch` and `run` compare before a
-`--dispatched` run starts in it. The settings do not allow it, so no other
-command reaches it. Residual: a `/ship` run that skips the comparison runs the
-head's own tests, which is the code the comparison exists to vouch for.
+**No command grants `unittest discover`, because a prefix grant cannot pin
+`-s`.** `Bash(py -3.12 -m unittest discover:*)` admitted any `-s <dir> -p
+<file>`, so a file written outside the tree, a scratchpad included, ran
+auto-approved and never had to appear in a pull request (#223). Spelling
+`-s .claude/scripts` into the grant pins nothing, since `discover` takes the
+last `-s` it is given, and a sync's local suites live outside that directory
+anyway. So a sync's step 2 runs `sync_pr.py run-local-suites --head <oid>`,
+which takes no path. It refuses a `HEAD` other than the oid or a tree `git
+status --short` says is not clean, the comparison the sync section requires
+and which `dispatch_board.py sync-launch` and `run` compare before a
+`--dispatched` run starts in it, then runs each path `local-suites` derives
+from `.harness/config.json` and `git ls-files` as `py -3.12 -m unittest discover
+-s <dir> -p <file>`: tracked files on the proved head. A target's *Ship checks* that runs
+the whole `.claude/scripts` suite runs `shard-harness-suite.py`, granted with no
+`:*` so that its `--ids <file>` and `--queue <file>`, its workers' own, stay
+out. Residual: a session can still run any test file by a command no grant
+names, which then asks; and whether an allow rule without `:*` is a prefix
+match has never been measured, as *The ext transport and pinned grants* says.
 
 **`gh-issue-harness.sh` files in the harness from a target, and only /ship holds
 it.** `<bug|test-gap|enhancement> <critical|high|medium|low>
