@@ -648,6 +648,12 @@ target*)
    - Run lines 4 to 6 and the prune on both paths; report containment,
      never equality: the oid `main` landed on, and that the merge is in
      its history.
+   - **A usage exit of line 7 or 9 after line 5's pull is not a stop**: the
+     pull may have brought a helper whose arguments changed since this text
+     was loaded, as a sync that lands does. Read lines 7 to 9 from the
+     `.claude/commands/ship.md` the pull brought and repeat them as it spells
+     them; report that the run did (why: docs/commands/ship.md, *Step 6: the
+     teardown*).
    - Once the merge is verified, delete this change's row from *In
      progress* in the task list named by `.harness/config.json`
      `task_list`, in the main checkout's parent directory, by that path (why:
