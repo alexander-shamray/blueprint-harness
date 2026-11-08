@@ -46,10 +46,10 @@ common_there=$(git -C "$path" rev-parse --path-format=absolute --git-common-dir 
 dir_there=$(git -C "$path" rev-parse --path-format=absolute --git-dir)
 [ "$dir_there" != "$common_there" ] ||
   { echo "refusing to remove the main worktree: $path" >&2; exit 3; }
-# A refusal and a half-finished removal are different failures. Git unregisters
-# the worktree and then deletes its tree, so on Windows a process holding the
-# tree fails the delete with the registration already gone. The status is
-# captured, so the checks below run whatever git exits.
+# A refusal and a half-finished removal are different failures. On Windows a
+# process holding the tree fails git's delete of it, and git then drops the
+# registration anyway. The status is captured, so the checks below run whatever
+# git exits.
 status=0
 git worktree remove "$resolved" || status=$?
 left=
