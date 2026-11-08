@@ -408,9 +408,9 @@ worktree has none of its own. Two residuals stand. The helper writes a file
 the session's `Edit` is denied, and what it writes is one key read from a
 file the session is denied too, or, under an approve-all, from `.mcp.json`,
 which the session's `Edit` is denied as well and whose servers the main
-checkout's approve-all already approves. And the approval names servers rather than
-definitions, so a `.mcp.json` that reaches a worktree through git,
-force-added past the ignore, is found before the main checkout's and
+checkout's approve-all already approves. And the approval names servers
+rather than definitions, so a `.mcp.json` that reaches a worktree through
+git, force-added past the ignore, is found before the main checkout's and
 approved under the same name without a prompt. The fork writes nothing at a
 `settings.local.json` the branch already carries, a dangling link included,
 and the locality gate refuses a pull request that leaves an ignored path in
