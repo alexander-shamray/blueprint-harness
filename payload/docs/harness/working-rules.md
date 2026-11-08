@@ -171,8 +171,7 @@ keeping the guide's *Comments* rules be reworded, completed or expanded.
   otherwise land through the issue. Nothing automates that, as nothing
   automates the revert, and the base settings deny a session `gh pr merge`,
   so `gh pr merge <n> --disable-auto` is the owner's. `/ship` does not set
-  it: step 6 waits on every check of the pushed head and lands with
-  `gh-pr-merge.sh` against the head it read.
+  it (`/ship` step 6).
 
 ## Tests and gates
 
