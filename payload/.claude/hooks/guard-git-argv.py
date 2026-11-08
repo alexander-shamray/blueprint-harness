@@ -3135,7 +3135,7 @@ def _git_operands(words, literals, value_options):
             options.append(literal)
             if literal in value_options:
                 if position < len(words):
-                    options.append(literals[position] or "")
+                    options.append(literals[position] or "$")
                 position += 1
         else:
             before.append(raw)
@@ -3206,7 +3206,8 @@ def git_path_offence(words, cwd, command):
         paths = before + after
     else:
         return None
-    if source is None or source in ("HEAD", "@"):
+    # A computed source is admitted, as `written_path` admits a computed target.
+    if source is None or source in ("HEAD", "@") or "$" in source:
         return None
     for word in paths:
         refusal = destination_offence(word, cwd, command, f"`git {verb}` from `{source}`", True)
