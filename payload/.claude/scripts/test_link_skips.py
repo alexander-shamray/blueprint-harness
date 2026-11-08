@@ -1,9 +1,7 @@
-"""A link a suite cannot make skips the case only on a host that grants none.
-
-Any other refusal, a missing parent above all, is the suite's own setup
-failing, and a skip would leave it green with nothing run. Each suite's
-`except` hands its refusal to `skip_only_without_links`, and the last class
-here reads the suites to hold them to that.
+"""A link a suite cannot make skips the case only on a host that grants none:
+any other refusal, a missing parent above all, is the suite's own setup failing,
+and a skip would leave it green with nothing run. Each suite's `except` asks
+`skip_only_without_links`, and the last class here reads the suites for that.
 """
 
 import ast
@@ -112,9 +110,9 @@ class OnlyAHostThatGrantsNoLinkSkips(unittest.TestCase):
     def test_the_skip_names_the_link_and_the_refusal(self):
         with self.assertRaises(unittest.SkipTest) as caught:
             with mock.patch.object(sys, "platform", "linux"):
-                skip_only_without_links(OSError(errno.EPERM, "no"), "hard link")
+                skip_only_without_links(OSError(errno.EPERM, "refused by the volume"), "hard link")
         self.assertIn("this host grants no hard link", str(caught.exception))
-        self.assertIn("no", str(caught.exception))
+        self.assertIn("refused by the volume", str(caught.exception))
 
 
 class NoSuiteSkipsOnALinkByItself(unittest.TestCase):
