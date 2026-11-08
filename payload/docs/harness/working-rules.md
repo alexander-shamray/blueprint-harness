@@ -166,9 +166,9 @@ keeping the guide's *Comments* rules be reworded, completed or expanded.
   A rerun comes first, and one that turns green is a flake, as above. Failing
   that, it waits for the revert or the fix, each a pull request of its own,
   and is not changed to make it pass. A rerun would then still read the old
-  merge, since
-  a `pull_request` run is pinned to the merge it started on, so it is updated
-  through `git-rebase-onto-main.sh`, an update no conflict asked for.
+  merge, since a `pull_request` run is pinned to the merge it started on, so
+  it is updated through `git-rebase-onto-main.sh`, an update no conflict asked
+  for.
 - **Auto-merge waits on `main`'s required checks and nothing else**: not on
   the review, not on an open issue for a red `main`, and not on a branch
   being up to date. So a pull request is set to auto-merge only once its
