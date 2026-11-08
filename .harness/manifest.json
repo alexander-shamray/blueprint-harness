@@ -1,5 +1,5 @@
 {
-  "harness_commit": "4cbcb8970179cf8f7f63a8531eaeb6988524f4f6",
+  "harness_commit": "b428fe044cf0b1fa039f03d2b908a85b51fcf0b5",
   "files": {
     ".claude/agents/branch-reviewer.md": "a930476f4481dfa1e5bb25f162f3b944eb1a13ecd2a7ec909d36825285394c4d",
     ".claude/agents/bug-auditor.md": "6219201313c10252798ff249570298f4de6ad6a66690f3dc40510fd76859b4d7",
@@ -161,7 +161,7 @@
     "docs/commands/security-sweep.md": "2c2c166087b6fc22ffa7d24eb3c852c5cbd56344238a3468348033000c5588e3",
     "docs/commands/ship.md": "4b73ca2cc5fa037c2f6c3e712b465fe34e701ce398c3f0c80b877467edd07605",
     "docs/commands/team.md": "1cdc4bcab8a82727ec98ab1a56d0420d115fc37e6f4b8075dad8c7cfdd8311b2",
-    "docs/harness-boundaries.md": "26186656280d2863fff16e680b8636e459246fbb5c4333cd9cb4ad1f3b72c9a7",
+    "docs/harness-boundaries.md": "7a875156a780bbd12d7e6f28008d240dab9c0b643adad76fd1679cf74ce34aa4",
     "docs/harness/pitfalls.md": "4d39296fd92cecc02d3874bfcd74e12dfc9a4d97ebc588133f32db191fac7fea",
     "docs/harness/token-rules.md": "cd83a078de693e468130242357b1eb6994df7e5beb0fad5c5dff510c6e4c7300",
     "docs/harness/working-rules.md": "54052372e1565bacc8be110749fd78a3a655798dd7cec8660890f55123b241c2"
