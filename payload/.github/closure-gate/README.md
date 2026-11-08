@@ -34,7 +34,10 @@ A commit list at or above `gh`'s page size is **refused** rather than judged,
 because a prefix of one page and a complete list of one page read alike.
 `closingIssuesReferences` needs no such guard: `gh` preloads it through
 every page. A cross-repository reference is refused by name, because every
-issue this repository tracks lives in it.
+issue this repository tracks lives in it, and so is a
+`closingIssuesReferences` entry whose `url` names another one, since its
+number would otherwise cover a local issue with the same number. `GH-n` is
+read as `#n`.
 
 ## The Dependabot description
 
