@@ -278,9 +278,11 @@ The dispatcher forks each worktree itself, from the main checkout, before
 branch the *In progress* row names, so the order is fork, record, launch.
 
 `run` hands each executor its own temp directory through `TMP`, `TEMP` and
-`TMPDIR`: `artifacts/dispatch/<run>/tmp` inside its worktree, which is
-ignored, writable by the session and removed with the worktree. Executors
+`TMPDIR`, `dispatch-<repo>/<run>/<group>` under the system's: executors
 that shared the system's one ran each other's scratch scripts (issue #199).
+It stays outside every checkout, because `refresh-index.py`'s worker runs
+from it and the guards admit a mutation proof's scratch checkout only under
+it; nothing removes it, so it lasts as long as the system keeps its temp.
 
 On every wake it absorbs the result, verifies a merge, places what was
 filed, then asks `wake` what to launch; the outcome table is the spec's

@@ -162,6 +162,10 @@ class InRoot(unittest.TestCase):
         patcher = mock.patch.object(dr, "now", lambda: self.clock)
         patcher.start()
         self.addCleanup(patcher.stop)
+        # Every launch makes an executor temp directory; a suite's goes in its own tree, never the system's.
+        temp = mock.patch.object(dr, "TEMP_ROOT", str(self.root / "system-temp"))
+        temp.start()
+        self.addCleanup(temp.stop)
 
 
 class PathWhichTests(InRoot):
@@ -496,21 +500,30 @@ class LaunchTests(InRoot):
         self.assertEqual(SUCCESS, json.loads(raw["stdout"]))
         self.assertTrue(int((state_dir() / "S1.pid").read_text(encoding="utf-8")) > 0)
 
-    def test_run_gives_each_executor_its_own_temp_directory_inside_its_worktree(self):
+    def test_run_gives_each_executor_its_own_temp_directory_outside_every_checkout(self):
         # Two executors sharing the system temp directory ran each other's scratch scripts (issue #199).
         record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
         parent = {name: "shared-parent-temp" for name in ("TMP", "TEMP", "TMPDIR")}
         with mock.patch.dict(os.environ, parent):
             run_fake_claude(stdout=json.dumps(SUCCESS).encode("utf-8"))
         seen = json.loads(Path("fake/seen.json").read_text(encoding="utf-8"))
-        own = Path(WORKTREE).resolve() / "artifacts" / "dispatch" / RUN / "tmp"
+        own = self.root.resolve() / "system-temp" / f"dispatch-{self.root.resolve().name}" / RUN / "S1"
         self.assertEqual({name: str(own) for name in parent}, seen["temp"])
         self.assertTrue(own.is_dir())
-        self.assertNotEqual(dr.executor_temp(WORKTREE, RUN), dr.executor_temp(".claude/worktrees/dispatch-s2", RUN))
+        self.assertNotEqual(dr.executor_temp(".", RUN, "S1"), dr.executor_temp(".", RUN, "S2"))
+
+    def test_the_executor_temp_root_is_the_systems_and_outside_the_checkout_and_its_worktrees(self):
+        # refresh-index.py's worker runs from it, and guard-git-argv.py's scratch checkouts are judged under it.
+        with mock.patch.object(dr, "TEMP_ROOT", None):
+            got = os.path.normcase(str(dr.executor_temp(".", RUN, "S1")))
+        system = os.path.normcase(os.path.realpath(tempfile.gettempdir()))
+        self.assertTrue(got.startswith(system + os.sep), got)
+        checkout = os.path.normcase(str(self.root.resolve()))
+        self.assertFalse(got.startswith(checkout + os.sep), got)
 
     def test_run_refuses_an_executor_whose_temp_directory_cannot_be_made(self):
         record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
-        blocker = Path(WORKTREE) / "artifacts" / "dispatch" / RUN / "tmp"
+        blocker = dr.executor_temp(".", RUN, "S1")
         blocker.parent.mkdir(parents=True)
         blocker.write_text("a file where the directory goes", encoding="utf-8")
         task_text()
