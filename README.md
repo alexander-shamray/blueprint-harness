@@ -92,9 +92,9 @@ suites included, and applies the payload to a worktree of the commit. Its
 first steps, locally (Git Bash; `bash`, `grep`, `git` and `jq` on PATH), take
 a scratch clone instead, because the settings deny `git worktree remove`,
 whose `-f` discards work, and a clone needs none to clear away. The clone
-goes under the temp root, which the git argv guard exempts: in a checkout
-beside this one, the copy of the config is refused by the `.harness/**`
-Edit deny.
+goes under the temp root, which the git argv guard exempts: beside this
+checkout, a literal `../rendered/.harness/config.json` is a copy it refuses
+under the `.harness/**` Edit deny.
 
 ```bash
 rendered="$(mktemp -d)"
