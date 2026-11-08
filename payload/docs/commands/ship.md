@@ -185,10 +185,10 @@ it waited for has merged finds that worktree and branch where the unmerged
 ending left them, and the helper would refuse a second make, so the run enters
 the one that exists and makes the same comparisons.
 
-**Step 2 runs the target's own suites and the payload suites
-`sync_pr.py` names as walking its commands, and nothing else.** The managed files were checked in the harness, so
-*Ship checks* would read them a second time; what the harness never runs is the
-target-local test or command a payload change can trip
+**Step 2 runs the target's own suites and the payload suites `sync_pr.py` names
+as walking its commands, and nothing else.** The managed files were checked in
+the harness, so *Ship checks* would read them a second time; what the harness
+never runs is the target-local test or command a payload change can trip
 (`docs/harness/working-rules.md`). Each is run as CI runs it, with `discover -s
 <dir> -p <file>`, because it imports its siblings from its own directory and a
 dotted module name cannot be formed from `.claude/` or `.github/comment-gate/`.
@@ -197,7 +197,9 @@ be named by its own grants. A failing suite has no ending of its own, since step
 2 otherwise says to fix what the checks find and a sync branch is never
 committed to: it is a target-local finding, filed in the target, and the sync
 ends unmerged or is handed back with no round run, because the code under test
-(or the command a walker refuses) is the target's and a review of the managed files cannot clear it. A re-take
+(or the command a walker refuses) is the target's and a review of the managed
+files cannot clear it.
+A re-take
 keeps `HEAD` at `<oid>` and so reruns the head's old copy of the suite: the fix
 the finding waits for is on `main`, not in this head, so only a later sync cut
 from the fixed `main` clears it. A finding in a local file the round reads is
