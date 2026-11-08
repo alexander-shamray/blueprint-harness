@@ -840,7 +840,8 @@ def classify(end, result, crashes, now):
 
 
 def alive(pid):
-    if not _number(pid):
+    # A pid past the C int both probes take is out of shape, as a hand-edited pid file can be, and so is no process.
+    if not _number(pid) or pid > 0x7FFFFFFF:
         return False
     if os.name != "nt":
         # Signal 0 asks the kernel and delivers nothing, on Linux and macOS alike; `/proc` was Linux's alone, so on
