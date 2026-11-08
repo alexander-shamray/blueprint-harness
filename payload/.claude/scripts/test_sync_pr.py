@@ -861,7 +861,7 @@ class RunLocalSuitesTests(SyncCase):
 
     def test_a_commit_no_sync_pull_request_holds_runs_nothing(self):
         # The settings allow this script to every session, so a test file committed on a local branch, with that
-        # branch's own HEAD as the pin, must not run: that is the file #223 says never has to appear in a pull request.
+        # branch's own HEAD as the pin, must not run: such a file never has to appear in a pull request.
         self.take({"tools/test_bad.py": self.FAILS})
         self.write({"tools/test_planted.py": self.FAILS})
         git(self.root, "add", "-A")

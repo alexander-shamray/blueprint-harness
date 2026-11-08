@@ -1568,9 +1568,9 @@ suite runs `shard-harness-suite.py`, granted with no `:*` so that its `--ids
 run with the session's credentials, and what they run is an open sync's head,
 which its pull request shows; a session can still run any test file by a command
 no grant names, which asks in the default mode and under `auto` is the
-classifier's to approve or refuse, an approval running it unprompted; and whether an allow rule without `:*` is a
-prefix match has never been measured, as *The ext transport and pinned grants*
-says.
+classifier's to approve or refuse, an approval running it unprompted; and
+whether an allow rule without `:*` is a prefix match has never been measured,
+as *The ext transport and pinned grants* says.
 
 **`gh-issue-harness.sh` files in the harness from a target, and only /ship holds
 it.** `<bug|test-gap|enhancement> <critical|high|medium|low>
