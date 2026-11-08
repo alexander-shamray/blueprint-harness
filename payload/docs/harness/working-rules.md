@@ -161,6 +161,8 @@ keeping the guide's *Comments* rules be reworded, completed or expanded.
   `main`**, whether or not `main` ran red: a fix can land before `main` runs
   again, and `closure-gate`, `comment-gate`, `commit-gate` and
   `harness-drift` run on `pull_request` alone, so `main` never runs them.
+  *None of it* means a fault outside what the pull request changed, so a
+  gate's refusal of its own commits, body or added lines is its own to fix.
   That pull request waits for the fix, a pull request of its own, and is not
   changed to make it pass. A rerun would then still read the old merge, since
   a `pull_request` run is pinned to the merge it started on, so it is updated
