@@ -234,6 +234,10 @@ class CutHeadlines(unittest.TestCase):
 
 
 class TableRow(unittest.TestCase):
+    def test_a_gh_n_in_the_row_is_read(self):
+        body = "| | |\n|---|---|\n| Closes | GH-88 (high), #81 |\n"
+        self.assertEqual(declared_in_table(body), {88, 81})
+
     def test_the_house_metadata_row_is_read(self):
         body = "| | |\n|---|---|\n| Closes | #88 (high), #81 (high), #85 (high) |\n"
         self.assertEqual(declared_in_table(body), {88, 81, 85})

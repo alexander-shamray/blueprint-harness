@@ -63,7 +63,7 @@ TABLE_ROW = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 
-ISSUE_NUMBER = re.compile(r"#(\d+)\b")
+ISSUE_NUMBER = re.compile(r"(?:#|(?<![^\W_])gh-)(\d+)\b", re.IGNORECASE)
 
 # Dependabot copies the upstream release notes into its description, inside
 # `<details>`, and a note there can carry a closing keyword about the upstream
