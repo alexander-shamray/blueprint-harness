@@ -80,7 +80,7 @@ class WorkingRulesTests(unittest.TestCase):
         deny = json.loads(BASE.read_text(encoding="utf-8"))["permissions"]["deny"]
         self.assertIn("Bash(gh pr merge:*)", deny)
 
-    def test_a_check_red_on_main_is_the_one_update_the_conflict_rule_admits(self):
+    def test_a_check_red_on_main_is_an_update_the_conflict_rule_admits(self):
         rule = _bullet(self.rules, "A check red on a pull request and on `main`")
         self.assertIn("is not changed to make it pass", rule)
         self.assertIn("`git-rebase-onto-main.sh`", rule)

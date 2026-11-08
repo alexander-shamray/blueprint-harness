@@ -161,7 +161,7 @@ keeping the guide's *Comments* rules be reworded, completed or expanded.
   not changed to make it pass. A rerun would then still read the old merge
   with the red `main`, since a `pull_request` run is pinned to the merge it
   started on, so that pull request is updated through
-  `git-rebase-onto-main.sh`, the one update no conflict asked for.
+  `git-rebase-onto-main.sh`, an update no conflict asked for.
 - **Auto-merge waits on `main`'s required checks and nothing else**: not on
   the review, not on an open issue for a red `main`, and not on a branch
   being up to date. So a pull request is set to auto-merge only once its
