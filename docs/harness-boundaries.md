@@ -783,7 +783,11 @@ otherwise: it refuses a command substitution anywhere in a command that runs a
 for its own. So `oid=$(git rev-parse HEAD)` and a helper line beneath it are
 refused though that line is clean: a heredoc's substitution runs for the
 helper's stdin on no helper line, so the whole command is what is judged, and
-such a value is read in a call of its own. It leaves the `.sh` helpers, whose
+such a value is read in a call of its own. It takes the command word past
+assignment prefixes, `env`, `timeout`, `nice`, `nohup`, `stdbuf`, `time`,
+`command` and `exec`, the interpreter's value flags (`py -X utf8`) and gh's
+`--repo`, as `guard-sed-crlf.py` does; a wrapper it does not name (`xargs`,
+`sudo`, `bash -c`) is a residual. It leaves the `.sh` helpers, whose
 arguments are numbers and names, and it judges substitutions alone: a second
 command is the grant's own matching.
 

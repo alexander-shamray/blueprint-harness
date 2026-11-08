@@ -36,7 +36,7 @@ checkout and removes the worktree, however the review ended.
 
 | | |
 |---|---|
-| A helper or a guarded git command exits non-zero, or the harness refuses it | The step did not run; a report that says otherwise is false. `git pull --ff-only` refusing a diverged branch is the commonest one; step 7's `system-sleep.sh`, the branch drop's `git-branch-drop.sh` and the rebase helper's two continuations (step 6) are the exceptions, each reported and not a stop |
+| A helper or a guarded git command exits non-zero, or the harness refuses it | The step did not run; a report that says otherwise is false. `git pull --ff-only` refusing a diverged branch is the commonest one; step 7's `system-sleep.sh`, the branch drop's `git-branch-drop.sh` and the rebase helper's two continuations and a usage exit after step 6's pull are the exceptions, each reported and not a stop |
 | This branch's PR was closed unmerged | Reopening a deliberate closure is not a recommended option |
 | A `branch-reviewer` round did not run — the agent missing, a reply that is not the JSON its profile declares, or one whose `read` is empty or whose `skipped` names anything but `locality` | The round did not happen, so no verdict may be minted from it |
 | A fix to a script under `.claude/` lacks its case | Step 2's read refuses it, and the case is a file this session is denied editing, so the run has no fix to make |
@@ -566,16 +566,15 @@ target*)
      there first: skip the merge, verify it from `state` and `mergeCommit`,
      then ask step 0's predicate through `pr-for-branch.sh <branch>`, since
      `pr-state.sh` publishes no base; where it holds go to the teardown
-     below, and otherwise Stay, report what the workspace holds, and end the
-     run.
+     below, and otherwise Stay, report what it holds and end the run.
    - **Poll while `mergeable` reads `UNKNOWN`**, and take `headRefOid` from
      the **same read that finally answered**, not the first. Only a *known*
      non-mergeable result stops the chain.
-   - `mergeable` must be `MERGEABLE` and every check must pass, on the
-     pushed head; either failing stops here and is reported as what it is.
+   - `mergeable` must be `MERGEABLE` and every check pass, on the pushed
+     head; either failing stops.
    - **A head no round reviewed is not merged.** If `headRefOid` is not one
      of the recorded reviewed heads, run `git pull --ff-only` (a refusal
-     stops), so this checkout is that commit, re-enter step 5 for a recheck
+     stops), re-enter step 5 for a recheck
      of what changed, then return to the **top of this step**; on a plan PR
      nothing re-enters, and the report says the head merged unreviewed.
      With the ceiling spent, that recheck still runs once and what it finds
@@ -648,6 +647,8 @@ target*)
    - Run lines 4 to 6 and the prune on both paths; report containment,
      never equality: the oid `main` landed on, and that the merge is in
      its history.
+   - **A usage exit after the pull is not a stop**: rerun from the exiting line
+     as the pulled `ship.md` spells it, and report it.
    - Once the merge is verified, delete this change's row from *In
      progress* in the task list named by `.harness/config.json`
      `task_list`, in the main checkout's parent directory, by that path (why:
@@ -659,12 +660,11 @@ target*)
      token /dispatch passes*).
    - Line 9 drops the merged branch: a forked run's once line 7 exits 0, an
      in-place run's after the switch to `main`; a refused removal keeps its
-     branch, exit 4 (a directory that holds something or that a process holds)
-     included, and an exit 0
-     is also git failing only to delete the empty directory the helper then
-     removed. Any non-zero exit of the drop is reported and is not a stop, and
-     exit 6 (no local branch) is simply reported. Under `--dispatched` the run
-     does not drop; `/dispatch` does.
+     branch, exit 4 included, and an exit 0 is also git failing only to
+     delete the empty directory the helper then removed. Any non-zero exit of
+     the drop is reported and is not a stop, and exit 6 (no local branch) is
+     simply reported. Under `--dispatched` the run does not drop; `/dispatch`
+     does.
 
    (why: docs/commands/ship.md, *Step 6: the teardown*)
 
