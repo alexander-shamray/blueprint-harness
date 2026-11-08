@@ -256,9 +256,9 @@ keeping the guide's *Comments* rules be reworded, completed or expanded.
 
   *Remaining* and *Paused* put undated rows first, then dated ones nearest
   first, and a row never sits above one it depends on. A linked worktree on
-  an issue's branch means another session is working it, unless `/dispatch`
-  sent it back: its row is *In progress*. A tag such as `#G1-826` names
-  group `G1` and issue 826,
+  an issue's branch means another session is working it, unless its pull
+  request merged or `/dispatch` sent it back: its row is *In progress*. A tag
+  such as `#G1-826` names group `G1` and issue 826,
   `#B1-929+930` two issues worked as one change; read the group's rows and
   each issue, never grep for the tag.
 
