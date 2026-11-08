@@ -142,6 +142,15 @@ jobs:
         working-directory: ${{ runner.temp }}/rendered
         run: python -m unittest discover -s .claude/scripts -p "test_sed_crlf_guard.py" -v
 
+      # macOS alone: its bash is older than Ubuntu's, so the guard's reading
+      # of a heredoc closing inside a sum runs against the version it names.
+      - name: Test the git argv guard's older-bash reading
+        if: matrix.os == 'macos-latest' && steps.reach.outputs.test != 'false'
+        working-directory: ${{ runner.temp }}/rendered
+        run: |
+          bash --version | head -n 1
+          python -m unittest discover -s .claude/scripts -p "test_git_argv_guard.py" -k test_a_heredoc_closing_with_its_line_in_a_sum_opens_no_body -v
+
       # Windows alone, for their fixtures rather than their subjects: a cleanup
       # meeting git's read-only objects fails nowhere else. The first two also
       # stand for the suites on `review_helpers.temp_root`, whose path bash and
