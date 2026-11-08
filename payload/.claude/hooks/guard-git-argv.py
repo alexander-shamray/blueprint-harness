@@ -3127,12 +3127,14 @@ def _git_operands(words, literals, value_options):
     while position < len(words):
         raw, literal = words[position], literals[position]
         position += 1
+        # A word holding a substitution has no literal, and is an option all the same.
+        spelled = literal if literal is not None else raw.strip("\"'")
         if after is not None:
             after.append(raw)
         elif literal == "--":
             after = []
-        elif literal and literal.startswith("-") and literal != "-":
-            options.append(literal)
+        elif spelled.startswith("-") and spelled != "-":
+            options.append(spelled)
             if literal in value_options:
                 if position < len(words):
                     options.append(literals[position] or "$")
