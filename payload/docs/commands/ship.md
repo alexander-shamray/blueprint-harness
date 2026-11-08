@@ -783,9 +783,9 @@ symbols and files the diff reaches through the graph, beyond the lines a reviewe
 quotes, and a contradiction outside the changed lines lives there. It is read
 against the merge base, which `git merge-base origin/main HEAD` answers under an
 exact grant, because its default of `HEAD` compares nothing on a clean branch. It
-names no absences, so a file it omits may still depend on the change. Admin
-writes it every round; here a recheck reads the diff and the findings and nothing
-else, so it would be read by nobody. The reviewer never names it in `skipped`,
+names no absences, so a file it omits may still depend on the change. A recheck
+reads the diff and the findings and nothing else, so it writes none, which nobody
+would read. The reviewer never names it in `skipped`,
 whose other entries stop the chain, since an index a target lacks is not a round
 that did not run.
 
