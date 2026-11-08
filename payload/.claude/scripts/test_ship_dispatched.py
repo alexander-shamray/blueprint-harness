@@ -35,6 +35,7 @@ GRANTS_BEFORE = (
     "Bash(bash .claude/scripts/gh-issue-hand.sh:*)", "Bash(bash .claude/scripts/system-sleep.sh)",
 )
 DROP_GRANTS = ("Bash(bash .claude/scripts/git-branch-drop.sh:*)",)
+MAIN_RED_GRANTS = ("Bash(bash .claude/scripts/main-red-open.sh)",)
 # Steps 1 and 5's index reads (test_index_query_hint.py), which a dispatched run needs its own grants to name too.
 INDEX_GRANTS = ("Bash(git merge-base origin/main HEAD)",
                 "Bash(bash .claude/skills/codebase-index/scripts/cbx search:*)",
@@ -248,7 +249,7 @@ class TheDispatchedTokenChangesOnlyWhatTheSpecLists(unittest.TestCase):
         self.assertEqual(len(rows), 7)
 
     def test_the_grants_did_not_change(self):
-        self.assertEqual(grants(SHIP), GRANTS_BEFORE + SYNC_GRANTS + DROP_GRANTS + INDEX_GRANTS)
+        self.assertEqual(grants(SHIP), GRANTS_BEFORE + SYNC_GRANTS + DROP_GRANTS + MAIN_RED_GRANTS + INDEX_GRANTS)
         self.assertEqual(grants(BRANCH), BRANCH_GRANTS_BEFORE)
         self.assertIn("Write", GRANTS_BEFORE, "the result is written with a tool the command already holds")
 
