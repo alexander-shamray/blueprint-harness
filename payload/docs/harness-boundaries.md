@@ -2432,7 +2432,7 @@ the runner is a script under `.claude/scripts/`, Edit-denied, so the grant
 admits one fixed endpoint a session cannot rewrite. A per-command route was
 rejected: it would make every managed command a rendered file, differing
 from the payload by each target's lines, and the drift gate and `sync_pr.py
-verify`, which hold a managed file to the payload's bytes, would each need
+verify`, which hold a managed file to the payload's content, would each need
 a second renderer to judge it.
 
 **A path the config lists under `local` is the repository's own**, even
