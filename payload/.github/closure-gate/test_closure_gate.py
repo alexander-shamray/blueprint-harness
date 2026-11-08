@@ -296,7 +296,7 @@ class Directions(unittest.TestCase):
         self.assertIn("#77", problems[0])
 
     def test_a_foreign_closing_reference_does_not_cover_a_local_number(self):
-        """`other/repo#7` linked by hand must not hide this repository's #7."""
+        """A foreign entry linked by hand must not hide a local issue with its number."""
         data = payload(
             body="| Closes | #7 |\n\nCloses #7\n",
             commit_messages=("fix: a\n\nCloses #7",),
