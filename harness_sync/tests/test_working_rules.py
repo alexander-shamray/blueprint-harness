@@ -53,6 +53,16 @@ class WorkingRulesTests(unittest.TestCase):
         with self.assertRaisesRegex(board.Refusal, "names no issue number"):
             board._row("In progress", "| — | #1690, #1691 | x | `b` | open |")
 
+    def test_the_row_with_no_issue_is_spelt_as_the_board_parses_it(self):
+        task_list = _bullet(self.rules, "The task list")
+        spelling = re.search(r"A row with no issue reads `([^`]+)` in its `#` cell", task_list).group(1)
+        board = _board()
+        row = board._row("In progress", f"| — | {spelling} | x | `b` | started |")
+        self.assertIsNone(row.number)
+        self.assertEqual("b", board.row_branch(row))
+        with self.assertRaisesRegex(board.Refusal, "names no issue number"):
+            board._row("In progress", "| — | — | x | `b` | started |")
+
     def test_stopped_work_and_the_dispatcher_each_say_where_their_row_goes(self):
         task_list = _bullet(self.rules, "The task list")
         self.assertIn("leaves the issue open and ends its claim", task_list)

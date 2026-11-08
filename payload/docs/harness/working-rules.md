@@ -239,10 +239,11 @@ keeping the guide's *Comments* rules be reworded, completed or expanded.
   | Open issue labelled `tracking`, not `paused`: it records work done elsewhere or a measurement over time, and no pull request implements it | *Tracking*, in its wave |
   | Open issue labelled `paused` | *Paused*, whatever else is true of it |
   | Work a session has taken up (about to be branched, or with a branch or a worktree), with or without an issue, and no open pull request | *In progress*, with the branch once it is named |
-  | Open pull request | *In progress*: a row for each open, unpaused issue it closes, or one row with `—` when there are none; such an issue has no other row |
+  | Open pull request | *In progress*: a row for each open, unpaused issue it closes, or one row when there are none; such an issue has no other row |
   | Closed issue; merged or closed pull request | No row, and no note of what landed, which git and the closed issues already keep |
 
-  Work that stops without landing (a claim abandoned, a pull request closed
+  A row with no issue reads `owed (not filed)` in its `#` cell, the form
+  `dispatch_board.py` parses beside a number. Work that stops without landing (a claim abandoned, a pull request closed
   unmerged, or one merged without closing its issue) leaves the issue open
   and ends its claim, so its row is re-derived by the table: *In progress*
   with the branch if one remains, otherwise back to its wave. What the work
