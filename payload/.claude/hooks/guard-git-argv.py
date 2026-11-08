@@ -2730,6 +2730,14 @@ def checkout_relative(path):
     return worktree.group(1) if worktree else relative
 
 
+def in_linked_worktree(path):
+    """Whether `path` is in a linked worktree, removed from disk or not."""
+    root = checkout_of(path)
+    return root is not None and (
+        os.path.isfile(os.path.join(root, ".git"))
+        or WORKTREE_BELOW.match(os.path.relpath(path, root) + os.sep) is not None)
+
+
 def beneath(path, root):
     """Whether resolved `path` is `root` or sits under it."""
     path, root = os.path.normcase(path), os.path.normcase(root)
@@ -3154,7 +3162,8 @@ def git_path_offence(words, cwd, command):
     """The reason to refuse a git verb writing a denied path, or `None`.
 
     `git rm`, `git mv` and a checkout or restore from another commit, from a literal
-    `-C`. A restore from `HEAD` or the index puts back what the file was.
+    `-C`. A restore from `HEAD` or the index puts back what the file was, and a
+    linked worktree's write is in its pull request's diff: agents typed all three.
     """
     literals = [target_literal(word) for word in words]
     lead = leading_command([word or "" for word in literals])
@@ -3165,7 +3174,7 @@ def git_path_offence(words, cwd, command):
         if literals[position] == "-C" and position + 1 < len(words):
             cwd = written_path(words[position + 1], cwd, command)
         position += 2 if literals[position] in GLOBAL_VALUE_FLAGS else 1
-    if position >= len(words):
+    if position >= len(words) or cwd is None or in_linked_worktree(os.path.abspath(cwd)):
         return None
     verb, words, literals = literals[position], words[position + 1:], literals[position + 1:]
     if verb in ("rm", "mv"):
