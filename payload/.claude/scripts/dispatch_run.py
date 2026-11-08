@@ -562,7 +562,7 @@ def _remove_temp(scratch):
 
 
 def _prune_worktrees(root):
-    """A `git worktree add` the executor made under its temp directory has just lost its target. Best effort, as the
+    """A worktree the executor registered under its temp directory has just lost its target. Best effort, as the
     removal is: only a registration whose directory is gone goes, and a failure must not stop the session record."""
     try:
         git(root, "worktree", "prune")
