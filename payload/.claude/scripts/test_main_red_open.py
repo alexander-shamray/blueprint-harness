@@ -111,7 +111,7 @@ class ShipReadsIt(unittest.TestCase):
         self.assertIn("Bash(bash .claude/scripts/main-red-open.sh)", front)
         self.assertNotIn("main-red-open.sh:*", front)
         self.assertNotIn("Bash(gh issue list", front)
-        self.assertIn("   bash .claude/scripts/main-red-open.sh   # ", body)
+        self.assertIn("\n   bash .claude/scripts/main-red-open.sh\n", body)
 
     def test_the_read_follows_the_checks_wait_and_stops_the_chain(self):
         body = (COMMANDS / "ship.md").read_text(encoding="utf-8").split("6. **Merge, then tear the workspace down.**")[1]
