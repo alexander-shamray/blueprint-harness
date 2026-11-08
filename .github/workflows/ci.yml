@@ -55,8 +55,8 @@ jobs:
   # carries it into a target.
 
   # Every leg runs the whole `.claude/scripts` suite, so a helper that fails on one host is this repository's red
-  # before it is a target's: frontend's first whole run of it off Linux failed 132 cases on macOS and 10 on Windows
-  # (#191). The gates run on Linux alone, as backend's workflows run them, and Windows adds the comment gate's suite
+  # before it is a target's: frontend's first whole run of it off Linux failed 132 cases on macOS and 10 on Windows.
+  # The gates run on Linux alone, as backend's workflows run them, and Windows adds the comment gate's suite
   # for its fixture. Git's bash runs the steps on Windows, so the one script below serves all three.
   payload-suites:
     strategy:

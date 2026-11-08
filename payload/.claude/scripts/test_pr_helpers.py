@@ -257,7 +257,7 @@ class NoCommandReadsAPullRequestFeedUnfiltered(unittest.TestCase):
             {"pr-closure-input.sh", "pr-for-branch.sh", "pr-locality.sh", "pr-state.sh"},
             set(helpers),
         )
-        # Under GNU `timeout`, and under the watchdog a host without it runs (#191: macOS ships none).
+        # Under GNU `timeout`, and under the watchdog a host without it runs, as macOS, which ships none.
         for helper, program in itertools.product(helpers, (None, "no-such-timeout")):
             arg = "some-branch" if helper == "pr-for-branch.sh" else "187"
             with self.subTest(helper=helper, timeout=program or "timeout"):
@@ -777,7 +777,7 @@ BASH_4 = re.compile(
 
 
 class NoHelperNeedsBash4(unittest.TestCase):
-    """The harness's required `payload-suites (macos-latest)` leg runs the whole helpers suite under bash 3.2 (#191)."""
+    """The harness's required `payload-suites (macos-latest)` leg runs the whole helpers suite under bash 3.2."""
 
     def shell_scripts(self):
         # The helper directories alone: `.claude/worktrees/` holds every forked

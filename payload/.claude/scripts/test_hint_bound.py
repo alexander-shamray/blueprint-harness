@@ -75,7 +75,7 @@ class HintBound(unittest.TestCase):
 
 
 class HintBoundUnderTheWatchdog(HintBound):
-    """Every case above where no `timeout` is installed, as on macOS (#191), so the bound is the watchdog's."""
+    """Every case above where no `timeout` is installed, as on macOS, so the bound is the watchdog's."""
 
     TIMEOUT = "no-such-timeout"
 
