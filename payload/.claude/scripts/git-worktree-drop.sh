@@ -46,11 +46,38 @@ common_there=$(git -C "$path" rev-parse --path-format=absolute --git-common-dir 
 dir_there=$(git -C "$path" rev-parse --path-format=absolute --git-dir)
 [ "$dir_there" != "$common_there" ] ||
   { echo "refusing to remove the main worktree: $path" >&2; exit 3; }
-git worktree remove "$resolved"
+# A refusal and a half-finished removal are different failures. Git unregisters
+# the worktree and then deletes its tree, so on Windows a process holding the
+# tree fails the delete with the registration already gone. The status is
+# captured, so the checks below run whatever git exits.
+status=0
+git worktree remove "$resolved" || status=$?
+left=
+if [ -e "$resolved" ]; then
+  # Asked of the directory, git to git as above. A live worktree answers with its
+  # own git directory, which is git's refusal, and everything stays. A leftover's
+  # `.git` names an admin directory that has gone, or it has none.
+  if there=$(git -C "$resolved" rev-parse --path-format=absolute --git-dir 2>/dev/null) &&
+    [ "$there" != "$common_there" ]; then
+    exit "$((status == 0 ? 1 : status))"
+  fi
+  # `rmdir` refuses one holding anything, as git-worktree-remove.sh's does: only
+  # an empty directory goes, and any other is named.
+  if rmdir "$resolved" 2>/dev/null; then
+    echo "git exited $status after deleting $path; the empty directory is removed" >&2
+  else
+    left=1
+  fi
+elif [ "$status" -ne 0 ]; then
+  echo "git exited $status after deleting $path" >&2
+fi
 # The slice lists sweep-slices.sh wrote beside it, and the reports a target's
 # own executing sweep writes there; named from the checked path, never passed,
-# and only once git has removed the worktree itself.
+# and only once git has removed the worktree itself. They answer to no worktree
+# now, whether or not a directory is left.
 slices="$resolved.slices"
 if [ -d "$slices" ] && [ ! -L "$slices" ]; then rm -rf -- "$slices"; fi
 mutation="$resolved.mutation"
 if [ -d "$mutation" ] && [ ! -L "$mutation" ]; then rm -rf -- "$mutation"; fi
+[ -z "$left" ] ||
+  { echo "unregistered but not deleted: $path is still there; remove it by hand" >&2; exit 4; }

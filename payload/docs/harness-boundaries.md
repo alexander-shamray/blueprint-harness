@@ -2237,7 +2237,10 @@ a worktree the next sweep's start can drop.
 `sweep-slices.sh` writes its slice lists to the worktree's path plus
 `.slices`, a name it derives from the same checked shape rather than takes,
 and `git-worktree-drop.sh` removes that directory once git has removed the
-worktree. `sweep-mark.sh` moves `refs/sweeps/bug` or `refs/sweeps/security`
+worktree, a half-finished removal included: where git unregistered the worktree
+and failed to delete its tree, an empty directory goes and any other is named,
+exit 4, for the owner to remove, since no later sweep's start can see it.
+`sweep-mark.sh` moves `refs/sweeps/bug` or `refs/sweeps/security`
 to a commit, and only to an existing one by its full SHA. The ref is local
 and a missing one means a full sweep, so the write can make a later sweep
 read less only by pointing at a commit that really was swept clean; a
