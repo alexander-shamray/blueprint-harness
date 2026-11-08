@@ -1,10 +1,7 @@
-"""Every `search` line under the skill carries the limit `SKILL.md` owns.
-
-The subject is the set of examples, not any one of them: a rule only the
-examples execute cannot be held by the prose above them, so a line written
-without the option is red when it lands. The value is read from `SKILL.md`'s
-own sentence and never spelled here, since a copy would go stale in the
-direction that reports success."""
+"""Every `search` line under the skill carries the limit `SKILL.md` owns, read
+from its own sentence and never spelled here: a rule only the examples execute
+cannot be held by the prose above them, and a copy of the value would go stale
+in the direction that reports success."""
 
 import re
 import shlex
