@@ -949,8 +949,8 @@ upstream. That is why the fetch and a `git pull --ff-only` also run
 **before step 5**: reviewing the wrong tree is a wasted round.
 
 **A fast-forward that will not fast-forward is divergence**, which is another
-session's history against this one's, and it stops the chain for the reason an
-unmergeable PR does. The rebase helper, `git-rebase-onto-main.sh`, does not
+session's history against this one's, and it stops the chain because that
+history is not this run's to replace. The rebase helper, `git-rebase-onto-main.sh`, does not
 resolve it and is not meant to: it refuses a remote carrying commits this
 checkout lacks, which is exactly this case. A lease would be satisfied here —
 those commits have been fetched — and the other session's work would still be
@@ -1118,8 +1118,8 @@ for ever. Both states already have handling:
 **A loop that can only exit on success is not a poll, it is a wait**, and
 the difference only shows when the thing being waited on stops existing.
 
-**`UNKNOWN` is neither of those, and treating it as a conflict stops the
-run for a value that means *ask again*.** GitHub computes mergeability
+**`UNKNOWN` is neither of those, and treating it as a conflict rewrites a
+branch for a value that means *ask again*.** GitHub computes mergeability
 asynchronously, so a read taken shortly after a push — which is exactly
 where this one is taken, the review having just pushed a fix — finds
 the answer still being worked out. Poll while it reads `UNKNOWN`, and take
