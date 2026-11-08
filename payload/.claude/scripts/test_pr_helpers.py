@@ -354,6 +354,20 @@ class NoCommandReadsAPullRequestFeedUnfiltered(unittest.TestCase):
                 self.assertEqual("", r.stdout)
                 self.assertEqual("changedFiles is not a count\n", r.stderr)
 
+    def test_the_class_letters_are_spelled_out_not_ranged(self):
+        # A regex library that collates by locale reads the range as admitting lower case: this host's bash `=~` does,
+        # so the map's `d:` below read as a class here, and a C-locale runner passes that case either way. So the code
+        # is read too. Both spellings are the subject: the row's and the map's.
+        code = "\n".join(code_lines((SCRIPTS / "pr-locality.sh").read_text(encoding="utf-8")))
+        self.assertNotIn("[A-E]", code)
+        self.assertEqual(3, code.count("[ABCDE]"))
+        r = self._run_locality_with_gh(self._gh_printing("| Class | d |\n| Touch set | docs/** |\n"))
+        self.assertEqual((3, "the Class row is not a class\n"), (r.returncode, r.stderr))
+        body = "| Class | D |\n| Touch set | docs/** |\n"
+        r = self._run_locality_with_gh(self._gh_printing(body),
+                                       scripts=self._scripts_with_map(CLASSES + "d:\n  - 'other/**'\n"))
+        self.assertEqual((3, "classes.yml has a line outside its grammar\n"), (r.returncode, r.stderr))
+
     def test_a_pull_request_with_no_changed_files_prints_only_its_class(self):
         # Reached when `main` has already landed a branch's whole diff. Under `set -u`, bash 3.2 calls an empty array
         # unbound, so the verdict loop has to survive having nothing to judge.
