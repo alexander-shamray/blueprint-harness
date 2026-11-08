@@ -1211,10 +1211,13 @@ their operand; `--strategy` and `--template`, per subcommand; `--ext-diff`,
 option it is; `filter-branch`, `send-email`, `instaweb`, `daemon`,
 `http-backend`, `web--browse`, `difftool` and `mergetool` refused whole, with
 `send-pack`, `http-push` and `receive-pack` beside `subtree push`, which update
-a remote ref past every check a push gets; and the writes of the keys that run a
-program, `alias.*`, `core.pager`, `core.hooksPath`, `core.sshCommand`,
-`diff.external` and `*.cmd`, the `git -c` refused above made persistent, with a
-read, a removal and any other key admitted. Those are lists and not an
+a remote ref past every check a push gets; and writes of a subset of the keys
+that run a program, `alias.*`, `core.pager`, `core.hooksPath`, `core.sshCommand`,
+`diff.external` and `*.cmd`, the `git -c` refused above made persistent. It is a
+subset by hand and not the enumeration refused above: `core.editor`,
+`credential.helper` and every other key stay admitted, with a read and a removal,
+since refusing the option whole here would stop `rerere.enabled`, which this
+harness's own rules set. Those are lists and not an
 allow-list of subcommands, which would refuse `git ls-remote`, `git config` and
 `git stash`, typed hundreds of times. `xargs` is refused only in front of a
 push, whose destination it supplies unseen; a fetch is refused its `-f`, `-u`
