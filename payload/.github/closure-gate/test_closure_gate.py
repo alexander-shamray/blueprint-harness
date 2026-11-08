@@ -158,6 +158,38 @@ class KeywordParser(unittest.TestCase):
     def test_the_repository_comparison_ignores_case(self):
         self.assert_finds(f"Closes {REPO.upper()}#20", {20})
 
+    def test_gh_n_is_an_issue_reference(self):
+        self.assert_finds("Closes GH-42", {42})
+        self.assert_finds("closes gh-43.", {43})
+
+    def test_a_struck_through_gh_n_is_reported_not_dropped(self):
+        numbers, unreadable = closing_references("Closes ~~GH-42~~", REPO)
+        self.assertEqual(numbers, set())
+        self.assertEqual(len(unreadable), 1, unreadable)
+
+    def test_gh_inside_a_word_is_prose(self):
+        self.assert_finds("Closes high-5 and nothing else", set())
+
+    def test_a_colon_needs_no_space_after_it(self):
+        self.assert_finds("Closes:#44", {44})
+
+    def test_markup_between_the_keyword_and_the_token_is_read(self):
+        self.assert_finds("**Closes** #45", {45})
+        self.assert_finds("**Closes**: #46", {46})
+        self.assert_finds("**Closes:** #47", {47})
+
+    def test_an_underscore_is_a_keyword_boundary(self):
+        self.assert_finds("_Closes #48", {48})
+        self.assert_finds("pre_closes #49", {49})
+        self.assert_finds("_Closes_ #50", {50})
+
+    def test_a_scope_in_parentheses_is_not_a_keyword_separator(self):
+        self.assert_finds("fix(#51): the parser", set())
+
+    def test_prose_beside_the_widened_forms_stays_prose(self):
+        self.assert_finds("**Closes** the door and _fixes_ nothing", set())
+        self.assert_finds("closes_over a variable", set())
+
 
 class AdjacentKeywords(unittest.TestCase):
     def test_a_keyword_before_a_keyword_still_finds_the_reference(self):
@@ -258,6 +290,27 @@ class Directions(unittest.TestCase):
         ))
         self.assertEqual(len(problems), 1, problems)
         self.assertIn("#77", problems[0])
+
+    def test_a_foreign_closing_reference_does_not_cover_a_local_number(self):
+        """`other/repo#7` linked by hand must not hide this repository's #7."""
+        data = payload(
+            body="| Closes | #7 |\n\nCloses #7\n",
+            commit_messages=("fix: a\n\nCloses #7",),
+        )
+        data["closingIssuesReferences"] = [
+            {"number": 7, "url": "https://github.com/other/repo/issues/7"}]
+        problems = check(data)
+        self.assertTrue(any("other/repo#7" in problem for problem in problems), problems)
+        self.assertTrue(any("#7 is closed by commit" in problem for problem in problems), problems)
+
+    def test_a_local_entry_with_a_url_is_still_linked(self):
+        data = payload(
+            body="| Closes | #7 |\n\nCloses #7\n",
+            commit_messages=("fix: a\n\nCloses #7",),
+        )
+        data["closingIssuesReferences"] = [
+            {"number": 7, "url": f"https://github.com/{REPO}/issues/7"}]
+        self.assertEqual(check(data), [])
 
     def test_the_house_form_done_right_passes(self):
         self.assertEqual(check(payload(
