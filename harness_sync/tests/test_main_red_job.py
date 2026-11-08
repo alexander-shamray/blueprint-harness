@@ -45,9 +45,10 @@ class TheJobHearsEveryOtherJob(unittest.TestCase):
 
     def test_main_runs_cancel_nothing_so_cancelled_is_never_a_superseded_push(self) -> None:
         # What lets `cancelled` read as red: a run on `main` has a group of its own and no newer run replaces it.
-        text = CI.read_text(encoding="utf-8")
-        self.assertIn("github.ref == 'refs/heads/main' && github.sha", text)
-        self.assertIn("cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}", text)
+        code = "\n".join(line for line in CI.read_text(encoding="utf-8").splitlines()
+                         if not line.lstrip().startswith("#"))
+        self.assertIn("github.ref == 'refs/heads/main' && github.sha", code)
+        self.assertIn("cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}", code)
 
 
 class TheHelperReadsWhatTheJobFiles(unittest.TestCase):
