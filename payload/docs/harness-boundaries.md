@@ -1718,7 +1718,13 @@ running at `GH_READ_BOUND_SECONDS` with `timeout`'s exit 124 and a line on
 stderr naming the call. A stall then fails as loudly as a refused login
 does, rather than looking like a slow API. `test_pr_helpers.py` runs every
 `pr-*.sh` against a `gh` that never answers, so a helper added later is held
-to the bound by the glob rather than by someone remembering it.
+to the bound by the glob rather than by someone remembering it. macOS ships
+no `timeout`, and every helper reading through it exited 127 there (#191),
+so the file's `bounded`, which `gh_read`, `gh-issue-harness.sh` and
+`hint-bound.sh` all run under, takes GNU `timeout` where it is installed
+and otherwise a watchdog sending the same TERM, answering 124 the same way.
+`GH_READ_TIMEOUT` names the program it looks for, so the suites run each
+case under the watchdog on hosts that have `timeout` too.
 
 ## Sweep push denies and chained commands
 
