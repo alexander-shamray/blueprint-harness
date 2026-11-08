@@ -2338,6 +2338,15 @@ crash, never a success.
 
 **Residuals.**
 
+- The dispatcher's and `issue_decisions.py`'s `path_which` take a `.bat` or
+  `.cmd` that `PATHEXT` names, where `refresh-index.py`'s `on_path` takes only
+  `.exe` and `.com`. The decision (issue #130) is to keep it: `claude`
+  installed by npm is a `.cmd`, so refusing one would stop `/dispatch` on such
+  a machine. The other two rules bound it: only an absolute `PATH` entry is
+  searched and never the working directory, and `dispatch_run.py` passes
+  `claude` fixed arguments with its prompt on stdin, so no issue or executor
+  text reaches the command interpreter. A planted batch file needs write
+  access to a `PATH` directory, which already runs code.
 - A refusal at night is a hand-back. `result` classifies it, the morning
   report shows it, and the grant is never widened to get past it (the
   spec's §2, its last anti-goal).
