@@ -143,7 +143,7 @@ the target's manifest, or than a sync already open, is refused.
 
 It needs `HARNESS_SYNC_TOKEN`: a fine-grained token with Contents, Pull
 requests and Workflows read-write on every repository in `targets.json`, this
-one included (four once frontend and admin are listed). Workflows, because the
+one included (four once admin is listed). Workflows, because the
 payload ships `.github/workflows/` files and GitHub refuses a push that
 changes one without it. The workflow's own `GITHUB_TOKEN` cannot stand in,
 because a pull request it opens starts none of the target's required checks.
