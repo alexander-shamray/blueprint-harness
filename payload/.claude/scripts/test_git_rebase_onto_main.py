@@ -945,8 +945,7 @@ class TheHelperPublishesWhatItRebased(unittest.TestCase):
 
     def test_a_configured_push_redirect_is_refused_before_anything_is_forced(self):
         # Spelling the refspec pins the ref and not the URL, so a `pushurl` or a `pushInsteadOf` that sends the force
-        # to another repository refuses the run. A rewrite to the same host and path is the ordinary setup the clean
-        # update above runs under.
+        # to another repository refuses the run.
         same_path_other_host = (
             '"https://evil.example/$(basename "$(dirname "$(git config --get remote.origin.url)")")/remote.git"')
         for key, value in (("remote.origin.pushurl", '"https://example.invalid/x.git"'),
@@ -965,6 +964,15 @@ class TheHelperPublishesWhatItRebased(unittest.TestCase):
                 self.at(f'git config --local --unset-all "{key}"')
                 self.at('rm -f "$(git rev-parse --git-path claude-rebase-pending)"')
                 self.at("git reset -q --hard refs/remotes/origin/feat/x")
+
+    def test_a_push_url_spelling_the_same_repository_differently_is_published(self):
+        # The control for the refusal above: the comparison is of the repository named, not of two strings, which is
+        # what lets a protocol rewrite on one host through.
+        self.at('git config --local remote.origin.pushurl "$(git config --get remote.origin.url)/"')
+        result = self.helper()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(self.at("git rev-parse HEAD").stdout.split(),
+                         self.at("git ls-remote origin refs/heads/feat/x").stdout.split()[:1])
 
     def test_repo_key_agrees_across_protocols_on_one_host_and_nowhere_else(self):
         # `repo_key` is lifted out of the helper and run alone, so the spellings are exact. One URL per call, through
