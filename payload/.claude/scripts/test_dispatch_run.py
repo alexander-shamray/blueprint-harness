@@ -65,7 +65,8 @@ LIMIT_KIND = {**SUCCESS, "subtype": "error_during_execution", "is_error": True, 
               "error": {"type": "rate_limit"}, "result": "API Error"}
 FAKE_CLAUDE = """import json, os, sys
 here = os.path.dirname(os.path.abspath(__file__))
-seen = {"argv": sys.argv[1:], "cwd": os.getcwd(), "stdin": sys.stdin.buffer.read().decode("utf-8")}
+seen = {"argv": sys.argv[1:], "cwd": os.getcwd(), "stdin": sys.stdin.buffer.read().decode("utf-8"),
+        "temp": {name: os.environ.get(name) for name in ("TMP", "TEMP", "TMPDIR")}}
 with open(os.path.join(here, "seen.json"), "w", encoding="utf-8") as handle:
     json.dump(seen, handle)
 with open(os.path.join(here, "reply.bin"), "rb") as handle:
@@ -494,6 +495,29 @@ class LaunchTests(InRoot):
         self.assertEqual(0, raw["exit"])
         self.assertEqual(SUCCESS, json.loads(raw["stdout"]))
         self.assertTrue(int((state_dir() / "S1.pid").read_text(encoding="utf-8")) > 0)
+
+    def test_run_gives_each_executor_its_own_temp_directory_inside_its_worktree(self):
+        # Two executors sharing the system temp directory ran each other's scratch scripts (issue #199).
+        record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
+        parent = {name: "shared-parent-temp" for name in ("TMP", "TEMP", "TMPDIR")}
+        with mock.patch.dict(os.environ, parent):
+            run_fake_claude(stdout=json.dumps(SUCCESS).encode("utf-8"))
+        seen = json.loads(Path("fake/seen.json").read_text(encoding="utf-8"))
+        own = Path(WORKTREE).resolve() / "artifacts" / "dispatch" / RUN / "tmp"
+        self.assertEqual({name: str(own) for name in parent}, seen["temp"])
+        self.assertTrue(own.is_dir())
+        self.assertNotEqual(dr.executor_temp(WORKTREE, RUN), dr.executor_temp(".claude/worktrees/dispatch-s2", RUN))
+
+    def test_run_refuses_an_executor_whose_temp_directory_cannot_be_made(self):
+        record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
+        blocker = Path(WORKTREE) / "artifacts" / "dispatch" / RUN / "tmp"
+        blocker.parent.mkdir(parents=True)
+        blocker.write_text("a file where the directory goes", encoding="utf-8")
+        task_text()
+        with mock.patch.object(dr, "CLAUDE_COMMAND", [sys.executable, "-c", "print('{}')"]):
+            self.assertIn("refused: could not create the executor's temp directory", run_cli(["run", RUN, "S1"]))
+        self.assertFalse((state_dir() / "S1.pid").exists())
+        self.assertTrue((state_dir() / "S1.refused.json").is_file())
 
     def test_run_refuses_a_group_with_no_claude_or_already_handed_back(self):
         record(RUN, "S1", status="running")
