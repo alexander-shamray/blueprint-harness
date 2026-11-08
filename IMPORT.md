@@ -915,9 +915,9 @@ Four more rows changed on the check: two verdicts moved, one `port` was
 narrowed, and one was kept against frontend's verdict.
 
 - **`git config` writes port narrowed** to a subset of the keys that run a
-  program (`alias.*`, `core.pager`, `core.hooksPath`, `core.sshCommand`, `*.cmd`,
-  `diff.external`); a plain write such as `rerere.enabled`, which admin typed,
-  stays admitted (c3).
+  program (`alias.*`, `core.pager`, `core.hooksPath`, `core.sshCommand`,
+  `*.cmd`, `diff.external`); a plain write such as `rerere.enabled`, which admin
+  typed, stays admitted (c3).
 - **The quoted heredoc fed to the issue helpers stays a `port`**, against
   frontend's `covered` and the payload's pinned file route: the payload's guard
   refused 134 of admin's commands with it, 42 in sweeps, which deny `Write`.
