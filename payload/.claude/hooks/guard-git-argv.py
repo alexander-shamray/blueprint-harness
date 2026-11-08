@@ -1724,6 +1724,13 @@ def program_name(token):
 # of `X+=1 printf 'git p%ssh origin +HEAD:main' u | bash`.
 ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\[[^\]]*\])?\+?=")
 
+# A shell given a helper that reads stdin as a title and a body, in the spelling
+# the grants use: nothing here is a quote, an expansion or a `..`, and a
+# redirection before the helper is what `bash < a.sh <<EOF` runs the text with.
+ISSUE_HELPER_RUN = re.compile(
+    r"\s*(?:bash|sh)[ \t]+(?:\./)?\.claude/scripts/"
+    r"gh-issue-(?:create|hand|harness|sweep)\.sh(?=[\s<>]|$)")
+
 # Reserved words the next word of a run is a command word after. `done`, `fi`
 # and `}` end a construct and lead nothing.
 COMMAND_PREFIX_WORDS = frozenset({"!", "{", "do", "elif", "else", "if", "then",
@@ -1880,11 +1887,22 @@ def forwards_to_evaluator(command, position, ordinary):
     return False
 
 
+def _helper_reads_stdin_as_data(command, start):
+    """Whether the run at `start` is a shell handed an issue helper as its script file.
+
+    A shell handed a file reads stdin as data. Only the one literal shape:
+    `bash /dev/stdin`, an assignment, a wrapper or a `cd` before it runs the
+    text or moves what the path names. An unquoted body is judged regardless.
+    """
+    return not command[:start].strip() and ISSUE_HELPER_RUN.match(command, start) is not None
+
+
 def _consumes_as_script(command, position, ordinary):
     """Whether the script at `position` is executed by its own run or a later
     one in the same pipeline."""
     start, end = _run_bounds(command, position, ordinary)
-    return (reads_stdin_as_script(_run_words(command, start, end, ordinary))
+    return ((reads_stdin_as_script(_run_words(command, start, end, ordinary))
+             and not _helper_reads_stdin_as_data(command, start))
             or forwards_to_evaluator(command, position, ordinary))
 
 
@@ -2365,14 +2383,12 @@ REMOTE_RESET = (
 )
 STDIN_DATA_ROUTE = (
     " If the shell runs a script file and this text is that script's input, "
-    "as an issue body for `gh-issue-hand.sh` is, write the text to a file "
-    "with `Write` and pass it as `< <path>`: this guard reads a shell's stdin "
-    "as a script, quoted delimiter or not, since it cannot see what the "
-    "script does with it. Where `Write` is denied, as in a sweep filing "
-    "through `gh-issue-sweep.sh`, the quoted heredoc stays the route and the "
-    "text is reworded to read as a script: no backtick or `$(`, an even "
-    "count of apostrophes outside double quotes, and a push or any other "
-    "command this guard refuses described in prose rather than spelled; "
+    "write the text to a file with `Write` and pass it as `< <path>`: this "
+    "guard reads a shell's stdin as a script, quoted delimiter or not, since "
+    "it cannot see what the script does with it. An issue helper is read as "
+    "taking data only as the first thing the command does, spelled "
+    "`bash .claude/scripts/gh-issue-sweep.sh <args> <<'DELIM'`, which is the "
+    "route where `Write` is denied, as in a sweep; "
     "`docs/harness/pitfalls.md`, *Shell and encoding*, lists the shapes "
     "another check refuses there too."
 )
