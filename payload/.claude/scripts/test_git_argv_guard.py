@@ -3751,13 +3751,18 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         self.refused("rm -rf ..", "rm -rf ../", "rm -rf ../..", "rmdir ..", "unlink ..",
                      "mv .. /tmp/x", "shred -u ..", "rm -rf /", "rm -rf ~", "rm -rf ~/",
                      "rm -rf $HOME", 'rm -rf "$HOME"', f"rm -rf {self.spelled('..')}",
-                     "cd notes && rm -rf ../..", env=env)
+                     "cd notes && rm -rf ../..", "rm -rf ../*", "rm -rf ~/*", "rm -rf /*",
+                     "cd .. && rm -rf *", env=env)
         self.refused("rm -rf ../..", cwd=os.path.join(self.root, "notes"), env=env)
-        self.admitted("rm -rf ..", cwd=os.path.join(self.root, "notes"), env=env)
+        self.admitted("rm -rf ..", "rm -rf ../*", cwd=os.path.join(self.root, "notes"), env=env)
+        if os.name == "nt":
+            drive = self.root[0].lower()
+            self.refused(f"rm -rf /{drive}", f"rm -rf /{drive}/", env=env)
 
     def test_removing_what_only_sits_near_the_checkout_stays_admitted(self):
         env = {"HOME": os.path.join(self.root, "notes")}
-        self.admitted("rm -rf .", f"rm -rf {self.spelled()}", "rm -rf ~/scratch", "rm -rf /tmp/x",
+        self.admitted("rm -rf .", "rm -rf *", "rm -rf ./*", "rm -rf notes/*", "rm -rf ~/scratch/*",
+                      f"rm -rf {self.spelled()}", "rm -rf ~/scratch", "rm -rf /tmp/x",
                       "rm -rf ../sibling", "mv notes.md ..", "mv a.md b.md ..", "mv *.md ..",
                       "cp notes.md ..", "cp notes.md ~", "ls ..", "cat ..", "rm -rf '~'",
                       'rm -rf "$dir"', env=env)
