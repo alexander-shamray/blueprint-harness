@@ -788,9 +788,9 @@ class ALegacyMergeForwardIsNotSilentlyDropped(unittest.TestCase):
 
     def test_a_side_taken_whole_over_a_clean_hunk_in_a_conflicted_file_stops_the_run(self):
         # Main edits lines 1 and 50 of m.txt and the branch line 50, and the
-        # merge takes the branch's m.txt whole. Each edit is a `sed` into a new
-        # file, since BSD's `sed -i` takes the script for a backup suffix. It equals one parent, so `--cc`
-        # is empty, and the replay would bring main's line 1 back.
+        # merge takes the branch's m.txt whole. It equals one parent, so `--cc`
+        # is empty, and the replay would bring main's line 1 back. Each edit is
+        # a `sed` into a new file: BSD's `sed -i` takes the script for a suffix.
         self.at('git checkout -q main && seq 1 60 > m.txt && git add -A && git commit -qm "m.txt" '
                 '&& git push -q origin main && git checkout -q feat/x && git rebase -q main '
                 '&& git push -q -f origin feat/x '
