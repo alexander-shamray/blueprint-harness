@@ -56,8 +56,8 @@ git push -q origin main
 git checkout -q feat/x
 '''
 
-# Each test's own copy of that state, built once per module: about twenty git
-# processes a test become three, which is most of this suite's time on Windows.
+# Each test's own copy of that state, built once until a module cleanup removes it, which under the shard runner is
+# per class: about twenty git processes a test become three, which is most of this suite's time on Windows.
 FIXTURE = '''
 set -eu
 : "${TEMPLATE:?}"
