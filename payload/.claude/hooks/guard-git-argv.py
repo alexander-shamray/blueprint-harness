@@ -3162,9 +3162,8 @@ def _restore_source(options):
 def git_path_offence(words, cwd, command):
     """The reason to refuse a git verb writing a denied path, or `None`.
 
-    `git rm`, `git mv` and a checkout or restore from another commit, from a literal
-    `-C`. A restore from `HEAD` or the index puts back what the file was, and a
-    linked worktree's write is in its pull request's diff: agents typed all three.
+    `git rm`, `git mv` and a restore from another commit, from a literal `-C`. A
+    restore from `HEAD` puts the file back, and a worktree's write is in its diff.
     """
     literals = [target_literal(word) for word in words]
     lead = leading_command([word or "" for word in literals])
