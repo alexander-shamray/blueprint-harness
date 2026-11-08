@@ -243,10 +243,10 @@ keeping the guide's *Comments* rules be reworded, completed or expanded.
 
   A row with no issue reads `owed (not filed)` in its `#` cell, the form
   `dispatch_board.py` parses beside a number. Work that stops without landing
-  (a claim abandoned, a pull request closed unmerged, or one merged without closing its issue) leaves the issue open
-  and ends its claim, so its row is re-derived by the table: *In progress*
-  with the branch if one remains, otherwise back to its wave. What the work
-  found and filed has its own row by the same table, written when it is
+  (a claim abandoned, a pull request closed unmerged, or one merged without
+  closing its issue) leaves the issue open and ends its claim, so its row is
+  re-derived by the table: *In progress* with the branch if one remains,
+  otherwise back to its wave. What the work found and filed has its own row by the same table, written when it is
   filed. `/dispatch` is the list's one writer from its step 0 to its report,
   and sends a hand-back or a stop back to its wave marked `OWNER`
   (`docs/commands/dispatch.md`, *One writer of the task list* and *Waking*).
