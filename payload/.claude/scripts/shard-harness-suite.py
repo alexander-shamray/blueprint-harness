@@ -366,7 +366,7 @@ def report(logs):
 
 
 def slowest(work):
-    """Every class's time, longest first, from every unit that finished.
+    """Every class's time, longest first, from every queued unit that finished; `SERIAL` classes are not queued.
 
     Printed at the end of every run so `WEIGHT` can be refreshed whole from data
     rather than from a profile somebody has to remember to take.
@@ -540,7 +540,7 @@ def run_all(units, tail, count):
         report(logs)
         shutil.rmtree(str(work), ignore_errors=True)
 
-    print("\nshard-harness-suite.py: every class, slowest first, in seconds:")
+    print("\nshard-harness-suite.py: every class the queue finished, slowest first, in seconds:")
     for seconds, cls in times:
         print(f"  {seconds:7.1f}  {cls}")
     bad = [title for (title, _), code in zip(logs, codes) if code != 0]
