@@ -170,6 +170,30 @@ widens the next invocation's Bash surface. The deny list in
 `.claude/settings.json` is the owner of the paths; this paragraph is the
 reason `skills/` is on it.
 
+**A command that holds `Write` or `Edit` denies the user's memory and output
+styles.** `~/.claude/projects/*/memory/` is loaded into later sessions as the
+user's own standing instruction, and `~/.claude/output-styles/` shapes how they
+answer; a command that reads a branch diff and holds `Write` could otherwise
+plant one. `guard-edit-target.py` admits what sits below `~/.claude`, since a
+session's own memory and scratch writes live there and it cannot tell a save from
+an injection,
+so `Edit(~/.claude/projects/**)` and `Edit(~/.claude/output-styles/**)` sit in
+`disallowed-tools` of `/ship`, `/pr`, `/style-pass`, `/dispatch` and `/team`, and
+`AWritingCommandDeniesTheUsersMemoryAndOutputStyles` fails when a managed command
+that grants either tool lacks them. A session inside one of those commands
+therefore cannot save a memory: it saves it afterwards. A target's own command is
+its own to hold, since a deny in a local file is no payload suite's to require.
+**Measured in blueprint-admin, not here** (its #291): on 2026-10-20, on Windows,
+in a turn whose `/ship` frontmatter was in force, a `Write` to each directory was
+refused with no prompt and one to `~/.claude/scratch/` succeeded, so the
+home-relative specifier binds the absolute path a tool is given. **The rules bind
+only the editing tools, and the shell is open (blueprint-harness#246):**
+`guard-git-argv.py` judges
+paths anchored at a checkout's root, so a redirect, `rm`, `curl -o`, `tar -x` or
+an interpreter writing under either directory is neither denied nor refused. Read
+at `99cc539` by running the guard over each. Admin's own guard refused the first
+two, so that half of its paragraph does not hold here.
+
 **The index skill's prefix grants are the same speed bump as `git *--output*`.**
 `Bash(bash .claude/skills/codebase-index/scripts/cbx search:*)` matches the
 typed string; the shell still runs `$(…)` and a second command on that line.
