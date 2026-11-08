@@ -1431,26 +1431,26 @@ one, or to be moved there by a `rebase --update-refs`. The last three `git
 worktree list` reports only as a detached HEAD, so the name is read from each
 git dir's rebase, bisect and `update-refs` state, where `git branch -D` looks
 too from git 2.38. A superseded sync's aside, it deletes only when
-`pr-for-branch.sh` reports a pull request for the branch `MERGED` into `main` whose head is the branch's tip,
-which is `/ship` step 0's finished predicate: a commit added after the merge
-is work no merge holds, and keeps the branch, and the helper reads only this
-repository's rows, so a fork's same-named pull request lands nothing. A branch
-named as a sync head, and no other, also goes when every row reads `CLOSED`,
-one into `main` at its tip, and origin no longer has it: `harness_sync` closes a
-superseded sync that way, so no merge can land it and nobody can reopen it.
-Exit 12 is an origin it cannot ask. The
-delete is `git update-ref --no-deref -d` against the tip that was checked, a
+`pr-for-branch.sh` reports a pull request for the branch `MERGED` into `main`
+whose head is the branch's tip, which is `/ship` step 0's finished predicate:
+a commit added after the merge is work no merge holds, and keeps the branch,
+and the helper reads only this repository's rows, so a fork's same-named pull
+request lands nothing. A branch named as a sync head, and no other, also goes
+when every row reads `CLOSED`, one into `main` at its tip, and origin no longer
+has it: `harness_sync` closes a superseded sync that way, so no merge can land
+it and nobody can reopen it. Exit 12 is an origin it cannot ask. The delete is
+`git update-ref --no-deref -d` against the tip that was checked, a
 compare-and-swap, rather than `git branch -D`, which deletes whatever the
 branch holds when it runs: the read of the pull requests takes seconds, and a
-commit landing in that window would go with the branch. The worktree check
-runs last, because `update-ref` does not make it, and the branch's
-configuration section, which `update-ref` leaves, is removed after the delete.
-The check and the delete are two steps, so the check runs again after it: a
-worktree that took the branch between them, or a second read that fails, puts
-the branch back at the tip and exits 4 or 12 as the first read would have. Its
-residual is a commit made in that worktree in the instant the branch is gone,
-which recreates the ref, so the putting back fails: the helper then exits 4 and
-names the tip, and the `git branch` line that restores it if it is still absent.
+commit landing in that window would go with the branch. The worktree check runs
+last, because `update-ref` does not make it, and the branch's configuration
+section, which `update-ref` leaves, is removed after the delete. The check and
+the delete are two steps, so the check runs again after it: a worktree that
+took the branch between them, or a second read that fails, puts the branch back
+at the tip and exits 4 or 12 as the first read would have. Its residual is a
+commit made in that worktree in the instant the branch is gone, which recreates
+the ref, so the putting back fails: the helper then exits 4 and names the tip,
+and the `git branch` line that restores it if it is still absent.
 
 Its exit codes, in the rebase helper's meanings where one fits: 0 dropped; 2
 usage, or a name it will not take, a symbolic ref among them; 3 the branch is

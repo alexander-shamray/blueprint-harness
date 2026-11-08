@@ -259,8 +259,9 @@ one.
 The executor writes `<group>.json` in its own worktree, and `result` copies
 it into the run and checks it as untrusted data: a missing, unparsable or
 mis-shaped result is a crash, never a success (spec §6.3), unless GitHub shows
-the merge at the worktree's tip (*Waking*). A claimed merge is believed only once `verify` has read it from GitHub — merged, at that
-oid, from that branch, into `main` — and the main checkout, pulled, holds
+the merge at the worktree's tip (*Waking*). A claimed merge is believed only
+once `verify` has read it from GitHub — merged, at that oid, from that branch,
+into `main` — and the main checkout, pulled, holds
 it. A read that fails leaves the claim to be checked again; a contradiction
 is a stop. The schema is `dispatch_run.py`'s, and `/ship`'s runbook shows
 the executor its shape.
@@ -313,14 +314,14 @@ fields and with `verify` still to come, and its `decisions` say the result
 came from there. The rounds it ran went with the file, so a first session goes
 to *Needs a human* as a merge with no review round unless its transcript shows
 a reviewer, and a relaunch reads as one onto a merged PR does (*What an
-executor returns*). A read that fails, or a predicate that does not hold, leaves the crash as it
-was, and so does a sync whose tip is not the head its proof bound (*The proof
-binds*). Run 20261108-071135 relaunched five groups of twenty-one: one had merged
-and written its result to the main checkout's run directory rather than its
-worktree's, which `result` does not read, and four had ended the turn on
-`/commit`'s report, before any merge, which only a relaunch can recover. A
-turn ended there ends a `claude -p` session, which is why `/ship --dispatched`
-says a step's status is not a reply.
+executor returns*). A read that fails, or a predicate that does not hold,
+leaves the crash as it was, and so does a sync whose tip is not the head its
+proof bound (*The proof binds*). Run 20261108-071135 relaunched five groups of
+twenty-one: one had merged and written its result to the main checkout's run
+directory rather than its worktree's, which `result` does not read, and four
+had ended the turn on `/commit`'s report, before any merge, which only a
+relaunch can recover. A turn ended there ends a `claude -p` session, which is
+why `/ship --dispatched` says a step's status is not a reply.
 
 A `Model` cell `launch` would refuse holds its group at `board` and `wake`,
 since `launch` comes after the fork and `tasks move`, and a refusal there
@@ -395,12 +396,12 @@ on, so nothing reserves one: the morning's list shows it, and the next
 
 **A wait leaves nothing behind.** A `blueprint-harness` merge touching the
 payload opens a new sync and closes the one before it, and a sync that waits may
-be superseded that way ten times a night, so `sync-ready` asks `sync-launch`'s checks that read no tree before
-`git-worktree-sync.sh` makes a worktree and a branch for a launch that was
-never going to happen. `sync-drop`, before the report, offers
-`git-branch-drop.sh` every local branch named as a sync head: what merged goes,
-as does one whose pull request closed with origin's branch gone at this tip,
-which no merge can land and which a worktree does not hold.
+be superseded that way ten times a night, so `sync-ready` asks `sync-launch`'s
+checks that read no tree before `git-worktree-sync.sh` makes a worktree and a
+branch for a launch that was never going to happen. `sync-drop`, before the
+report, offers `git-branch-drop.sh` every local branch named as a sync head:
+what merged goes, as does one whose pull request closed with origin's branch
+gone at this tip, which no merge can land and which a worktree does not hold.
 
 **The proof binds.** The verify at step 0.3 and after each exit runs in the
 main checkout, because the executor runs that head's own copy of `sync_pr.py`,
