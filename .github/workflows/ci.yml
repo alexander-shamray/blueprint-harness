@@ -143,7 +143,8 @@ jobs:
 
   # A red push run is an issue, which outlives the run and is what `/ship` step 6 reads through `main-red-open.sh`.
   # A job that hits its timeout or that no runner picks up reports `cancelled`, and `failure()` is false for that.
-  # The concurrency block above cancels nothing on `main`, so the one false alarm is somebody's own cancel.
+  # The concurrency block above cancels nothing on `main`, so the false alarms are somebody's own cancel and a leg
+  # GitHub cancels from the runner queue (README.md, *Tests*), which a rerun of the failed jobs answers.
   # `harness_sync/tests/test_main_red_job.py` holds `needs` to every other job here.
   main-red:
     needs: [sync-tool, payload-suites]
@@ -184,7 +185,9 @@ jobs:
               '' \
               'Revert the pull request that turned it red first, then fix forward' \
               '(docs/harness/working-rules.md, *CI*). While this is open, `/ship` step 6' \
-              'lands only a run started for this issue. Close it once main is green.' \
+              'lands only a run started for this issue. Close it once main is green. A' \
+              'leg cancelled from the runner queue is no fault of the change: rerun the' \
+              'failed jobs first (README.md, *Tests*).' \
               '' \
               'Filed by the main-red job in ci.yml, not by hand or by a sweep.' |
               gh issue create --title "$title" --label bug --label harness --label high --body-file -
