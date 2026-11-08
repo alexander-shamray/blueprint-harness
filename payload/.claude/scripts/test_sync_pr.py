@@ -4,7 +4,10 @@ import contextlib
 import hashlib
 import io
 import json
+import os
+import shutil
 import subprocess
+import sys
 import tempfile
 import types
 import unittest
@@ -895,6 +898,30 @@ class RunLocalSuitesTests(SyncCase):
                      ["run-local-suites", "7", "--head", "0" * 40, "-s", "elsewhere"]):
             with self.subTest(argv=argv):
                 self.assertEqual(2, self.cli(*argv)[0])
+
+
+class TheScriptPrintsWhatAnAnsiStreamCannot(unittest.TestCase):
+    def test_a_path_outside_the_code_page_prints_rather_than_raises(self):
+        # Run as a script, since `cli` captures into a StringIO that never meets this. A raise here would leave the
+        # later suites unrun and report a passing target as a failing one.
+        name = "tools/test_→.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts = root / ".claude" / "scripts"
+            scripts.mkdir(parents=True)
+            here = Path(__file__).resolve().parent
+            for script in ("sync_pr.py", "dispatch_board.py"):
+                shutil.copy(here / script, scripts / script)
+            (root / ".harness").mkdir()
+            (root / ".harness" / "config.json").write_text(json.dumps({"local": ["tools/**"]}), encoding="utf-8")
+            (root / "tools").mkdir()
+            (root / name).write_text("", encoding="utf-8")
+            git(root, "init", "-q")
+            git(root, "add", "tools", ".harness/config.json")
+            done = subprocess.run([sys.executable, str(scripts / "sync_pr.py"), "local-suites"], cwd=root,
+                                  capture_output=True, env={**os.environ, "PYTHONIOENCODING": "cp1252"}, check=False)
+        self.assertEqual(0, done.returncode, done.stderr.decode("utf-8", "replace"))
+        self.assertEqual(name, done.stdout.decode("utf-8").strip())
 
 
 if __name__ == "__main__":
