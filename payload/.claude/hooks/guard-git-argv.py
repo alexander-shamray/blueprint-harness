@@ -3061,6 +3061,23 @@ def find_offence(words, cwd, command):
     return None
 
 
+def verb_offence(verb, operands, cwd, command, writer):
+    """The reason to refuse writing verb `verb` with `operands`, or `None`."""
+    for word, sources, into in verb_destinations(verb, operands):
+        refusal = removal_offence(word, cwd, command, writer) if (
+            sources is None and verb in REMOVING_VERBS) else None
+        if refusal is not None:
+            return refusal
+        names = [None] if sources is None or verb not in TREE_VERBS else (
+            landings(word, sources, into, cwd, command))
+        for name in names:
+            refusal = destination_offence(word, cwd, command, writer,
+                                          verb in TREE_VERBS, name)
+            if refusal is not None:
+                return refusal
+    return None
+
+
 def writing_verb_offence(words, cwd, command):
     """The reason to refuse a writing verb in the run `words`, or `None`.
 
@@ -3087,18 +3104,98 @@ def writing_verb_offence(words, cwd, command):
                 if word in (";", "+"):
                     operands = operands[:cut]
                     break
-        for word, sources, into in verb_destinations(verb, operands):
-            refusal = removal_offence(word, cwd, command, f"`{verb}`") if (
-                sources is None and verb in REMOVING_VERBS) else None
-            if refusal is not None:
-                return refusal
-            names = [None] if sources is None or verb not in TREE_VERBS else (
-                landings(word, sources, into, cwd, command))
-            for name in names:
-                refusal = destination_offence(word, cwd, command, f"`{verb}`",
-                                              verb in TREE_VERBS, name)
-                if refusal is not None:
-                    return refusal
+        refusal = verb_offence(verb, operands, cwd, command, f"`{verb}`")
+        if refusal is not None:
+            return refusal
+    return None
+
+
+def _git_operands(words, literals, value_options):
+    """`(options, before, after)` of a git verb's words: `after` follows a `--`."""
+    options, before, after, position = [], [], None, 0
+    while position < len(words):
+        raw, literal = words[position], literals[position]
+        position += 1
+        if after is not None:
+            after.append(raw)
+        elif literal == "--":
+            after = []
+        elif literal and literal.startswith("-") and literal != "-":
+            options.append(literal)
+            if literal in value_options:
+                if position < len(words):
+                    options.append(literals[position] or "")
+                position += 1
+        else:
+            before.append(raw)
+    return options, before, after or []
+
+
+def _has_short_letter(options, letter):
+    """Whether a short cluster in `options` carries `letter`."""
+    return any(re.fullmatch(rf"-[A-Za-z]*{letter}[A-Za-z]*", option) for option in options)
+
+
+def _restore_source(options):
+    """The `--source` of `git restore`'s `options`, spelled any way git takes it."""
+    for index, option in enumerate(options):
+        name, equals, value = option.partition("=")
+        if name.startswith("--") and len(name) > 3 and "--source".startswith(name):
+            return value if equals else (options[index + 1] if index + 1 < len(options) else "")
+        cluster = re.fullmatch(r"-[A-Za-z]*s(.*)", option)
+        if cluster and not option.startswith("--"):
+            return cluster.group(1) or (options[index + 1] if index + 1 < len(options) else "")
+    return None
+
+
+def git_path_offence(words, cwd, command):
+    """The reason to refuse a git verb writing a denied path, or `None`.
+
+    `git rm`, `git mv` and a checkout or restore from another commit, each from
+    the literal `-C` it names. A restore from `HEAD` or the index puts back what
+    the file already was, and `--cached` and `--staged` leave the file alone.
+    """
+    literals = [target_literal(word) for word in words]
+    lead = leading_command([word or "" for word in literals])
+    if program_name(lead) != "git":
+        return None
+    position = literals.index(lead) + 1
+    while position < len(words) and (literals[position] or "").startswith("-"):
+        if literals[position] == "-C" and position + 1 < len(words):
+            cwd = written_path(words[position + 1], cwd, command)
+        position += 2 if literals[position] in GLOBAL_VALUE_FLAGS else 1
+    if position >= len(words):
+        return None
+    verb, words, literals = literals[position], words[position + 1:], literals[position + 1:]
+    if verb in ("rm", "mv"):
+        options, _, _ = _git_operands(words, literals, ())
+        if set(options) & {"--cached", "--dry-run"} or _has_short_letter(options, "n"):
+            return None
+        return verb_offence(verb, words, cwd, command, f"`git {verb}`")
+    if verb == "checkout":
+        options, before, after = _git_operands(
+            words, literals, {"-b", "-B", "--orphan", "--conflict", "--pathspec-from-file"})
+        if set(options) & {"-b", "-B", "--orphan"}:
+            return None
+        source = target_literal(before[0]) if before else None
+        paths = after or before[1:]
+    elif verb == "restore":
+        options, before, after = _git_operands(
+            words, literals, {"-s", "--source", "--conflict", "--pathspec-from-file", "-U", "--unified"})
+        source = _restore_source(options)
+        staged = "--staged" in options or _has_short_letter(options, "S")
+        worktree = "--worktree" in options or _has_short_letter(options, "W")
+        if staged and not worktree:
+            return None
+        paths = before + after
+    else:
+        return None
+    if source is None or source in ("HEAD", "@"):
+        return None
+    for word in paths:
+        refusal = destination_offence(word, cwd, command, f"`git {verb}` from `{source}`", True)
+        if refusal is not None:
+            return refusal
     return None
 
 
@@ -3149,7 +3246,8 @@ def write_offence(command):
                 target, cwd, command, f"`{match.group('operator')}`")
             if refusal is not None:
                 return refusal
-        refusal = writing_verb_offence(words, cwd, command)
+        refusal = (git_path_offence(words, cwd, command)
+                   or writing_verb_offence(words, cwd, command))
         if refusal is not None:
             return refusal
         cwd = directory_after(words, cwd, command)
