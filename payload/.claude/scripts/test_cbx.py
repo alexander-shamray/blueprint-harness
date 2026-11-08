@@ -487,11 +487,14 @@ class CbxWrapper(unittest.TestCase):
                 stub.write_text(
                     "#!/bin/sh\necho PATH_CLI \"$@\"\n", encoding="utf-8")
                 stub.chmod(stub.stat().st_mode | stat.S_IEXEC)
+            # A passing gate stub first on PATH, so the host's own Python and the
+            # working directory's index are not what the case depends on.
+            _write_ps_stub(fake, "py", _PY_LAUNCHER_STUB)
             env = {
                 **os.environ,
                 "PATH": fake + os.pathsep + os.environ.get("PATH", ""),
             }
-            out = _ps_invoke(CBX_PS1, "search", "X", env=env)
+            out = _ps_invoke(CBX_PS1, "search", "X", env=env, cwd=fake)
             self.assertEqual(0, out.returncode, out.stderr)
             self.assertIn("PATH_CLI", out.stdout)
             self.assertIn("search", out.stdout)
@@ -510,6 +513,7 @@ class CbxWrapper(unittest.TestCase):
                 stub = Path(fake) / "codebase-index"
                 stub.write_text("#!/bin/sh\necho PATH_CLI \"$@\"\n", encoding="utf-8")
                 stub.chmod(stub.stat().st_mode | stat.S_IEXEC)
+            _write_ps_stub(fake, "py", _PY_LAUNCHER_STUB)
             return fake + os.pathsep + os.environ.get("PATH", ""), 0, "PATH_CLI"
 
         def module(fake):
