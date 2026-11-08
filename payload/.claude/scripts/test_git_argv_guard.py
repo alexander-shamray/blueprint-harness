@@ -3468,6 +3468,31 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
 
+    def test_the_plumbing_that_updates_a_remote_ref_without_push_is_refused(self):
+        # The protected-branch, force and delete checks key off the verb `push`.
+        for command in (
+            "git send-pack origin HEAD:main",
+            "git send-pack --force origin HEAD:refs/heads/main",
+            "git http-push origin HEAD:main",
+            "git -C /tmp/x send-pack origin HEAD:main",
+            "git --no-pager send-pack origin HEAD:heads/main",
+            "git receive-pack /tmp/x",
+            "git subtree push --prefix=x origin main",
+            "git -C sub subtree push --prefix=x origin main",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command)
+
+    def test_a_ref_named_send_pack_is_data_for_another_verb(self):
+        for command in (
+            "git log send-pack", "git show http-push", "git diff send-pack..HEAD",
+            "git --no-pager log remote-fix", "git -C d log subtree",
+            "git --git-dir=.git log receive-pack", "git remote -v",
+            "git subtree split --prefix=x", "git log --grep=push",
+        ):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
     def test_xargs_cannot_supply_a_push(self):
         for command in (
             "echo +HEAD:main | xargs git push origin some-branch",
