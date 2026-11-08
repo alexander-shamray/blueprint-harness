@@ -231,10 +231,13 @@ in the data.
 to `main` and daily. A branch that changes `rulesets/main.json` is red until the
 change is live, so its order is: the `/ship` loop ends with no open finding,
 `ruleset-apply <repo>` runs from the branch, the `rulesets` job is rerun, and
-the pull request merges. The floor refusal is what stops an unmerged branch from
-taking `main` below the floor: data without a floor rule or with no required
-check is refused before anything is applied. A dropped or renamed required check
-is caught only by the review loop that precedes the apply. A scheduled run that
-is red, a difference such as a ruleset changed by hand or a failed read-back,
-files a `harness`, `high` issue whose body says which, or comments on the open
-one.
+the pull request merges. Between the apply and the merge the live ruleset holds
+the new list and `main` the old one, so another pull request pushed in that
+window reads red in the required `rulesets` job though nothing is wrong with it,
+and a new push after the merge clears it. The floor refusal is what stops an
+unmerged branch from taking `main` below the floor: data without a floor rule or
+with no required check is refused before anything is applied. A dropped or
+renamed required check is caught only by the review loop that precedes the
+apply. A scheduled run that is red, a difference such as a ruleset changed by
+hand or a failed read-back, files a `harness`, `high` issue whose body says
+which, or comments on the open one.
