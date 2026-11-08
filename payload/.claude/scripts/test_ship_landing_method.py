@@ -47,10 +47,11 @@ class TheConflictAndTheWorktreeTheRunbookNames(unittest.TestCase):
     def test_a_conflict_takes_the_rebase_the_working_rule_gives_it(self):
         rule = " ".join((ROOT / "docs" / "harness" / "working-rules.md").read_text(encoding="utf-8").split())
         self.assertIn("only when GitHub reports it conflicting", rule)
-        self.assertIn("What resolves GitHub's, and a CONFLICTING read before any wait, is a rebase:", self.text)
+        # At any point: #265 read it after `main` moved during the checks wait, and the wait passes only on MERGEABLE.
+        self.assertIn("What resolves GitHub's, and a CONFLICTING read at any point, is a rebase:", self.text)
         self.assertNotIn("Conflicts are the caller's tree", self.text)
         # The route is the one a refused landing already takes, and the helper is what it runs.
-        at = self.text.index("a CONFLICTING read before any wait")
+        at = self.text.index("a CONFLICTING read at any point")
         self.assertLess(at, self.text.index("bash .claude/scripts/git-rebase-onto-main.sh <branch> start"))
 
     def test_the_conflict_stop_is_left_only_for_the_update_having_answered(self):

@@ -617,7 +617,7 @@ target*)
      where the helper exits non-zero: report the refusal rather than reaching
      for another method. A refusal with no exit code is the refused-merge stop
      instead, and no branch update answers it. What resolves GitHub's, and a
-     `CONFLICTING` read before any wait, is a rebase:
+     `CONFLICTING` read at any point, is a rebase:
 
    ```bash
    bash .claude/scripts/git-rebase-onto-main.sh <branch> start
