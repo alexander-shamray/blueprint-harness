@@ -1485,6 +1485,9 @@ class TheGitArgvGuard(unittest.TestCase):
             "git log ${BRANCH}",
             "git log ${BRANCH:-main}",
             "echo ${#arr[@]}",
+            'echo "${#X}"',
+            'echo "(length ${#arr[@]})"',
+            '[ -n "$X" ] && echo "set (length ${#X})" || echo no',
             "git log ${BRANCH//x/y}",
         ):
             with self.subTest(command=command):

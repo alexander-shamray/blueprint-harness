@@ -796,7 +796,8 @@ def expansion_end(command, start):
     if not command.startswith("$", start):
         return None
     if command.startswith("${", start):
-        close = _closing_brace(command, start + 2)
+        # A `#` straight after the brace is a length, and read afresh a comment.
+        close = _closing_brace(command, start + (3 if command.startswith("#", start + 2) else 2))
         return None if close is None else close + 1
     if command[start + 1:start + 2] in ("@", "*", "!"):
         return start + 2
