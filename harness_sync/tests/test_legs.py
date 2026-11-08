@@ -130,7 +130,7 @@ class WhatTheFilterLooksAtTests(unittest.TestCase):
 
     def test_every_leg_step_obeys_the_decision(self) -> None:
         conditions = [line.strip() for line in _code_lines(CI)
-                      if re.search(r"matrix\.os (?:!= 'ubuntu-latest'|== 'windows-latest')", line)]
+                      if re.search(r"matrix\.os (?:!= 'ubuntu-latest'|== '(?:windows|macos)-latest')", line)]
         gated = [line for line in conditions if "steps.reach.outputs.test != 'false'" in line]
         self.assertEqual(len(gated), len(re.findall(r'-p "test_', "\n".join(_code_lines(CI)))))
         self.assertEqual(len(conditions), len(gated) + 1, "only the decision itself is ungated")
