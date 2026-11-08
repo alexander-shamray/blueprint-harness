@@ -156,7 +156,10 @@ keeping the guide's *Comments* rules be reworded, completed or expanded.
   `git-revert-pr.sh <n>`; the fix forward is a pull request of its own
   after it. A red run that a rerun turns green is a flake: it is a comment
   on the flaky tests tracker, and an issue filed for the red `main`
-  closes on that green run.
+  closes on that green run. That open issue, titled `main is red` or
+  `main is red: <workflow>` and labelled `bug`, is the signal: `/ship` step 6
+  reads it with `main-red-open.sh` and stops as on a red check, but for a run
+  started as `/ship #<n>` to answer it.
 - **A check red on a pull request that touched none of it belongs to
   `main`**, whether or not `main` ran red: a fix can land before `main` runs
   again, and `closure-gate`, `comment-gate`, `commit-gate` and
