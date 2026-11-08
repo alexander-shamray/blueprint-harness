@@ -102,6 +102,9 @@ REFUSED_SUBCOMMANDS = {
     "web--browse": "starts the browser program it is given",
     "difftool": "runs the program `diff.tool` names, the `--ext-diff` act by another verb",
     "mergetool": "runs the program `merge.tool` names, the `--ext-diff` act by another verb",
+    "send-pack": "updates a remote ref past every check a `git push` gets",
+    "http-push": "updates a remote ref past every check a `git push` gets",
+    "receive-pack": "takes a push into a repository past every check a `git push` gets",
 }
 REPOSITORY_SUBCOMMANDS = {
     "fetch", "clone", "pull", "push", "remote", "submodule", "ls-remote",
@@ -3250,6 +3253,11 @@ def _offence(command, depth, judged, reading):
             return (
                 f"`git {subcommand} {operand}` runs the command it is given, "
                 "which no flag check can see, and nothing here runs it."
+            )
+        if subcommand == "subtree" and "push" in after_global_options(segment)[1:]:
+            return (
+                "`git subtree push` updates a remote ref past every check a "
+                "`git push` gets, and nothing here runs it."
             )
         value_flags = VALUE_FLAGS_BY_SUBCOMMAND.get(subcommand, frozenset())
         skip = False
