@@ -1148,8 +1148,10 @@ below are that block's.
 whose arguments a sync changed (`git-worktree-remove.sh` gaining `<branch>`:
 line 7 exited 2 on the old text's missing `<branch>`, and the drop then exited
 4 with the branch still checked out). Read literally, line 7's exit is a stop,
-though the merge had landed; so lines 7 to 9 are read again from the file the
-pull brought and repeated, and the report says so. (Found by the run of
+though the merge had landed; so the run reads the teardown again from the file
+the pull brought and repeats it from the line that exited (line 7 only on a
+forked run whose line 7 has not exited 0, since an in-place run skips it and a
+second run of it exits 3), and the report says so. (Found by the run of
 blueprint-harness sync #140: blueprint-harness#141.)
 
 **`main` ends at a descendant of the merge, not at the merge**, and the
