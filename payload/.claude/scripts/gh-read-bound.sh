@@ -5,9 +5,10 @@
 GH_READ_BOUND_SECONDS="${GH_READ_BOUND_SECONDS:-60}"
 
 # `bounded <seconds> <command>...`: the command under the bound, 124 past it, as GNU `timeout` answers. macOS ships
-# no `timeout`, so where none is on PATH a watchdog sends the TERM `timeout` would; gh-issue-harness.sh and the hint
-# hooks' hint-bound.sh run under it too. GH_READ_TIMEOUT names the program, so a case can take the watchdog where
-# `timeout` is installed. Each status is caught, since a caller may hold `set -e` on.
+# no `timeout`, so there a watchdog sends TERM to the command alone, not its process group as `timeout` does, which
+# `gh`, one process, does not need; gh-issue-harness.sh and hint-bound.sh run under it too. GH_READ_TIMEOUT names the
+# program, so a case can take the watchdog where `timeout` is installed. Each status is caught, since a caller may
+# hold `set -e` on.
 bounded() {
   local seconds="$1" rc=0 pid dog fired=0
   shift
