@@ -63,7 +63,7 @@ for ((i = 0; i < ${#cells}; i++)); do
   fi
   case "$ch" in
     '`') inbt=$((1 - inbt)) ;;
-    '(') if [ "$inbt" -eq 0 ] && [ "$prev" = " " ]; then rdepth=1; fi ;;
+    '(') if [ "$inbt" -eq 0 ] && [[ "$prev" == [[:space:]] ]]; then rdepth=1; fi ;;
     '{') depth=$((depth + 1)) ;;
     '}') depth=$((depth - 1)); [ "$depth" -ge 0 ] || refuse "the Touch set row has an unbalanced brace" ;;
     ',') if [ "$depth" -eq 0 ]; then items+=("$cur"); cur=""; prev=""; continue; fi ;;
@@ -80,6 +80,8 @@ for item in "${items[@]}"; do
   # The reason beside a backticked token is dropped unread and never printed;
   # it holds no backtick and no nested parenthesis.
   if [[ "$t" =~ ^(\`[^\`]+\`)[[:space:]]+\([^\`\(\)]*\)$ ]]; then t="${BASH_REMATCH[1]}"; fi
+  # A reason that failed the form above is named as such, not as a backtick.
+  if [[ "$t" =~ ^\`[^\`]+\`[[:space:]]+\( ]]; then refuse "the Touch set row has a reason outside its grammar"; fi
   case "$t" in
     '`'*'`') t="${t:1:${#t}-2}" ;;
     *'`'*) refuse "the Touch set row has an unbalanced backtick" ;;
