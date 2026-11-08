@@ -283,6 +283,14 @@ class RunningASync(Bound):
                 self.assertIn(f"{WORKTREE} is at {moved}, not the proved {self.oid}", out)
                 self.assertEqual(said, f"#{PR} is MERGED, so the head moved because the merge landed" in out)
 
+    def test_a_dirty_tree_is_not_called_a_landed_merge(self):
+        self.sync_launch()
+        (self.tree / "dirt").write_text("x\n", encoding="utf-8")
+        with mock.patch.object(dr, "helper", lambda *a: json.dumps({"state": "MERGED"})):
+            out = self.run_group()
+        self.assertIn("is not clean", out)
+        self.assertNotIn("merge landed", out)
+
     def test_the_sync_result_validates_with_no_issues(self):
         self.assertEqual(sorted(dr.RESULT_KEYS), sorted(SYNC_MERGED))
         for result in (SYNC_MERGED, SYNC_CLOSED):

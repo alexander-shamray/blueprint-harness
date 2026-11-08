@@ -333,12 +333,16 @@ def _worktree_on(root, worktree, branch):
         raise Refusal(f"{worktree} is not a worktree on {branch}")
 
 
+class Moved(Refusal):
+    """A sync's tree is at another head than the proved one."""
+
+
 def _bound_to(root, worktree, oid):
     """Refuse a sync's tree unless it is the head the main checkout proved: an executor runs that tree's own copy."""
     tree = Path(root) / worktree
     head = git(tree, "rev-parse", "HEAD").strip()
     if head != oid:
-        raise Refusal(f"{worktree} is at {head}, not the proved {oid}")
+        raise Moved(f"{worktree} is at {head}, not the proved {oid}")
     held = git(tree, "status", "--porcelain").strip()
     if held:
         raise Refusal(f"{worktree} is not clean: {one_line(held, 200)}")
@@ -489,7 +493,7 @@ def _launch(root, directory, run, gid, entry, flag=False):
         # A relaunch takes its <oid> from HEAD too, so what a crash left in the tree is held to the same head.
         try:
             _bound_to(root, entry["worktree"], _field(entry, gid, "oid", _oid))
-        except Refusal as moved:
+        except Moved as moved:
             raise Refusal(f"{moved}{_landed(root, entry)}") from None
     command = list(CLAUDE_COMMAND) if CLAUDE_COMMAND else [path_which("claude")]
     if not command[0]:
