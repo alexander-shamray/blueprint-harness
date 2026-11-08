@@ -102,3 +102,53 @@ transcript was last modified on or after that day. It is added here, as
 medians and as totals with their largest session, once two or more have
 ended; a rise against the two tables above is a harness defect, filed in
 this repository.
+
+## After plan 5
+
+Measured on 2026-11-08, after blueprint-frontend's #382, its first sync,
+merged at 04:42 UTC that day, and its #389, which made its `CLAUDE.md` import
+`.harness/agent-rules.md` and triaged its memories. Frontend's `main` read at
+`bf735c3`.
+
+### Stop count
+
+The second command line above with `--since 2026-11-08`. `--since` takes a
+day, and each of the six sessions it admits starts after the merge, the
+earliest at 06:01 UTC, so the window holds only sessions since #382. The last
+active of them belongs to frontend's #420, still open, so its count can grow.
+
+| Repository | Command | Sessions | ask_user | action_required | permission_refused | user_turns |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| frontend | `ship` | 6 | 0 | 0.5 | 0 | 0 |
+
+| Repository | ask_user | action_required | permission_refused | user_turns |
+| --- | --- | --- | --- | --- |
+| frontend | 0, max 0 | 7, max 5 | 0, max 0 | 1, max 1 |
+
+Against the two tables, same command and same repository, `action_required`
+rose: the median from 0 to 0.5, the total from 5 to 7, the largest session
+from 3 to 5. The other three fell or held. The rise is filed as #272. Six of
+the seven hand the owner an edit to a `local` path under `.claude/`, which a
+session is denied, and one session carries five. The route is older than the
+sync, and this window is one day straight after it against the baseline's
+fourteen, so whether the rise lasts is not yet measured.
+
+### What a frontend session loads
+
+LF bytes, as *After plan 2* gives backend's. Before is frontend's `main` ahead
+of #389, with its `MEMORY.md` as #389's body gives it; plan 2 had already
+raised `~/.claude/CLAUDE.md`, so that row does not move here.
+
+| What a frontend session loads | Before | After |
+| --- | ---: | ---: |
+| `CLAUDE.md` with its imports | 13,313 | 17,294 |
+| The auto-memory index, `MEMORY.md` | 4,220 | 838 |
+| `~/.claude/CLAUDE.md` | 4,186 | 4,186 |
+| Total | 21,719 | 22,318 |
+
+After, `CLAUDE.md` is 10,706 bytes and its import 6,588. The triage archived
+19 of frontend's 24 memories and rewrote three of the five it kept. The load
+rises by 599 bytes: the import brings the hand-over, wait and model-choice
+rules the old copy lacked, and the triage takes back most of that. Backend's
+22,028 is another repository on an earlier `agent-rules.md`, so it is not the
+comparison.
