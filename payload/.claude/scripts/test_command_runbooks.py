@@ -12,7 +12,7 @@ from review_helpers import COMMANDS, LOCAL
 ARGUMENTS = COMMANDS.parent.parent / "docs" / "commands"
 
 # Bytes with CRLF counted as LF, so a Windows checkout reads what Linux CI does;
-# each landed size and about a tenth: a runbook past it has regrown its argument.
+# each at most about a tenth over its landed size: a runbook past it has regrown its argument.
 # The payload's split commands; a target declares its own in `CEILINGS` in its `local_commands.py`.
 CEILINGS = {
     "ship.md": 48300,
