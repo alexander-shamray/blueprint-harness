@@ -163,8 +163,9 @@ keeping the guide's *Comments* rules be reworded, completed or expanded.
   `harness-drift` run on `pull_request` alone, so `main` never runs them.
   *None of it* means a fault outside what the pull request changed, so a
   gate's refusal of its own commits, body or added lines is its own to fix.
-  That pull request waits for the fix, a pull request of its own, and is not
-  changed to make it pass. A rerun would then still read the old merge, since
+  A rerun comes first, and one that turns green is a flake, as above. Failing
+  that, it waits for the fix, a pull request of its own, and is not changed
+  to make it pass. A rerun would then still read the old merge, since
   a `pull_request` run is pinned to the merge it started on, so it is updated
   through `git-rebase-onto-main.sh`, an update no conflict asked for.
 - **Auto-merge waits on `main`'s required checks and nothing else**: not on
