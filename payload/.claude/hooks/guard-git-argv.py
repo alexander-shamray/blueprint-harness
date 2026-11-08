@@ -2174,7 +2174,7 @@ def evaluated_scripts(tokens):
 DATA_ONLY_COMMANDS = {"echo", "printf", ":", "true", "false"}
 
 # A run led by one of these reads or lists the words after it, and cannot run
-# them: `grep -n tee .claude/x` writes nothing, and `git rm` is git's business.
+# them: `grep -n tee .claude/x` writes nothing, and `git rm` is `git_path_offence`'s.
 READING_COMMANDS = frozenset({
     "cat", "diff", "file", "git", "grep", "head", "ls", "stat", "tail", "wc",
 })

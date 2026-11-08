@@ -4011,7 +4011,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
             "ln -s .claude/settings.json notes/alias",
             "sed -n 1p .claude/settings.json", "sed s/a/b/ .claude/settings.json",
             "perl -pe 1 .claude/settings.json", "grep -n tee .claude/settings.json",
-            "git rm .claude/hooks/x", "git mv .claude/hooks/x notes/x",
+            "git rm notes/x", "git mv notes/x notes/y", "git log .claude/hooks/x",
             "echo rm .claude/settings.json", "cat .claude/settings.json | head",
             "ls | tee notes/out", "git ls-files .claude | xargs rm -f",
             "dd if=.claude/settings.json of=notes/x", "touch notes/x",
