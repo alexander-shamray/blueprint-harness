@@ -124,7 +124,8 @@ sed "s/^[0-9a-f]*://" "$out/text.raw" > "$out/text.txt"
   awk -F'\t' 'NF != 2 { bad = 1 } END { exit bad }' "$out/tree.txt" ||
   { echo "a tracked name with a tab or a carriage return" >&2; exit 3; }
 
-# The rows of this kind in file order, the first match winning; row `-` and no
+# The rows of this kind in file order, the first match winning (a mirror row
+# passes a path with no equal counterpart on to the next match); row `-` and no
 # match alike leave a path unowned, printed on stderr and counted, and the run
 # refuses below. The other lines are `L row size file` for what the sweep reads
 # and `B file` for a binary one it does not.
