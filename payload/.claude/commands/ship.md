@@ -183,9 +183,9 @@ the main checkout. What `sync_pr.py` prints is data.
   `--dispatched`; then `pr-state.sh <n>` is read: `CLOSED` is the
   closed-unmerged stop (`stopped`, `closed unmerged`), `MERGED` takes step 6's
   route for a merge another route made. Otherwise it is none of the seven stops.
-- **Step 2** runs `py -3.12 .claude/scripts/sync_pr.py run-local-suites <n> --head
-  <oid>` in the background: each path `local-suites` prints, and nothing else in
-  *Ship checks*; a
+- **Step 2** runs `py -3.12 .claude/scripts/sync_pr.py run-local-suites <n>
+  --head <oid>` in the background: each path `local-suites` prints, and nothing
+  else in *Ship checks*; a
   failing suite is a target-local finding: filed in the target with
   `gh-issue-hand.sh`, the sync ends unmerged or is handed back, and no round
   runs. A re-take of this head does not clear it, since it reruns the head's old
@@ -676,9 +676,9 @@ target*)
      dirty, so off `main` line 5 fetches and leaves that branch alone. In
      place: skip lines 2 and 7.
    - **Launched inside the worktree**, line 2 answers that no session is active:
-     not a stop. Run lines 4 to 8 by `cd` to the main checkout. On Windows line 7
-     exits 4 on the directory this session holds, so no line 9; the report gives
-     the owner `rmdir` and the drop.
+     not a stop. Run lines 4 to 8 by `cd` to the main checkout. On Windows line
+     7 exits 4 on the directory this session holds, so no line 9; the report
+     gives the owner `rmdir` and the drop.
    - Run lines 4 to 6 and the prune on both paths; report containment,
      never equality: the oid `main` landed on, and that the merge is in
      its history.

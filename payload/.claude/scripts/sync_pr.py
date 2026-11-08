@@ -485,10 +485,8 @@ def local_suites():
 def run_local_suites(number, pin):
     """The exit of running `local_suites`, each as its own discover from the root, on a proved sync in a clean tree.
 
-    No argument names what runs, and this runs tree code where the settings allow this script to every session, so
-    the proof comes first and is this function's own (docs/harness-boundaries.md). Each suite's output is printed
-    whole when it ends, under its path.
-    """
+    No argument names what runs, and the settings allow this script to every session, so the proof comes first and is
+    this function's own (docs/harness-boundaries.md). Each suite's output prints whole when it ends, under its path."""
     failures, _ = verify(number, pin)
     if failures:
         print("\n".join(failures))

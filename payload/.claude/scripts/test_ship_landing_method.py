@@ -39,7 +39,7 @@ RETIRED_READS = ("git log origin/main..HEAD", "git cherry", "git log --merges --
 
 
 class TheConflictAndTheWorktreeTheRunbookNames(unittest.TestCase):
-    """Two places the runbook and what actually happens had parted (#269, #235)."""
+    """Two places the runbook and what actually happens had parted."""
 
     def setUp(self):
         self.text = " ".join(SHIP.read_text(encoding="utf-8").split()).replace("`", "")
@@ -47,7 +47,7 @@ class TheConflictAndTheWorktreeTheRunbookNames(unittest.TestCase):
     def test_a_conflict_takes_the_rebase_the_working_rule_gives_it(self):
         rule = " ".join((ROOT / "docs" / "harness" / "working-rules.md").read_text(encoding="utf-8").split())
         self.assertIn("only when GitHub reports it conflicting", rule)
-        # At any point: #265 read it after `main` moved during the checks wait, and the wait passes only on MERGEABLE.
+        # At any point: `main` can move during the checks wait, and that wait passes only on MERGEABLE.
         self.assertIn("What resolves GitHub's, and a CONFLICTING read at any point, is a rebase:", self.text)
         self.assertNotIn("Conflicts are the caller's tree", self.text)
         # The route is the one a refused landing already takes, and the helper is what it runs.

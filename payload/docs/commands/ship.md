@@ -950,9 +950,10 @@ upstream. That is why the fetch and a `git pull --ff-only` also run
 
 **A fast-forward that will not fast-forward is divergence**, which is another
 session's history against this one's, and it stops the chain because that
-history is not this run's to replace. The rebase helper, `git-rebase-onto-main.sh`, does not
-resolve it and is not meant to: it refuses a remote carrying commits this
-checkout lacks, which is exactly this case. A lease would be satisfied here —
+history is not this run's to replace. The rebase helper,
+`git-rebase-onto-main.sh`, does not resolve it and is not meant to: it refuses
+a remote carrying commits this checkout lacks, which is exactly this case. A
+lease would be satisfied here —
 those commits have been fetched — and the other session's work would still be
 gone, so the refusal is the helper's own rather than git's.
 
@@ -1138,9 +1139,9 @@ rather than reading whichever finished last.
 ## Step 6: the wait
 
 **The CI wait is where this chain sleeps, as a sync's step 2 does over its
-suites, and a session that sleeps pays for its context at every wake.** A `/ship` main session's call
-sent about 274k tokens in backend's measurement of 2026-10-10, so what
-matters is how many times the wait wakes it.
+suites, and a session that sleeps pays for its context at every wake.** A
+`/ship` main session's call sent about 274k tokens in backend's measurement of
+2026-10-10, so what matters is how many times the wait wakes it.
 
 **The wait runs in this session as one background task.**
 `run_in_background` detaches `gh pr checks --watch`, nothing is sent while it
