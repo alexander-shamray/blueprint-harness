@@ -54,11 +54,13 @@ status=0
 git worktree remove "$resolved" || status=$?
 left=
 if [ -e "$resolved" ]; then
-  # Asked of the directory, git to git as above. A live worktree answers with its
-  # own git directory, which is git's refusal, and everything stays. A leftover's
-  # `.git` names an admin directory that has gone, or it has none.
+  # Asked of the directory, git to git as above. A live worktree still answers
+  # with the git directory it had, which is git's refusal, and everything stays.
+  # A leftover's `.git` names an admin directory that has gone, or it has none,
+  # and then git walks up to whatever repository holds the temp root, if any.
   if there=$(git -C "$resolved" rev-parse --path-format=absolute --git-dir 2>/dev/null) &&
-    [ "$there" != "$common_there" ]; then
+    [ "$there" = "$dir_there" ]; then
+    [ "$status" -ne 0 ] || echo "git exited 0 and $path is still a live worktree" >&2
     exit "$((status == 0 ? 1 : status))"
   fi
   # `rmdir` refuses one holding anything, as git-worktree-remove.sh's does: only
