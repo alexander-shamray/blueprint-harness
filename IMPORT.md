@@ -933,9 +933,12 @@ narrowed, and one was kept against frontend's verdict.
   not restate it.
 
 One `port` is a live payload defect: `denied_path` in `guard-git-argv.py`
-misses a `**/` deny at the checkout's root, so frontend's `Edit(**/package.json)`
-does not hold a shell write into its root `package.json` today. It is filed as
-#228, and cluster A's row cites it.
+misses a `**/` deny at the checkout's root. Frontend's root `playwright.config.ts`
+and `capacitor.config.ts` are denied only by `Edit(**/playwright.config.ts)` and
+`Edit(**/capacitor.config.ts)`, so a shell write into either passes the guard
+there today, and admin's root `Directory.Build.props`, denied only by
+`Edit(**/Directory.Build.*)`, would after the sync. It is filed as #228, and
+cluster A's row cites it.
 
 The *Decisions* table, recorded here:
 
@@ -1279,7 +1282,7 @@ between admin taking 3 and a residual (D).
 | Admin | Behaviour | Payload | Verdict | Task | Reason and fix | Admin's test |
 |---|---|---|---|---|---|---|
 | hooks/guard-git-argv.py:4825; also hooks/guard-git-argv.py:4486 | A quoted heredoc handed to `bash .claude/scripts/gh-issue-create.sh` is read as the helper's data | .claude/hooks/guard-git-argv.py:3089 | port | 2 | c3: the payload refuses it (pinned at test_git_argv_guard.py:3207 and :2395) and refused 134 of admin's 16,697 Bash commands since 2026-10-07 over Markdown backticks, 42 of them in sweeps, which deny `Write`. Port admin's one literal shape for the payload's stdin-body issue helpers. | test_a_helper_script_reads_its_heredoc_as_data |
-| hooks/guard-git-argv.py:243 | A write to the root's `Directory.Build.props` is refused | .claude/hooks/guard-git-argv.py:185 | port | 2 | c1, a write into a denied file. `fnmatchcase` needs a `/` before `**/`, so admin's only deny on that tracked root file, `Edit(**/Directory.Build.*)`, misses it: `ls > Directory.Build.props` is admitted (probed). Fix: `denied_path` also tries each `**/` rule with that prefix dropped; a live payload defect (frontend's `**/package.json`), filed as #228. | test_the_msbuild_and_nuget_names_are_protected_files_and_untracked |
+| hooks/guard-git-argv.py:243 | A write to the root's `Directory.Build.props` is refused | .claude/hooks/guard-git-argv.py:185 | port | 2 | c1, a write into a denied file. `fnmatchcase` needs a `/` before `**/`, so admin's only deny on that tracked root file, `Edit(**/Directory.Build.*)`, misses it: `ls > Directory.Build.props` is admitted (probed). Fix: `denied_path` also tries each `**/` rule with that prefix dropped; a live payload defect (frontend's root `playwright.config.ts` has only `**/playwright.config.ts`), filed as #228. | test_the_msbuild_and_nuget_names_are_protected_files_and_untracked |
 | hooks/guard-git-argv.py:225; also hooks/guard-git-argv.py:243 | Writes refused into `.github`, `.vscode`, `node_modules`, npm and Angular configs, `CLAUDE.md`, `README.md` | .claude/hooks/guard-git-argv.py:170 | local |  | The payload protects the target's `Edit(...)` denies; admin denies none of these, and the plan keeps `.github` editable. Each becomes protected only if admin's config adds its deny (Task 4), which would also stop the Edit tool, a new stop. | test_the_protected_files_cover_every_tracked_root_file, test_the_measured_redirections_are_refused |
 | hooks/guard-git-argv.py:2247; also hooks/guard-git-argv.py:225 | MSBuild and NuGet auto-imports, `obj` and `*.csproj.user` refused as write targets | .claude/hooks/guard-git-argv.py:185 | covered |  | Admin's `Edit(**/obj/**)`, `Edit(**/*.csproj.user)` and MSBuild/NuGet denies stay config additions (*Decisions*) and the payload reads them: `src/Directory.Build.props`, `artifacts/obj/x`, a `.csproj.user` probed refused. The guard-table case moves to `test_harness_helpers_admin.py`, against the config. | test_the_msbuild_and_nuget_names_are_protected_files_and_untracked |
 | hooks/guard-git-argv.py:2199 | Protected names matched at any path component and folded for case | .claude/hooks/guard-git-argv.py:185 | covered |  | Ported #147 narrowed, as frontend's row: anchored at the checkout's root and folded, so `payload/.claude/…` and `.claude/worktrees/` stay writable. | test_a_component_is_matched_rather_than_a_prefix, test_a_protected_name_in_another_case_or_spelling_is_refused |
