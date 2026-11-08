@@ -6,7 +6,7 @@ on:
   push:
     branches: [main]
 
-# Read-only: the jobs test the tree and write nothing back.
+# Read-only: the jobs test the tree and write nothing back. `main-red`, which reads no tree, opens or comments on an issue.
 permissions:
   contents: read
 
@@ -140,3 +140,52 @@ jobs:
         if: matrix.os == 'windows-latest' && steps.reach.outputs.test != 'false'
         working-directory: ${{ runner.temp }}/rendered
         run: python -m unittest discover -s .github/comment-gate -p "test_comment_gate.py" -v
+
+  # A red push run is an issue, which outlives the run and is what `/ship` step 6 reads through `main-red-open.sh`.
+  # A job that hits its timeout or that no runner picks up reports `cancelled`, and `failure()` is false for that.
+  # The concurrency block above cancels nothing on `main`, so the one false alarm is somebody's own cancel.
+  # `harness_sync/tests/test_main_red_job.py` holds `needs` to every other job here.
+  main-red:
+    needs: [sync-tool, payload-suites]
+    if: >-
+      always() && github.event_name == 'push' &&
+      (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # One at a time, so two red runs never both see no open issue.
+    concurrency:
+      group: main-red
+      cancel-in-progress: false
+    permissions:
+      issues: write
+    steps:
+      - name: A red main is an issue, not a notification
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          title='main is red: ci'
+          # A list as long as its limit may be cut, and a listing that cannot see
+          # the open issue files a second one, so it is refused.
+          list=$(gh issue list --state open --label bug --limit 1000 --json number,title)
+          [ "$(jq length <<<"$list")" -lt 1000 ] || { echo "::error::the issue list reached its limit and may be cut"; exit 1; }
+          open=$(jq -r --arg t "$title" 'map(select(.title == $t)) | .[0].number // empty' <<<"$list")
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "Red again at $GITHUB_SHA: $RUN_URL"
+          else
+            printf '%s\n' \
+              "The \`CI\` run on a push to \`main\` did not pass at $GITHUB_SHA: $RUN_URL" \
+              '' \
+              '## Severity' \
+              '' \
+              'high' \
+              '' \
+              'Revert the pull request that turned it red first, then fix forward' \
+              '(docs/harness/working-rules.md, *CI*). While this is open, `/ship` step 6' \
+              'lands only a run started for this issue. Close it once main is green.' \
+              '' \
+              'Filed by the main-red job in ci.yml, not by hand or by a sweep.' |
+              gh issue create --title "$title" --label bug --label harness --label high --body-file -
+          fi
