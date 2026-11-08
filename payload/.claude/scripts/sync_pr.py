@@ -36,9 +36,9 @@ LIST_LIMIT = "200"
 CITATIONS = 50
 TEXT_CAP = 300
 # Payload suites whose subject is every command or grant in the checkout, the target's own included: they run from
-# the checkout, since CI is not the only place to meet a local command they refuse. The suites that merely test
-# a helper over the commands (test_pr_helpers.py, test_ship_landing_method.py) are not here: some run for
-# minutes and a local command does not change what they prove.
+# the checkout, since CI is not the only place to meet a local command they refuse. test_pr_helpers.py and
+# test_ship_landing_method.py each hold one command-walking case among cases that test a helper, and the first
+# runs for minutes: they stay in CI, and a local command they would refuse is met there.
 COMMAND_WALKERS = tuple(f".claude/scripts/{name}" for name in
                         ("test_command_grants.py", "test_command_runbooks.py",
                          "test_grants_name_existing_helpers.py"))
