@@ -2399,9 +2399,9 @@ STDIN_DATA_ROUTE = (
 CACHEINFO_MODE = re.compile(r"^[0-7]{6}(?:,|$)")
 REMOTE_TRACKING = re.compile(r"^(?:refs/remotes/)?origin/")
 
-# The keys a written value runs a program from: what `git -c` is refused for, in
-# a file that outlives the command. Every other write stays admitted, so a read
-# of one, a removal, which sets nothing running, and `rerere.enabled` are not held.
+# A subset by hand of the keys a written value runs a program from, `git -c`
+# outliving the command. `core.editor`, `credential.helper` and the rest stay
+# admitted, with a read and a removal, or `rerere.enabled` is refused with them.
 RUNNING_CONFIG_KEY = re.compile(
     r"(?i)^(?:alias\..+|core\.pager|core\.hookspath|core\.sshcommand|diff\.external|.+\.cmd)$")
 CONFIG_VALUE_OPTIONS = frozenset({"-f", "--file", "--blob", "--type", "--default",
