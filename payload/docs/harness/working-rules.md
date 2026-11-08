@@ -52,11 +52,12 @@ cited from here, never restated.
   clone. `/ship` step 6 merges after its own wait on the checks.
 - **A pull request that is ready merges in the turn that establishes it
   is ready**, a Dependabot one aside, which the owner merges: every check
-  settled green, the review ended and no blocking deny left open.
-  Handing a ready pull request back with merge instructions makes the
-  owner a queue step for a decision already made. In a set of pull
-  requests serving one issue, the one carrying the set's closing keyword
-  merges last, so the issue closes only once the whole set has landed.
+  settled green, the review ended, no blocking deny left open, and, for
+  the one of a set serving one issue that carries the set's closing
+  keyword, every other pull request of the set landed, so the issue closes
+  only once the whole set has. Handing a ready pull request back with
+  merge instructions makes the owner a queue step for a decision already
+  made.
 - **A Dependabot pull request is the one exception to the trailer and to
   the class row.** It declares no class and no touch set and carries no
   `PR:` trailer, so the gates that read them skip it, and a skipped step
@@ -189,9 +190,11 @@ keeping the guide's *Comments* rules be reworded, completed or expanded.
 - **A comment or review feed is read whole, never cut with `head` or
   `tail`.** One body runs to kilobytes, so a cut lands inside the first
   and ends mid-prose, which reads as complete: a pull request at a clean
-  second round was once reported as owing its first. Take what is wanted
-  with `--jq` — `.[-1]` for the newest, `length` for the count — or write
-  the feed to a file and read it all.
+  second round was once reported as owing its first. A REST read also
+  stops at 30 items, and under `--paginate` a `--jq` filter runs once per
+  page, so `.[-1]` there is not the newest nor `length` the count: write
+  the whole feed, `gh api --paginate`, to a file, and take the newest or
+  the count from that file.
 - **The task list** is where `.harness/agent-rules.md`, *Working in a
   target*, puts it. Its *Remaining* and *Paused* sections put undated rows
   first, then dated ones nearest first, and a row never sits above one it
