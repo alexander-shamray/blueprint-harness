@@ -2422,6 +2422,16 @@ config carries the re-rendered `.claude/settings.json` and
 is Edit-denied with the rest of `.harness/` (*Edit denies and agent
 self-protection*), so that change is the owner's to make or lift.
 
+**A target's stack grant goes in the config's `allow` too**, such as the
+check runner its *Ship checks* names. It is granted to every turn of every
+session there, not only to the commands that run it, and that is accepted:
+the runner is a script under `.claude/scripts/`, Edit-denied, so the grant
+admits one fixed endpoint a session cannot rewrite. A per-command route was
+rejected: it would make every managed command a rendered file, differing
+from the payload by each target's lines, and the drift gate and `sync_pr.py
+verify`, which hold a managed file to the payload's bytes, would each need
+a second renderer to judge it.
+
 **A path the config lists under `local` is the repository's own**, even
 inside a managed directory: a sync neither writes nor deletes it.
 
