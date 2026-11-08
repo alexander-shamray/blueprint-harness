@@ -180,9 +180,12 @@ an injection,
 so `Edit(~/.claude/projects/**)` and `Edit(~/.claude/output-styles/**)` sit in
 `disallowed-tools` of `/ship`, `/pr`, `/style-pass`, `/dispatch` and `/team`, and
 `AWritingCommandDeniesTheUsersMemoryAndOutputStyles` fails when a managed command
-that grants either tool lacks them. A session inside one of those commands
-therefore cannot save a memory: it saves it afterwards. A target's own command is
-its own to hold, since a deny in a local file is no payload suite's to require.
+that grants either tool lacks them. Like every frontmatter deny they last only the
+turn that loaded the command (*A boundary an agent must keep across turns*), so they
+cover that turn's reading of a branch and not `/ship` after a background wake or a
+later round of `/dispatch` or `/team`. Within that turn a session cannot save a
+memory: it saves it afterwards. A target's own command is its own to hold, since a
+deny in a local file is no payload suite's to require.
 **Measured in blueprint-admin, not here** (its #291): on 2026-10-20, on Windows,
 in a turn whose `/ship` frontmatter was in force, a `Write` to each directory was
 refused with no prompt and one to `~/.claude/scratch/` succeeded, so the
