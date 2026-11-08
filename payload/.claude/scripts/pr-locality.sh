@@ -163,13 +163,23 @@ done
 # script chooses for it: `filename`, and a rename's `previous_filename`, since a
 # move out of a tree changes that tree, as the CI gate judges it. Each is read
 # as a JSON string so that a newline inside a name cannot be a second line: a
-# name that needed an escape is refused rather than decoded.
+# name that needed an escape is refused rather than decoded. `changedFiles` is
+# GitHub's own count, which the names are held to below, and a rename's source is
+# tagged because it is no changed file of its own; the same one read is judged
+# and counted.
+changed=$(gh_read pr view "$pr" --json changedFiles --jq .changedFiles)
+case "$changed" in ''|*[!0123456789]*) refuse "changedFiles is not a count" ;; esac
 files=$(gh_read api "repos/{owner}/{repo}/pulls/$pr/files" --paginate \
-  --jq '.[] | (.filename, (.previous_filename // empty)) | @json')
+  --jq '.[] | (.filename | @json), (.previous_filename // empty | "from " + @json)')
 verdicts=()
 list=""
+names=0
 while IFS= read -r line; do
   [ -n "$line" ] || continue
+  case "$line" in
+    'from '*) line=${line#from } ;;
+    *) names=$((names + 1)) ;;
+  esac
   case "$line" in
     '"'*'"') ;;
     *) refuse "a changed path did not arrive as a JSON string" ;;
@@ -187,6 +197,8 @@ while IFS= read -r line; do
   verdicts+=("$path")
   list+="$path"$'\n'
 done <<<"$files"
+# The endpoint stops short of a very large pull request, and a short list would read as the whole diff.
+[ "$names" -eq "$changed" ] || refuse "the files endpoint returned $names names against changedFiles $changed"
 printf 'class %s\n' "$class"
 # One grep per pattern over every path, and line N's hit is path N's: a
 # validated path holds no newline. A pattern grep cannot compile matches
@@ -207,7 +219,8 @@ if [ -n "$list" ]; then
   done
 fi
 i=0
-for path in "${verdicts[@]}"; do
+# bash 3.2 calls an empty array unbound under `set -u`, and a pull request can have no changed file.
+for path in ${verdicts[@]+"${verdicts[@]}"}; do
   verdict=outside
   [ -z "${hits[i]:-}" ] || verdict=inside
   # The class's verdict overrides the row's, because no row may declare a path

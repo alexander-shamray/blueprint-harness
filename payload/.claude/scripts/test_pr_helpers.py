@@ -183,8 +183,9 @@ class NoCommandReadsAPullRequestFeedUnfiltered(unittest.TestCase):
         self.assertEqual(
             [
                 'body=$(gh_read pr view "$pr" --json body --jq .body)',
+                'changed=$(gh_read pr view "$pr" --json changedFiles --jq .changedFiles)',
                 'files=$(gh_read api "repos/{owner}/{repo}/pulls/$pr/files" '
-                "--paginate --jq '.[] | (.filename, (.previous_filename // empty)) | @json')",
+                """--paginate --jq '.[] | (.filename | @json), (.previous_filename // empty | "from " + @json)')""",
             ],
             gh_calls,
         )
@@ -320,17 +321,47 @@ class NoCommandReadsAPullRequestFeedUnfiltered(unittest.TestCase):
                 self.assertEqual([], [line for line in code if bare.search(line)])
 
     @staticmethod
-    def _gh_printing(body, files="docs/x.md\n"):
+    def _gh_printing(body, files="docs/x.md\n", changed=None):
         # Quoted heredocs, since a double-quoted printf would command-substitute a body's backticks, which is the stub
         # doing what the helper refuses. The files endpoint gets one JSON-encoded name per line, the shape the helper's
-        # `--jq` produces, newline in a name and all; anything else gets the body.
-        encoded = "".join(
-            json.dumps(name) + "\n" for name in files.split("\n") if name
-        )
+        # `--jq` produces, newline in a name and all; `changedFiles` gets that count unless a case names another, and
+        # anything else gets the body.
+        names = [name for name in files.split("\n") if name]
+        encoded = "".join(json.dumps(name) + "\n" for name in names)
         return (
-            'case "$*" in *"/files"*) cat <<\'FILES\'\n' + encoded + "FILES\n"
+            f'case "$*" in *changedFiles*) echo {len(names) if changed is None else changed} ;;\n'
+            '*"/files"*) cat <<\'FILES\'\n' + encoded + "FILES\n"
             ";; *) cat <<'STUB'\n" + body + "STUB\n;; esac\n"
         )
+
+    def test_the_files_endpoint_disagreeing_with_changed_files_is_refused(self):
+        # The endpoint stops short of a very large pull request, so a short list read as complete prints verdicts for
+        # part of the diff. Each direction is a disagreement, and the refusal prints no verdict.
+        body = "| Class | D |\n| Touch set | docs/** |\n"
+        for changed, names in ((3, 1), (0, 1)):
+            with self.subTest(changed=changed):
+                r = self._run_locality_with_gh(self._gh_printing(body, "docs/a.md\n", changed=changed))
+                self.assertEqual(3, r.returncode, r.stderr)
+                self.assertEqual("", r.stdout)
+                self.assertEqual(f"the files endpoint returned {names} names against changedFiles {changed}\n", r.stderr)
+
+    def test_a_changed_files_value_that_is_not_a_count_is_refused(self):
+        body = "| Class | D |\n| Touch set | docs/** |\n"
+        for changed in ("", "null", "3x", "-1"):
+            with self.subTest(changed=changed):
+                r = self._run_locality_with_gh(self._gh_printing(body, "docs/a.md\n", changed=changed))
+                self.assertEqual(3, r.returncode, r.stderr)
+                self.assertEqual("", r.stdout)
+                self.assertEqual("changedFiles is not a count\n", r.stderr)
+
+    def test_a_pull_request_with_no_changed_files_prints_only_its_class(self):
+        # Reached when `main` has already landed a branch's whole diff. Under `set -u`, bash 3.2 calls an empty array
+        # unbound, so the verdict loop has to survive having nothing to judge.
+        body = "| Class | D |\n| Touch set | docs/** |\n"
+        r = self._run_locality_with_gh(self._gh_printing(body, ""))
+        self.assertEqual(0, r.returncode, r.stderr)
+        self.assertEqual(["class D"], r.stdout.splitlines())
+
 
     def test_a_failing_gh_is_not_an_empty_body(self):
         # `gh … | grep … || true` masks the whole pipeline, so an
@@ -387,25 +418,29 @@ class NoCommandReadsAPullRequestFeedUnfiltered(unittest.TestCase):
                 # one is encoded whole here instead.
                 encoded = json.dumps("docs/a.md") + "\n" + json.dumps(name) + "\n"
                 script = (
-                    'case "$*" in *"/files"*) cat <<\'FILES\'\n' + encoded
+                    'case "$*" in *changedFiles*) echo 2 ;;\n'
+                    '*"/files"*) cat <<\'FILES\'\n' + encoded
                     + "FILES\n;; *) cat <<'STUB'\n" + body + "STUB\n;; esac\n"
                 )
                 r = self._run_locality_with_gh(script)
                 self.assertEqual(3, r.returncode, r.stderr)
                 self.assertEqual("", r.stdout)
+                self.assertEqual("a changed path is not a plain path\n", r.stderr)
                 self.assertNotIn("IGNORE", r.stderr)
                 self.assertNotIn("ignore", r.stderr)
 
     def test_a_rename_is_judged_at_both_ends(self):
         # The files API gives a rename's source as previous_filename, and the CI
-        # gate judges both ends, so the stub runs the helper's own --jq on it.
+        # gate judges both ends, so the stub runs the helper's own --jq on it. GitHub counts a rename as one changed
+        # file, so three judged paths agree with a `changedFiles` of two.
         body = "| Class | D |\n| Touch set | docs/** |\n"
         api = json.dumps([
             {"filename": "docs/foo.md", "previous_filename": "src/Foo.cs", "status": "renamed"},
             {"filename": "docs/x.md", "status": "modified"},
         ])
         script = (
-            'case "$*" in *"/files"*)\n'
+            'case "$*" in *changedFiles*) echo 2 ;;\n'
+            '*"/files"*)\n'
             '  while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then q=$2; fi; shift; done\n'
             "  jq -r \"$q\" <<'FILES' | tr -d '\\r'\n" + api + "\nFILES\n"
             ";; *) cat <<'STUB'\n" + body + "STUB\n;; esac\n"
@@ -421,7 +456,8 @@ class NoCommandReadsAPullRequestFeedUnfiltered(unittest.TestCase):
         # the CI gate reads it, so the review round's verdict has to as well.
         # printf makes the CR at run time, so no host's line endings can drop it.
         script = (
-            "case \"$*\" in *\"/files\"*) echo '\"docs/x.md\"' ;;\n"
+            "case \"$*\" in *changedFiles*) echo 1 ;;\n"
+            "*\"/files\"*) echo '\"docs/x.md\"' ;;\n"
             "*) printf '| Class | D |\\r\\n| Touch set | docs/x.md |\\r\\n' ;; esac\n"
         )
         r = self._run_locality_with_gh(script)
