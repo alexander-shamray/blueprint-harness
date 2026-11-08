@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """What a pull request says it closes must match what merging it will close.
 
-The README beside this file owns the argument; the testing document
-`docs/harness-local.md` *Documents* names has the live invocation.
+The README beside this file owns the argument; the live invocation is in
+`.github/workflows/closure-gate.yml` and in the `/pr` command.
 """
 
 from __future__ import annotations
