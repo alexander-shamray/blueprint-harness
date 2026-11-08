@@ -294,8 +294,8 @@ executors that shared the system's one ran each other's scratch scripts
 (issue #199), and a fixed path in a shared temp root is one another user
 could plant. It stays outside every checkout, because `refresh-index.py`'s
 worker runs from it and the guards admit a mutation proof's scratch
-checkout only under it; nothing removes it, so it lasts as long as the
-system keeps its temp.
+checkout only under it; `run` removes it, best effort, once the executor
+exits or fails to start (issue #205).
 
 On every wake it absorbs the result, verifies a merge, places what was
 filed, then asks `wake` what to launch; the outcome table is the spec's
