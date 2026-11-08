@@ -933,12 +933,12 @@ narrowed, and one was kept against frontend's verdict.
   not restate it.
 
 One `port` is a live payload defect: `denied_path` in `guard-git-argv.py`
-misses a `**/` deny at the checkout's root. Frontend's root `playwright.config.ts`
-and `capacitor.config.ts` are denied only by `Edit(**/playwright.config.ts)` and
-`Edit(**/capacitor.config.ts)`, so a shell write into either passes the guard
-there today, and admin's root `Directory.Build.props`, denied only by
-`Edit(**/Directory.Build.*)`, would after the sync. It is filed as #228, and
-cluster A's row cites it.
+misses a `**/` deny at the checkout's root. Frontend's root
+`playwright.config.ts` and `capacitor.config.ts` are denied only by
+`Edit(**/playwright.config.ts)` and `Edit(**/capacitor.config.ts)`, so a shell
+write into either passes the guard there today, and admin's root
+`Directory.Build.props`, denied only by `Edit(**/Directory.Build.*)`, would
+after the sync. It is filed as #228, and cluster A's row cites it.
 
 The *Decisions* table, recorded here:
 
