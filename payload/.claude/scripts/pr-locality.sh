@@ -40,7 +40,9 @@ if [ -z "$class_row" ] && [ -z "$touch_row" ]; then exit 0; fi
 [ -n "$class_row" ] && [ -n "$touch_row" ] || refuse "one row without the other"
 # The class cell: the text between the second `|` and the closing one.
 class=$(sed -E 's/^\| *Class *\| *//; s/ *\| *$//' <<<"$class_row")
-grep -Eq '^([A-E](\+[A-E])?|A\+D\+E)$' <<<"$class" || refuse "the Class row is not a class"
+# Spelled out, here and in the map's grammar below: a regex library that collates by locale reads a range as taking
+# lower case too, which the gate refuses.
+grep -Eq '^([ABCDE](\+[ABCDE])?|A\+D\+E)$' <<<"$class" || refuse "the Class row is not a class"
 [ "${class:0:1}" != "${class:2:1}" ] || refuse "the Class row repeats a class"
 # The touch-set cell, then each comma-separated token on its own.
 cells=$(sed -E 's/^\| *Touch set *\| *//; s/ *\| *$//' <<<"$touch_row")
@@ -123,7 +125,7 @@ while IFS= read -r raw || [ -n "$raw" ]; do
   raw=${raw%$'\r'}
   t="${raw#"${raw%%[! ]*}"}"
   case "$t" in ''|'#'*) continue ;; esac
-  if [[ "$raw" =~ ^([A-E]):[[:space:]]*$ ]]; then
+  if [[ "$raw" =~ ^([ABCDE]):[[:space:]]*$ ]]; then
     member=${BASH_REMATCH[1]}
     case "$named" in *" $member "*) refuse "classes.yml names class $member twice" ;; esac
     named="$named$member "
