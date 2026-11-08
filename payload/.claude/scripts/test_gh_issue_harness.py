@@ -218,7 +218,7 @@ class HarnessIssueHelperHasNoFreeParameter(unittest.TestCase):
         self.assertIn('. "$(dirname "${BASH_SOURCE[0]}")/gh-read-bound.sh"', code)
 
     def test_the_watchdog_hands_gh_the_body_and_the_conversion_switch(self):
-        # Where no `timeout` is installed (#191: macOS) every call runs under the watchdog, which backgrounds gh: a
+        # Where no `timeout` is installed, as on macOS, every call runs under the watchdog, which backgrounds gh: a
         # background command is handed /dev/null unless its stdin is named, and the filing and the comment both
         # read the body there.
         result = self.run_helper("bug", "high", "harness", body=self.stdin(), timeout_program="no-such-timeout")

@@ -123,7 +123,7 @@ class WhatTheFilterLooksAtTests(unittest.TestCase):
         self.assertEqual([entry for entry in REACH if not (ROOT / entry).exists()], [])
 
     def test_the_legs_run_the_whole_helpers_suite(self) -> None:
-        # #191: the legs ran four named modules, and frontend's first whole run off Linux failed 142 cases. A step
+        # The legs once ran four named modules, and frontend's first whole run off Linux failed 142 cases. A step
         # that narrowed the run again with `-p` would pass every case below on the modules it kept.
         code = "\n".join(_code_lines(CI))
         self.assertEqual(1, code.count("python -m unittest discover -s .claude/scripts -v"), code)

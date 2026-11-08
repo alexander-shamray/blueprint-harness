@@ -831,7 +831,7 @@ def alive(pid):
         return False
     if os.name != "nt":
         # Signal 0 asks the kernel and delivers nothing, on Linux and macOS alike; `/proc` was Linux's alone, so on
-        # macOS every executor read as dead (#191). Never the probe on Windows, where os.kill terminates.
+        # macOS every executor read as dead. Never the probe on Windows, where os.kill terminates.
         try:
             os.kill(pid, 0)
         except ProcessLookupError:
