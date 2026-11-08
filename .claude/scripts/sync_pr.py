@@ -35,6 +35,13 @@ GIT_TIMEOUT = 120
 LIST_LIMIT = "200"
 CITATIONS = 50
 TEXT_CAP = 300
+# Payload suites whose subject is every command or grant in the checkout, the target's own included: they run from
+# the checkout, since CI is not the only place to meet a local command they refuse. test_pr_helpers.py and
+# test_ship_landing_method.py each hold one command-walking case among cases that test a helper, and the first
+# runs for minutes: they stay in CI, and a local command they would refuse is met there.
+COMMAND_WALKERS = tuple(f".claude/scripts/{name}" for name in
+                        ("test_command_grants.py", "test_command_runbooks.py",
+                         "test_grants_name_existing_helpers.py"))
 
 
 class Refusal(Exception):
@@ -454,7 +461,8 @@ def review_target(raw):
 
 
 def local_suites():
-    """Target-local suites to run from the checkout: tracked test_*.py files `local` matches, minus payload/."""
+    """Suites to run from the checkout: tracked test_*.py files `local` matches, minus payload/, and the
+    payload suites that walk the target's local commands (COMMAND_WALKERS), where the checkout tracks them."""
     try:
         config = json.loads((ROOT / CONFIG).read_text(encoding="utf-8"))
         globs = config.get("local", [])
@@ -462,13 +470,15 @@ def local_suites():
             raise ValueError
     except (OSError, ValueError, AttributeError):
         raise Refusal(f"cannot read the `local` globs of {CONFIG}") from None
-    found = []
+    found = set()
     for path in read(["git", "ls-files", "-z"]).split("\0"):
         name = path.rsplit("/", 1)[-1]
         # The harness's own payload suites need a rendered root; CI runs them there, and a harness sync takes this.
         if (re.fullmatch(r"test_[^/]*\.py", name) and not path.lower().startswith("payload/")
                 and any(glob_match(g.lower(), path.lower()) for g in globs)):
-            found.append(path)
+            found.add(path)
+        elif path in COMMAND_WALKERS:
+            found.add(path)
     return sorted(found)
 
 
