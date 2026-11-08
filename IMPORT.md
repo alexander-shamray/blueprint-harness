@@ -897,8 +897,8 @@ cluster, 8 are Task 3's (the shard runner, the red-`main` helper and its
 `/ship` read) and 2 are Task 4's (admin's config). A `residual` goes to admin's
 `docs/harness-local.md` *Residuals*; a `managed` paragraph of admin's
 `docs/working-rules.md`, `token-plan.md` or `token-quality-sets.md` is one the
-payload's `docs/harness/*.md` or `.harness/agent-rules.md` already states,
-which Task 9 cites.
+payload already states, in `docs/harness/*.md`, `.harness/agent-rules.md`,
+`docs/harness-boundaries.md` or a suite, which Task 9 cites.
 
 **An agent's verdict is not the record.** Cluster A's nine `port` rows were
 checked by hand against *The guards' threat model*; the agents had replayed
