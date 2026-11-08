@@ -57,6 +57,13 @@ class TheConflictAndTheWorktreeTheRunbookNames(unittest.TestCase):
         self.assertIn("| CONFLICTING again on a head rebased onto the current origin/main |", self.text)
         self.assertIn("Bash(git merge-base origin/main HEAD)", self.text)
 
+    def test_a_session_launched_in_its_worktree_is_told_what_is_left(self):
+        for words in ("**Launched inside the worktree**, line 2 answers that no session is active",
+                      "Run lines 4 to 8 by cd to the main checkout",
+                      "On Windows line 7 exits 4 on the directory this session holds, so no line 9",
+                      "the report gives the owner rmdir and the drop"):
+            with self.subTest(words=words):
+                self.assertIn(words, self.text)
 
 
 def setUpModule():

@@ -1280,6 +1280,19 @@ fails outright: git refuses to check out a branch another worktree already
 holds. `ExitWorktree` is what returns the session to the main checkout,
 which is why the runbook skips line 3 on this path.
 
+**A session launched inside the worktree has no such move.** It never called
+`EnterWorktree`, so `ExitWorktree` has nothing to undo and answers that no
+session is active, while the *Resume* rows send that session down the forked
+path all the same. Found shipping #214 from a session started in its worktree:
+the later lines ran from the main checkout by `cd`, and `git-worktree-remove.sh`
+exited 4, since the session's own working directory holds the emptied directory
+on Windows (#235). The run can still do everything but delete that directory:
+the removal unregisters the worktree, and the helper names an empty directory a
+process holds apart from one holding files, so the owner does not go looking
+for work. An exit 4 keeps its branch however it arose, because the drop's reason
+for waiting is the directory, so the drop goes in the owner's closing lines
+with the `rmdir`, run once the session has closed.
+
 **And the main checkout is not always on `main` when the session gets
 there.** `/branch` puts a branch in place there whenever `main` is dirty, so
 another session's branch may be the one checked out. A pull there would run

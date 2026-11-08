@@ -358,9 +358,8 @@ target*)
 
    A refused removal keeps its branch, and no drop runs; exit 4 is one, the
    directory being still there. Any non-zero exit of
-   the drop is reported and is not a stop: on any non-zero exit the branch
-   is kept and the merge stands, and exit 6 (no local branch) is simply
-   reported.
+   the drop is reported and is not a stop, and exit 6 (no local branch) is
+   simply reported.
    (why: docs/commands/ship.md, *Step 0: the teardown*)
 
 1. **`/branch`**, passing $ARGUMENTS. Skip if already off `main` — which
@@ -676,6 +675,10 @@ target*)
      3. `/branch` leaves another session's branch there when `main` was
      dirty, so off `main` line 5 fetches and leaves that branch alone. In
      place: skip lines 2 and 7.
+   - **Launched inside the worktree**, line 2 answers that no session is active:
+     not a stop. Run lines 4 to 8 by `cd` to the main checkout. On Windows line 7
+     exits 4 on the directory this session holds, so no line 9; the report gives
+     the owner `rmdir` and the drop.
    - Run lines 4 to 6 and the prune on both paths; report containment,
      never equality: the oid `main` landed on, and that the merge is in
      its history.
@@ -692,8 +695,7 @@ target*)
      token /dispatch passes*).
    - Line 9 drops the merged branch: a forked run's once line 7 exits 0, an
      in-place run's after the switch to `main`; a refused removal keeps its
-     branch, exit 4 included, and an exit 0 is also git failing only to
-     delete the empty directory the helper then removed. Any non-zero exit of
+     branch, exit 4 included. Any non-zero exit of
      the drop is reported and is not a stop, and exit 6 (no local branch) is
      simply reported. Under `--dispatched` the run does not drop; `/dispatch`
      does.
