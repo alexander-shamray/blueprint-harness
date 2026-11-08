@@ -11,12 +11,20 @@ from harness_sync.legs import REACH, changed_paths, reaches, should_test
 
 ROOT = Path(__file__).resolve().parents[2]
 CI = ROOT / ".github" / "workflows" / "ci.yml"
-RENDERED = {"settings.json": "payload/.harness/settings.base.json"}
-# On a leg for their fixtures, so what they read is not why they run there: `TheShippedTree` in the comment gate's suite
-# reads the whole tree off its `ROOT`, which `REACH` deliberately does not hold: Linux runs it on every pull request.
-FIXTURE_SUITES = {"payload/.claude/scripts/test_git_branch_drop.py",
-                  "payload/.claude/scripts/test_git_pr_trailer_helpers.py",
-                  "payload/.github/comment-gate/test_comment_gate.py"}
+# Where a path a leg suite spells off the rendered tree comes from, when it is not the payload's file of the same name:
+# the base renders `settings.json`, the workflow copies backend's draft config in, apply writes the manifest, and
+# `harness-local.md` is this repository's own, which apply leaves in place.
+RENDERED = {".claude/settings.json": "payload/.harness/settings.base.json",
+            ".harness/config.json": "targets/blueprint-backend.config.json",
+            ".harness/manifest.json": "harness_sync/apply.py",
+            "docs/harness-local.md": "docs/harness-local.md"}
+HELPERS = "payload/.claude/scripts"
+# On a leg for its fixture, so what it reads is not why it runs there: `TheShippedTree` reads the whole tree off its
+# `ROOT`, which `REACH` deliberately does not hold: Linux runs it on every pull request.
+FIXTURE_SUITES = {"payload/.github/comment-gate/test_comment_gate.py"}
+# A path spelt off the rendered root, or off `.claude/` by `SCRIPTS.parent`, each `/ "part"` after it.
+SPELT = re.compile(r'\b(SCRIPTS\.parent\.parent|SCRIPTS\.parents\[1\]|SCRIPTS\.parent|ROOT|REPO|COMMANDS\.parent\.parent)'
+                   r'((?:\s*/\s*"[^"]+")+)')
 IDENTITY = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
 
 
@@ -25,9 +33,20 @@ def _code_lines(path: Path) -> list[str]:
 
 
 def _leg_suites() -> list[str]:
-    """Each leg suite's payload path, from the `-s` and `-p` of the step that runs it."""
-    steps = re.findall(r'-s (\S+) -p "(test_\w+\.py)"', "\n".join(_code_lines(CI)))
-    return [f"payload/{directory}/{suite}" for directory, suite in steps]
+    """Each suite a leg runs, by payload path: the whole helpers directory, and each suite a step names by `-p`."""
+    code = "\n".join(_code_lines(CI))
+    named = re.findall(r'-s (\S+) -p "(test_\w+\.py)"', code)
+    whole = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / HELPERS).glob("test_*.py"))
+    return whole + [f"payload/{directory}/{suite}" for directory, suite in named]
+
+
+def _spelt(text: str) -> list[str]:
+    """The rendered-tree paths a suite's source spells, `.claude/`-relative ones made root-relative."""
+    found = []
+    for base, chain in SPELT.findall(text):
+        rel = "/".join(re.findall(r'"([^"]+)"', chain))
+        found.append(f".claude/{rel}" if base == "SCRIPTS.parent" else rel)
+    return found
 
 
 class PullRequestTests(unittest.TestCase):
@@ -103,30 +122,44 @@ class WhatTheFilterLooksAtTests(unittest.TestCase):
     def test_every_entry_names_a_path_this_tree_has(self) -> None:
         self.assertEqual([entry for entry in REACH if not (ROOT / entry).exists()], [])
 
+    def test_the_legs_run_the_whole_helpers_suite(self) -> None:
+        # #191: the legs ran four named modules, and frontend's first whole run off Linux failed 142 cases. A step
+        # that narrowed the run again with `-p` would pass every case below on the modules it kept.
+        code = "\n".join(_code_lines(CI))
+        self.assertEqual(1, code.count("python -m unittest discover -s .claude/scripts -v"), code)
+        self.assertEqual([], re.findall(r"-s \.claude/scripts -p", code))
+        step = code.split("- name: Test the review helpers", 1)[1].split("- name:", 1)[0]
+        self.assertIn("if: matrix.os == 'ubuntu-latest' || steps.reach.outputs.test != 'false'", step)
+
     def test_every_suite_the_legs_run_is_reached(self) -> None:
         suites = _leg_suites()
-        self.assertTrue(suites, "ci.yml names no suite for the legs")
-        self.assertEqual(len(suites), len(re.findall(r'-p "test_', "\n".join(_code_lines(CI)))))
+        self.assertGreater(len(suites), 40, "the helpers directory went empty, so this checks nothing")
+        self.assertLessEqual(FIXTURE_SUITES, set(suites))
         for rel in suites:
             with self.subTest(suite=rel):
                 self.assertTrue((ROOT / rel).is_file())
                 self.assertTrue(reaches([rel]))
 
     def test_every_file_a_leg_suite_reads_beside_it_is_reached(self) -> None:
-        for suite in _leg_suites():
-            text = (ROOT / suite).read_text(encoding="utf-8")
-            chains = re.findall(r'SCRIPTS\.parent((?:\s*/\s*"[^"]+")+)', text)
-            self.assertEqual(bool(chains), suite not in FIXTURE_SUITES,
-                             f"{suite}: what it spells off SCRIPTS.parent disagrees with FIXTURE_SUITES")
-            for chain in chains:
-                rel = "/".join(re.findall(r'"([^"]+)"', chain))
-                with self.subTest(suite=suite, rel=rel):
-                    path = RENDERED.get(rel, f"payload/.claude/{rel}")
-                    self.assertTrue((ROOT / path).is_file())
-                    self.assertTrue(reaches([path]))
+        # The subject is what the suites spell, so a suite that starts reading a file `REACH` misses fails here
+        # rather than passing on a pull request whose legs skipped. `review_helpers` is read for its suites.
+        sources = [s for s in _leg_suites() if s not in FIXTURE_SUITES] + [f"{HELPERS}/review_helpers.py"]
+        spelt = {rel for source in sources for rel in _spelt((ROOT / source).read_text(encoding="utf-8"))}
+        self.assertLessEqual({".claude/settings.json", ".harness/config.json", "docs/harness-boundaries.md"}, spelt,
+                             "the pattern stopped finding what the suites read")
+        for rel in sorted(spelt):
+            path = RENDERED.get(rel, f"payload/{rel}")
+            with self.subTest(rel=rel):
+                self.assertTrue((ROOT / path).exists(), path)
+                self.assertTrue(reaches([path]))
 
-    def test_every_exempt_suite_is_on_a_leg(self) -> None:
-        self.assertLessEqual(FIXTURE_SUITES, set(_leg_suites()))
+    def test_the_pattern_reads_each_base_a_suite_spells(self) -> None:
+        # The positive control for the case above: each spelling of the rendered root, and `.claude/` off SCRIPTS.
+        text = "\n".join(['SCRIPTS.parent / "settings.json"', 'ROOT / "docs" / "x.md"',
+                          'self.ROOT / ".harness" / "c.json"', 'SCRIPTS.parent.parent / ".github" / "w.yml"',
+                          'SCRIPTS.parents[1] / "a"', 'REPO / "b"'])
+        self.assertEqual([".claude/settings.json", "docs/x.md", ".harness/c.json", ".github/w.yml", "a", "b"],
+                         _spelt(text))
 
     def test_every_leg_step_obeys_the_decision(self) -> None:
         conditions = [line.strip() for line in _code_lines(CI)
