@@ -872,8 +872,9 @@ tables below, and marks each row it lands `ported` with its pull request.
 Nine read-only agents, two for cluster A (one per guard), two for E (the
 commands and agents, then the command documents) and one each for B, C, D, F
 and G, returned 321 rows. A row is one behaviour that changes an outcome; 13
-files differ in wording alone and have none. Five rows naming one cause in two
-clusters are merged into one, its other sites under *also*, which leaves 316.
+files differ in wording alone and have none. Five rows repeating a cause that
+another cluster's row holds are folded into that row, their sites under *also*,
+which leaves 316.
 
 *Decisions* is the plan's *Decisions on the §8 mechanisms and admin-only files*,
 in `blueprint-backend`'s
