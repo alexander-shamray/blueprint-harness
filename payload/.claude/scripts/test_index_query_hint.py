@@ -273,7 +273,7 @@ class TheShipChainReadsTheIndex(unittest.TestCase):
         profile = " ".join((CLAUDE / "agents" / "branch-reviewer.md").read_text(encoding="utf-8").split())
         self.assertIn("**The impact file**", profile)
         self.assertIn("names no absences", profile)
-        # `skipped` naming anything but locality or bar stops the chain, so a file that may be absent is never in it.
+        # `skipped` naming anything but locality stops the chain, so a file that may be absent is never in it.
         self.assertIn("its absence is no check you skipped", profile)
 
 
