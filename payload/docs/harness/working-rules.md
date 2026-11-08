@@ -242,8 +242,8 @@ keeping the guide's *Comments* rules be reworded, completed or expanded.
   | Closed issue; merged or closed pull request | No row, and no note of what landed, which git and the closed issues already keep |
 
   A row with no issue reads `owed (not filed)` in its `#` cell, the form
-  `dispatch_board.py` parses beside a number. Work that stops without landing (a claim abandoned, a pull request closed
-  unmerged, or one merged without closing its issue) leaves the issue open
+  `dispatch_board.py` parses beside a number. Work that stops without landing
+  (a claim abandoned, a pull request closed unmerged, or one merged without closing its issue) leaves the issue open
   and ends its claim, so its row is re-derived by the table: *In progress*
   with the branch if one remains, otherwise back to its wave. What the work
   found and filed has its own row by the same table, written when it is
