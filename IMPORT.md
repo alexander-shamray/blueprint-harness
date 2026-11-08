@@ -908,8 +908,8 @@ edit guard, on scratch copies, leaving out 766 refusals of commands run in
 worktrees since removed. `c1` in a reason is that section's criterion 1. Every
 `covered` and `managed` row's citation was opened: six were moved to the exact
 line, two of them on review, which also moved two `local` rows' citations, and
-one `covered` with no payload site is `obsolete`, since the drift gate and not a frontmatter deny holds
-`docs/commands/` there.
+one `covered` with no payload site is `obsolete`, since the drift gate and not
+a frontmatter deny holds `docs/commands/` there.
 
 Four more rows changed on the check: two verdicts moved, one `port` was
 narrowed, and one was kept against frontend's verdict.
