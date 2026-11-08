@@ -14,3 +14,6 @@ artifacts/
 
 # Worktrees /branch and /dispatch fork inside the checkout.
 .claude/worktrees/
+
+# The code index, machine-local by construction, which /ship's reads build.
+.claude/cache/
