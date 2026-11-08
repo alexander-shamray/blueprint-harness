@@ -2424,7 +2424,8 @@ crash, never a success.
 
 **`py -3.12 .claude/scripts/shard-harness-suite.py` is the `.claude/scripts`
 suite, run in parallel.** It takes no arguments and exits 0 only when every
-discovered test ran and passed. `.claude/scripts` is its one root, the tree
+discovered test ran and passed or skipped itself, as a case does on a host
+without what it needs. `.claude/scripts` is its one root, the tree
 every target holds; a gate's suite or a stack's root is the target's to run
 beside it. `python` will do where `py` is not installed.
 
