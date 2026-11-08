@@ -583,7 +583,7 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    # A suite's output and a tracked path are UTF-8; a piped stdout on Windows would otherwise be cp1252 and raise on it.
+    # A tracked path is UTF-8 and a suite's decoded output can hold U+FFFD; a piped stdout on Windows would raise on them.
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     sys.exit(main())
