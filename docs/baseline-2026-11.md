@@ -114,8 +114,7 @@ merged at 04:42 UTC that day, and its #389, which made its `CLAUDE.md` import
 
 The second command line above with `--since 2026-11-08`. `--since` takes a
 day, and each of the six sessions it admits starts after the merge, the
-earliest at 06:01 UTC, so the window holds only sessions since #382. The last
-active of them belongs to frontend's #420, still open, so its count can grow.
+earliest at 06:01 UTC, so the window holds only sessions since #382.
 
 | Repository | Command | Sessions | ask_user | action_required | permission_refused | user_turns |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
