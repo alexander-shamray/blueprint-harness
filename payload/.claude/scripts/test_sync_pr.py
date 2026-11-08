@@ -827,28 +827,22 @@ class RunLocalSuitesTests(SyncCase):
 
     PASSES = "import unittest\nclass T(unittest.TestCase):\n    def test_ok(self):\n        pass\n"
     FAILS = "import unittest\nclass T(unittest.TestCase):\n    def test_no(self):\n        self.fail('boom')\n"
+    config = {**CONFIG, "local": ["docs/local.md", "tools/**"]}
 
-    def setUp(self):
-        super().setUp()
-        # The real git and no fake gh: the suites are real subprocesses and the comparison reads this checkout.
-        patch = mock.patch.object(sync_pr, "run", self.real_git)
-        patch.start()
-        self.addCleanup(patch.stop)
-
-    def real_git(self, argv, cwd=None, timeout=60):
-        done = subprocess.run(argv, cwd=cwd or self.root, capture_output=True, encoding="utf-8", errors="replace",
-                              check=False)
-        return done.returncode, done.stdout, done.stderr
-
-    def commit(self, files):
-        self.write({".harness/config.json": json.dumps({"local": ["tools/**"]}), **files})
+    def take(self, files):
+        """A sync proved as `/ship` takes one: the suites on the target's main, and the checkout at the head."""
+        self.write(files)
         git(self.root, "add", "-A")
         git(self.root, *SEED, "commit", "-q", "-m", "suites")
-        return git(self.root, "rev-parse", "HEAD").strip()
+        git(self.root, "push", "-q", "origin", "main")
+        self.main = git(self.root, "rev-parse", "HEAD").strip()
+        head = self.start()
+        git(self.root, "checkout", "-q", head)
+        return head
 
     def test_every_listed_suite_runs_and_a_failure_is_exit_1_naming_it(self):
-        head = self.commit({"tools/test_good.py": self.PASSES, "tools/sub/test_bad.py": self.FAILS})
-        code, out, err = self.cli("run-local-suites", "--head", head)
+        head = self.take({"tools/test_good.py": self.PASSES, "tools/sub/test_bad.py": self.FAILS})
+        code, out, err = self.cli("run-local-suites", "7", "--head", head)
         self.assertEqual(1, code, out + err)
         self.assertIn("== tools/test_good.py", out)
         self.assertIn("== tools/sub/test_bad.py", out)
@@ -857,30 +851,48 @@ class RunLocalSuitesTests(SyncCase):
         self.assertNotIn("failed: tools/test_good.py", out)
 
     def test_all_green_is_exit_0(self):
-        head = self.commit({"tools/test_good.py": self.PASSES})
-        code, out, err = self.cli("run-local-suites", "--head", head)
+        head = self.take({"tools/test_good.py": self.PASSES})
+        code, out, err = self.cli("run-local-suites", "7", "--head", head)
         self.assertEqual(0, code, out + err)
         self.assertIn("Ran 1 test", out, "a zero exit over a run that discovered nothing would prove nothing")
 
-    def test_a_head_that_is_not_the_pin_runs_nothing(self):
-        head = self.commit({"tools/test_bad.py": self.FAILS})
-        code, out, _ = self.cli("run-local-suites", "--head", "0" * 40)
+    def test_a_commit_no_sync_pull_request_holds_runs_nothing(self):
+        # The settings allow this script to every session, so a test file committed on a local branch, with that
+        # branch's own HEAD as the pin, must not run: that is the file #223 says never has to appear in a pull request.
+        self.take({"tools/test_bad.py": self.FAILS})
+        self.write({"tools/test_planted.py": self.FAILS})
+        git(self.root, "add", "-A")
+        git(self.root, *SEED, "commit", "-q", "-m", "planted")
+        own = git(self.root, "rev-parse", "HEAD").strip()
+        for prs in ([], self.gh.prs):
+            with self.subTest(prs=len(prs)):
+                self.gh.prs = prs
+                code, out, _ = self.cli("run-local-suites", "7", "--head", own)
+                self.assertEqual(1, code)
+                self.assertIn("no suite ran", out)
+                self.assertNotIn("boom", out)
+
+    def test_a_checkout_that_is_not_the_proved_head_runs_nothing(self):
+        head = self.take({"tools/test_bad.py": self.FAILS})
+        git(self.root, "checkout", "-q", "main")
+        code, out, _ = self.cli("run-local-suites", "7", "--head", head)
         self.assertEqual(1, code)
-        self.assertIn(f"HEAD is {head}", out)
+        self.assertIn(f"HEAD is {self.main}", out)
         self.assertNotIn("boom", out)
 
     def test_a_tree_that_is_not_clean_runs_nothing(self):
         # A tracked suite edited after the proof is not the code the proof vouches for.
-        head = self.commit({"tools/test_bad.py": self.FAILS})
+        head = self.take({"tools/test_bad.py": self.FAILS})
         self.write({"tools/test_bad.py": self.FAILS + "# edited\n"})
-        code, out, _ = self.cli("run-local-suites", "--head", head)
+        code, out, _ = self.cli("run-local-suites", "7", "--head", head)
         self.assertEqual(1, code)
         self.assertIn("not clean", out)
         self.assertNotIn("boom", out)
 
     def test_it_takes_no_path_so_a_file_outside_the_tree_cannot_be_named(self):
-        for argv in (["run-local-suites"], ["run-local-suites", "--head", "x"],
-                     ["run-local-suites", "--head", "0" * 40, "-s", "elsewhere"]):
+        for argv in (["run-local-suites"], ["run-local-suites", "7"], ["run-local-suites", "7", "--head", "x"],
+                     ["run-local-suites", "--head", "0" * 40],
+                     ["run-local-suites", "7", "--head", "0" * 40, "-s", "elsewhere"]):
             with self.subTest(argv=argv):
                 self.assertEqual(2, self.cli(*argv)[0])
 
