@@ -827,7 +827,8 @@ def classify(end, result, crashes, now):
 
 
 def alive(pid):
-    # A pid past the C int both probes take is out of shape, as a hand-edited pid file can be, and so is no process.
+    # A pid past the C int is out of shape, as a hand-edited pid file can be: os.kill raises OverflowError on it, and
+    # OpenProcess's DWORD would truncate it, which could alias a live process. Either way it names none.
     if not _number(pid) or pid > 0x7FFFFFFF:
         return False
     if os.name != "nt":
