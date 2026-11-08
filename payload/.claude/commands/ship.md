@@ -42,7 +42,7 @@ checkout and removes the worktree, however the review ended.
 | A fix to a script under `.claude/` lacks its case | Step 2's read refuses it, and the case is a file this session is denied editing, so the run has no fix to make |
 | `main` is ahead of `origin/main` at step 0 | Local commits on `main` need a decision this chain has no way to take |
 | CI is not green at step 6 | A merge onto a red `main` is not a judgement call |
-| The PR is not mergeable | Conflicts are the caller's tree, not this chain's |
+| `CONFLICTING` again on a head rebased onto the current `origin/main` | No branch update is left to try |
 
 - **A refused push stops the chain before any PR exists**: it has no exit
   code, only the harness's "has been denied" text; `/pr` reports it. (why:
@@ -593,10 +593,9 @@ target*)
      `pr-state.sh` publishes no base; where it holds go to the teardown
      below, and otherwise Stay, report what it holds and end the run.
    - **Poll while `mergeable` reads `UNKNOWN`**, and take `headRefOid` from
-     the **same read that finally answered**, not the first. Only a *known*
-     non-mergeable result stops the chain.
+     the **same read that finally answered**, not the first.
    - `mergeable` must be `MERGEABLE` and every check pass, on the pushed
-     head; either failing stops.
+     head; a check failing stops.
    - **An open `main is red` issue is a red check**, read after the checks
      wait: a pull request's checks never rerun when `main` turns red. Exit 3
      names each one and is the CI-not-green stop, unless this run was started
@@ -618,8 +617,8 @@ target*)
    - A rebase landing refused after `MERGEABLE` read yes, GitHub's refusal,
      where the helper exits non-zero: report the refusal rather than reaching
      for another method. A refusal with no exit code is the refused-merge stop
-     instead, and no branch update answers it. What resolves GitHub's is a
-     branch update, and a branch update is a rebase:
+     instead, and no branch update answers it. What resolves GitHub's, and a
+     `CONFLICTING` read before any wait, is a rebase:
 
    ```bash
    bash .claude/scripts/git-rebase-onto-main.sh <branch> start
