@@ -1,7 +1,7 @@
-# Every text file is LF in the working tree, whatever core.autocrlf says.
-# `harness_sync apply` copies the payload's bytes as this checkout holds them,
-# so a Windows checkout left to autocrlf would write CRLF into every target,
-# where the target's own normalisation and the drift gate's folded hash hide it.
+# Every text file is LF in the working tree, whatever core.autocrlf says, so a
+# Windows checkout and a `git archive` of it hold the bytes the store holds.
+# `harness_sync apply` folds CRLF as it reads the payload too, for a checkout
+# made before this line, whose files stay CRLF until they are next touched.
 * text=auto eol=lf
 # A CRLF checkout of a script breaks it where it runs: a shebang line ending in
 # `\r` makes the kernel look for an interpreter named `python\r` or `bash\r`
