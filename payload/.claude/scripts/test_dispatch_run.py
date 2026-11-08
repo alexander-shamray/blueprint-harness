@@ -502,7 +502,7 @@ class LaunchTests(InRoot):
         self.assertTrue(int((state_dir() / "S1.pid").read_text(encoding="utf-8")) > 0)
 
     def test_run_gives_each_executor_its_own_temp_directory_outside_every_checkout(self):
-        # Two executors sharing the system temp directory ran each other's scratch scripts (issue #199).
+        # Two executors sharing the system temp directory ran each other's scratch scripts.
         record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
         parent = {name: "shared-parent-temp" for name in ("TMP", "TEMP", "TMPDIR")}
         with mock.patch.dict(os.environ, parent):

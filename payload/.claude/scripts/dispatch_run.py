@@ -503,7 +503,7 @@ def _launch(root, directory, run, gid, entry, flag=False):
         raise Refusal("no claude on PATH")
     _remove_stale(worktree / "artifacts" / "dispatch" / run / f"{gid}.json")
     scratch = executor_temp(root, run, gid)
-    # Parallel executors sharing the system temp directory ran each other's scratch scripts (issue #199).
+    # Parallel executors sharing the system temp directory ran each other's scratch scripts.
     env = {**os.environ, "TMP": str(scratch), "TEMP": str(scratch), "TMPDIR": str(scratch)}
     started = now()
     # The permission mode is the settings' own, never a flag here (spec section 6.2); the prompt goes on stdin.
@@ -523,12 +523,8 @@ def _launch(root, directory, run, gid, entry, flag=False):
 
 
 def executor_temp(root, run, gid):
-    """A new temp directory for one executor's launch, under the system temp root and so outside every checkout:
-    refresh-index.py's worker runs from it, which Windows would not let a worktree removal delete, and
-    guard-git-argv.py admits a mutation proof's scratch checkout only under it and outside the session's own.
-
-    mkdtemp makes it atomically, private to this user and under a name nobody could have made first: a fixed path in
-    a temp root other users share could be one they planted, holding the scripts an executor then runs.
+    """A new temp directory for one executor's launch, outside every checkout, where refresh-index.py's worker and
+    guard-git-argv.py's scratch checkouts expect it; mkdtemp makes it private, under a name nobody could plant first.
     """
     base = TEMP_ROOT or tempfile.gettempdir()
     try:
