@@ -1137,8 +1137,8 @@ rather than reading whichever finished last.
 
 ## Step 6: the wait
 
-**The CI wait is the one place this chain sleeps, and a session that
-sleeps pays for its context at every wake.** A `/ship` main session's call
+**The CI wait is where this chain sleeps, as a sync's step 2 does over its
+suites, and a session that sleeps pays for its context at every wake.** A `/ship` main session's call
 sent about 274k tokens in backend's measurement of 2026-10-10, so what
 matters is how many times the wait wakes it.
 
