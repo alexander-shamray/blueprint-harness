@@ -12,6 +12,7 @@ REACH = (
     ".gitattributes",
     ".github/workflows/ci.yml",
     "harness_sync/",
+    "payload/.claude/commands/branch.md",
     "payload/.claude/hooks/",
     "payload/.claude/scripts/",
     "payload/.claude/skills/codebase-index/examples/",
