@@ -102,12 +102,13 @@ git clone --quiet . "$rendered"
 mkdir -p "$rendered/.harness"
 cp targets/blueprint-backend.config.json "$rendered/.harness/config.json"
 py -3.12 -m harness_sync apply --payload payload --target "$rendered" --commit "$(git rev-parse HEAD)"
-(cd "$rendered" && py -3.12 .claude/scripts/shard-harness-suite.py)
+(cd "$rendered" && py -3.12 -m unittest discover -s .claude/scripts)
 rm -rf "$rendered"
 ```
 
-The shard runner is the job's ubuntu leg; its windows and macos legs run the
-same suite serially.
+The job's ubuntu leg runs that suite through
+`.claude/scripts/shard-harness-suite.py` instead, which a local run can too; its
+windows and macos legs run it serially, as here.
 
 Two things the jobs do not cover or cannot promise:
 
