@@ -661,9 +661,10 @@ target*)
    - Line 9 drops the merged branch: a forked run's once line 7 exits 0, an
      in-place run's after the switch to `main`; a refused removal keeps its
      branch, exit 4 included, and an exit 0 is also git failing only to
-     delete the empty directory the helper then removed. Any non-zero exit of the drop is reported and is not a stop, and
-     exit 6 (no local branch) is simply reported. Under `--dispatched` the run
-     does not drop; `/dispatch` does.
+     delete the empty directory the helper then removed. Any non-zero exit of
+     the drop is reported and is not a stop, and exit 6 (no local branch) is
+     simply reported. Under `--dispatched` the run does not drop; `/dispatch`
+     does.
 
    (why: docs/commands/ship.md, *Step 6: the teardown*)
 
