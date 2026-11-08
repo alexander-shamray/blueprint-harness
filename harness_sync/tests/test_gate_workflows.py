@@ -11,8 +11,12 @@ GATES = {"closure-gate.yml", "comment-gate.yml", "commit-gate.yml", "harness-dri
 JUDGE = re.compile(r'(?<![-\w])python(?: -I)? "\$(?:RUNNER_TEMP/[\w./-]+\.py|judge)"')
 # Reads no module from the checkout: how harness-drift.yml reads its manifest ahead of the gate.
 ISOLATED = re.compile(r"(?<![-\w])python -I -c\b")
+# A list of spellings, so an interpreter it does not name reads as nothing: a command whose first word is a path, a
+# shell handed a file, Python, a local action, or any step set to run inside the checkout.
 HEAD_CODE = re.compile(
-    r"(?<![-\w])python3?(?=\s)|\bpytest\b|\bunittest\b|^\s*(?:- )?uses: \./|^\s*working-directory:", re.M)
+    r"(?<![-\w])python3?(?:\.\d+)?(?=\s)|\bpytest\b|\bunittest\b"
+    r"|(?<![-\w])(?:bash|sh|source)[ \t]+\S|^\s*(?:run: )?[\w./-]*/[\w./-]+"
+    r"|^\s*(?:- )?uses: \./|^\s*working-directory:", re.M)
 
 
 def steps_of(text: str) -> list[str]:
@@ -83,6 +87,13 @@ class TheReader(unittest.TestCase):
         for spelling in ("        run: python -m unittest",
                          "        run: python .github/gate/test_gate.py",
                          "        run: python3 -m pytest",
+                         "        run: python3.12 .github/gate/test_gate.py",
+                         "        run: bash .github/gate/suite.sh",
+                         "        run: sh .github/gate/suite.sh",
+                         "        run: source .github/gate/suite.sh",
+                         "        run: ./.github/gate/suite.sh",
+                         "        run: .github/gate/suite.sh",
+                         "        run: |\n          set -e\n          .github/gate/suite.sh",
                          "        uses: ./.github/actions/suite",
                          "        working-directory: .github/gate\n        run: make"):
             with self.subTest(spelling=spelling):
@@ -100,6 +111,8 @@ class TheReader(unittest.TestCase):
     def test_what_runs_nothing_from_the_checkout_is_not_named(self) -> None:
         for spelling in ("        uses: actions/setup-python@v7\n        with:\n          python-version: '3.12'",
                          "        run: python -I -c 'import json'",
+                         "        shell: bash\n        env:\n          GATE: .github/gate/gate.py\n        run: true",
+                         "        run: git show \"$BASE_SHA:$GATE\" > \"$RUNNER_TEMP/gate/gate.py\"",
                          "        # python -m unittest\n        run: true"):
             with self.subTest(spelling=spelling):
                 self.assertEqual([], head_code_before_the_judge(workflow(spelling, JUDGES)))
