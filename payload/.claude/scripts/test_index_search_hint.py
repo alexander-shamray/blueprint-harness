@@ -523,7 +523,7 @@ class OneRoute(Scratch):
         self.assertEqual("'MapPost'", single("MapPost"))
         self.assertEqual("'it'" + chr(92) + "''s'", single("it's"))
 
-    def test_a_linked_worktree_is_sent_to_the_cli_alone(self):
+    def test_with_no_project_dir_a_linked_worktree_is_sent_to_the_cli_alone(self):
         _main, tree = self.worktree()
         text = self.refused(*bash_call('grep -rnE "MapPost|MapPut" .'), cwd=tree / "src")
 
