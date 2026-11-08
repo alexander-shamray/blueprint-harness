@@ -45,9 +45,9 @@ cited from here, never restated.
 - **A branch is updated for a conflict, never because another pull request
   merged.** `main` lands by rebase alone and a branch need not be up to
   date with it to merge, so rebase an open pull request only when GitHub
-  reports it conflicting or refuses its rebase landing, or once the fix for
-  a check that belongs to `main` has landed (*CI*), and only a branch this
-  session owns.
+  reports it conflicting or refuses its rebase landing, or once the revert
+  or fix for a check that belongs to `main` has landed (*CI*), and only a
+  branch this session owns.
   `git-rebase-onto-main.sh <branch> start` is the
   update: it fetches `origin/main`, replays the branch onto it and
   publishes under a lease. Set `git config rerere.enabled true` once per
@@ -164,8 +164,9 @@ keeping the guide's *Comments* rules be reworded, completed or expanded.
   *None of it* means a fault outside what the pull request changed, so a
   gate's refusal of its own commits, body or added lines is its own to fix.
   A rerun comes first, and one that turns green is a flake, as above. Failing
-  that, it waits for the fix, a pull request of its own, and is not changed
-  to make it pass. A rerun would then still read the old merge, since
+  that, it waits for the revert or the fix, each a pull request of its own,
+  and is not changed to make it pass. A rerun would then still read the old
+  merge, since
   a `pull_request` run is pinned to the merge it started on, so it is updated
   through `git-rebase-onto-main.sh`, an update no conflict asked for.
 - **Auto-merge waits on `main`'s required checks and nothing else**: not on
