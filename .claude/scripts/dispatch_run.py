@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import zoneinfo
 from dataclasses import dataclass, field
@@ -57,6 +58,8 @@ STILL_ACTIVE = 259
 ERROR_ACCESS_DENIED = 5
 # The executor's command, resolved from PATH when None; a suite points it at a fake, never through the environment.
 CLAUDE_COMMAND = None
+# The root of the executors' temp directories, the system's when None; a suite points it at its own directory.
+TEMP_ROOT = None
 PROJECTS = Path.home() / ".claude" / "projects"
 SLEEP = time.sleep
 
@@ -499,10 +502,13 @@ def _launch(root, directory, run, gid, entry, flag=False):
     if not command[0]:
         raise Refusal("no claude on PATH")
     _remove_stale(worktree / "artifacts" / "dispatch" / run / f"{gid}.json")
+    scratch = executor_temp(root, run, gid)
+    # Parallel executors sharing the system temp directory ran each other's scratch scripts.
+    env = {**os.environ, "TMP": str(scratch), "TEMP": str(scratch), "TMPDIR": str(scratch)}
     started = now()
     # The permission mode is the settings' own, never a flag here (spec section 6.2); the prompt goes on stdin.
     try:
-        child = subprocess.Popen([*command, "-p", "--output-format", "json", "--model", flag], cwd=worktree,
+        child = subprocess.Popen([*command, "-p", "--output-format", "json", "--model", flag], cwd=worktree, env=env,
                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     except OSError as error:
         raise Refusal(f"could not start claude: {error}") from None
@@ -514,6 +520,17 @@ def _launch(root, directory, run, gid, entry, flag=False):
         child.wait()
         raise
     return child, text, started
+
+
+def executor_temp(root, run, gid):
+    """A new temp directory for one executor's launch, outside every checkout, where refresh-index.py's worker and
+    guard-git-argv.py's scratch checkouts expect it; mkdtemp makes it private, under a name nobody could plant first.
+    """
+    base = TEMP_ROOT or tempfile.gettempdir()
+    try:
+        return Path(tempfile.mkdtemp(prefix=f"dispatch-{Path(root).resolve().name}-{run}-{gid}-", dir=base)).resolve()
+    except OSError as error:
+        raise Refusal(f"could not create the executor's temp directory under {base}: {error}") from None
 
 
 def _remove_stale(*paths):
