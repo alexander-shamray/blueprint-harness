@@ -3729,6 +3729,30 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         self.admitted("ls > package.json.bak", "ls > notes/x.md", "rm -rf obj",
                       "rm -rf notes/obj", hook=hook)
 
+    def test_removing_what_holds_the_checkout_is_refused(self):
+        env = {"HOME": os.path.join(self.root, "notes")}
+        self.refused("rm -rf ..", "rm -rf ../", "rm -rf ../..", "rmdir ..", "unlink ..",
+                     "mv .. /tmp/x", "shred -u ..", "rm -rf /", "rm -rf ~", "rm -rf ~/",
+                     "rm -rf $HOME", 'rm -rf "$HOME"', f"rm -rf {self.spelled('..')}",
+                     "cd notes && rm -rf ../..", env=env)
+        self.refused("rm -rf ../..", cwd=os.path.join(self.root, "notes"), env=env)
+        self.admitted("rm -rf ..", cwd=os.path.join(self.root, "notes"), env=env)
+
+    def test_removing_what_only_sits_near_the_checkout_stays_admitted(self):
+        env = {"HOME": os.path.join(self.root, "notes")}
+        self.admitted("rm -rf .", f"rm -rf {self.spelled()}", "rm -rf ~/scratch", "rm -rf /tmp/x",
+                      "rm -rf ../sibling", "mv notes.md ..", "mv a.md b.md ..", "mv *.md ..",
+                      "cp notes.md ..", "cp notes.md ~", "ls ..", "cat ..", "rm -rf '~'",
+                      'rm -rf "$dir"', env=env)
+
+    def test_a_worktree_is_the_checkout_whose_parents_are_held(self):
+        worktree = os.path.join(self.root, ".claude", "worktrees", "linked")
+        os.makedirs(worktree)
+        with open(os.path.join(worktree, ".git"), "w", encoding="utf-8") as handle:
+            handle.write("gitdir: elsewhere\n")
+        self.refused("rm -rf ..", "rm -rf ../..", f"rm -rf {self.spelled()}", cwd=worktree)
+        self.admitted("rm -rf ../other", "rm -rf .", cwd=worktree)
+
     def test_a_rule_is_read_in_the_permission_grammar(self):
         # `/x` is the project root's, `//x` absolute and `~/x` the home's.
         hook = self.hook_denying("/package.json", "/.github/**", "//notes/**", "~/notes/**")

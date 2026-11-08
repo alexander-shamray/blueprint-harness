@@ -2621,6 +2621,8 @@ WRITING_VERBS = {
 TARGET_OPTION_VERBS = frozenset({"cp", "install", "ln", "mv"})
 # Verbs that remove, move or fill a directory whole, so its parent is a write.
 TREE_VERBS = frozenset({"cp", "install", "mv", "rm", "rmdir", "shred"})
+# Verbs whose operand goes away, so a parent of the checkout goes with it.
+REMOVING_VERBS = frozenset({"mv", "rm", "rmdir", "shred", "unlink"})
 
 # Options that take a value, so their value is not read as an operand.
 SHORT_VALUE_OPTIONS = {
@@ -2772,6 +2774,33 @@ def destination_offence(word, cwd, command, writer, whole=False, inside=None):
         "binds the editing tools alone, so this writes straight past it. Use "
         "an editing tool, where the rule judges the path, or hand it to the "
         "owner."
+    )
+
+
+def removal_offence(word, cwd, command, writer):
+    """The reason to refuse removing the place shell `word` names, or `None`.
+
+    The filesystem's root, the home directory and a strict parent of the checkout
+    the command starts in or has moved to; `rm -rf .` is the checkout itself.
+    """
+    path = written_path(word, cwd, command)
+    if path is None:
+        return None
+    place = None
+    if os.path.dirname(path) == path:
+        place = "the filesystem's root"
+    elif os.path.normcase(path) == os.path.normcase(written_path("~", cwd, command) or ""):
+        place = "the home directory"
+    for start in (EVENT_CWD or os.getcwd(), cwd):
+        root = checkout_of(os.path.abspath(start)) if start else None
+        if place is None and root is not None and beneath(root, path) and (
+                os.path.normcase(root) != os.path.normcase(path)):
+            place = f"a parent of the checkout `{root}`"
+    if place is None:
+        return None
+    return (
+        f"{writer} would remove `{path}`, {place}, and this checkout or every "
+        "session's home with it. Name what is below it."
     )
 
 
@@ -3014,6 +3043,10 @@ def writing_verb_offence(words, cwd, command):
                     operands = operands[:cut]
                     break
         for word, sources, into in verb_destinations(verb, operands):
+            refusal = removal_offence(word, cwd, command, f"`{verb}`") if (
+                sources is None and verb in REMOVING_VERBS) else None
+            if refusal is not None:
+                return refusal
             names = [None] if sources is None or verb not in TREE_VERBS else (
                 landings(word, sources, into, cwd, command))
             for name in names:
