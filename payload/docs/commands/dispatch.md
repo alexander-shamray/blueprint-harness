@@ -72,6 +72,14 @@ row of another session's is named to the owner rather than deleted. The
 rebuild's cleanup of closed and merged rows is therefore *Remaining*,
 *Tracking* and *Paused* only.
 
+**A list `board` refuses is still rebuilt from.** `board --run` keeps its
+copy as soon as it has read the list, before it cuts a group, so a group
+spanning two waves or two models, which it refuses, is re-cut by the same
+rebuild rather than by a hand edit. A list that does not parse at all, a
+malformed header or an *In progress* row naming two issues, still needs a
+human: `tasks rewrite` parses the live list too, and *In progress* is never
+rebuilt.
+
 `--run` takes the run's name, as every other subcommand does, and is
 resolved under `artifacts/dispatch/` to a run `start` opened; `board --run`
 and every `tasks` action refuse any other, so neither creates a directory of
