@@ -26,8 +26,10 @@ slash command. The median is taken per count across the sessions.
 - A session that was resumed later has a later modification time, so it can
   enter the window on its last day of use, not its first.
 - A median of zero hides a skewed tail; the totals below show it.
-- A session a `/clear` opens has that as its first genuine message, so
-  `--command` drops it (#276). *After plan 5* gives frontend's count with them.
+- `--command` reads a session's first genuine message and looks for the tag
+  anywhere in it. A session a `/clear` opens drops out, and one whose first
+  message only quotes the tag counts (#276). *After plan 5* gives frontend's
+  count without either.
 
 ## Command lines
 
@@ -128,29 +130,34 @@ earliest at 06:01 UTC, so the window holds only sessions since #382.
 
 Against the two tables, same command and same repository, `action_required`
 rose: the median from 0 to 0.5, the total from 5 to 7, the largest session
-from 3 to 5. The other three fell or held. By the plan's rule the rise is a
-harness defect, filed as #272.
+from 3 to 5. The other three fell or held. By the plan's rule a rise is a
+harness defect, so it is filed, as #272.
 
-Those tables hold about half of frontend's `ship` sessions, on both sides. A
-session a `/clear` opens has that as its first genuine message, so `--command`
-drops it, as *Limits of the measure* says and #276 files. Counted with them, as
-sessions whose first two genuine messages are `/clear` and `/ship`, which no
-command line offers yet, and read at 16:02 UTC with each window's sessions by
-when they started, each cell is the median, then the total, then the largest
-session, and `user_turns` counts what follows the `/ship`:
+Those tables do not hold what they name, on either side, because of how
+`--command` picks a session, as *Limits of the measure* says and #276 files. It
+drops six sessions on each side that a `/clear` opens. It also keeps two of the
+baseline's five that are not `/ship`: security reviews whose first message
+quotes the tag. Without those two the baseline's `action_required` median is
+already 2, so the rise in the median rests on them. Counted as sessions whose
+first genuine message, or the one after a `/clear`, opens with the `/ship` tag,
+which no command line offers yet, and read at 16:13 UTC with each window's
+sessions by when they started, each cell is the median, then the total, then
+the largest session, and `user_turns` counts what follows the `/ship`:
 
-| Frontend `ship`, those included | Sessions | ask_user | action_required | permission_refused | user_turns |
+| Frontend `ship`, by that count | Sessions | ask_user | action_required | permission_refused | user_turns |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Baseline, to 2026-11-02 | 11 | 0; 3, max 3 | 1; 16, max 6 | 0; 2, max 2 | 0; 8, max 3 |
+| Baseline, to 2026-11-02 | 9 | 0; 3, max 3 | 2; 16, max 6 | 0; 2, max 2 | 0; 8, max 3 |
 | Since #382 | 12 | 0; 0, max 0 | 1; 17, max 5 | 0; 3, max 2 | 0; 4, max 1 |
 
-Read that way `action_required` does not rise per session, and
-`permission_refused` goes from 2 to 3. The six the tool counted are not a fair
-sample of the twelve: one of them carries five of its seven handovers. Of the
-seventeen, fifteen hand the owner a script editing a path a session may not,
-under `.claude/` or `.github/`, a route older than the sync. This window is
-also one day straight after the sync against the baseline's fourteen, so the
-owner met all seventeen in a day, and whether that lasts is not yet measured.
+Read that way `action_required` falls per session, from 16 over 9 to 17 over
+12, with the median from 2 to 1 and the largest session from 6 to 5. `ask_user`
+and `user_turns` fall too. `permission_refused` goes from 2 to 3, the one count
+that rises. The rise the two tables show is therefore mostly the filter. What
+#272 keeps is the load: of the seventeen, fifteen hand the owner a script
+editing a path a session may not, under `.claude/` or `.github/`, a route older
+than the sync. This window is one day straight after the sync against the
+baseline's fourteen, so the owner met all seventeen in a day, and whether that
+lasts is not yet measured.
 
 ### What a frontend session loads
 
