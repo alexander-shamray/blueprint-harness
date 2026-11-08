@@ -488,6 +488,7 @@ def run_session(root, run, gid):
         out, err = child.communicate(text.encode("utf-8"))
     finally:
         _remove_temp(scratch)
+        _prune_worktrees(root)
     ended = now()
     record = {"exit": child.returncode, "started": started.isoformat(), "ended": ended.isoformat(),
               "seconds": round((ended - started).total_seconds()),
@@ -558,6 +559,15 @@ def _remove_temp(scratch):
     a file in it is the system's to clear later, and must not stop `run` writing the session record or the refusal
     that follows."""
     shutil.rmtree(scratch, ignore_errors=True)
+
+
+def _prune_worktrees(root):
+    """A `git worktree add` the executor made under its temp directory has just lost its target. Best effort, as the
+    removal is: only a registration whose directory is gone goes, and a failure must not stop the session record."""
+    try:
+        git(root, "worktree", "prune")
+    except Refusal:
+        pass
 
 
 def _remove_stale(*paths):
