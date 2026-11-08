@@ -1012,8 +1012,9 @@ bullet (#269). The rule won, because a run already resolves a replay's conflict
 in the replayed commit when a landing is refused after `MERGEABLE`, and the
 answer to the opposite choice, handing back every branch `main` moved under, is
 a chain that stops on the ordinary course of two pull requests. So `CONFLICTING`
-takes that same route before the wait, which on it has nothing to report. What
-is left of the stop is `CONFLICTING` read again on a head replayed onto the
+takes that same route whenever it is read: before the wait, which on it has
+nothing to report, or after it, the wait passing only on `MERGEABLE`. What is
+left of the stop is `CONFLICTING` read again on a head replayed onto the
 `origin/main` still current: the update has answered and GitHub disagrees.
 
 **An open `main is red` issue is a red check, and the pull request's own
