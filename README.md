@@ -91,16 +91,19 @@ rendered root and has backend's config applied over it; the
 suites included, and applies the payload to a worktree of the commit. Its
 first steps, locally (Git Bash; `bash`, `grep`, `git` and `jq` on PATH), take
 a scratch clone instead, because the settings deny `git worktree remove`,
-whose `-f` discards work, and a clone needs none to clear away:
+whose `-f` discards work, and a clone needs none to clear away. The clone
+goes under the temp root, which the git argv guard exempts: in a checkout
+beside this one, the copy of the config is refused by the `.harness/**`
+Edit deny.
 
 ```bash
-rm -rf ../rendered
-git clone --quiet . ../rendered
-mkdir -p ../rendered/.harness
-cp targets/blueprint-backend.config.json ../rendered/.harness/config.json
-py -3.12 -m harness_sync apply --payload payload --target ../rendered --commit "$(git rev-parse HEAD)"
-(cd ../rendered && py -3.12 -m unittest discover -s .claude/scripts)
-rm -rf ../rendered
+rendered="$(mktemp -d)"
+git clone --quiet . "$rendered"
+mkdir -p "$rendered/.harness"
+cp targets/blueprint-backend.config.json "$rendered/.harness/config.json"
+py -3.12 -m harness_sync apply --payload payload --target "$rendered" --commit "$(git rev-parse HEAD)"
+(cd "$rendered" && py -3.12 -m unittest discover -s .claude/scripts)
+rm -rf "$rendered"
 ```
 
 Two things the jobs do not cover or cannot promise:
