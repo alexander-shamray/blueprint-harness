@@ -6,6 +6,7 @@ discovery too. Each way of reporting a pass over tests that never ran has a case
 
 import contextlib
 import importlib.util
+import io
 import subprocess
 import sys
 import tempfile
@@ -296,6 +297,78 @@ class TheRunnerRefusesRatherThanReportingAPass(unittest.TestCase):
                              timeout=120)
         self.assertEqual(2, out.returncode, out.stdout)
         self.assertIn("takes no arguments", out.stderr)
+
+
+class Worker:
+    """What `run_all` waits on, standing in for a process, which exits with <code>."""
+
+    def __init__(self, code):
+        self.code = code
+
+    def wait(self):
+        return self.code
+
+    def poll(self):
+        return self.code
+
+
+class TheRunItselfRefuses(unittest.TestCase):
+    """The checks where the plan becomes workers and the workers come back, driven through `run_all` and
+    `discover_and_run` rather than called apart from them."""
+
+    def run_all(self, finish, code=0):
+        """`run_all` over two units whose workers exit <code>, having finished the units <finish> names."""
+
+        def spawn(args, _log):
+            work = Path(args[1])
+            for name in finish:
+                (work / "done" / f"{name}.ids").write_bytes(b"")
+            return Worker(code)
+
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(SHARD, "spawn", spawn), mock.patch.object(SHARD, "report"), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            status = SHARD.run_all([["a.A.x"], ["b.B.x"]], [], 1)
+        return status, out.getvalue(), err.getvalue()
+
+    def discover_and_run(self):
+        err = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            status = SHARD.discover_and_run()
+        return status, err.getvalue()
+
+    def test_workers_that_exit_zero_on_an_unfinished_unit_fail_the_run(self):
+        status, _, err = self.run_all(["0000"])
+        self.assertEqual(1, status)
+        self.assertIn("1 of 2 units never finished", err)
+
+    def test_a_worker_that_exits_non_zero_fails_the_run(self):
+        status, out, _ = self.run_all(["0000", "0001"], code=1)
+        self.assertEqual(1, status)
+        self.assertIn("worker 0 failed", out)
+
+    def test_every_unit_finished_by_green_workers_passes(self):
+        status, out, err = self.run_all(["0000", "0001"])
+        self.assertEqual(0, status, err)
+        self.assertIn("all green", out)
+
+    def test_a_plan_that_drops_a_unit_runs_nothing(self):
+        units, tail = SHARD.plan(found())
+        with mock.patch.object(SHARD, "discovered", return_value=found()), \
+                mock.patch.object(SHARD, "plan", return_value=(units[:-1], tail)), \
+                mock.patch.object(SHARD, "run_all") as run_all:
+            status, err = self.discover_and_run()
+        self.assertEqual(2, status)
+        self.assertIn("the runs do not cover discovery", err)
+        run_all.assert_not_called()
+
+    def test_a_root_that_discovers_nothing_runs_nothing(self):
+        with mock.patch.object(SHARD, "ROOTS", (("docs", "test_*.py"),)), \
+                mock.patch.object(SHARD, "run_all") as run_all:
+            status, err = self.discover_and_run()
+        self.assertEqual(2, status)
+        self.assertIn("Refusing the run", err)
+        run_all.assert_not_called()
 
 
 class OneRunAtATime(unittest.TestCase):
