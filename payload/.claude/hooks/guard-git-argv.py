@@ -3197,8 +3197,10 @@ def git_path_offence(words, cwd, command):
         options, before, after = _git_operands(
             words, literals, {"-s", "--source", "--conflict", "--pathspec-from-file", "-U", "--unified"})
         source = _restore_source(options)
-        staged = "--staged" in options or _has_short_letter(options, "S")
-        worktree = "--worktree" in options or _has_short_letter(options, "W")
+        # What follows a short `s` is its value: `-sStaging` is no `--staged`.
+        letters = [option.split("s", 1)[0] for option in options]
+        staged = "--staged" in options or _has_short_letter(letters, "S")
+        worktree = "--worktree" in options or _has_short_letter(letters, "W")
         if staged and not worktree:
             return None
         paths = before + after

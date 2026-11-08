@@ -3791,6 +3791,8 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
             "git restore -sorigin/main .claude/hooks/x",
             "git restore --source=x --staged --worktree .claude/settings.json",
             "git restore -SW -s x .claude/settings.json",
+            "git restore -sStaging .claude/settings.json",
+            "git checkout no-such-ref .claude/settings.json",
             "git rm .claude/hooks/x", "git rm -f .claude/settings.json", "git rm -r .claude",
             "git mv .claude/settings.json x.json", "git mv notes/a .claude/hooks/a",
             "git -C .claude rm -f settings.json",
@@ -3799,15 +3801,15 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
             "bash -c 'git rm .claude/hooks/x'",
         )
 
-    def test_a_git_path_write_that_restores_or_leaves_a_denied_file_stays_admitted(self):
-        self.admitted(
-            "git checkout -- .claude/settings.json", "git checkout HEAD -- .claude/settings.json",
     def test_a_first_word_naming_a_path_is_a_path_as_git_reads_it(self):
         os.makedirs(os.path.join(self.root, ".claude", "hooks"))
         with open(os.path.join(self.root, ".claude", "settings.json"), "w", encoding="utf-8") as handle:
             handle.write("{}")
         self.admitted("git checkout .claude/settings.json .claude/hooks/x")
 
+    def test_a_git_path_write_that_restores_or_leaves_a_denied_file_stays_admitted(self):
+        self.admitted(
+            "git checkout -- .claude/settings.json", "git checkout HEAD -- .claude/settings.json",
             "git checkout @ -- .claude/settings.json", "git checkout .claude/settings.json",
             "git checkout --theirs -- .claude/settings.json",
             "git restore .claude/settings.json", "git restore --source=HEAD .claude/settings.json",
