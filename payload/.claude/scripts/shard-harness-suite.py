@@ -48,9 +48,9 @@ TOGETHER = {
 
 # Seconds a class took in one queued run of the whole suite on one Windows host, timed whole beside seven workers.
 # They only order the queue, longest first, and a class dealt late still runs. Refresh the table whole from the
-# class times every run prints, since a table half old and half new orders worse than either. A class is
-# listed at 5 s or at ten tests, as an unlisted one costs `UNMEASURED` a test; SERIAL classes are absent, since
-# `plan()` sets them aside before it reads this.
+# class times every run prints, since a table half old and half new orders worse than either. That run listed a
+# class at 5 s or at ten tests, and one added or sped up since costs `UNMEASURED` a test or its old seconds until the
+# next refresh; SERIAL classes are absent, since `plan()` sets them aside before it reads this.
 WEIGHT = {
     "test_sweep_slices.ASmallRepository": 824.8,
     "test_git_rebase_onto_main.TheHelperPublishesWhatItRebased": 777.0,
