@@ -1692,6 +1692,10 @@ since git permits a newline in a name, so each arrives JSON-encoded and is
 printed only if it decodes to a plain path: no escape, path characters
 only, a `/` or a `.` in it, no `..` segment. Any other name refuses the
 whole run, because a verdict list with one line withheld reads as complete.
+For the same reason it reads the pull request's `changedFiles` and exits 3
+when the endpoint's count of `filename`s differs, a rename being one file: the
+endpoint stops short of a very large pull request, and a short list would print
+verdicts for part of the diff.
 
 **Its grammar refuses rather than guesses.** A body carrying neither row
 prints nothing, and the caller skips its touch-set check and says so; one
