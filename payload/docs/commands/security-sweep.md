@@ -453,8 +453,8 @@ not read: they are never edited to match the code, so a defect in their
 samples has nothing to fix. A row named `=<dir>/` is a mirror: a path it
 matches whose blob equals the file of that name under `<dir>/` is owned and
 counted, not listed, because that file is read as itself; a copy that
-differs or has none falls to the next row and is read. The lists stay beside the worktree, and the
-parent reads them only to `Grep` for a path a scope hint names, keeping
+differs or has none falls to the next row and is read. The lists stay
+beside the worktree, and the parent reads them only to `Grep` for a path a scope hint names, keeping
 the slices that hold it, or the slices of the rows it names; the summary
 says which it dropped.
 
