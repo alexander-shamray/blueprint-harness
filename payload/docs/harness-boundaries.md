@@ -193,7 +193,8 @@ home-relative specifier binds the absolute path a tool is given. **The git guard
 does not back them (blueprint-harness#246):** `guard-git-argv.py` judges paths
 anchored at a checkout's root, so it admits a redirect, `rm`, `curl -o` or `tar -x`
 writing under either directory, read at `99cc539` by running the guard over each.
-Whether the rule itself reaches such a command has not been measured here; a path
+Whether the rule itself reaches such a command has not been measured in
+blueprint-harness; a path
 deny reaches a `Bash` command naming the path where it was (*A boundary an agent must
 keep across turns*), and a command that computes its path would not name it. Admit
 the shell as open until that is read.
