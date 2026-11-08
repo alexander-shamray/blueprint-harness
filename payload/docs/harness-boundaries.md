@@ -175,29 +175,29 @@ styles.** `~/.claude/projects/*/memory/` is loaded into later sessions as the
 user's own standing instruction, and `~/.claude/output-styles/` shapes how they
 answer; a command that reads a branch diff and holds `Write` could otherwise
 plant one. `guard-edit-target.py` refuses only named control paths below
-`~/.claude`, and these two are not among them, since a session's own memory lives
-there and it cannot tell a save from an injection, so
+`~/.claude`, and these two are not among them, since a session's own memory
+lives there and it cannot tell a save from an injection, so
 `Edit(~/.claude/projects/**)` and `Edit(~/.claude/output-styles/**)` sit in
-`disallowed-tools` of `/ship`, `/pr`, `/style-pass`, `/dispatch` and `/team`, and
-`AWritingCommandDeniesTheUsersMemoryAndOutputStyles` fails when a managed command
-that grants either tool lacks them. Like every frontmatter deny they last only the
-turn that loaded the command (*A boundary an agent must keep across turns*), so they
-cover that turn's reading of a branch and not `/ship` after a background wake or a
-later round of `/dispatch` or `/team`. Within that turn a session cannot save a
-memory: it saves it afterwards. A target's own command is its own to hold, since a
-deny in a local file is no payload suite's to require.
-**Measured in blueprint-admin** (its #291): on 2026-10-20, on Windows,
-in a turn whose `/ship` frontmatter was in force, a `Write` to each directory was
-refused with no prompt and one to `~/.claude/scratch/` succeeded, so the
-home-relative specifier binds the absolute path a tool is given. **The git guard
-does not back them (blueprint-harness#246):** `guard-git-argv.py` judges paths
-anchored at a checkout's root, so it admits a redirect, `rm`, `curl -o` or `tar -x`
-writing under either directory, read at `99cc539` by running the guard over each.
-Whether the rule itself reaches such a command has not been measured in
-blueprint-harness; a path
-deny reaches a `Bash` command naming the path where it was (*A boundary an agent must
-keep across turns*), and a command that computes its path would not name it. Admit
-the shell as open until that is read.
+`disallowed-tools` of `/ship`, `/pr`, `/style-pass`, `/dispatch` and `/team`,
+and `AWritingCommandDeniesTheUsersMemoryAndOutputStyles` fails when a managed
+command that grants either tool lacks them. Like every frontmatter deny they
+last only the turn that loaded the command (*A boundary an agent must keep
+across turns*), so they cover that turn's reading of a branch and not `/ship`
+after a background wake or a later round of `/dispatch` or `/team`. Within that
+turn a session cannot save a memory: it saves it afterwards. A target's own
+command is its own to hold, since a deny in a local file is no payload suite's
+to require. **Measured in blueprint-admin** (its #291): on 2026-10-20, on
+Windows, in a turn whose `/ship` frontmatter was in force, a `Write` to each
+directory was refused with no prompt and one to `~/.claude/scratch/` succeeded,
+so the home-relative specifier binds the absolute path a tool is given. **The
+git guard does not back them (blueprint-harness#246):** `guard-git-argv.py`
+judges paths anchored at a checkout's root, so it admits a redirect, `rm`, `curl
+-o` or `tar -x` writing under either directory, read at `99cc539` by running the
+guard over each. Whether the rule itself reaches such a command has not been
+measured in blueprint-harness; a path deny reaches a `Bash` command naming the
+path where it was (*A boundary an agent must keep across turns*), and a command
+that computes its path would not name it. Admit the shell as open until that is
+read.
 
 **The index skill's prefix grants are the same speed bump as `git *--output*`.**
 `Bash(bash .claude/skills/codebase-index/scripts/cbx search:*)` matches the

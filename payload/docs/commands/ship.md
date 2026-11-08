@@ -73,17 +73,17 @@ auto-mode classifier can refuse `gh-pr-merge.sh` with no exit code and no hook
 reason after every step 6 gate has passed: blueprint-admin measured it (its
 #613), as "Merge Without Review" with a clean review behind it and `/ship`'s own
 grant on the helper, and it let another merge through the same day. So the step
-is tried rather than skipped, and a refusal is reported, never retried by another
-spelling and never answered with a branch update, which would rewrite a reviewed
-head and answer nothing, since GitHub was not what refused. The PR did not merge,
-and the caller gets the `! bash .claude/scripts/gh-pr-merge.sh <n> <oid>` line
-with the oid the gates read. The owner's merge leaves the run at the *already
-merged* row: step 0 tears the workspace down, and the task list row step 6's
-teardown would have deleted goes then. What lifts it is the user's own
-`autoMode` settings, not a grant here, and admin's `autoMode.allow` entry for the
-helper is the expected remedy rather than a measured one; that record is admin's,
-and `docs/harness/pitfalls.md` says only that the classifier refuses some outward
-writes.
+is tried rather than skipped, and a refusal is reported, never retried by
+another spelling and never answered with a branch update, which would rewrite a
+reviewed head and answer nothing, since GitHub was not what refused. The PR did
+not merge, and the caller gets the `! bash .claude/scripts/gh-pr-merge.sh <n>
+<oid>` line with the oid the gates read. The owner's merge leaves the run at the
+*already merged* row: step 0 tears the workspace down, and the task list row
+step 6's teardown would have deleted goes then. What lifts it is the user's own
+`autoMode` settings, not a grant here, and admin's `autoMode.allow` entry for
+the helper is the expected remedy rather than a measured one; that record is
+admin's, and `docs/harness/pitfalls.md` says only that the classifier refuses
+some outward writes.
 
 **The review hitting its ceiling is not in the runbook's stop table.** A
 ceiling ends the review — it reports itself unconverged and step 6 merges
@@ -671,11 +671,11 @@ read.** The prompt-time hint cannot do this for a run: it reads a `/ship`
 argument as a question, and an issue number or a plan's task is none. So the
 runbook names the skill's `search`, `refs` and `impact` lines, and grants them,
 since the skill's own grant holds only once it is loaded and a dispatched run's
-every shell read has to be one its grants name. `update` and `index`, which write
-the cache, stay the skill's. **An empty `refs` or `impact` is never an absence**,
-the skill's confidence contract says when to read further, and a `cbx` that
-cannot answer is not one of the stops: a target may have no index, and the index
-speeds the run without being what makes it correct.
+every shell read has to be one its grants name. `update` and `index`, which
+write the cache, stay the skill's. **An empty `refs` or `impact` is never an
+absence**, the skill's confidence contract says when to read further, and a
+`cbx` that cannot answer is not one of the stops: a target may have no index,
+and the index speeds the run without being what makes it correct.
 
 ## Step 2: checks
 
@@ -779,15 +779,15 @@ head no round read, so each round's `git rev-parse HEAD` is recorded when its
 input is written.
 
 **A full pass starts from the diff's blast radius.** `diff-impact` names the
-symbols and files the diff reaches through the graph, beyond the lines a reviewer
-quotes, and a contradiction outside the changed lines lives there. It is read
-against the merge base, which `git merge-base origin/main HEAD` answers under an
-exact grant, because its default of `HEAD` compares nothing on a clean branch. It
-names no absences, so a file it omits may still depend on the change. A recheck
-reads the diff and the findings and nothing else, so it writes none, which nobody
-would read. The reviewer never names it in `skipped`,
-whose other entries stop the chain, since an index a target lacks is not a round
-that did not run.
+symbols and files the diff reaches through the graph, beyond the lines a
+reviewer quotes, and a contradiction outside the changed lines lives there. It
+is read against the merge base, which `git merge-base origin/main HEAD` answers
+under an exact grant, because its default of `HEAD` compares nothing on a clean
+branch. It names no absences, so a file it omits may still depend on the change.
+A recheck reads the diff and the findings and nothing else, so it writes none,
+which nobody would read. The reviewer never names it in `skipped`, whose other
+entries stop the chain, since an index a target lacks is not a round that did
+not run.
 
 **The bar comes from `origin/main`, never from the branch.** A change under
 `docs/harness/` is ordinary here, so a reviewer taking its bar from the
@@ -985,9 +985,9 @@ to perform. The rule is to wait for the run on the pushed head; `--watch`
 is the spelling that actually does, and `--fail-fast` returns the moment
 one check fails rather than sitting out the rest.
 
-**`--interval 60` is what keeps the wait cheap.** Off a terminal `--watch` prints
-the whole table again every interval, ten seconds by default. A minute is a sixth
-of the repeats and costs at most that much latency on a run of minutes;
+**`--interval 60` is what keeps the wait cheap.** Off a terminal `--watch`
+prints the whole table again every interval, ten seconds by default. A minute is
+a sixth of the repeats and costs at most that much latency on a run of minutes;
 blueprint-admin read about a quarter less text a call (its #225).
 
 **`headRefOid` is read here, before the checks and before the merge**, and
@@ -1001,15 +1001,14 @@ red `main` is not a recommended option**, and a conflicted branch is a
 question about the caller's tree that this chain cannot answer. Either one
 stops here and is reported as what it is.
 
-**`MERGEABLE` is GitHub's answer about a merge commit, and the step below
-asks for a rebase**, which replays each commit and can conflict where
-merging the same branch would not. So the landing may be refused after this
-read said yes. That failure is loud and it lands *before* the teardown, so
-the workspace is intact when the chain stops: report the refusal rather
-than reaching for another method. **This is GitHub refusing the rebase, and the
-helper exits non-zero.** A refusal by the auto-mode classifier, with no exit
-code, is the refused-merge stop instead (*It runs to the end*), and no branch
-update answers it.
+**`MERGEABLE` is GitHub's answer about a merge commit, and the step below asks
+for a rebase**, which replays each commit and can conflict where merging the
+same branch would not. So the landing may be refused after this read said yes.
+That failure is loud and it lands *before* the teardown, so the workspace is
+intact when the chain stops: report the refusal rather than reaching for another
+method. **This is GitHub refusing the rebase, and the helper exits non-zero.** A
+refusal by the auto-mode classifier, with no exit code, is the refused-merge
+stop instead (*It runs to the end*), and no branch update answers it.
 
 `git-rebase-onto-main.sh`, the runbook's step 6 branch update, replays the
 branch onto `origin/main` and publishes the result under a lease. **A conflict
