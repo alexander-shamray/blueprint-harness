@@ -535,6 +535,18 @@ class LaunchTests(InRoot):
             self.assertIn("refused: could not start claude", run_cli(["run", RUN, "S1"]))
         self.assertEqual([], list((self.root / "system-temp").iterdir()))
 
+    def test_run_removes_the_temp_directory_when_the_pid_file_cannot_be_written(self):
+        record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
+        task_text()
+
+        def refuse(path, text):
+            raise dr.Refusal("pid file refused")
+
+        with mock.patch.object(dr, "CLAUDE_COMMAND", [sys.executable, "-c", "pass"]), \
+                mock.patch.object(dr, "_write", refuse):
+            self.assertIn("refused: pid file refused", run_cli(["run", RUN, "S1"]))
+        self.assertEqual([], list((self.root / "system-temp").iterdir()))
+
     def test_the_executor_temp_root_is_the_systems_and_outside_the_checkout_and_its_worktrees(self):
         # refresh-index.py's worker runs from it, and guard-git-argv.py's scratch checkouts are judged under it.
         with mock.patch.object(dr, "TEMP_ROOT", None):
