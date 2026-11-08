@@ -3642,6 +3642,18 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         self.admitted("ls > notes/package.json", "ls > .claude/settings.json",
                       hook=hook)
 
+    def test_a_double_star_deny_holds_a_file_at_the_root(self):
+        # #228: `fnmatchcase` wants a `/` before `**/`, so the root's own file
+        # passed a rule that names it at every depth.
+        hook = self.hook_denying("**/package.json", "**/Directory.Build.*",
+                                 "**/obj/**", "**/*.csproj.user")
+        self.refused("ls > package.json", "ls > PACKAGE.JSON", "ls > Directory.Build.props",
+                     "ls > notes/package.json", "ls > obj/x", "ls > notes/obj/x",
+                     "cp /tmp/a a.csproj.user", "rm -rf obj/x", hook=hook)
+        # The tree itself is what an `obj` at a depth has always been.
+        self.admitted("ls > package.json.bak", "ls > notes/x.md", "rm -rf obj",
+                      "rm -rf notes/obj", hook=hook)
+
     def test_a_rule_is_read_in_the_permission_grammar(self):
         # `/x` is the project root's, `//x` absolute and `~/x` the home's.
         hook = self.hook_denying("/package.json", "/.github/**", "//notes/**", "~/notes/**")

@@ -187,6 +187,8 @@ def denied_path(relative, whole=False):
 
     Anchored at the root and folded: `.CLAUDE/hooks/x` is held, `.claude/worktrees/x`
     is not. With `whole`, a write to a tree, a parent of a deny's prefix counts.
+    `fnmatchcase` wants a `/` before `**/`, so a rule at every depth is asked
+    again without it, for the file at the root.
     """
     parts = [part for part in re.split(r"[\\/]+", relative)
              if part not in ("", ".")]
@@ -196,6 +198,7 @@ def denied_path(relative, whole=False):
     for rule in edit_denies():
         literal = re.split(r"[*?\[]", rule, maxsplit=1)[0].rstrip("/")
         if fnmatch.fnmatchcase(path, rule) or (
+                rule.startswith("**/") and fnmatch.fnmatchcase(path, rule[3:])) or (
                 rule.endswith("/**") and path == rule[:-3]) or (
                 whole and literal.startswith(path + "/")):
             return f"`Edit({rule})`"
