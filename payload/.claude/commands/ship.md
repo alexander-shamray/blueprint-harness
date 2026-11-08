@@ -571,8 +571,8 @@ target*)
    - **Poll while `mergeable` reads `UNKNOWN`**, and take `headRefOid` from
      the **same read that finally answered**, not the first. Only a *known*
      non-mergeable result stops the chain.
-   - `mergeable` must be `MERGEABLE` and every check must pass, on the
-     pushed head; either failing stops here and is reported as what it is.
+   - `mergeable` must be `MERGEABLE` and every check pass, on the pushed
+     head; either failing stops here.
    - **A head no round reviewed is not merged.** If `headRefOid` is not one
      of the recorded reviewed heads, run `git pull --ff-only` (a refusal
      stops), so this checkout is that commit, re-enter step 5 for a recheck
@@ -648,12 +648,8 @@ target*)
    - Run lines 4 to 6 and the prune on both paths; report containment,
      never equality: the oid `main` landed on, and that the merge is in
      its history.
-   - **A usage exit of line 7 or 9 after line 5's pull is not a stop**: the
-     pull may have brought a helper whose arguments changed since this text
-     was loaded, as a sync that lands does. Read lines 7 to 9 from the
-     `.claude/commands/ship.md` the pull brought and repeat them as it spells
-     them; report that the run did (why: docs/commands/ship.md, *Step 6: the
-     teardown*).
+   - **A usage exit of line 7 or 9 after the pull is not a stop**: repeat it
+     as the pulled `ship.md` spells it.
    - Once the merge is verified, delete this change's row from *In
      progress* in the task list named by `.harness/config.json`
      `task_list`, in the main checkout's parent directory, by that path (why:
@@ -665,10 +661,8 @@ target*)
      token /dispatch passes*).
    - Line 9 drops the merged branch: a forked run's once line 7 exits 0, an
      in-place run's after the switch to `main`; a refused removal keeps its
-     branch, exit 4 (a directory that holds something or that a process holds)
-     included, and an exit 0
-     is also git failing only to delete the empty directory the helper then
-     removed. Any non-zero exit of the drop is reported and is not a stop, and
+     branch, exit 4 included, and an exit 0 is also git failing only to
+     delete the empty directory the helper then removed. Any non-zero exit of the drop is reported and is not a stop, and
      exit 6 (no local branch) is simply reported. Under `--dispatched` the run
      does not drop; `/dispatch` does.
 
