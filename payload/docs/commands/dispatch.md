@@ -310,9 +310,10 @@ valid, and whose worktree meets `/ship` step 0's finished predicate — clean,
 its tip the head of a row `MERGED` into `main` — has nothing a relaunch could
 do but read the merge, so `result` takes it as `merged-claimed`, from GitHub's
 fields and with `verify` still to come, and its `decisions` say the result
-came from there. The rounds it ran went with the file, so it goes to *Needs a
-human* as a merge with no review round unless its transcript shows a reviewer.
-A read that fails, or a predicate that does not hold, leaves the crash as it
+came from there. The rounds it ran went with the file, so a first session goes
+to *Needs a human* as a merge with no review round unless its transcript shows
+a reviewer, and a relaunch reads as one onto a merged PR does (*What an
+executor returns*). A read that fails, or a predicate that does not hold, leaves the crash as it
 was, and so does a sync whose tip is not the head its proof bound (*The proof
 binds*). Run 20261108-071135 relaunched five groups of twenty-one: one had merged
 and written its result to the main checkout's run directory rather than its
