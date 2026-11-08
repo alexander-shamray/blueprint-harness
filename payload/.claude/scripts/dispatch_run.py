@@ -659,7 +659,7 @@ def _result_problem(data, group, issues):
 
 
 def validate_result(data, group, issues):
-    """The executor's result checked as untrusted data: any doubt is Invalid, which the run treats as a crash."""
+    """The executor's result checked as untrusted data: any doubt is Invalid, a crash unless GitHub shows the merge."""
     why = _result_problem(data, group, issues)
     if why:
         return Invalid(why)
