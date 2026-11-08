@@ -240,7 +240,8 @@ def apply(
         if _first_match(cfg.exclude, rel) is not None:
             excluded.append(rel)
             continue
-        contents[rel] = (payload / rel).read_bytes()
+        # Written LF, whatever the checkout's autocrlf left: the manifest hash folds CRLF, so nothing else would see it.
+        contents[rel] = (payload / rel).read_bytes().replace(b"\r\n", b"\n")
     if BASE not in contents:
         raise ApplyError(f"payload has no {BASE} to render {SETTINGS} from")
 

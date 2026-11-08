@@ -1,14 +1,18 @@
+# Every text file is LF in the working tree, whatever core.autocrlf says.
+# `harness_sync apply` copies the payload's bytes as this checkout holds them,
+# so a Windows checkout left to autocrlf would write CRLF into every target,
+# where the target's own normalisation and the drift gate's folded hash hide it.
+* text=auto eol=lf
 # A CRLF checkout of a script breaks it where it runs: a shebang line ending in
 # `\r` makes the kernel look for an interpreter named `python\r` or `bash\r`
 # ("bad interpreter"), from a line that looks correct in every editor. The
 # sync tool and its helpers run on a Linux runner and under Git Bash on
-# Windows, so both are pinned to LF.
+# Windows, so both are text whatever detection says.
 *.py text eol=lf
 *.sh text eol=lf
-# Normalised in the store; the working-tree line ending is left to autocrlf.
-*.md text
-*.json text
-*.yml text
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
 # The codebase-index launcher has no `.sh` suffix, so the glob above misses it;
 # backend pins it by path for the same shebang reason. `**/` covers the payload
 # copy and the copy a sync renders at the root.
