@@ -1143,6 +1143,14 @@ rule rather than complied with it.
 four of them depend on which outcome step 1 produced; the line numbers
 below are that block's.
 
+**A usage exit after the pull is repeated from the pulled text.** The run's
+`/ship` text was loaded before the merge, and line 5's pull can bring a helper
+whose arguments a sync changed (`git-worktree-remove.sh` gaining `<branch>`,
+whose drop then exited 4 with the branch still checked out). Read literally,
+that exit is a stop, though the merge had landed; so lines 7 to 9 are read
+again from the file the pull brought and repeated, and the report says so.
+(Found by sync #140's run: harness-boundaries issue #141.)
+
 **`main` ends at a descendant of the merge, not at the merge**, and the
 ancestry check is what says so honestly. Another PR merging between this
 merge and the pull leaves local `main` correctly ahead of this run's oid —
