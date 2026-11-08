@@ -906,9 +906,9 @@ admin's 16,697 Bash commands from 2026-10-07 to 2026-11-08 through both git
 guards, and admin's 18,150 edit calls since 2026-10-19 through the payload's
 edit guard, on scratch copies, leaving out 766 refusals of commands run in
 worktrees since removed. `c1` in a reason is that section's criterion 1. Every
-`covered` and `managed` row's citation was opened: eight were moved to the exact
-line, four of them on review, and one `covered` with no payload site is
-`obsolete`, since the drift gate and not a frontmatter deny holds
+`covered` and `managed` row's citation was opened: six were moved to the exact
+line, two of them on review, which also moved two `local` rows' citations, and
+one `covered` with no payload site is `obsolete`, since the drift gate and not a frontmatter deny holds
 `docs/commands/` there.
 
 Four more rows changed on the check: two verdicts moved, one `port` was
