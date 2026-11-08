@@ -277,6 +277,11 @@ The dispatcher forks each worktree itself, from the main checkout, before
 `tasks move` and `launch`: `launch` trusts only a worktree git shows on the
 branch the *In progress* row names, so the order is fork, record, launch.
 
+`run` hands each executor its own temp directory through `TMP`, `TEMP` and
+`TMPDIR`: `artifacts/dispatch/<run>/tmp` inside its worktree, which is
+ignored, writable by the session and removed with the worktree. Executors
+that shared the system's one ran each other's scratch scripts (issue #199).
+
 On every wake it absorbs the result, verifies a merge, places what was
 filed, then asks `wake` what to launch; the outcome table is the spec's
 §6.4. A hand-back or a stop goes back into its wave marked `OWNER` and is

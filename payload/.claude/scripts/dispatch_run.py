@@ -499,10 +499,17 @@ def _launch(root, directory, run, gid, entry, flag=False):
     if not command[0]:
         raise Refusal("no claude on PATH")
     _remove_stale(worktree / "artifacts" / "dispatch" / run / f"{gid}.json")
+    scratch = executor_temp(worktree, run)
+    try:
+        scratch.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise Refusal(f"could not create the executor's temp directory {scratch}: {error}") from None
+    # Parallel executors sharing the system temp directory ran each other's scratch scripts (issue #199).
+    env = {**os.environ, "TMP": str(scratch), "TEMP": str(scratch), "TMPDIR": str(scratch)}
     started = now()
     # The permission mode is the settings' own, never a flag here (spec section 6.2); the prompt goes on stdin.
     try:
-        child = subprocess.Popen([*command, "-p", "--output-format", "json", "--model", flag], cwd=worktree,
+        child = subprocess.Popen([*command, "-p", "--output-format", "json", "--model", flag], cwd=worktree, env=env,
                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     except OSError as error:
         raise Refusal(f"could not start claude: {error}") from None
@@ -514,6 +521,12 @@ def _launch(root, directory, run, gid, entry, flag=False):
         child.wait()
         raise
     return child, text, started
+
+
+def executor_temp(worktree, run):
+    """The one temp directory an executor gets: inside its own worktree's ignored artifacts/, so it is the group's
+    alone, is a path the session may write, and goes when /dispatch removes the worktree."""
+    return (Path(worktree) / "artifacts" / "dispatch" / run / "tmp").resolve()
 
 
 def _remove_stale(*paths):
