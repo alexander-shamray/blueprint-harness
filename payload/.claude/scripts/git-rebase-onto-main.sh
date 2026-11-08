@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Rebase the current branch onto origin/main and publish it, a leased force
-# push here. Guards: the branch is in hand and not main, the tree clean, origin
-# has nothing unseen, a two-parent merge differs from git's only in conflicts,
-# a replay keeps its todo, skips no stop, a retry forces it at the lease, and
-# origin pushes to the one repository it was added as.
+# Rebase the current branch onto origin/main and publish it under a lease.
+# Guards: the branch is in hand and not main, the tree clean, origin has nothing
+# unseen and one push URL, a two-parent merge differs from git's only in
+# conflicts, a replay keeps its todo, skips no stop, a retry holds the lease.
 
 # Four modes, because a conflict is the case rebase is here for. `start`
 # leaves a conflicted rebase in progress rather than aborting it: backing out
@@ -148,18 +147,6 @@ require_remote_carries_nothing_new() {
       exit 7; }
 }
 
-# The lease names an expected value. `--force-with-lease` left bare trusts the
-# remote-tracking ref, which any fetch in the session may have moved, so the
-# `<ref>:<sha>` form names the commit this run read and a push landing in
-# between is refused rather than overwritten. Both sides of the refspec are
-# spelled, so no `remote.origin.push` mapping can send it to another ref the
-# lease does not name.
-#
-# The URL is the other half: `remote.origin.pushurl`, `url.*.pushInsteadOf` and a
-# second `url` value would point the push at another repository, so the run
-# refuses unless the one URL git will push to names the host and path the remote
-# was added with. The lease backs that up and does not replace it.
-#
 # `host|path` of a remote URL, or non-zero when it has no such shape. The whole
 # path counts, since its last components alone let `https://h/evil/o/r` collide
 # with `https://h/o/r`. The host is empty for a local path and lower-cased
@@ -198,6 +185,12 @@ repo_key() {
   printf '%s|%s' "$(printf '%s' "$host" | tr 'A-Z' 'a-z')" "$path"
 }
 
+# The lease names an expected value. `--force-with-lease` left bare trusts the
+# remote-tracking ref, which any fetch in the session may have moved, so the
+# `<ref>:<sha>` form names the commit this run read and a push landing in
+# between is refused rather than overwritten. Both sides of the refspec are
+# spelled, so no `remote.origin.push` mapping can send it to another ref the
+# lease does not name.
 publish() {
   local current head lease pushes configured resolved
   current=$(git branch --show-current)
@@ -211,9 +204,11 @@ publish() {
   pushes=$((pushes))  # BSD wc pads its count, and arithmetic reads it as a number
   [ "$pushes" -eq 1 ] ||
     { echo "origin has $pushes push URLs; a force goes to every one of them, so nothing is published" >&2; exit 7; }
-  # The URL git will push to, after `pushurl`, `pushInsteadOf` and `insteadOf`. A
-  # protocol rewrite on one host passes; another host, another path or a
-  # transport with no host (`ext::`, `fd::`) does not.
+  # The refspec pins the ref and not the URL: `pushurl`, `pushInsteadOf` or
+  # `insteadOf` can point the force at another repository, so the URL git will
+  # push to must name the host and path the remote was added with. The lease
+  # backs that up and does not replace it. A protocol rewrite on one host passes;
+  # another host, another path or a transport with no host does not.
   configured=$(repo_key "$(git config --get remote.origin.url)") || configured=
   resolved=$(repo_key "$(git remote get-url --push origin)") || resolved=
   [ -n "$configured" ] && [ "$configured" = "$resolved" ] ||
