@@ -71,7 +71,7 @@ class TheOrder(unittest.TestCase):
                 self.assertEqual(1, len(suites))
                 directory = re.search(r"working-directory: (\S+)", suites[0])
                 self.assertIsNotNone(directory)
-                self.assertTrue((ROOT / "payload" / directory.group(1)).is_dir())
+                self.assertEqual(f".github/{path.stem}", directory.group(1))
 
 
 class TheReader(unittest.TestCase):
