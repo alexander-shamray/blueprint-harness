@@ -33,6 +33,8 @@ EXTENSIONS = "cs|csproj|py|sh|md|json|ya?ml|sql|ps1|props|slnx|toml"
 BARE_PATH = re.compile(rf"(?<![\w./\\-])([\w.\\/-]+\.(?:{EXTENSIONS}))(?!\w)", re.IGNORECASE)
 KNOWN_FILE = re.compile(rf"\.(?:{EXTENSIONS})$", re.IGNORECASE)
 CLAUDE_TREE = re.compile(r"(^|[^\w])\.claude([/\\]|\b)", re.IGNORECASE)
+# What the Task cell and the body name beneath .claude/: a bare `.claude/` in prose names no file to change.
+CLAUDE_PATH = re.compile(r"(^|[^\w])\.claude/[\w.-]", re.IGNORECASE)
 # An issue in Depends on is written #n, after n, waits on n or n's; a bare number is a count, not an issue.
 ISSUE_REF = re.compile(
     r"(?:#|\b(?:after|waits on|wait on|waiting on|blocked by)\s+#?)(\d{2,6})\b(?!\s*(?:day|week|hour|month|min))"
@@ -383,8 +385,9 @@ def _blocker(row, open_issues, today, bodies, berserk=False):
                 return f"depends on an impossible date {text}"
             if due > today:
                 return f"waits until {text}"
-    reach = f"{row.cells[TASK]} {row.cells[CONFLICTS]} {bodies.get(row.number, '')}"
-    if not berserk and CLAUDE_TREE.search(reach.replace("\\", "/")):
+    # The conflicts cell is a list of paths, so any .claude there is a claim; elsewhere only a path beneath it is.
+    prose = f"{row.cells[TASK]} {bodies.get(row.number, '')}".replace("\\", "/")
+    if not berserk and (CLAUDE_TREE.search(row.cells[CONFLICTS].replace("\\", "/")) or CLAUDE_PATH.search(prose)):
         return "edits .claude/"
     return None
 
