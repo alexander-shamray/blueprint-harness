@@ -63,13 +63,16 @@ refused rather than merged, and is made again from a fresh `board`. The
 interview's answers change the list by the same route, in the same step
 (spec §5).
 
-**An exit 2 leaves the list and `state.json` as they were, not the run's
-files.** The runbook says a helper's refusal leaves the task list and
-`state.json` alone. Files under the run do change first: `board --run` writes
-`tasks.read.md` as soon as it has read the list, and the `bodies/` cache beside
-it, since the list a board refuses is the one a rebuild must repair; and `run`
-removes the earlier session's files it would replace before its launch checks,
-then leaves `<group>.refused.json`, which `result` reads.
+**An exit 2 promises no more than that the helper refused.** The runbook says
+only that, because a refusal can follow a write and no one sentence about
+"nothing written" holds for every helper. `board --run` writes `tasks.read.md`
+as soon as it has read the list, and the `bodies/` cache beside it, since the
+list a board refuses is the one a rebuild must repair; `run` removes the
+earlier session's files it would replace before its launch checks, then leaves
+`<group>.refused.json`, which `result` reads; `wake` saves its usage reading to
+`state.json` before it parses the list; and a `tasks` write refused after the
+list changed leaves the list changed. What a refusal left is read from the
+files, never assumed from the exit.
 
 **In progress is never rebuilt.** At step 0 the run has moved nothing, so a
 guard keyed to this run's groups would hold no row, and a rebuild could drop
