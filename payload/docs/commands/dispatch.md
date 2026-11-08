@@ -302,6 +302,10 @@ filed, then asks `wake` what to launch; the outcome table is the spec's
 §6.4. A hand-back or a stop goes back into its wave marked `OWNER` and is
 not retried (spec §2); a crash is relaunched once (spec §6.4).
 
+A `Model` cell `launch` would refuse holds its group at `board` and `wake`,
+since `launch` comes after the fork and `tasks move`, and a refusal there
+leaves an empty worktree behind.
+
 A `run` that starts no executor — no `claude` on the path, a stale file it
 cannot remove, the stop file — would otherwise hold its slot all night,
 since `result` has no session to read. So it leaves `<group>.refused.json`

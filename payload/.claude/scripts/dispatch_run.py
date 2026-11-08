@@ -18,14 +18,13 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from dispatch_board import (BRANCH_NAME, MODEL, NOT_OWNERS, Group, Refusal, _blocker, _bodies, _held, _number, _read,
-                            _row, _write, git, group_claim, groups, helper, one_line, parse_tasks, path_which, pick,
-                            released, row_branch, runnable, strangers)
+from dispatch_board import (BRANCH_NAME, MODEL, MODELS, NOT_OWNERS, Group, Refusal, _blocker, _bodies, _held, _number,
+                            _read, _row, _write, git, group_claim, groups, helper, model_problem, one_line,
+                            parse_tasks, path_which, pick, released, row_branch, runnable, strangers)
 from sync_pr import SYNC_HEAD
 
 RUN_NAME = re.compile(r"\d{8}-\d{6}")
 LANG = re.compile(r"[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?")
-MODELS = {"Opus": "opus", "Sonnet": "sonnet"}
 # The four counts of a `claude -p` envelope, as its `usage` names them and as `modelUsage` names them per model.
 TOKEN_KEYS = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")
 MODEL_KEYS = ("inputTokens", "cacheCreationInputTokens", "cacheReadInputTokens", "outputTokens")
@@ -271,8 +270,9 @@ def _entry_group(gid, entry):
 # Launch
 
 def model_flag(model):
-    if model not in MODELS:
-        raise Refusal(f"model {model!r} is not one of {', '.join(MODELS)}")
+    problem = model_problem(model)
+    if problem:
+        raise Refusal(problem)
     return MODELS[model]
 
 
