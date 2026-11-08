@@ -31,8 +31,8 @@ tool renders them into each target through an ordinary pull request.
 - `.github/workflows/ci.yml` — the `sync-tool` job; and `payload-suites`,
   which applies the payload to a worktree of the commit and runs the
   payload's suites there. Both are required on `main` (*Changes*). Each of
-  its three legs runs the whole `.claude/scripts` suite, the gates running
-  on Linux alone. A pull
+  its three legs runs the whole `.claude/scripts` suite; the gates run on
+  Linux, and Windows adds the comment gate's suite for its fixture. A pull
   request that reaches nothing the windows and macos legs test skips their
   test steps and still reports the check; `harness_sync/legs.py` owns what
   reaches them.
