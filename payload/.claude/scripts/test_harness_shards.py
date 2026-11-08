@@ -370,6 +370,15 @@ class TheRunItselfRefuses(unittest.TestCase):
         self.assertIn("Refusing the run", err)
         run_all.assert_not_called()
 
+    def test_every_class_time_is_there_for_the_refresh(self):
+        # `WEIGHT` lists far more classes than a short list of the slowest could hold.
+        with tempfile.TemporaryDirectory() as tmp:
+            work, _ = queued(tmp, [["a.A.x"]])
+            (work / "done" / "0000.ids.times").write_text(
+                "".join(f"{n}.0\tm.C{n}\n" for n in range(30)), encoding="utf-8")
+            self.assertEqual(30, len(SHARD.slowest(work)))
+            self.assertEqual((29.0, "m.C29"), SHARD.slowest(work)[0])
+
 
 class OneRunAtATime(unittest.TestCase):
     """The lock two runs would otherwise interleave without.

@@ -48,7 +48,7 @@ TOGETHER = {
 
 # Seconds a class took in one queued run of the whole suite on one Windows host, timed whole beside seven workers.
 # They only order the queue, longest first, and a class dealt late still runs. Refresh the table whole from the
-# slowest classes every run prints, since a table half old and half new orders worse than either. A class is
+# class times every run prints, since a table half old and half new orders worse than either. A class is
 # listed at 5 s or at ten tests, as an unlisted one costs `UNMEASURED` a test; SERIAL classes are absent, since
 # `plan()` sets them aside before it reads this.
 WEIGHT = {
@@ -365,10 +365,10 @@ def report(logs):
         sys.stdout.buffer.flush()
 
 
-def slowest(work, count=15):
-    """The classes that took longest, from every unit that finished.
+def slowest(work):
+    """Every class's time, longest first, from every unit that finished.
 
-    Printed at the end of every run so `WEIGHT` can be refreshed from data
+    Printed at the end of every run so `WEIGHT` can be refreshed whole from data
     rather than from a profile somebody has to remember to take.
     """
     rows = []
@@ -376,7 +376,7 @@ def slowest(work, count=15):
         for line in path.read_text(encoding="utf-8").splitlines():
             seconds, cls = line.split("\t")
             rows.append((float(seconds), cls))
-    return sorted(rows, reverse=True)[:count]
+    return sorted(rows, reverse=True)
 
 
 def lock_path():
@@ -540,7 +540,7 @@ def run_all(units, tail, count):
         report(logs)
         shutil.rmtree(str(work), ignore_errors=True)
 
-    print("\nshard-harness-suite.py: slowest classes, in seconds:")
+    print("\nshard-harness-suite.py: every class, slowest first, in seconds:")
     for seconds, cls in times:
         print(f"  {seconds:7.1f}  {cls}")
     bad = [title for (title, _), code in zip(logs, codes) if code != 0]
