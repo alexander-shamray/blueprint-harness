@@ -42,7 +42,9 @@ def name_of(step: str) -> str:
 
 def head_code_before_the_judge(text: str) -> list[str]:
     steps = steps_of(text)
-    return [name_of(step) for step in steps[:judge_at(steps)] if runs_head_code(step)]
+    at = judge_at(steps)
+    above = steps[at][:JUDGE.search(steps[at]).start()]
+    return [name_of(step) for step in [*steps[:at], above] if runs_head_code(step)]
 
 
 def workflow(*steps: str) -> str:
@@ -88,6 +90,12 @@ class TheReader(unittest.TestCase):
 
     def test_the_same_code_after_the_judge_is_not_named(self) -> None:
         self.assertEqual([], head_code_before_the_judge(workflow(JUDGES, "        run: python -m unittest")))
+
+    def test_head_code_above_the_judge_in_its_own_step_is_named(self) -> None:
+        above = '        run: |\n          python .github/gate/check.py\n          python "$RUNNER_TEMP/gate/gate.py"'
+        below = '        run: |\n          python "$RUNNER_TEMP/gate/gate.py"\n          python .github/gate/check.py'
+        self.assertEqual(["step 0"], head_code_before_the_judge(workflow(above)))
+        self.assertEqual([], head_code_before_the_judge(workflow(below)))
 
     def test_what_runs_nothing_from_the_checkout_is_not_named(self) -> None:
         for spelling in ("        uses: actions/setup-python@v7\n        with:\n          python-version: '3.12'",
