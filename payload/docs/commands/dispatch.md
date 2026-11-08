@@ -63,6 +63,12 @@ refused rather than merged, and is made again from a fresh `board`. The
 interview's answers change the list by the same route, in the same step
 (spec §5).
 
+**An exit 2 rewrites no state, but two files stay.** The runbook says a
+helper's refusal changes no run state and no task list. Two helpers keep
+evidence first: `board --run` writes `tasks.read.md` before anything can
+refuse, since the list a board refuses is the one a rebuild must repair, and a
+refused `run` leaves `<group>.refused.json`, which `result` reads.
+
 **In progress is never rebuilt.** At step 0 the run has moved nothing, so a
 guard keyed to this run's groups would hold no row, and a rebuild could drop
 or edit another session's, which the spec's §4 leaves alone. So the whole
