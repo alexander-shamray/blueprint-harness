@@ -432,12 +432,15 @@ class PathWhichParity(unittest.TestCase):
             sub.mkdir()
             (sub / name).write_text("x", encoding="ascii")
             (sub / name).chmod(0o755)
+            sibling = Path(parent) / "cwd"
+            sibling.mkdir()
             here = os.getcwd()
             root = sub.anchor
             try:
                 for copy in (dispatch_board.path_which, ID.path_which):
-                    os.chdir(parent)
-                    with mock.patch.dict(os.environ, {"PATH": "bin"}):
+                    # The entry resolves outside the working directory, so only the relative-entry rule skips it.
+                    os.chdir(sibling)
+                    with mock.patch.dict(os.environ, {"PATH": os.path.join(os.pardir, "bin")}):
                         self.assertIsNone(copy("tool"), "a relative PATH entry is not searched")
                     # At a filesystem root `here` already ends in the separator, so appending one more matched
                     # nothing and a file below the root was taken as outside it.
