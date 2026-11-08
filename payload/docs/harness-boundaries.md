@@ -1461,8 +1461,8 @@ checked out in any worktree, this one included, being rebased or bisected in
 one, or to be moved there by a `rebase --update-refs`. The last three `git
 worktree list` reports only as a detached HEAD, so the name is read from each
 git dir's rebase, bisect and `update-refs` state, where `git branch -D` looks
-too from git 2.38. It deletes only when `pr-for-branch.sh` reports a pull
-request for the branch `MERGED` into `main` whose head is the branch's tip,
+too from git 2.38. A superseded sync's aside, it deletes only when
+`pr-for-branch.sh` reports a pull request for the branch `MERGED` into `main` whose head is the branch's tip,
 which is `/ship` step 0's finished predicate: a commit added after the merge
 is work no merge holds, and keeps the branch, and the helper reads only this
 repository's rows, so a fork's same-named pull request lands nothing. A branch
