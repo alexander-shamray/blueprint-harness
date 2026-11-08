@@ -519,7 +519,7 @@ class LaunchTests(InRoot):
         self.assertNotEqual(first, second)
 
     def test_run_removes_the_executors_temp_directory_once_it_exits(self):
-        # Each launch's mkdtemp directory outlived its executor and piled up under the system temp root (#205).
+        # Each launch's mkdtemp directory outlived its executor and piled up under the system temp root.
         record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
         run_fake_claude(stdout=json.dumps(SUCCESS).encode("utf-8"))
         seen = json.loads(Path("fake/seen.json").read_text(encoding="utf-8"))
