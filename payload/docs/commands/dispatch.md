@@ -438,11 +438,14 @@ session, one entry per model and its subagents included. The envelope's
 1662280, and it looks just as plausible, so it is read only for an envelope
 with no model counts and the row says which of the two it came from. The row
 carries `total_cost_usd`, and a session on more than one model has a line per
-model, since a Sonnet executor's reviewer runs on Opus. A session that left
-no envelope, none of the three, spent an amount nothing records, so the row
-ends with how many sessions it did not count, and a group whose every
-session left none still gets a row saying so: a relaunched group's figure
-would otherwise read as its whole cost.
+model, since a Sonnet executor's reviewer runs on Opus. A session whose
+record was read but left no envelope, none of the three, spent an amount
+nothing records, so the row ends with how many sessions it did not count, and
+a group whose every such session left none still gets a row saying so: a
+relaunched group's figure would otherwise read as its whole cost. A session
+with no record at all (`absorb`'s `_unrecorded`, a `run` that exited refused)
+is not counted: it goes to the report as a crash hand-back or a pre-launch
+refusal, with `transcript: not found`, and adds nothing to the row.
 
 The report is `report`'s English facts written up in `--lang`, in seven
 sections, the spec's §10's and *Syncs*, eight on a `--berserk` run (*The
