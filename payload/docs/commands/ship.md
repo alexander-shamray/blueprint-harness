@@ -185,8 +185,8 @@ it waited for has merged finds that worktree and branch where the unmerged
 ending left them, and the helper would refuse a second make, so the run enters
 the one that exists and makes the same comparisons.
 
-**Step 2 runs the target's own suites and the payload suites that walk its
-commands, and nothing else.** The managed files were checked in the harness, so
+**Step 2 runs the target's own suites and the payload suites
+`sync_pr.py` names as walking its commands, and nothing else.** The managed files were checked in the harness, so
 *Ship checks* would read them a second time; what the harness never runs is the
 target-local test or command a payload change can trip
 (`docs/harness/working-rules.md`). Each is run as CI runs it, with `discover -s
