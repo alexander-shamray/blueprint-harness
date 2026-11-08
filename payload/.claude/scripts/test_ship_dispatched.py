@@ -35,6 +35,12 @@ GRANTS_BEFORE = (
     "Bash(bash .claude/scripts/gh-issue-hand.sh:*)", "Bash(bash .claude/scripts/system-sleep.sh)",
 )
 DROP_GRANTS = ("Bash(bash .claude/scripts/git-branch-drop.sh:*)",)
+# Steps 1 and 5's index reads (test_index_query_hint.py), which a dispatched run needs its own grants to name too.
+INDEX_GRANTS = ("Bash(git merge-base origin/main HEAD)",
+                "Bash(bash .claude/skills/codebase-index/scripts/cbx search:*)",
+                "Bash(bash .claude/skills/codebase-index/scripts/cbx refs:*)",
+                "Bash(bash .claude/skills/codebase-index/scripts/cbx impact:*)",
+                "Bash(bash .claude/skills/codebase-index/scripts/cbx diff-impact:*)")
 # The sync row's grants (test_ship_sync.py): a dispatched sync's reads and its one filing must be named by the
 # run's own grants, since an ungranted command is the auto classifier's to refuse.
 SYNC_GRANTS = ("Bash(py -3.12 .claude/scripts/sync_pr.py:*)", "Bash(bash .claude/scripts/git-worktree-sync.sh:*)",
@@ -242,7 +248,7 @@ class TheDispatchedTokenChangesOnlyWhatTheSpecLists(unittest.TestCase):
         self.assertEqual(len(rows), 7)
 
     def test_the_grants_did_not_change(self):
-        self.assertEqual(grants(SHIP), GRANTS_BEFORE + SYNC_GRANTS + DROP_GRANTS)
+        self.assertEqual(grants(SHIP), GRANTS_BEFORE + SYNC_GRANTS + DROP_GRANTS + INDEX_GRANTS)
         self.assertEqual(grants(BRANCH), BRANCH_GRANTS_BEFORE)
         self.assertIn("Write", GRANTS_BEFORE, "the result is written with a tool the command already holds")
 
