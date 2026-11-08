@@ -3456,6 +3456,18 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
 
+    def test_the_programs_listed_as_readers_cannot_be_made_to_run_one(self):
+        # Each runs what `diff.tool` or `merge.tool` names, the `--ext-diff`
+        # act by another verb.
+        for command in ("git difftool", "git difftool HEAD~1", "git mergetool",
+                        "git -C sub mergetool", "git --no-pager difftool -y"):
+            with self.subTest(command=command):
+                self.assertRefused(command)
+        for command in ("git log -- difftool", "git diff --stat",
+                        "echo git mergetool", "git show mergetool"):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
     def test_xargs_cannot_supply_a_push(self):
         for command in (
             "echo +HEAD:main | xargs git push origin some-branch",

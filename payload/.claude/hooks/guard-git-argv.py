@@ -100,6 +100,8 @@ REFUSED_SUBCOMMANDS = {
     "daemon": "starts a server that runs the services it is told to",
     "http-backend": "is a CGI program that runs git for whoever calls it",
     "web--browse": "starts the browser program it is given",
+    "difftool": "runs the program `diff.tool` names, the `--ext-diff` act by another verb",
+    "mergetool": "runs the program `merge.tool` names, the `--ext-diff` act by another verb",
 }
 REPOSITORY_SUBCOMMANDS = {
     "fetch", "clone", "pull", "push", "remote", "submodule", "ls-remote",
@@ -110,8 +112,7 @@ REPOSITORY_SUBCOMMANDS = {
 # letter means something else on another: `cherry-pick -x` records a trailer.
 # `archive -o` and `format-patch -o` only write a named file, so stay admitted.
 EXECUTING_SHORT_FLAGS = {
-    "rebase": "xs", "pull": "s", "difftool": "x", "clone": "u",
-    "ls-remote": "u", "grep": "O",
+    "rebase": "xs", "pull": "s", "clone": "u", "ls-remote": "u", "grep": "O",
 }
 
 # A flag that runs something on one subcommand only: `commit --template` only
@@ -127,8 +128,7 @@ EXECUTING_FORMS = {"bisect": "run", "submodule": "foreach",
 
 # Letters after which the rest of a word is a value, so `-Xours` holds no `-s`.
 GLUED_VALUE_LETTERS = {
-    "rebase": "X", "pull": "Xo", "difftool": "t", "clone": "bcjo",
-    "grep": "efABCm", "fetch": "jo",
+    "rebase": "X", "pull": "Xo", "clone": "bcjo", "grep": "efABCm", "fetch": "jo",
 }
 
 # Git's own options, which sit before the subcommand, taken from git's synopsis.
