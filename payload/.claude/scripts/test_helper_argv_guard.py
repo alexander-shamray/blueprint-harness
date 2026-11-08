@@ -55,6 +55,9 @@ class GuardHelperArgv(unittest.TestCase):
             'gh --repo o/r pr create --title "$(id)"',
             'gh -R o/r pr create --title "$(id)"',
             'GH_TOKEN=x gh --repo=o/r pr create --title `id`',
+            'if py -3.12 .claude/scripts/sync_pr.py verify 1 --head "$(id)"; then echo ok; fi',
+            'for n in 1; do py -3.12 .claude/scripts/sync_pr.py verify 1 --head "$(id)"; done',
+            '! py -3.12 .claude/scripts/sync_pr.py verify 1 --head "$(id)"',
         ):
             with self.subTest(command=command):
                 self.assertIn("substitution", self.judge(command) or "")

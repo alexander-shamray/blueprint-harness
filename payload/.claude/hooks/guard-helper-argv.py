@@ -14,7 +14,10 @@ from pathlib import Path
 INDEX_GUARD = Path(__file__).with_name("guard-index-argv.py")
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\+?=")
 # Words that run the command after them, and the wrappers' options that take a separate argument; as `guard-sed-crlf.py`.
-PREFIXES = frozenset({"command", "exec", "time", "builtin", "nohup"})
+PREFIXES = frozenset({
+    "command", "exec", "time", "builtin", "nohup",
+    "!", "if", "then", "elif", "else", "while", "until", "do",
+})
 WRAPPERS = {
     "env": {"-u", "--unset", "-C", "--chdir"},
     "nice": {"-n", "--adjustment"},
