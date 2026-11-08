@@ -2702,7 +2702,9 @@ def written_path(word, cwd, command):
         if literal is None:
             return None
     if os.name == "nt":
-        literal = DRIVE_SPELLING.sub(r"\1:", literal)
+        # `abspath("C:")` is that drive's working directory, not the drive.
+        literal = DRIVE_SPELLING.sub(lambda match: match.group(1) + ":" + (
+            os.sep if match.end() == len(literal) else ""), literal)
     if not (os.path.isabs(literal) or literal.startswith(("/", "\\"))):
         if cwd is None:
             return None
@@ -2788,6 +2790,9 @@ def removal_offence(word, cwd, command, writer):
     path = written_path(word, cwd, command)
     if path is None:
         return None
+    # `rm -rf ../*` takes the checkout with the rest of what the star holds.
+    if os.path.basename(path) == "*":
+        path = os.path.dirname(path)
     place = None
     if os.path.dirname(path) == path:
         place = "the filesystem's root"
