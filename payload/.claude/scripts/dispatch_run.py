@@ -503,10 +503,6 @@ def _launch(root, directory, run, gid, entry, flag=False):
         raise Refusal("no claude on PATH")
     _remove_stale(worktree / "artifacts" / "dispatch" / run / f"{gid}.json")
     scratch = executor_temp(root, run, gid)
-    try:
-        scratch.mkdir(parents=True, exist_ok=True)
-    except OSError as error:
-        raise Refusal(f"could not create the executor's temp directory {scratch}: {error}") from None
     # Parallel executors sharing the system temp directory ran each other's scratch scripts (issue #199).
     env = {**os.environ, "TMP": str(scratch), "TEMP": str(scratch), "TMPDIR": str(scratch)}
     started = now()
@@ -527,11 +523,18 @@ def _launch(root, directory, run, gid, entry, flag=False):
 
 
 def executor_temp(root, run, gid):
-    """The one temp directory an executor gets, the group's alone, under the system temp root and so outside every
-    checkout: refresh-index.py's worker runs from it, which Windows would not let a worktree removal delete, and
-    guard-git-argv.py admits a mutation proof's scratch checkout only under it and outside the session's own."""
-    base = Path(TEMP_ROOT) if TEMP_ROOT else Path(tempfile.gettempdir())
-    return (base / f"dispatch-{Path(root).resolve().name}" / run / gid).resolve()
+    """A new temp directory for one executor's launch, under the system temp root and so outside every checkout:
+    refresh-index.py's worker runs from it, which Windows would not let a worktree removal delete, and
+    guard-git-argv.py admits a mutation proof's scratch checkout only under it and outside the session's own.
+
+    mkdtemp makes it atomically, private to this user and under a name nobody could have made first: a fixed path in
+    a temp root other users share could be one they planted, holding the scripts an executor then runs.
+    """
+    base = TEMP_ROOT or tempfile.gettempdir()
+    try:
+        return Path(tempfile.mkdtemp(prefix=f"dispatch-{Path(root).resolve().name}-{run}-{gid}-", dir=base)).resolve()
+    except OSError as error:
+        raise Refusal(f"could not create the executor's temp directory under {base}: {error}") from None
 
 
 def _remove_stale(*paths):
