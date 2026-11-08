@@ -186,7 +186,7 @@ cover that turn's reading of a branch and not `/ship` after a background wake or
 later round of `/dispatch` or `/team`. Within that turn a session cannot save a
 memory: it saves it afterwards. A target's own command is its own to hold, since a
 deny in a local file is no payload suite's to require.
-**Measured in blueprint-admin, not here** (its #291): on 2026-10-20, on Windows,
+**Measured in blueprint-admin** (its #291): on 2026-10-20, on Windows,
 in a turn whose `/ship` frontmatter was in force, a `Write` to each directory was
 refused with no prompt and one to `~/.claude/scratch/` succeeded, so the
 home-relative specifier binds the absolute path a tool is given. **The git guard
