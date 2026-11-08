@@ -35,11 +35,12 @@ when a step behaves unexpectedly.
 - **A quoted heredoc body is still read as a command.**
   `guard-git-argv.py` reads what a shell running a script gets on stdin
   as that script, so an issue body piped to `gh-issue-sweep.sh` is refused
-  for a backtick, a `$(`, an odd count of apostrophes outside double
-  quotes (a possessive) or a spelled-out push. A 2026-10-18 sweep also had
-  bodies refused for an exclamation mark, a parenthesised group such as a
-  SQL `TOP (10)`, a bare asterisk or a `${`, by a check outside these
-  guards, which refuse none of the four. Where `Write` is granted, put the
+  for a backtick, a `$(`, a `${` followed by a space, an odd count of
+  apostrophes outside double quotes (a possessive) or a spelled-out push.
+  A 2026-10-18 sweep also had bodies refused for an exclamation mark, a
+  parenthesised group such as a SQL `TOP (10)`, a bare asterisk or a
+  `${NAME}`, by a check outside these guards, which refuse none of the
+  four. Where `Write` is granted, put the
   text in a file and pass it as `< <path>`. Safe in a sweep, which denies
   `Write`: code as plain quoted text, an asterisk or an exclamation mark
   spelled as a word, a push or a flag described in prose, possessives
