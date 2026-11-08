@@ -151,15 +151,17 @@ the peers were denied, is the only check of that
 ([`docs/commands/team.md`](commands/team.md)).
 
 **`.harness/**` is the same argument one level further up.** Its
-`config.json` is what the next sync renders `.claude/settings.json`'s denies
-from, and its `sweep-rows.tsv` decides what the sweeps read; the rest is
-managed or written by `apply`. A session that could edit the config could
-not unlock itself, since the change shows in its pull request's diff and
-takes a render to apply, but it would hand every reviewer a deny list to
-re-read for what went missing. So a change to anything under `.harness/`
-is the owner's, as one to `.claude/settings.json` is; the deny names the
-whole directory rather than the config alone, because a sweep able to
-narrow its own rows has audited less than it reports.
+`config.json` is what the next sync adds to the base settings to render
+`.claude/settings.json`, and its `sweep-rows.tsv` decides what the sweeps
+read; the rest is managed or written by `apply`. A session that could edit
+the config could not unlock itself, since the config cannot remove a base
+deny, the change shows in its pull request's diff and it takes a render to
+apply, but it could widen `allow` or drop a target's own denies, and would
+hand every reviewer a settings file to re-read for what changed. So a change
+to anything under `.harness/` is the owner's, as one to
+`.claude/settings.json` is; the deny names the whole directory rather than
+the config alone, because a sweep able to narrow its own rows has audited
+less than it reports.
 
 **`.claude/skills/**` is the same argument one directory over.** A skill's
 `allowed-tools` is auto-approval, so a session that can rewrite `SKILL.md`
