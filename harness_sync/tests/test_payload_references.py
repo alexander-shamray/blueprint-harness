@@ -45,6 +45,9 @@ _PATH = re.compile(
 _LINKED = r"`?(?:\]\([^)\s]*\))?(?:'s)?,? \*"
 _SECTION = re.compile(r"`?((?:\.claude|\.github|\.harness|docs)/[\w./-]+\.md|CLAUDE\.md)" + _LINKED + r"([^*]+)\*")
 _CLAUDE_SECTION = re.compile(r"`?CLAUDE\.md" + _LINKED + r"[^*]+\*")
+# The same citation with the section first, as in "the *X* section of `CLAUDE.md`". Backend's own file, named as
+# history ("of backend's `CLAUDE.md`", or "of that" once backend's is the subject), is not the target's.
+_CLAUDE_SECTION_FIRST = re.compile(r"\*[^*]+\* section of (?!(?:backend's|that) )`?CLAUDE\.md")
 _HEADING = re.compile(r"^#{1,6} (.+?)\s*#*\s*$", re.MULTILINE)
 _STACK_TOKEN = re.compile(r"`([^`\s]+)`")
 # A stack's name: a payload line carrying one is listed in `IMPORT.md`, whether it is backend's alone or true anywhere.
@@ -110,6 +113,20 @@ def stale_sites(payload: Path, import_text: str) -> list[str]:
     return found
 
 
+def suffixless_names(payload: Path) -> set[str]:
+    """The payload's files under `.claude/` and `.github/` named without a suffix, such as `cbx`."""
+    return {p.name for tree in (".claude", ".github") if (payload / tree).is_dir()
+            for p in (payload / tree).rglob("*") if p.is_file() and "." not in p.name}
+
+
+def _suffixless_path(names: set[str]) -> re.Pattern[str] | None:
+    """A path in `.claude/` or `.github/` ending in one of `names`, which `_PATH` cannot see without a suffix."""
+    if not names:
+        return None
+    return re.compile(r"(?<![\w./<>-])((?:\.claude|\.github)/(?:[\w.<>*-]+/)*(?:"
+                      + "|".join(sorted(map(re.escape, names))) + r"))(?![\w/{-]|\.\w)")
+
+
 def _normalise(cited: str) -> str | None:
     """The cited path as a payload-relative glob, or None for a path that is not a repository file."""
     cited = cited.rstrip(".,;:)")
@@ -133,6 +150,7 @@ def resolves(cited: str, payload: Path, held: set[str], rel: str = "") -> bool:
 
 def unresolved(payload: Path, held: set[str], import_text: str) -> list[str]:
     dirs, sites = stack_sites(import_text)
+    suffixless = _suffixless_path(suffixless_names(payload))
     found = []
     for path in payload_files(payload):
         rel = path.relative_to(payload).as_posix()
@@ -141,7 +159,7 @@ def unresolved(payload: Path, held: set[str], import_text: str) -> list[str]:
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if at_site(sites, rel, line):
                 continue
-            for match in _PATH.finditer(line):
+            for match in (*_PATH.finditer(line), *(suffixless.finditer(line) if suffixless else ())):
                 if not resolves(match.group(1), payload, held, rel):
                     found.append(f"{rel}:{number}: {match.group(1)}")
             if path.suffix != ".md":
@@ -259,7 +277,8 @@ def local_commands_named(payload: Path, names: set[str]) -> list[str]:
 
 def claude_sections_cited(payload: Path) -> list[str]:
     return [f"{p.relative_to(payload).as_posix()}: {m.group(0)}"
-            for p in payload_files(payload) for m in _CLAUDE_SECTION.finditer(_collapsed(p))]
+            for p in payload_files(payload)
+            for m in (*_CLAUDE_SECTION.finditer(_collapsed(p)), *_CLAUDE_SECTION_FIRST.finditer(_collapsed(p)))]
 
 
 class PayloadReferences(unittest.TestCase):
@@ -410,6 +429,27 @@ class PlantedCitations(unittest.TestCase):
         self.assertEqual(claude_sections_cited(self.payload), [
             ".github/gate/README.md: `CLAUDE.md`'s *Style*",
             ".github/gate/README.md: `CLAUDE.md`](../../CLAUDE.md)'s *Plans*",
+        ])
+
+    def test_claude_md_section_named_first_is_reported_unless_backends(self) -> None:
+        self.plant(".github/gate/README.md", "\n".join([
+            "The *Style* section of `CLAUDE.md` holds it; the *Old* section of backend's `CLAUDE.md` did.",
+            "The *Plans* section of that `CLAUDE.md` was backend's.",
+        ]))
+        self.assertEqual(claude_sections_cited(self.payload), [
+            ".github/gate/README.md: *Style* section of `CLAUDE.md",
+        ])
+
+    def test_suffixless_file_is_reported_in_the_wrong_directory(self) -> None:
+        self.plant(".claude/skills/index/scripts/cbx", "#!/bin/sh\n")
+        self.plant(".github/gate/README.md", "\n".join([
+            "Run `.claude/skills/index/scripts/cbx` first.",
+            "Run `.claude/scripts/cbx` first.",
+            "Read `.claude/scripts/cbx.sh`.",
+        ]))
+        self.assertEqual(unresolved(self.payload, set(), self.NO_STACK), [
+            ".github/gate/README.md:2: .claude/scripts/cbx",
+            ".github/gate/README.md:3: .claude/scripts/cbx.sh",
         ])
 
 
