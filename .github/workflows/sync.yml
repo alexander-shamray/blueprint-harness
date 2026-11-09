@@ -52,9 +52,9 @@ jobs:
   sync:
     needs: targets
     runs-on: ubuntu-latest
-    # Past this limit a job reads `cancelled`, which sync-issue does not hear,
-    # where a step past its own fails. So every step has one, and together they
-    # end first.
+    # A step past its limit fails, the plain red, so every step has one and
+    # together they end first. A hang outside a step reaches this one, and the
+    # job reads `cancelled` with steps, which sync-issue hears.
     timeout-minutes: 20
     # A pull request from a branch here gets repository secrets and runs that
     # branch's workflows, so the token is a secret of this environment alone,
@@ -147,11 +147,14 @@ jobs:
   # A red run is an issue, not a notification: a target that failed stays behind
   # the payload with nothing else saying so, and the next red run comments rather
   # than filing again. The title is not `main is red`'s, which stops every landing
-  # (README, The sync workflow). `failure()` and not `cancelled`, unlike ci.yml's
-  # main-red: a newer run cancels a waiting one here and syncs main's tip itself.
+  # (README, The sync workflow). A job past its limit reads `cancelled`, and
+  # neither `failure()` nor `cancelled()` hears that, so `!cancelled()`, which is
+  # false only for a run somebody cancels whole. The step then tells that job from
+  # a waiting one a newer run superseded, which ran no steps, and that run syncs
+  # main's tip itself.
   sync-issue:
     needs: [targets, sync]
-    if: failure()
+    if: ${{ !cancelled() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     # One at a time, so two red runs never both see no open issue.
@@ -159,6 +162,7 @@ jobs:
       group: sync-issue
       cancel-in-progress: false
     permissions:
+      actions: read
       issues: write
     steps:
       - name: A red sync is an issue, not a notification
@@ -168,6 +172,12 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+          red=$(gh api --paginate "repos/$GH_REPO/actions/runs/$GITHUB_RUN_ID/jobs" |
+            jq -r '.jobs[] | select(.conclusion == "failure" or (.conclusion == "cancelled" and (.steps | length) > 0)) | .name')
+          if [ -z "$red" ]; then
+            echo "::notice::every cancelled job here ran no steps: a newer run superseded it, or no runner took it"
+            exit 0
+          fi
           title='A sync run failed, so a target may be behind the payload'
           # A list as long as its limit may be cut, and a listing that cannot see
           # the open issue files a second one, so it is refused.

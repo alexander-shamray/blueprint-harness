@@ -18,8 +18,16 @@ printf '%s\\n' "$*" >> "$STUB_LOG"
 case "$1 $2" in
   "issue list") printf '%s' "$STUB_ROWS" ;;
   "issue create") cat >> "$STUB_LOG" ;;
+  "api "*) printf '%s' "$STUB_JOBS"; exit "${STUB_API_EXIT:-0}" ;;
 esac
 """
+# The shapes run 42575459566 of a scratch workflow read from the API: a job past its limit ran steps and a waiting job
+# a newer one superseded ran none, and both conclude `cancelled`.
+RAN = [{"conclusion": "success"}, {"conclusion": "cancelled"}, {"conclusion": "success"}]
+PAST_ITS_LIMIT = {"name": "sync (a/b)", "conclusion": "cancelled", "steps": RAN}
+SUPERSEDED = {"name": "sync (a/c)", "conclusion": "cancelled", "steps": []}
+FAILED = {"name": "sync (a/d)", "conclusion": "failure", "steps": RAN}
+PASSED = {"name": "sync (a/e)", "conclusion": "success", "steps": RAN}
 
 
 def _job() -> str:
@@ -45,14 +53,17 @@ class TheJobHearsARedRun(unittest.TestCase):
         self.assertIsNotNone(needs, "sync-issue spells no one-line needs")
         self.assertEqual(sorted(set(jobs) - {"sync-issue"}), sorted(n.strip() for n in needs.group(1).split(",")))
 
-    def test_a_cancelled_run_is_not_red_here(self) -> None:
-        # A concurrency group keeps one waiting job, so a newer run cancels a waiting one and syncs main's tip itself.
-        self.assertRegex(_job(), r"(?m)^    if: failure\(\)$")
-        self.assertNotIn("cancelled", _job())
+    def test_the_condition_reaches_the_step_for_a_cancelled_job_but_not_a_cancelled_run(self) -> None:
+        # Measured on run 42575459566: at a job's limit `failure()` and `cancelled()` are both false, so neither hears
+        # it, and `!cancelled()` is true there and false only for a run somebody cancels whole.
+        self.assertIn(
+            "if: ${{ !cancelled() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}",
+            _job())
+        self.assertNotIn("always()", _job())
 
     def test_every_step_times_out_inside_its_job(self) -> None:
-        # A step past its timeout fails, and a job past its own reads `cancelled`, which the condition does not hear. The
-        # job's clock runs through every step, so each has a limit, and all of them together end before the job's does.
+        # A step past its timeout fails, which is the plain red. The job's clock runs through every step, so each has a
+        # limit and all of them together end before the job's does, which leaves that limit to a hang outside a step.
         jobs = _jobs(SYNC)
         for name in sorted(set(jobs) - {"sync-issue"}):
             with self.subTest(job=name):
@@ -70,12 +81,13 @@ class TheJobHearsARedRun(unittest.TestCase):
         job = _job()
         self.assertNotIn("environment:", job)
         self.assertNotIn("secrets.", job)
-        self.assertRegex(job, r"(?m)^    permissions:\n      issues: write\n    steps:$")
+        self.assertRegex(job, r"(?m)^    permissions:\n      actions: read\n      issues: write\n    steps:$")
 
 
 class TheScriptFilesOneIssue(unittest.TestCase):
-    def run_script(self, rows: list[dict[str, object]]) -> tuple[subprocess.CompletedProcess[str], str]:
-        """The step's result and each `gh` line it ran, its stub given `rows` for the listing."""
+    def run_script(self, rows: list[dict[str, object]], jobs: str = json.dumps({"jobs": [FAILED]}),
+                   api_exit: int = 0) -> tuple[subprocess.CompletedProcess[str], str]:
+        """The step's result and each `gh` line it ran, its stub given `rows` for the listing and `jobs` for the run."""
         bash = shutil.which("bash")
         self.assertIsNotNone(bash, "bash is what the job's step runs under")
         # `_jobs` leaves a job's text with no final newline, so the step's last line may end at the end of the text.
@@ -87,7 +99,8 @@ class TheScriptFilesOneIssue(unittest.TestCase):
             path = root / "step.sh"
             path.write_text(script, encoding="utf-8", newline="\n")
             env = {**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"],
-                   "STUB_LOG": log.as_posix(), "STUB_ROWS": json.dumps(rows),
+                   "STUB_LOG": log.as_posix(), "STUB_ROWS": json.dumps(rows), "STUB_JOBS": jobs,
+                   "STUB_API_EXIT": str(api_exit), "GH_REPO": "a/h", "GITHUB_RUN_ID": "9",
                    "GITHUB_SHA": "abc123", "RUN_URL": "https://run"}
             result = subprocess.run([bash, path.as_posix()], capture_output=True, text=True, encoding="utf-8", env=env)
             return result, log.read_text(encoding="utf-8")
@@ -118,6 +131,38 @@ class TheScriptFilesOneIssue(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertIn("reached its limit", result.stdout)
         self.assertNotIn("issue create", log)
+
+    def test_it_reads_this_run_s_jobs(self) -> None:
+        _, log = self.run_script([])
+        self.assertIn("api --paginate repos/a/h/actions/runs/9/jobs", log)
+
+    def test_a_job_past_its_limit_files_one(self) -> None:
+        result, log = self.run_script([], json.dumps({"jobs": [PAST_ITS_LIMIT, PASSED]}))
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("issue create", log)
+
+    def test_a_superseded_job_alone_files_nothing_and_says_so(self) -> None:
+        result, log = self.run_script([], json.dumps({"jobs": [SUPERSEDED, PASSED]}))
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("::notice::", result.stdout)
+        self.assertNotIn("issue ", log)
+
+    def test_a_superseded_job_does_not_hide_a_failed_one(self) -> None:
+        _, log = self.run_script([], json.dumps({"jobs": [SUPERSEDED, FAILED]}))
+        self.assertIn("issue create", log)
+
+    def test_a_red_job_on_a_later_page_is_heard(self) -> None:
+        # `--paginate` writes one object per page, so the filter has to read a stream of them.
+        pages = json.dumps({"jobs": [SUPERSEDED]}) + json.dumps({"jobs": [FAILED]})
+        _, log = self.run_script([], pages)
+        self.assertIn("issue create", log)
+
+    def test_an_unread_job_list_fails_the_step_and_files_nothing(self) -> None:
+        # No answer is not the all-clear a run of superseded jobs gets.
+        result, log = self.run_script([], "", api_exit=1)
+        self.assertNotEqual(0, result.returncode)
+        self.assertNotIn("::notice::", result.stdout)
+        self.assertNotIn("issue ", log)
 
 
 class TheTitleIsNotMainIsRed(unittest.TestCase):
