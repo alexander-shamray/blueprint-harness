@@ -447,10 +447,9 @@ class TheArgumentGuardsEachHaveTheirOwnCase(unittest.TestCase):
     def test_every_helper_that_takes_a_branch_takes_the_same_names(self):
         # One class, read from every helper that tests `"$branch"`: a name `/branch` can make and one helper refuses
         # is a branch stranded at that helper's step. The helpers are found by the test they carry rather than named,
-        # so a further copy is held the day it is written, and the makers must be among them or the scan has stopped
-        # seeing what it exists for. `git-worktree-sync.sh` and `git-sync-head-drop.sh` are narrower on purpose: they
-        # take only a sync's head, so their pattern is pinned and has to stay inside the class. `git-branch-drop.sh`
-        # asks it as well as the class.
+        # so a further copy is held the day it is written, and the makers must be among them or the scan is blind.
+        # `git-worktree-sync.sh` and `git-sync-head-drop.sh` take only a sync's head, so their pattern is pinned and
+        # has to stay inside the class. `git-branch-drop.sh` asks it as well as the class.
         sync_head = r"^chore/harness-sync-[0-9a-f]{7}$"
         patterns = {}
         for path in sorted(SCRIPTS.glob("*.sh")):
