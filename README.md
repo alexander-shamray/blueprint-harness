@@ -43,7 +43,8 @@ tool renders them into each target through an ordinary pull request.
   ruleset that differs turns every pull request's required `rulesets` check red
   anyway, and its scheduled run files an issue of its own; a red sync leaves the
   targets behind until a rerun or the next payload merge, which stopping
-  landings would not bring nearer. A defect in `harness_sync` that turns either
+  landings would not bring nearer, and it too files one of its own (*The sync
+  workflow*). A defect in `harness_sync` that turns either
   red is seen in that run and is reverted as any other. A `ci.yml` GitHub cannot
   start reports no required check, so its pull request cannot land.
 - `.github/workflows/sync.yml` — the sync pull request a merge to `main` opens
@@ -193,6 +194,17 @@ no credential while `setup-python` and later steps run. The step that runs
 open-pr hands git the authorisation header through `GIT_CONFIG_*` variables in
 its own environment, for the target's `ls-remote`, fetch and pushes, and masks
 the header's base64 form.
+
+**A red run is an issue.** A target that failed stays behind the payload, and
+the run is the only other record of it. So the `sync-issue` job opens one issue
+under a title of its own, or comments on the one already open, with the
+workflow's own token and no environment, since it writes only this repository's
+issues. The title does not match `main-red-open.sh`'s rule, so it stops no
+landing. The job hears a failure and not a cancellation: a concurrency group
+keeps one waiting job, so a newer run cancels a waiting one and syncs `main`'s
+tip itself. The step that runs open-pr has a timeout shorter than the job's,
+because a job past its timeout reads as cancelled too; a hang in an earlier step
+is seen only in the run.
 
 A target is **current** when applying the payload writes and deletes no
 managed path: only the manifest's commit would move, so no pull request is

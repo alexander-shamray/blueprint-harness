@@ -12,10 +12,11 @@ on:
       - 'harness_sync/**'
   workflow_dispatch:
 
-# The harness repository is only read. Every write lands in a target, through
-# HARNESS_SYNC_TOKEN: a pull request opened with this workflow's own
+# The harness repository's contents are only read. Every write to a target goes
+# through HARNESS_SYNC_TOKEN: a pull request opened with this workflow's own
 # GITHUB_TOKEN would not start the target's required checks, and that holds
-# for this repository as a target too (spec 5.1, Self-hosting).
+# for this repository as a target too (spec 5.1, Self-hosting). The one write
+# here, the issue a red run files, is in a job of its own.
 permissions:
   contents: read
 
@@ -113,8 +114,11 @@ jobs:
       # package is found there. The working directory is this repository at
       # main's tip, not the target, which sits in target/ and is never on the
       # path; `-E -s` still ignore PYTHON* variables and user site (R33).
+      # Shorter than the job's: a step past its timeout fails, where a job past
+      # its own reads `cancelled`, which sync-issue does not hear.
       - name: Open the sync pull request
         if: steps.token.outputs.present == 'true'
+        timeout-minutes: 12
         env:
           GH_TOKEN: ${{ secrets.HARNESS_SYNC_TOKEN }}
           TARGET: ${{ matrix.target.repo }}
@@ -131,3 +135,52 @@ jobs:
           commit="$(git rev-parse HEAD)"
           python -E -s -m harness_sync open-pr --payload payload --harness . --target target \
             --commit "$commit" --repo "$TARGET" --run-url "$RUN_URL"
+
+  # A red run is an issue, not a notification: a target that failed stays behind
+  # the payload with nothing else saying so, and the next red run comments rather
+  # than filing again. The title is not `main is red`'s, which stops every landing
+  # (README, The sync workflow). `failure()` and not `cancelled`, unlike ci.yml's
+  # main-red: a newer run cancels a waiting one here and syncs main's tip itself.
+  sync-issue:
+    needs: [targets, sync]
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # One at a time, so two red runs never both see no open issue.
+    concurrency:
+      group: sync-issue
+      cancel-in-progress: false
+    permissions:
+      issues: write
+    steps:
+      - name: A red sync is an issue, not a notification
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          title='A sync run failed, so a target may be behind the payload'
+          # A list as long as its limit may be cut, and a listing that cannot see
+          # the open issue files a second one, so it is refused.
+          list=$(gh issue list --state open --label bug --limit 1000 --json number,title)
+          [ "$(jq length <<<"$list")" -lt 1000 ] || { echo "::error::the issue list reached its limit and may be cut"; exit 1; }
+          open=$(jq -r --arg t "$title" 'map(select(.title == $t)) | .[0].number // empty' <<<"$list")
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "Red again at $GITHUB_SHA: $RUN_URL"
+          else
+            printf '%s\n' \
+              "A \`Sync\` run did not pass at $GITHUB_SHA: $RUN_URL" \
+              '' \
+              '## Severity' \
+              '' \
+              'medium' \
+              '' \
+              'A target whose job failed has no sync pull request for this payload, and' \
+              'stays behind until a rerun of the failed jobs or the next payload merge' \
+              'opens one (README.md, *The sync workflow*). This stops no landing. Close' \
+              'this issue once a `Sync` run is green.' \
+              '' \
+              'Filed by the sync-issue job in sync.yml, not by hand or by a sweep.' |
+              gh issue create --title "$title" --label bug --label code --label medium --body-file -
+          fi
