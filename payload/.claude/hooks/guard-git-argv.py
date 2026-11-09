@@ -3798,7 +3798,8 @@ def main_checkout_reason(command):
         "registers a worktree there: its git-dir equals its common-dir, so git "
         "would act on the main checkout and a commit would land on main. Leave "
         "the directory with a command that runs no git (cd to the main checkout "
-        "or to a live worktree), then rerun this one.")
+        "or to a live worktree, by a path with no `git` segment in it), then "
+        "rerun this one.")
 
 
 def refuse(reason):
