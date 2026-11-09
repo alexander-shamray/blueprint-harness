@@ -24,21 +24,31 @@ shapes only, no content):
   or "The server-side auto mode classifier gave no verdict". Hook refusals
   start "PreToolUse:<Tool> hook error:".
 * Genuine user message: a ``user`` line with ``isMeta`` absent, no
-  ``isSidechain``, ``origin`` absent or ``{"kind": "human"}``, and
-  ``message.content`` either a string or a list of ``text``/``image`` parts
-  with no ``tool_result``. Not genuine: tool results; ``isMeta: true`` lines
-  (skill and system-reminder expansions); ``origin.kind`` other than human
+  ``isSidechain``, no ``isCompactSummary``, ``origin`` absent or
+  ``{"kind": "human"}``, and ``message.content`` either a string or a list of
+  ``text``/``image`` parts with no ``tool_result``. Not genuine: tool results;
+  ``isMeta: true`` lines (skill and system-reminder expansions); a ``/compact``
+  summary, a string line carrying ``isCompactSummary`` and
+  ``isVisibleInTranscriptOnly``; ``origin.kind`` other than human
   (``task-notification``, ``plugin``); strings opening ``<local-command``,
   ``<bash-input>``, ``<bash-stdout>``, ``<task-notification>`` or
   ``<system-reminder>``.
 * Interruption marker: a ``user`` line whose content is a list holding one
   ``text`` part opening ``[Request interrupted``; no ``origin`` or ``isMeta``.
-* Slash command: a genuine string message containing
-  ``<command-name>/<name></command-name>`` (``<command-message>`` may come
-  first).
+* Slash command: a genuine string message opening
+  ``<command-name>/<name></command-name>``, or ``<command-message>`` and then
+  that tag. A diff or fixture quoting the tag holds it later in the message.
+* A session a ``/clear`` opens: the new transcript's first genuine message is
+  the ``/clear``, an ordinary slash command message, and no later message in
+  the file is one. ``/model`` or ``/reload-plugins`` can follow it before the
+  task's own command.
 """
 
+import contextlib
+import datetime
+import io
 import json
+import os
 import pathlib
 import tempfile
 import unittest
@@ -136,6 +146,79 @@ class StopsTest(unittest.TestCase):
         self.assertTrue(stops.is_command_session(ship, "ship"))
         self.assertFalse(stops.is_command_session(later, "ship"))
         self.assertFalse(stops.is_command_session(other, "ship"))
+
+    def test_command_filter_reads_past_the_local_commands_that_open_a_session(self):
+        clear = "<command-name>/clear</command-name>\n<command-message>clear</command-message>"
+        model = "<command-name>/model</command-name>\n<command-message>model</command-message>"
+        plugins = "<command-name>/reload-plugins</command-name>"
+        ship = "<command-message>ship</command-message>\n<command-name>/ship</command-name>\n<command-args>x</command-args>"
+        after_clear = self.transcript(
+            user("<local-command-caveat>x</local-command-caveat>", isMeta=True),
+            user(clear),
+            user("<local-command-stdout></local-command-stdout>"),
+            user(ship),
+        )
+        after_all = self.transcript(user(clear), user(model), user(plugins), user(ship))
+        prose = self.transcript(user(clear), user("hello"), user(ship))
+        alone = self.transcript(user(clear))
+        self.assertTrue(stops.is_command_session(after_clear, "ship"))
+        self.assertTrue(stops.is_command_session(after_all, "ship"))
+        self.assertFalse(stops.is_command_session(prose, "ship"))
+        self.assertFalse(stops.is_command_session(alone, "ship"))
+
+    def test_command_filter_refuses_a_message_that_only_quotes_the_tag(self):
+        quoted = self.transcript(user("Review this change:\n+ <command-name>/ship</command-name>"))
+        listed = self.transcript(user([text("Review this:"), text("<command-name>/ship</command-name>")]))
+        unclosed = self.transcript(user("<command-name>/ship is the tag to look for"))
+        self.assertFalse(stops.is_command_session(quoted, "ship"))
+        self.assertFalse(stops.is_command_session(listed, "ship"))
+        self.assertFalse(stops.is_command_session(unclosed, "ship"))
+
+    def test_user_turns_start_after_the_command_a_clear_opens(self):
+        clear = "<command-name>/clear</command-name>"
+        ship = "<command-name>/ship</command-name>"
+        cases = (
+            (0, [user(clear)]),
+            (0, [user(clear), user(ship)]),
+            (1, [user(clear), user(ship), user("more")]),
+            (1, [user(clear), user("<command-name>/model</command-name>"), user(ship), user("more")]),
+            (1, [user(ship), user("more")]),
+            (2, [user(ship), user("<command-name>/model</command-name>"), user("more")]),
+        )
+        for expected, lines in cases:
+            self.assertEqual(stops.count_stops(self.transcript(*lines))["user_turns"], expected, lines)
+
+    def test_a_compact_summary_is_not_a_user_turn(self):
+        summary = user("This session is being continued from a previous conversation.", isCompactSummary=True,
+                       isVisibleInTranscriptOnly=True)
+        path = self.transcript(user("<command-name>/ship</command-name>"), summary, user("more"))
+        self.assertEqual(stops.count_stops(path)["user_turns"], 1)
+        self.assertTrue(stops.is_command_session(self.transcript(summary, user("<command-name>/ship</command-name>")),
+                                                 "ship"))
+
+    def test_until_bounds_the_window_and_holds_its_own_day(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        project = pathlib.Path(directory.name) / "project"
+        project.mkdir()
+        modified = {"before": (2026, 10, 18, 23, 59), "first": (2026, 10, 19, 0, 0), "last": (2026, 11, 2, 23, 59),
+                    "after": (2026, 11, 3, 0, 0)}
+        for name, when in modified.items():
+            path = project / f"{name}.jsonl"
+            path.write_text(json.dumps(user("go")) + "\n", encoding="utf-8")
+            stamp = datetime.datetime(*when).timestamp()
+            os.utime(path, (stamp, stamp))
+
+        def run(*window):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code = stops.main(["--project", "project", "--root", directory.name, *window])
+            self.assertEqual(code, 0)
+            rows = [json.loads(line) for line in out.getvalue().splitlines()]
+            return [row["session"] for row in rows[:-1]]
+
+        self.assertEqual(run("--since", "2026-10-19", "--until", "2026-11-02"), ["first", "last"])
+        self.assertEqual(run("--since", "2026-10-19"), ["after", "first", "last"])
 
     def test_median_line_reports_zero_sessions(self):
         self.assertEqual(stops.summarise([]), {"sessions": 0, "median": None})
