@@ -1,5 +1,5 @@
 {
-  "harness_commit": "95f01098be731986fc4c20546dd6e75592dbde3c",
+  "harness_commit": "8b2e0ed5e86fedffd79783803e1de1c785aa543d",
   "files": {
     ".claude/agents/branch-reviewer.md": "eff7a6e0a4c531834b39dd4c43031a6120e0f385ce0d262f4cfabd78122647dd",
     ".claude/agents/bug-auditor.md": "6219201313c10252798ff249570298f4de6ad6a66690f3dc40510fd76859b4d7",
@@ -140,7 +140,7 @@
     ".github/closure-gate/README.md": "a7b49a6a3f54a63734a5e6c477100ee855873adecb34de8141a516ad514f16ef",
     ".github/closure-gate/closure_gate.py": "cb7e8ff5627d48cdfeb6cb23c2a0d6f6184db38446d8f00318b296a639cd1fe8",
     ".github/closure-gate/test_closure_gate.py": "e5cd29771fd9f8455c21441d96051c17a38cd8c5fb75bf2fc7ccfbb13ace8222",
-    ".github/comment-gate/README.md": "0439f177ab639c658a55858f24f72c9464da183cfa9112bd448a4df53418e1f3",
+    ".github/comment-gate/README.md": "f1b9b8b55c3ef8f5a4c45a7ec07b3ed06057e5e23fb2af0e5ca9d956c938c7f7",
     ".github/comment-gate/comment_gate.py": "8228cbc5c3c1d4db1d521d807140c79902c5c40782a451601bc9e6c37af71278",
     ".github/comment-gate/test_comment_gate.py": "b8dcb360f7a0035c1fc178ef081ab8d2d378e4359006a22394ab01cca01d1e4d",
     ".github/commit-gate/README.md": "e249105d15fcf0124cc80f314ae6b6fbff01882ad1520445f1a76f391d82d0fe",
@@ -157,9 +157,9 @@
     ".github/plan-size-gate/test_plan_size_gate.py": "2a07c830e605ff7222ec2f03cb0cd0f2df0803e3895254dba7b08b5af59a3a8d",
     ".github/workflow-lint/README.md": "806413dfb94bf31575f641e96a554e5f3a6e25218d02c766b0cd3ad00d24791b",
     ".github/workflow-lint/broken-reference.yml": "1c277e1b5b960ed6d05707695759ae3ab658b667a587a06194d29ac6601217d2",
-    ".github/workflows/closure-gate.yml": "96ace908fac00203d1e957ca072014cd95a67f70c5d6d38d711cb7049484bd05",
-    ".github/workflows/comment-gate.yml": "ac0c92c0fec2c2169f2169bfbb4b58fe948138b0f8cb1ee51a597143cc1d3505",
-    ".github/workflows/commit-gate.yml": "0c9391815fdb5ad2287206892613404307a8b393c1ae3f7f06b9b6d26fb5d524",
+    ".github/workflows/closure-gate.yml": "50af5a12b59ac01b4be90cbfdaf8aa1e208b4d7210d6feb70cc73f58e16a12d2",
+    ".github/workflows/comment-gate.yml": "bdab2721c935f2a32a3d35c68a6884d7125f2d996887feab32aa20fec0fbc667",
+    ".github/workflows/commit-gate.yml": "ef3377c41ff63bb9c3a7804633d42ffb55da36c14ba5ec1186ac3706ae40356d",
     ".github/workflows/harness-drift.yml": "7f4c08c47283a15629b1f9374f9e0e9a7e46ea07f5c10843e4224db6fb0d3cce",
     ".harness/agent-rules.md": "9aaf0e838f7d6bf185bd340917197ace634fc17dc9eecfd2f1122f531a94d416",
     ".harness/render.py": "f1f986b939d946627e8db682ab8be54ade13d936d8cc148eac150521b1a63c54",
