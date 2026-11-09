@@ -161,7 +161,9 @@ A shape those names cannot see, such as a C# sample, rests on review.
 - `.github/output-gate/` — the gate itself checks .NET build output against
   the one `.slnx` at the target's root. Delivered only where a .NET build
   runs: a target without one puts `.github/output-gate/**` under `exclude` in
-  its config, as this repository does. #85 moves it backend-local.
+  its config, as this repository does. Admin runs it from the payload too
+  (*Admin audit*'s *Decisions* table), which overtakes #85's first item, the
+  move to backend-local.
 - `.github/comment-gate/README.md#.yaml` and
   `.github/comment-gate/README.md#CDATA` — `MSBuild` as a file kind the gate
   reads: true in any target.
