@@ -395,9 +395,8 @@ ends*), and the report names each issue under *Needs a human*, because a backlog
 left unstarted would otherwise read as nothing being ready.
 
 **The answers are the owner's.** `docs/harness/working-rules.md`, *CI*, says a
-rerun comes first and an issue closes on its green run, and does not say who
-does that at night. The dispatcher does none of it: it holds no grant for `gh
-run rerun`, raw `gh issue close` is denied, and nothing the night does widens a
+rerun comes first and an issue closes on its green run. The dispatcher does none
+of it: it holds no grant for `gh run rerun`, raw `gh issue close` is denied, and nothing the night does widens a
 grant (*Grants*), while a revert is a landing and which of a red `main`'s
 answers lands first is the owner's. So the owner reruns the failed jobs with `gh
 run rerun <run id> --failed`, comments on the flaky tests tracker and closes the
