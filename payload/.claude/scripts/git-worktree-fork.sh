@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 # Fork /branch step 5's worktree under .claude/worktrees/, or undo its branch.
-#
-# The whole command is fixed: `git worktree add --no-track -b <branch> <path>
-# origin/main`. A prefix grant on `git worktree add` also buys `-B`, which
-# resets an existing branch to the start point past the `git branch --force`
-# and `git branch -M` denies, and a prefix rule cannot exclude a flag.
+# The whole command is fixed: a prefix grant on `git worktree add` also buys
+# `-B`, which resets an existing branch past the `git branch --force` and
+# `git branch -M` denies, and a prefix rule cannot exclude a flag.
 set -euo pipefail
 [ "$#" -eq 2 ] || { echo "usage: git-worktree-fork.sh <path> <branch>" >&2; exit 2; }
 path="$1"
