@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # Switch the current checkout to an existing local branch, and nothing else.
 #
-# /branch step 5 needs this on one path: `git worktree add -b` creates the
-# branch before the directory, so a fork that fails on an unwritable parent
-# leaves the branch behind, and the in-place fallback has to get onto it. A
+# /ship needs this to return an in-place branch's checkout to `main`. A
 # prefix grant on `git switch` also licenses `--discard-changes` and `-C`,
 # which discard work and force-move a branch past the denies on their other
 # spellings (`git reset --hard`, `git clean`, `git branch -D/-M`).
