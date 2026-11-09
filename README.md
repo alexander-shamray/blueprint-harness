@@ -212,6 +212,13 @@ that files too. A leg GitHub cancels from the runner queue ran none either, so
 it is seen only in the run, and a run somebody cancels whole files nothing,
 because the job's `!cancelled()` is false only there.
 
+None of this has met a real hang yet: the scratch runs echoed in place of
+filing, so the filing rests on the stub in `test_sync_issue_job.py`, and the
+`cancelled` clause of `sync-issue` was read and not run. The first red `Sync`
+run from a job past its limit shows whether an issue was filed. A `sync-red`
+that fails files for a run with nothing red, and a queue-cancelled leg is
+not told from a superseded one, since the job row shows no field that does.
+
 A target is **current** when applying the payload writes and deletes no
 managed path: only the manifest's commit would move, so no pull request is
 opened, the target keeps the commit its manifest names, and any sync pull
