@@ -2525,11 +2525,10 @@ FETCH_VALUE_OPTIONS = frozenset({
 
 # A branch of origin onto its own tracking ref, or a tag onto itself: only the
 # value origin holds there, so it can poison nothing. A dependabot rebase types
-# the first with `$B` for both names, and the guard also reads a command with
-# its expansions empty, so a name here may be empty.
+# the first with `$B` for both names.
 ORIGIN_OWN_REF = re.compile(
-    r"^\+?refs/(?:heads/(?P<branch>[^:]*):refs/remotes/origin/(?P=branch)"
-    r"|tags/(?P<tag>[^:]*):refs/tags/(?P=tag))$")
+    r"^\+?refs/(?:heads/(?P<branch>[^:]+):refs/remotes/origin/(?P=branch)"
+    r"|tags/(?P<tag>[^:]+):refs/tags/(?P=tag))$")
 
 
 def refspec_offence(segment):
@@ -2558,8 +2557,12 @@ def refspec_offence(segment):
                 "names, under a read's grant. Fetch without it."
             )
     for refspec in operands[1:]:
-        if refspec.partition(":")[2] and not (operands[0] == "origin" and (
-                refspec == "main:main" or ORIGIN_OWN_REF.match(refspec))):
+        destination = refspec.partition(":")[2]
+        # A reading of `$B` as empty or as whitespace leaves one ending in a
+        # slash, which git refuses as invalid; the raw reading judges the rest.
+        if destination and not destination.endswith("/") and not (
+                operands[0] == "origin" and (
+                    refspec == "main:main" or ORIGIN_OWN_REF.match(refspec))):
             return (
                 f"`{refspec}` writes a ref a plain fetch would not, which a "
                 "sweep or a review may then trust. Fetch without a destination "
