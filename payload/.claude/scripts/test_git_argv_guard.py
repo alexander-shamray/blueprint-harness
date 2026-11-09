@@ -3578,6 +3578,58 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
 
+    def test_a_refspec_writes_no_ref_a_plain_fetch_would_not(self):
+        # `sweep-slices.sh` narrows a sweep by `refs/sweeps/<kind>`, and `/ship`
+        # reads the review bar from `origin/main`: each spelling here wrote one
+        # of them in a repository with a local bare origin.
+        for command in (
+            "git fetch origin +main:refs/sweeps/security",
+            "git fetch origin main:refs/sweeps/security",
+            "git fetch -q --depth 1 origin main:refs/sweeps/bug",
+            "git -C sub fetch origin +main:refs/sweeps/security",
+            "git fetch origin main main:refs/sweeps/bug",
+            "git fetch origin +refs/heads/other:refs/remotes/origin/main",
+            "git fetch origin refs/heads/other:refs/remotes/origin/main",
+            "git fetch origin +refs/heads/other:refs/tags/v1",
+            "git fetch origin +main:refs/heads/victim",
+            "git fetch -u origin +main:refs/heads/victim",
+            "git fetch origin main:refs/heads/victim",
+            "git fetch origin main:victim",
+            "git fetch origin :refs/sweeps/bug",
+            "git fetch ../other main:main",
+            "git fetch ../other +refs/heads/main:refs/remotes/origin/main",
+            "git fetch origin --refmap=+refs/heads/other:refs/remotes/origin/main other",
+            "git fetch origin --refm=+refs/heads/other:refs/sweeps/security other",
+            "git fetch origin --refmap +refs/heads/other:refs/sweeps/security other",
+            "echo +main:refs/sweeps/security | git fetch origin --stdin",
+            "echo +main:refs/sweeps/security | git fetch origin --stdi",
+            "git pull --ff-only origin +main:refs/sweeps/security",
+            "git pull --ff-only origin main:refs/sweeps/security",
+            "git pull --ff-only --refmap=+refs/heads/main:refs/sweeps/security origin main",
+            "git -c remote.origin.fetch=+refs/heads/main:refs/sweeps/security fetch origin",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command)
+        # What a plain fetch writes anyway, and a colon that is not a refspec's.
+        for command in (
+            "git fetch origin main:main", "git fetch -q --depth 1 origin main:main",
+            "git fetch origin main:", "git fetch origin +main", "git fetch origin tag v1",
+            "git fetch origin +refs/heads/*:refs/remotes/origin/*",
+            "git fetch origin refs/heads/x:refs/remotes/origin/x",
+            "git fetch git@github.com:alexander-shamray/blueprint-harness.git main",
+            "git fetch --filter blob:none origin main",
+            "git fetch origin main --filter blob:none",
+            "git fetch --filter=blob:none origin main",
+            "git fetch origin main -o a:b",
+            "git fetch --shallow-since '2026-01-01 10:00' origin main",
+            "git fetch origin main > C:/tmp/fetch.log 2>&1",
+            "git fetch --no-stdin origin main",
+            "git pull --ff-only origin main", "git pull --ff-only origin main:main",
+            "echo git fetch origin --stdin",
+        ):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
     def test_nothing_overrides_the_fast_forward_of_a_granted_pull(self):
         for command in (
             "git pull --ff-only --no-ff", "git pull --ff-only --ff",

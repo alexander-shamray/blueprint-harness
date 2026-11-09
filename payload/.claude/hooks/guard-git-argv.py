@@ -2490,27 +2490,78 @@ def xargs_supplies_push(tokens):
     return False
 
 
-FORCED_ONTO_BRANCH = re.compile(r"^\+[^:]*:(?!refs/(?!heads/))")
-
-
 def fetch_offence(segment):
     """The reason to refuse a fetch that can move a local branch backwards.
 
-    `main:main` is `/ship`'s fast-forward and stays; `-f`, `-u` and a `+` onto
-    a branch are what discard local commits. A remote-tracking ref holds none.
+    `-f` and `-u` are what discard local commits; `refspec_offence` judges a
+    `+` in a refspec, as it judges every destination.
     """
     stripped = after_global_options(segment)
     if not stripped or stripped[0] != "fetch":
         return None
     for element in stripped[1:]:
         name = element.split("=", 1)[0]
-        if (FORCED_ONTO_BRANCH.match(element) or short_flag(element, "fetch", "fu")
+        if (short_flag(element, "fetch", "fu")
                 or (len(name) > 3 and "--force".startswith(name))
                 or (len(name) > 9 and "--update-head-ok".startswith(name))):
             return (
                 f"`git fetch {element}` can move a local branch to a commit "
                 "that does not contain it, which discards local commits under "
                 "a read's grant. Fetch without it; `main:main` fast-forwards."
+            )
+    return None
+
+
+# A fetch's or a pull's options that take the next word as their value, so a
+# colon in it is no refspec's. One this misses reads as a refspec, which costs a
+# false refusal at worst.
+FETCH_VALUE_OPTIONS = frozenset({
+    "--deepen", "--depth", "--filter", "--jobs", "--negotiation-tip",
+    "--server-option", "--shallow-exclude", "--shallow-since", "--strategy",
+    "--strategy-option", "-X", "-j", "-o", "-s",
+})
+
+# A branch of origin onto its own tracking ref, or a tag onto itself: what a
+# plain fetch writes anyway, so it can poison nothing. A dependabot rebase types
+# the first with `$B` for both names, and the guard also reads a command with
+# its expansions empty, so a name here may be empty.
+ORIGIN_OWN_REF = re.compile(
+    r"^\+?refs/(?:heads/(?P<branch>[^:]*):refs/remotes/origin/(?P=branch)"
+    r"|tags/(?P<tag>[^:]*):refs/tags/(?P=tag))$")
+
+
+def refspec_offence(segment):
+    """The reason to refuse a fetch or a pull writing a ref of its own choosing.
+
+    A destination, `--refmap` or `--stdin` writes what a sweep and `/ship`'s
+    review bar trust, under a read's grant; only `main:main` and `ORIGIN_OWN_REF`
+    stay, from origin."""
+    stripped = after_global_options(segment)
+    if not stripped or stripped[0] not in ("fetch", "pull"):
+        return None
+    operands, position = [], 1
+    while position < len(stripped):
+        word = stripped[position]
+        name = word.split("=", 1)[0]
+        position += 1
+        if word in FETCH_VALUE_OPTIONS:
+            position += 1
+        elif not word.startswith("-"):
+            operands.append(word)
+        elif ((len(name) > 5 and "--refmap".startswith(name))
+              or (stripped[0] == "fetch" and len(name) > 3
+                  and "--stdin".startswith(name))):
+            return (
+                f"`git {stripped[0]} {word}` names a ref to write that the "
+                "command does not show, under a read's grant. Fetch without it."
+            )
+    for refspec in operands[1:]:
+        if refspec.partition(":")[2] and not (operands[0] == "origin" and (
+                refspec == "main:main" or ORIGIN_OWN_REF.match(refspec))):
+            return (
+                f"`{refspec}` writes a ref a plain fetch would not, which a "
+                "sweep or a review may then trust. Fetch without a destination "
+                "and read FETCH_HEAD; `main:main` from origin fast-forwards."
             )
     return None
 
@@ -3463,7 +3514,7 @@ def _offence(command, depth, judged, reading):
     for segment in git_segments(tokens):
         refusal = (push_offence(segment) or trap_offence(segment)
                    or fetch_offence(segment) or pull_offence(segment)
-                   or config_offence(segment))
+                   or refspec_offence(segment) or config_offence(segment))
         if refusal is not None:
             return refusal
 

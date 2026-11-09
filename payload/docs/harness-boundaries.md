@@ -1303,7 +1303,11 @@ in the first place.
 
 `Bash(git fetch origin:*)` **pins the remote**: a literal remote name occupies
 the repository position, so a URL never reaches it. That is the control the
-sentence describes, and it is real.
+sentence describes, and it is real. It says nothing about the refspec after
+the remote, whose destination writes a ref: `guard-git-argv.py`'s
+`refspec_offence` admits only `main:main`, a branch of origin onto its own
+tracking ref and a tag onto itself, and refuses `--refmap` and `--stdin`, for a
+fetch and for a pull alike.
 
 `Bash(git pull --ff-only)` pins **nothing** — no remote name appears in it at
 all. What it does is drop the `:*`, so the grant is the documented
@@ -2320,7 +2324,10 @@ to a commit, and only to an existing one by its full SHA. The ref is local
 and a missing one means a full sweep, so the write can make a later sweep
 read less only by pointing at a commit that really was swept clean; a
 poisoned tree cannot reach it, because the parent runs it once, on a clean
-end, with `$pinned`.
+end, with `$pinned`, and `guard-git-argv.py` refuses the granted fetch's
+refspec that would write it without the helper. That is a guard's reach and no
+more: a `git update-ref` no grant holds still writes the ref, and *The guards'
+threat model* says what bounds it.
 
 ## The sed line-ending guard
 
