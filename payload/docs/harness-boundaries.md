@@ -2114,13 +2114,14 @@ stale as those change, and the PR that lifts a deny to edit a helper is not
 refused by the guard on its way past. A test pins that control: a denied tree
 spelled as itself is **admitted** here.
 
-**Two things a path deny cannot reach are judged here all the same, and
+**Two things a path deny may not reach are judged here all the same, and
 neither takes a copy of a list.** A rule of more than one component anchors at
 the session's permission root (*Normalisation, residuals and the sweeps* has
 the shapes that do not), so a worktree of this repository that the session has
 not entered, the main checkout seen from a linked one included, launched there
 or entered with the project left at main, is reached by none
-of those: its `.claude/scripts/x` and its `.git`
+of those, and by a rule of one component only where it sits under that root.
+So its `.claude/scripts/x` and its `.git`
 are judged by this target's own `Edit(...)` denies, read from
 `.claude/settings.json` through `guard-git-argv.py`'s `denied_path`, anchored at
 that worktree's root and folded for case, and a link inside it is judged as in
@@ -2340,9 +2341,9 @@ without `./`, admitted the same path under `sub/`, so a rule of more than one
 component anchors at the root. `Edit(/.harness/**)` admitted
 `sub/.harness/config.json`, so a leading `/` anchors a rule of one component.
 `denied_path` matches every
-rule from the checkout's root, so a rule's `**/` twin is not redundant: in a
-worktree the session has not entered, it is `Edit(**/NuGet.Config)` that holds
-the nested file.
+rule from the checkout's root, so a rule's `**/` twin is not redundant: it is
+`Edit(**/NuGet.Config)` that makes `denied_path` hold the nested file, in a
+worktree the session has not entered.
 
 **A `..` that traverses no link is admitted, and the reason is a measurement
 of the harness rather than a judgement about paths.** The case for refusing it
