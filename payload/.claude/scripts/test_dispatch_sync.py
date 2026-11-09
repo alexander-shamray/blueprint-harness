@@ -310,6 +310,20 @@ class SyncDrop(Bound):
         self.assertNotIn("workflow", " ".join(lines))
         self.assertNotIn("on-origin", " ".join(lines))
 
+    def test_each_line_is_out_before_the_next_head_is_offered(self):
+        # A run the dispatcher's timeout cuts short is killed here, and what it already deleted has to have been said.
+        self.publish("chore/harness-sync-7654321", "chore/harness-sync-1111111")
+        real_helper, seen = dr.helper, []
+
+        def watch(root, script, *args):
+            seen.append(sys.stdout.getvalue())
+            return real_helper(root, script, *args)
+
+        with mock.patch.object(dr, "helper", watch):
+            run_cli(["sync-drop"])
+        self.assertEqual("", seen[0])
+        self.assertIn("chore/harness-sync-1111111", seen[1])
+
     def test_an_origin_it_cannot_read_leaves_the_local_heads_offered(self):
         git_in(".", "remote", "remove", "origin")
         lines = run_cli(["sync-drop"]).splitlines()

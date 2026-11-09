@@ -1239,28 +1239,37 @@ def _worktree_kept(root, entry):
 
 def _offer_sync_heads(root, drop, refs):
     """One line for each sync head among `refs` offered to the `drop` helper, which alone decides whether it goes."""
-    lines = []
     for ref in refs:
         branch = ref.removeprefix("refs/heads/")
         if not SYNC_HEAD.fullmatch(branch):
             continue
         try:
-            lines.append(one_line(helper(root, drop, branch)))
+            yield one_line(helper(root, drop, branch))
         except Refusal as kept:
-            lines.append(f"kept {branch}: {kept}")
-    return lines
+            yield f"kept {branch}: {kept}"
 
 
 def sync_drop(root):
-    """Origin's merged sync heads, then the local ones: an origin that cannot be read is a line, not the end of both."""
+    """Origin's merged sync heads, then the local ones: an origin that cannot be read is a line, not the end of both.
+
+    Each line comes as its head is done, so a run the dispatcher's timeout cuts short still says what it deleted.
+    """
+    said = False
     try:
         listed = git(root, "ls-remote", "--heads", "origin", "refs/heads/chore/harness-sync-*")
-        lines = _offer_sync_heads(root, "git-sync-head-drop.sh", [row.split()[-1] for row in listed.splitlines()])
     except Refusal as unread:
-        lines = [f"origin's sync heads were not read: {one_line(str(unread), 200)}"]
+        listed = ""
+        said = True
+        yield f"origin's sync heads were not read: {one_line(str(unread), 200)}"
+    for line in _offer_sync_heads(root, "git-sync-head-drop.sh", [row.split()[-1] for row in listed.splitlines()]):
+        said = True
+        yield line
     local = git(root, "for-each-ref", "--format=%(refname)", "refs/heads/chore/harness-sync-*")
-    lines += _offer_sync_heads(root, "git-branch-drop.sh", local.splitlines())
-    return lines or ["no sync branch"]
+    for line in _offer_sync_heads(root, "git-branch-drop.sh", local.splitlines()):
+        said = True
+        yield line
+    if not said:
+        yield "no sync branch"
 
 
 def sync_close(root, run, gid):
@@ -1774,7 +1783,8 @@ def command(args: argparse.Namespace, today, bodies_from, open_from, branch_from
     elif args.command == "sync-ready":
         sync_ready(root, args.run, args.pr)
     elif args.command == "sync-drop":
-        print("\n".join(sync_drop(root)))
+        for line in sync_drop(root):
+            print(line, flush=True)
     elif args.command == "sync-close":
         sync_close(root, args.run, args.group)
     elif args.command == "run":
