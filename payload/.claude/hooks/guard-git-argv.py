@@ -2554,8 +2554,8 @@ def refspec_offence(segment):
               or (stripped[0] == "fetch" and len(name) > 3
                   and "--stdin".startswith(name))):
             return (
-                f"`git {stripped[0]} {word}` names a ref to write that the "
-                "command does not show, under a read's grant. Fetch without it."
+                f"`git {stripped[0]} {word}` writes a ref no refspec operand "
+                "names, under a read's grant. Fetch without it."
             )
     for refspec in operands[1:]:
         if refspec.partition(":")[2] and not (operands[0] == "origin" and (
