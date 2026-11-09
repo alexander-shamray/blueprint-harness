@@ -159,7 +159,7 @@ does not move it; the same file refuses a listed site no line carries any more.
 A shape those names cannot see, such as a C# sample, rests on review.
 
 - `.github/output-gate/` — the gate itself checks .NET build output against
-  `Platform.slnx`. Delivered only where a .NET build runs: a target without
+  the one `.slnx` at the target's root. Delivered only where a .NET build runs: a target without
   one puts `.github/output-gate/**` under `exclude` in its config, as this
   repository does. #85 moves it backend-local.
 - `.github/comment-gate/README.md#.yaml` and
