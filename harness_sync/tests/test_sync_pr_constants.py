@@ -44,9 +44,11 @@ class SyncPrConstants(unittest.TestCase):
 
     def test_the_worktree_helper_takes_the_sync_head_and_no_other(self):
         # The helper is bash, so its pattern is read out of its text and held to pr.py's, not re-spelled.
-        text = (SCRIPTS / "git-worktree-sync.sh").read_text(encoding="utf-8")
-        found = re.findall(r'^\[\[ "\$branch" =~ \^(\S+)\$ \]\]', text, re.MULTILINE)
-        self.assertEqual([pr.SYNC_HEAD.pattern], found)
+        for helper in ("git-worktree-sync.sh", "git-sync-head-drop.sh"):
+            with self.subTest(helper=helper):
+                text = (SCRIPTS / helper).read_text(encoding="utf-8")
+                found = re.findall(r'^\[\[ "\$branch" =~ \^(\S+)\$ \]\]', text, re.MULTILINE)
+                self.assertEqual([pr.SYNC_HEAD.pattern], found)
         self.assertFalse(pr.SYNC_HEAD.pattern.startswith("^") or pr.SYNC_HEAD.pattern.endswith("$"))
 
     def test_the_branch_drop_takes_a_closed_pull_requests_branch_only_for_the_sync_head(self):
