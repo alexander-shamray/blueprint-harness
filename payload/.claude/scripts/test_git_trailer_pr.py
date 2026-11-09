@@ -66,6 +66,12 @@ class TheHelperRefusesARedirectedPush(Fixture):
         self.git("config", "--local", "--add", "remote.origin.url", f"{self.origin_url}-second")
         self.assert_refused("origin has 2 push URLs")
 
+    def test_a_second_url_behind_a_single_push_url_is_refused(self):
+        # `pushurl` names the second `url`, so one push URL matches the last `url` while the fetch reads the first.
+        self.git("config", "--local", "--add", "remote.origin.url", f"{self.origin_url}-second")
+        self.git("config", "--local", "remote.origin.pushurl", f"{self.origin_url}-second")
+        self.assert_refused("origin has more than one url")
+
     def test_a_push_url_spelling_the_same_repository_differently_is_published(self):
         # The control for both refusals: the comparison is of the repository named, not of two strings.
         self.git("config", "--local", "remote.origin.pushurl", f"{self.origin_url}/")
