@@ -4059,6 +4059,17 @@ class TheListsTheGuardReads(unittest.TestCase):
         return [path for line in text.splitlines() if line.startswith("disallowed-tools:")
                 for path in re.findall(r"Edit\(([^)]*)\)", line)]
 
+    @staticmethod
+    def named_at_root(name, paths):
+        """Whether one of the folded `paths` names the root file `name`.
+
+        `fnmatchcase` wants a `/` before `**/`, so `denied_path` asks such a rule
+        again without it, and so does this.
+        """
+        return any(fnmatch.fnmatchcase(name, path) or (
+                       path.startswith("**/") and fnmatch.fnmatchcase(name, path[3:]))
+                   for path in paths)
+
     def managed_commands(self):
         manifest = json.loads((self.ROOT / ".harness" / "manifest.json").read_text(encoding="utf-8"))
         return [self.ROOT / name for name in manifest["files"]
@@ -4098,7 +4109,20 @@ class TheListsTheGuardReads(unittest.TestCase):
         self.assertGreater(len(names), 3, "the root listing went empty")
         for name in names:
             with self.subTest(name=name):
-                named = any(fnmatch.fnmatchcase(name.lower(), path) for path in paths)
+                self.assertEqual(self.named_at_root(name.lower(), paths),
+                                 module.denied_path(name) is not None)
+
+    def test_the_root_file_reading_takes_a_rule_as_the_guard_does(self):
+        # No rule of this repository's names a root file under `**/`, so only a
+        # target's suite would reach that branch; these rules reach it here.
+        module = self.guard_module()
+        rules = ("**/playwright.config.ts", "**/*.config.mts", "package.json", ".github/**")
+        module.edit_denies = lambda: rules
+        for name, named in (("playwright.config.ts", True), ("vite.config.mts", True),
+                            ("package.json", True), ("playwright.config.ts.bak", False),
+                            ("readme.md", False)):
+            with self.subTest(name=name):
+                self.assertEqual(named, self.named_at_root(name, rules))
                 self.assertEqual(named, module.denied_path(name) is not None)
 
     def test_every_name_the_file_gives_is_one_the_push_guard_admits(self):
