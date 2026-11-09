@@ -411,7 +411,8 @@ It first offers `git-sync-head-drop.sh` every branch on origin named as a sync
 head, since `harness_sync` deletes a superseded one and nothing deletes a merged
 one: the repository's delete-on-merge would, but that is the owner's setting.
 Each head costs GitHub reads and a push, so the first run over a backlog is
-slow; it is idempotent, and a run cut short leaves the rest for the next.
+slow, which is why step 3 gives it a ten-minute `timeout`; it is idempotent, and
+a run cut short leaves the rest for the next.
 
 **The proof binds.** The verify at step 0.3 and after each exit runs in the
 main checkout, because the executor runs that head's own copy of `sync_pr.py`,
