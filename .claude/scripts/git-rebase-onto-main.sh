@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Rebase the current branch onto origin/main and publish it, a leased force
-# push here. Guards: the branch is in hand and not main, the tree clean, origin
-# has nothing unseen, a two-parent merge differs from git's only in conflicts,
-# a replay keeps its todo, skips no stop, and a retry forces it at the lease.
+# Rebase the current branch onto origin/main and publish it under a lease.
+# Guards: the branch is in hand and not main, the tree clean, origin has nothing
+# unseen and one push URL, a two-parent merge differs from git's only in
+# conflicts, a replay keeps its todo, skips no stop, a retry holds the lease.
 
 # Four modes, because a conflict is the case rebase is here for. `start`
 # leaves a conflicted rebase in progress rather than aborting it: backing out
@@ -16,6 +16,7 @@
 # `start` spells, drops a commit a resolution emptied by itself; any other
 # commit a caller could skip holds content, and the chain is unattended.
 set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/git-push-url.sh"
 
 [ "$#" -eq 2 ] ||
   { echo "usage: git-rebase-onto-main.sh <branch> <start|continue|publish|abort>" >&2; exit 2; }
@@ -161,6 +162,7 @@ publish() {
   lease="$approved_lease"
   [ -n "$lease" ] ||
     { echo "no lease was approved, so nothing here may force" >&2; exit 7; }
+  origin_pushes_where_added || exit 7
   head=$(git rev-parse HEAD)
   if [ "$head" = "$lease" ]; then
     rm -f "$pending"
@@ -376,6 +378,9 @@ case "$mode" in
           exit 5; }
     fi
 
+    # Ahead of the fetch, so a redirect reads nothing from where it points and the
+    # branch is not replayed; `publish` asks again, since `continue` comes later.
+    origin_pushes_where_added || exit 7
     git fetch origin
     git show-ref --verify --quiet refs/remotes/origin/main ||
       { echo "no refs/remotes/origin/main to rebase onto" >&2; exit 6; }
