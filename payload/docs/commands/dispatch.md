@@ -322,8 +322,8 @@ executor returns*). A read that fails, or a predicate that does not hold,
 leaves the crash as it was, and so does a sync whose tip is not the head its
 proof bound (*The proof binds*). Run 20261108-071135 relaunched five groups of
 twenty-one: one had merged and written its result to the main checkout's run
-directory rather than its worktree's, which `result` does not read, and four
-had ended the turn on `/commit`'s report, before any merge, which only a
+directory rather than its worktree's, which `result` did not read then and
+does now (*What an executor returns*), and four had ended the turn on `/commit`'s report, before any merge, which only a
 relaunch can recover. A turn ended there ends a `claude -p` session, which is
 why `/ship --dispatched` says a step's status is not a reply.
 
