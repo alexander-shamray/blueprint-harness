@@ -111,7 +111,8 @@ same list: a close comment is a comment on an issue, which the spec's
 `--dry-run` is the builder's flag the spec's §3 allows: it runs step 0's
 checks and `board`, says what the rebuild would change and what would
 launch, and writes nothing to the list or GitHub, so the owner can see a
-night before starting one.
+night before starting one. It does not read a red `main`, so what it names is
+what a green one would launch (*A red main*).
 
 ## The interview
 
