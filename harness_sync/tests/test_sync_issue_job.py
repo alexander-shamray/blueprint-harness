@@ -50,14 +50,20 @@ class TheJobHearsARedRun(unittest.TestCase):
         self.assertRegex(_job(), r"(?m)^    if: failure\(\)$")
         self.assertNotIn("cancelled", _job())
 
-    def test_the_open_pr_step_times_out_inside_the_job(self) -> None:
+    def test_every_step_times_out_inside_its_job(self) -> None:
         # A step past its timeout fails, and a job past its own reads `cancelled`, which the condition does not hear. The
-        # job's clock runs through the checkouts and setup-python first, so the step's must end with minutes to spare.
-        sync = _jobs(SYNC)["sync"]
-        job_limit = int(re.search(r"(?m)^    timeout-minutes: (\d+)$", sync).group(1))
-        step = sync.split("- name: Open the sync pull request\n", 1)[1]
-        step_limit = int(re.search(r"(?m)^        timeout-minutes: (\d+)$", step).group(1))
-        self.assertGreaterEqual(job_limit - step_limit, 5)
+        # job's clock runs through every step, so each has a limit, and all of them together end before the job's does.
+        jobs = _jobs(SYNC)
+        for name in sorted(set(jobs) - {"sync-issue"}):
+            with self.subTest(job=name):
+                job_limit = re.search(r"(?m)^    timeout-minutes: (\d+)$", jobs[name])
+                self.assertIsNotNone(job_limit, "the job has no limit of its own, so GitHub's six hours is its limit")
+                steps = re.split(r"(?m)^      - ", jobs[name].split("\n    steps:\n", 1)[1])[1:]
+                self.assertTrue(steps, "no steps read, so nothing below is checked")
+                limits = [re.search(r"(?m)^        timeout-minutes: (\d+)$", step) for step in steps]
+                unbounded = [step.splitlines()[0] for step, limit in zip(steps, limits) if limit is None]
+                self.assertEqual([], unbounded)
+                self.assertLess(sum(int(limit.group(1)) for limit in limits), int(job_limit.group(1)))
 
     def test_it_holds_no_token_but_the_workflows_own(self) -> None:
         # The sync token is the harness-sync environment's, and a job that names neither cannot reach it.

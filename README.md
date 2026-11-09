@@ -202,10 +202,10 @@ workflow's own token and no environment, since it writes only this repository's
 issues. The title does not match `main-red-open.sh`'s rule, so it stops no
 landing. The job hears a failure and not a cancellation: a concurrency group
 keeps one waiting job, so a newer run cancels a waiting one and syncs `main`'s
-tip itself. The step that runs open-pr has a timeout eight minutes inside the
-job's, because a job past its timeout reads as cancelled too and its clock also
-runs through the steps before that one. A job that still reaches its own limit,
-a hang in an earlier step among them, is seen only in the run.
+tip itself. A job past its timeout reads as cancelled too, where a step past its
+own fails, so every step of `targets` and `sync` has a timeout and each job's
+add up to less than its limit. A hang outside a step, in the runner's set-up or
+post-run work, can still reach the limit, and is seen only in the run.
 
 A target is **current** when applying the payload writes and deletes no
 managed path: only the manifest's commit would move, so no pull request is

@@ -26,11 +26,13 @@ jobs:
     # dispatch from any other branch would open a pull request bound to fail.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       matrix: ${{ steps.read.outputs.matrix }}
     steps:
       # The list as main holds it now, as the sync job below reads main's tip.
       - uses: actions/checkout@v7
+        timeout-minutes: 2
         with:
           ref: main
 
@@ -38,6 +40,7 @@ jobs:
       # concurrency group, so a malformed line fails here and names itself.
       - name: Read targets.json
         id: read
+        timeout-minutes: 1
         run: |
           set -euo pipefail
           jq -e 'type == "array" and length > 0 and all(.[];
@@ -49,6 +52,9 @@ jobs:
   sync:
     needs: targets
     runs-on: ubuntu-latest
+    # Past this limit a job reads `cancelled`, which sync-issue does not hear,
+    # where a step past its own fails. So every step has one, and together they
+    # end first.
     timeout-minutes: 20
     # A pull request from a branch here gets repository secrets and runs that
     # branch's workflows, so the token is a secret of this environment alone,
@@ -73,6 +79,7 @@ jobs:
       # notice and the run stays green, so main stays green (R8).
       - name: Check for HARNESS_SYNC_TOKEN
         id: token
+        timeout-minutes: 1
         env:
           TOKEN: ${{ secrets.HARNESS_SYNC_TOKEN }}
           TARGET: ${{ matrix.target.repo }}
@@ -87,6 +94,7 @@ jobs:
       # Main's tip, with history: the tip is what is synced, and the history
       # is what open-pr orders commits by. Every git call on it is local.
       - if: steps.token.outputs.present == 'true'
+        timeout-minutes: 2
         uses: actions/checkout@v7
         with:
           ref: main
@@ -97,6 +105,7 @@ jobs:
       # target/.git/config while setup-python and later steps run; open-pr's
       # git calls get it from their own step's environment below.
       - if: steps.token.outputs.present == 'true'
+        timeout-minutes: 2
         uses: actions/checkout@v7
         with:
           repository: ${{ matrix.target.repo }}
@@ -106,6 +115,7 @@ jobs:
           persist-credentials: false
 
       - if: steps.token.outputs.present == 'true'
+        timeout-minutes: 2
         uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -116,9 +126,6 @@ jobs:
       # path; `-E -s` still ignore PYTHON* variables and user site (R33).
       - name: Open the sync pull request
         if: steps.token.outputs.present == 'true'
-        # Well inside the job's, whose clock also runs through the steps before
-        # this one: a step past its timeout fails, where a job past its own reads
-        # `cancelled`, which sync-issue does not hear.
         timeout-minutes: 12
         env:
           GH_TOKEN: ${{ secrets.HARNESS_SYNC_TOKEN }}
