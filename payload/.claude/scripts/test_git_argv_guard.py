@@ -4302,7 +4302,8 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         path = self.lost()
         for command in ("git commit --allow-empty -m x",
                         "git fetch origin main && git merge --ff-only origin/main",
-                        "bash .claude/scripts/git-branch-drop.sh x"):
+                        "bash .claude/scripts/git-branch-drop.sh x",
+                        "Git commit --allow-empty -m x", "GIT.EXE push", "git.cmd commit"):
             with self.subTest(command=command):
                 reason = self.assertRefused(command, cwd=path)
                 self.assertIn("main checkout", reason)
