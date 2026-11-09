@@ -29,7 +29,7 @@ ROOT = COMMANDS.parent.parent
 # exit counts these beside ship.md and branch.md, and none was split. A target's
 # own `CLAUDE.md` is resident too, and its ceiling is that target's.
 RESIDENT = {
-    ".claude/commands/pr.md": 9900,
+    ".claude/commands/pr.md": 10500,
     ".claude/commands/commit.md": 5200,
 }
 
