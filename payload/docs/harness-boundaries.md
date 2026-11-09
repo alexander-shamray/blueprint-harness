@@ -2114,9 +2114,9 @@ shell write meets none.
 a memory or an output style with a redirect or `sed -i`, most appending a line
 to `MEMORY.md`; the refusal names the editing tool, which does the same. 3 were
 `rm` of a stale memory, which no editing tool can do and which plants nothing,
-so `rm` and `unlink` of a file below a project's `memory/` are admitted. A `mv`
-stays refused, as the 1 typed was, since the same verb plants a file, and so
-does a removal of the directory or anything wider.
+so `rm` and `unlink` of a file named below a project's `memory/` are admitted. A
+`mv` stays refused, as the 1 typed was, since the same verb plants a file, and
+so does a glob there, or a removal of the directory or anything wider.
 
 ## Edit guard path resolution
 

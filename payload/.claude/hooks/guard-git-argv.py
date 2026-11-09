@@ -2824,7 +2824,8 @@ def home_target(path, cwd, command, whole=False, removing=False):
                 continue
             parts = os.path.relpath(place, root).replace("\\", "/").lower().split("/")
             if removing and parts[:2] == [".claude", "projects"] and (
-                    len(parts) > 4 and parts[3] == "memory"):
+                    len(parts) > 4 and parts[3] == "memory"
+                    and not any(mark in part for part in parts for mark in "*?[{")):
                 continue
             if home_place(parts) is not None or (parts[0] == ".claude" and (
                     (len(parts) > 1 and parts[1] in STANDING_DIRECTORIES)
