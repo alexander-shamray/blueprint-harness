@@ -679,16 +679,21 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
         # They live in `guard-git-argv.py`, so a guard copied without it fails
         # closed under the home directory and leaves the rest of the outside.
         alone = os.path.join(self.outside, "lone", ".claude", "hooks")
+        home = os.path.join(self.outside, "home")
         os.makedirs(alone)
+        os.makedirs(home)
         guard = shutil.copy(HOOK, alone)
         event = {"tool_name": "Write", "cwd": self.outside}
-        for target, reason in ((os.path.join(self.HOME, "notes.md"), "cannot be read"),
+        # A Windows runner's temp root is under its real home, so this one is set.
+        env = {key: value for key, value in os.environ.items() if key != "CLAUDE_PROJECT_DIR"}
+        env.update(HOME=home, USERPROFILE=home)
+        for target, reason in ((os.path.join(home, "notes.md"), "cannot be read"),
                                (os.path.join(self.outside, "loot.txt"), None)):
             with self.subTest(target=target):
                 result = subprocess.run(
                     [sys.executable, guard],
                     input=json.dumps({**event, "tool_input": {"file_path": target}}),
-                    capture_output=True, encoding="utf-8")
+                    capture_output=True, encoding="utf-8", env=env)
                 self.assertEqual(0, result.returncode, result.stderr)
                 if reason is None:
                     self.assertEqual("", result.stdout.strip())
