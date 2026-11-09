@@ -2368,6 +2368,15 @@ def push_offence(segment):
             return "a `:branch` refspec deletes the remote branch"
     else:
         source, destination = refspec, refspec
+    # Before the strip below, or `refs/heads/refs/tags/main`, a branch, reads as
+    # the tag.
+    if (destination.startswith("refs/tags/")
+            and destination.removeprefix("refs/tags/") in PROTECTED_BRANCHES):
+        return (
+            f"a tag named as the branch, `{destination}`, is what a short "
+            "refspec source then reads on origin ahead of the branch. Name the "
+            "tag something else."
+        )
     # One prefix, not a loop: `refs/heads/heads/main` is a branch named
     # `heads/main`, and `heads/refs/heads/main` another, neither of them main.
     for prefix in ("refs/heads/", "heads/"):
