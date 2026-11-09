@@ -36,8 +36,8 @@ across the sessions.
   counted on its last day of use and a window read later could lose one, and a
   leading local command other than `/clear`, `/model` or `/reload-plugins` hid a
   session, while one of those later in a session counted as a turn. Every table
-  ahead of *After #297* was taken that way but for *After plan 5*'s count by
-  start, which chose its own sessions.
+  the command lines printed ahead of *After #297* was taken that way; *After
+  plan 5*'s count by start chose its own sessions.
 - Until #276 `--command` read a session's first genuine message and looked for
   the tag anywhere in it, so a session a `/clear` opened dropped out and one
   whose first message only quoted the tag counted, and the `user_turns` of a
@@ -308,7 +308,7 @@ the one rate that rises, as *After plan 5* read it.
 
 Every difference is the window or the turn count, and frontend now matches
 *After plan 5*'s count by start: 16 over 9 and 17 over 12. Its one difference
-there is the `user_turns` that section accounts for.
+there is the `user_turns` *After #276* accounts for.
 
 | Row | Sessions | Left: started before `--since` | Came: started inside, last modified outside |
 | --- | ---: | --- | --- |
