@@ -207,10 +207,11 @@ job then reads as cancelled. So does a waiting job: a concurrency group keeps on
 so a newer run cancels a waiting one and syncs `main`'s tip itself. The `sync-red`
 job tells them apart by reading the run's jobs: a cancelled job that ran steps is
 red, and one that ran none files nothing. It holds no concurrency group, so a run
-with nothing red cannot take a red run's waiting place in `sync-issue`'s, and if
-it fails or is itself cancelled, that files too. A leg GitHub cancels from the
-runner queue ran none either, so it is seen only in the run, and a run somebody
-cancels whole files nothing, because the job's `!cancelled()` is false only there.
+it read as having nothing red cannot take a red run's waiting place in
+`sync-issue`'s, and if it fails or is itself cancelled, that files too. A leg
+GitHub cancels from the runner queue ran none either, so it is seen only in the
+run, and a run somebody cancels whole files nothing, because the job's
+`!cancelled()` is false only there.
 
 A target is **current** when applying the payload writes and deletes no
 managed path: only the manifest's commit would move, so no pull request is
