@@ -20,6 +20,11 @@ HELPER = SCRIPTS / "main-red-open.sh"
 STUB = (
     "#!/usr/bin/env bash\n"
     'echo "$*" >> "$STUB_LOG"\n'
+    'if [ "$2" = view ]; then\n'
+    '  [ -z "${STUB_VIEW_FAIL:-}" ] || exit 1\n'
+    '  case " ${STUB_CLOSED:-} " in *" $3 "*) echo CLOSED;; *) echo "${STUB_STATE-OPEN}";; esac\n'
+    '  exit 0\n'
+    'fi\n'
     '[ -z "${STUB_FAIL:-}" ] || exit 1\n'
     'printf "%s" "$STUB_ROWS"\n'
 )
@@ -63,6 +68,29 @@ class MainRedOpen(unittest.TestCase):
         result = self.run_helper(rows("main is red: CI", "main is red: Helm"))
         self.assertEqual(3, result.returncode, result.stderr)
         self.assertEqual("main is red: #1 u1\nmain is red: #2 u2\n", result.stdout)
+
+    def test_an_issue_the_search_lists_but_is_closed_exits_0(self):
+        # The search index lags a closure: the listing still has the issue, its own state says CLOSED.
+        result = self.run_helper(rows("main is red"), STUB_CLOSED="1")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("", result.stdout)
+
+    def test_only_the_still_open_one_is_named(self):
+        result = self.run_helper(rows("main is red: CI", "main is red: Helm"), STUB_CLOSED="1")
+        self.assertEqual(3, result.returncode, result.stderr)
+        self.assertEqual("main is red: #2 u2\n", result.stdout)
+
+    def test_a_failed_state_read_exits_2(self):
+        result = self.run_helper(rows("main is red"), STUB_VIEW_FAIL="1")
+        self.assertEqual(2, result.returncode)
+        self.assertIn("cannot read the state of #1", result.stderr)
+        self.assertEqual("", result.stdout)
+
+    def test_a_state_that_is_neither_open_nor_closed_exits_2(self):
+        result = self.run_helper(rows("main is red"), STUB_STATE="")
+        self.assertEqual(2, result.returncode)
+        self.assertIn("state of #1 reads ''", result.stderr)
+        self.assertEqual("", result.stdout)
 
     def test_a_title_that_only_contains_the_phrase_exits_0(self):
         # The search is full text, so it returns these. The last has the words and no separator.
