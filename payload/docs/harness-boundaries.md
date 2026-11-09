@@ -194,9 +194,10 @@ git guard backs them for a redirect and a writing verb, in every turn:**
 `guard-git-argv.py` refuses both under either directory, all but the removal of
 a named memory file (*The edit-target guard*). `curl -o`, `tar -x` and an
 interpreter are not on its list of verbs, so they stay open, the residual *Git
-argv guard hook* states. Whether a frontmatter deny reaches such a command has not been measured in blueprint-harness; a path deny
-reaches a `Bash` command naming the path where it was (*A boundary an agent must
-keep across turns*), and a command that computes its path would not name it.
+argv guard hook* states. Whether a frontmatter deny reaches such a command has
+not been measured in blueprint-harness; a path deny reaches a `Bash` command
+naming the path where it was (*A boundary an agent must keep across turns*), and
+a command that computes its path would not name it.
 
 **The index skill's prefix grants are the same speed bump as `git *--output*`.**
 `Bash(bash .claude/skills/codebase-index/scripts/cbx search:*)` matches the
