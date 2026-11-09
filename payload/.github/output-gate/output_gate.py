@@ -238,7 +238,7 @@ def audit(repo_root: Path) -> list[str]:
     a reconciliation against it and there is nothing to reconcile without one.
     The subject comes next on purpose: a mismatch there changes what the other
     checks were even about, so reporting them alongside would be three findings
-    where there is one. A duplicate name comes second for the narrower version
+    where there is one. A duplicate name comes third for the narrower version
     of the same reason — every lookup after it is by name.
     """
     solution, findings = find_solution(repo_root)
