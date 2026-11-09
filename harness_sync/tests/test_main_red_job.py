@@ -62,7 +62,9 @@ class TheHelperReadsWhatTheJobFiles(unittest.TestCase):
         self.assertIsNotNone(bash, "bash is what the helper runs under")
         with tempfile.TemporaryDirectory() as directory:
             stub = Path(directory) / "gh"
-            stub.write_text('#!/usr/bin/env bash\nprintf "%s" "$STUB_ROWS"\n', encoding="utf-8", newline="\n")
+            # The helper confirms each listed number's own state, which `issue view` answers and the listing does not.
+            stub.write_text('#!/usr/bin/env bash\n[ "$2" != view ] || { echo OPEN; exit 0; }\nprintf "%s" "$STUB_ROWS"\n',
+                            encoding="utf-8", newline="\n")
             stub.chmod(0o755)
             env = {**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"],
                    "STUB_ROWS": json.dumps([{"number": 7, "title": title, "url": "u"}])}
