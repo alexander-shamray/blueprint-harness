@@ -989,21 +989,29 @@ class TheHelperPublishesWhatItRebased(unittest.TestCase):
             "https://github.com/x/y#/o/r", "https://github.com/x/y?/o/r", "ssh://github.com:o/r",
             "git@github.com:/o/r", "https://[::1]/o/r", "file:///o/r", "ext::sh -c evil/o/r",
             "https://github.com/evil/o/r", "https://github.com/x/../o/r", "https://github.com/o//r",
-            "/evil/o/r",
+            "/evil/o/r", "https://github.com:443/o/r", "https://github.com:8443/o/r", "ssh://git@github.com:2222/o/r",
+            "https://github.com:22/o/r", "git://github.com/o/r", "http://github.com/o/r", "/tmp/x/o/r",
         ]
         got = {u: run_bash(script, H=str(SCRIPTS / "git-push-url.sh"), U=u).stdout.strip() for u in urls}
-        for same in urls[:4]:
+        for same in (*urls[:4], "https://github.com:443/o/r"):
             self.assertEqual("github.com|o/r", got[same], same)
+        # Another port is another server, each scheme's default aside.
+        self.assertEqual("github.com:8443|o/r", got["https://github.com:8443/o/r"])
+        self.assertEqual("github.com:2222|o/r", got["ssh://git@github.com:2222/o/r"])
+        self.assertEqual("github.com:22|o/r", got["https://github.com:22/o/r"])
         self.assertEqual("evil.example|o/r", got["https://evil.example/o/r"])
         for refused in ("https://github.com/r", "ext::sh -c evil", "https://github.com/x/y#/o/r",
                         "https://github.com/x/y?/o/r", "ssh://github.com:o/r", "git@github.com:/o/r",
                         "https://[::1]/o/r", "file:///o/r", "ext::sh -c evil/o/r",
-                        "https://github.com/x/../o/r", "https://github.com/o//r"):
+                        "https://github.com/x/../o/r", "https://github.com/o//r",
+                        "git://github.com/o/r", "http://github.com/o/r"):
             self.assertEqual("(none)", got[refused], refused)
         # The whole path counts: a deeper path with the same last two components is another key.
         self.assertEqual("github.com|evil/o/r", got["https://github.com/evil/o/r"])
-        self.assertEqual("|C:/x/o/r", got["C:/x/o/r.git"])
-        self.assertEqual("|/tmp/x/o/r", got["/tmp/x/o/r.git"])
+        # A local `r` and `r.git` are two directories, where a host serves one repository under both.
+        self.assertEqual("|C:/x/o/r.git", got["C:/x/o/r.git"])
+        self.assertEqual("|/tmp/x/o/r.git", got["/tmp/x/o/r.git"])
+        self.assertNotEqual(got["/tmp/x/o/r"], got["/tmp/x/o/r.git"])
         self.assertNotEqual(got["/evil/o/r"], got["/tmp/x/o/r.git"])
 
     def test_a_remote_with_two_urls_is_refused_before_anything_is_forced(self):
@@ -1029,6 +1037,20 @@ class TheHelperPublishesWhatItRebased(unittest.TestCase):
 
         self.assertEqual(7, result.returncode, result.stderr)
         self.assertIn("origin has more than one url", result.stderr)
+        self.assertEqual(before, self.at("git ls-remote origin refs/heads/feat/x").stdout.split()[0])
+
+    def test_a_redirect_set_after_the_replay_is_refused_when_it_is_published(self):
+        # `start` asked before the replay, so only `publish`'s own question stands between a redirect set since and the
+        # force. A `continue` reaches the same function.
+        self.fail_the_push()
+        before = self.at("git ls-remote origin refs/heads/feat/x").stdout.split()[0]
+        self.at('git config --local remote.origin.pushurl "https://example.invalid/x.git"')
+        self.at(ALLOW_PUSH)
+
+        result = self.helper("publish")
+
+        self.assertEqual(7, result.returncode, result.stderr)
+        self.assertIn("a redirected force is not published", result.stderr)
         self.assertEqual(before, self.at("git ls-remote origin refs/heads/feat/x").stdout.split()[0])
 
     def test_a_fetch_url_parted_from_the_push_url_is_refused_before_the_replay(self):

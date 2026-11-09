@@ -1436,11 +1436,11 @@ emptied), takes one branch name that has to equal the one checked out, refuses
 commits this checkout lacks, leases the push against the commit the same run
 read, and refuses (exit 7) an `origin` with more than one push URL or more
 than one `url`, or whose push or fetch URL, after `pushurl`, `pushInsteadOf`
-and `insteadOf`, names another host
-or path than the URL the remote was added with. A protocol rewrite on one host
-passes, and a URL with no host and path to compare has no key and is refused:
-`file://`, `ext::`, a one-component hosted path, a dot or empty segment, a
-query or a fragment. That refusal is `git-push-url.sh`'s, which all three
+and `insteadOf`, names another host, port
+or path than the URL the remote was added with. A rewrite between https and ssh
+at their default ports on one host passes, and a URL with no host and path to
+compare has no key and is refused: `git://`, `http://`, `file://`, `ext::`, a
+one-component hosted path, a dot or empty segment, a query or a fragment. That refusal is `git-push-url.sh`'s, which all three
 force helpers source, each at its own exit code. **A rule could have bought
 none of that**: a permission
 pattern matches the text of a command, and every guard in that list is a fact

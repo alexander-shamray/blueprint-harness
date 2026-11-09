@@ -6,18 +6,24 @@
 # `host|path` of a remote URL, or non-zero when it has no such shape. The whole
 # path counts, since its last components alone let `https://h/evil/o/r` collide
 # with `https://h/o/r`. The host is empty for a local path and lower-cased
-# otherwise; a scheme, user, port, leading slash and trailing `.git` do not
-# count, so the https and ssh forms of one repository on one host agree.
+# otherwise; a user, a leading slash, a hosted path's trailing `.git` and https
+# or ssh at its default port do not count, so those forms of one repository agree.
 repo_key() {
-  local url=$1 host path
+  local url=$1 host path port
   # A query or a fragment is not part of the path a server routes on, so the
   # path of `https://host/x/y#/o/r` would read as `x/y#/o/r` and push to `x/y`.
   [[ $url != *[\?#]* ]] || return 1
   url=${url%/}
-  url=${url%.git}
-  if [[ $url =~ ^[A-Za-z][A-Za-z0-9+.-]*://([^@/]*@)?([^:/]+)(:[0-9]+)?/(.*)$ ]]; then
-    host=${BASH_REMATCH[2]}
-    path=${BASH_REMATCH[4]}
+  if [[ $url =~ ^([A-Za-z][A-Za-z0-9+.-]*)://([^@/]*@)?([^:/]+)(:[0-9]+)?/(.*)$ ]]; then
+    # Another port is another server, and any other scheme can be read or changed
+    # on the way, so it has no key.
+    case "${BASH_REMATCH[1]}${BASH_REMATCH[4]}" in
+      https | https:443 | ssh | ssh:22) port= ;;
+      https:* | ssh:*) port=${BASH_REMATCH[4]} ;;
+      *) return 1 ;;
+    esac
+    host=${BASH_REMATCH[3]}$port
+    path=${BASH_REMATCH[5]}
   elif [[ $url =~ ^([^@/:]+@)?([A-Za-z0-9.-]{2,}):([^/:].*)$ ]]; then
     host=${BASH_REMATCH[2]}
     path=${BASH_REMATCH[3]}
@@ -31,6 +37,7 @@ repo_key() {
   fi
   if [ -n "$host" ]; then
     path=${path#/}
+    path=${path%.git}
     # A hosted path names an owner and a repository at least.
     [[ $path == */* ]] || return 1
   fi
@@ -43,9 +50,9 @@ repo_key() {
 
 # Non-zero, with the reason on stderr, unless a force goes to one URL, and its
 # lease is read from one, each naming the host and path the remote was added
-# with. A protocol rewrite on one host passes; another host, another path or a
-# transport with no host does not. Its callers test its status, which suspends
-# `set -e` inside it, so each read says its own failure.
+# with. A rewrite between https and ssh on one host passes; another host, port or
+# path, or a transport with no key, does not. Its callers test its status, which
+# suspends `set -e` inside it, so each read says its own failure.
 origin_pushes_where_added() {
   local urls pushes added configured resolved fetched
   urls=$(git remote get-url --push --all origin) ||
