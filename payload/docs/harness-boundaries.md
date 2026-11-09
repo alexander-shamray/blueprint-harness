@@ -19,7 +19,7 @@ the whole is about 31k. `Grep -n "^## <title>"` gives its first line.
 | Destructive classes | One table of what the harness refuses, the layer that refuses each, and the test that holds the table to the deny list and the hooks. |
 | Git argv guard hook | How guard-git-argv.py resolves the executed argv, its successive bypasses, git -c and stated residuals. |
 | The ext transport and pinned grants | Why ext:: cannot be written as a rule, hook coverage, and fetch and pull grant pinning. |
-| Grant inventory and push helpers | Frontmatter grants, the numbered inventory, /ship's closed entries, sweep helpers, the three lease-bound force-push helpers, the branch-drop helper and the sync-PR reader. |
+| Grant inventory and push helpers | Frontmatter grants, the numbered inventory, /ship's closed entries, sweep helpers, the three lease-bound force-push helpers, the branch-drop and sync-head helpers and the sync-PR reader. |
 | Pull request reads and the locality verdict | Fixed-field PR helpers, the gh allow-list gate, #150, and pr-locality.sh's contract. |
 | Sweep push denies and chained commands | Push denies in the sweeps, and why a command /ship runs before it pushes never denies push. |
 | Output deny and shell-expansion residuals | The --output entry closed by the hook, expansion readings, locale quotes, process substitution, crashes and pipes. |
@@ -1414,7 +1414,8 @@ inventoried in a command file and not here is the same drift this paragraph
 warns about, running the other way.
 
 **A fifth was opened deliberately rather than found**: the force push, which
-three lease-bound helpers carry and nothing else does. Branch updates are
+three lease-bound helpers carry and nothing else does to rewrite a branch;
+`git-sync-head-drop.sh` carries the flag only to lease a delete, below. Branch updates are
 rebases, so a branch's published commits are rewritten, and
 `.claude/settings.json` denies `git push --force` and `--force-with-lease`
 alike. **That deny is untouched**, for every raw spelling: the helpers relax
