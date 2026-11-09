@@ -1524,9 +1524,11 @@ or its worktrees could not be read, so whether it landed or is in use is
 unknown.
 
 **A merged sync's branch goes from origin through a helper no setting grants.**
-`git push --delete` stays denied, and `git-sync-head-drop.sh <branch>` is run
-only by `dispatch_board.py sync-drop`, which `/dispatch` alone grants, so a
-session cannot name a branch to it. It takes a sync head and no other name, in
+`git push --delete` stays denied, and `dispatch_board.py sync-drop`, which
+`/dispatch` alone grants, is what runs `git-sync-head-drop.sh <branch>`. No
+setting auto-approves the helper, and none denies it, so that is no control: a
+session that names a head to it is bounded by the helper's own checks, which
+leave it nothing to delete but a merged sync's branch. It takes a sync head and no other name, in
 the one pattern `harness_sync` opens them under, reads origin's tip by the whole
 ref name, and deletes only when `pr-for-branch.sh` lists no `OPEN` row and a
 `MERGED` row into `main` whose head is that tip. The delete is leased to that
