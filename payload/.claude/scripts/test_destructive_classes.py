@@ -78,8 +78,7 @@ def deny_matches(rule, command):
     """Whether the permission `rule` matches `command`.
 
     `Bash(x:*)` matches `x` and `x …`; a `*` inside any run; no `:*`, whole.
-    `Edit(glob)` matches `Edit(<path>)`, `./` off both and a leading `/` off the
-    rule, `*` and `**` any run. `//x` stays absolute, and matches no relative path.
+    `Edit(glob)` matches `Edit(<path>)`, `./` off both, a leading `/` off the rule, `*` and `**` any run.
     """
     name, _, rest = rule.partition("(")
     body = rest[:-1]
