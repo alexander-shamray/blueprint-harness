@@ -1415,8 +1415,8 @@ warns about, running the other way.
 
 **A fifth was opened deliberately rather than found**: the force push, which
 three lease-bound helpers carry and nothing else does to rewrite a branch;
-`git-sync-head-drop.sh` carries the flag only to lease a delete, below. Branch updates are
-rebases, so a branch's published commits are rewritten, and
+`git-sync-head-drop.sh` carries the flag only to lease a delete, below. Branch
+updates are rebases, so a branch's published commits are rewritten, and
 `.claude/settings.json` denies `git push --force` and `--force-with-lease`
 alike. **That deny is untouched**, for every raw spelling: the helpers relax
 the client's policy and the deny list does not move. What lets the client
@@ -1529,10 +1529,10 @@ unknown.
 `/dispatch` alone grants, is what runs `git-sync-head-drop.sh <branch>`. No
 setting auto-approves the helper, and none denies it, so that is no control: a
 session that names a head to it is bounded by the helper's own checks, which
-leave it nothing to delete but a merged sync's branch. It takes a sync head and no other name, in
-the one pattern `harness_sync` opens them under, reads origin's tip by the whole
-ref name, and deletes only when `pr-for-branch.sh` lists no `OPEN` row and a
-`MERGED` row into `main` whose head is that tip. The delete is leased to that
+leave it nothing to delete but a merged sync's branch. It takes a sync head and
+no other name, in the one pattern `harness_sync` opens them under, reads
+origin's tip by the whole ref name, and deletes only when `pr-for-branch.sh`
+lists no `OPEN` row and a `MERGED` row into `main` whose head is that tip. The delete is leased to that
 tip, so a push made during the read is git's to refuse. The tip and the delete
 must reach one repository: `remote.origin.url` as added, the URL `get-url`
 fetches from and the one `get-url --push` pushes to have to be the same string,
