@@ -288,8 +288,8 @@ creation only, so a name that already exists is refused rather than reset.
 The post-failure table's first row spells the base out for the reason
 the clean-`main` rows give:
 this path starts from a clean `main`, so it takes the fetched
-`origin/main` rather than whatever local `main` happens to be. Either way
-the run continues on the branch, in place, exactly as the
+`origin/main` rather than whatever local `main` happens to be. The run then
+continues on the branch, in place, exactly as the
 dirty-`main` path does. Both no-worktree states then look the
 same to everything downstream, and there is only one of them to describe —
 **including step 1's consequence, which is this path's too**: the branch
