@@ -37,12 +37,38 @@ OUTPUT_DIRECTORY_NAMES = frozenset({"bin", "obj"})
 ARTIFACT_STAGES = (("obj", "restore"), ("bin", "build"))
 
 
+def find_solution(repo_root: Path) -> tuple[Path | None, list[str]]:
+    """The one `.slnx` at the repository's root, or why there is not one.
+
+    Found rather than named, because each target calls its solution something
+    of its own and the tree already says what. Exactly one is accepted: with
+    none there is no inventory to reconcile the walk against, and with several
+    the gate cannot tell which one CI builds, so it refuses both rather than
+    reconcile against a guess.
+    """
+    solutions = sorted(path for path in repo_root.glob("*.slnx") if path.is_file())
+    if len(solutions) == 1:
+        return solutions[0], []
+
+    if not solutions:
+        return None, [
+            "no .slnx at the repository root. The gate reconciles the projects on "
+            "disk with the one solution there, and with none it has no inventory "
+            "to reconcile them against, so it judges nothing"]
+
+    named = ", ".join(path.name for path in solutions)
+    return None, [
+        f"{len(solutions)} .slnx files at the repository root ({named}). The gate "
+        f"reconciles the projects on disk with one solution, and with several it "
+        f"cannot tell which one CI builds, so it reconciles against none of them"]
+
+
 def solution_projects(solution: Path) -> list[Path]:
-    """Every project `Platform.slnx` lists, as repository-relative paths.
+    """Every project the solution lists, as repository-relative paths.
 
     Stdlib `ElementTree` rather than `defusedxml`, on the licence gate's
     argument one directory over and for the same reason: no dependency, and the
-    input is not untrusted. This parses `Platform.slnx` from the checkout the
+    input is not untrusted. This parses the solution from the checkout the
     gate is running inside, and a repository that could plant a hostile
     solution file could plant this script instead.
     """
@@ -70,7 +96,7 @@ def walked_projects(repo_root: Path) -> list[Path]:
     return sorted(projects)
 
 
-def compare_subject(walked: list[Path], listed: list[Path]) -> list[str]:
+def compare_subject(walked: list[Path], listed: list[Path], solution: str) -> list[str]:
     """The two views of what this gate is looking at, reconciled.
 
     Both directions are findings, and they are different defects. A project the
@@ -89,7 +115,7 @@ def compare_subject(walked: list[Path], listed: list[Path]) -> list[str]:
     if not walked and not listed:
         roots = spoken("and")
         return [
-            f"no projects found at all - {roots} hold no .csproj and Platform.slnx "
+            f"no projects found at all - {roots} hold no .csproj and {solution} "
             f"lists none. Every check below passes over an empty set, which is a "
             f"gate reporting on nothing rather than a tree with nothing wrong"]
 
@@ -98,14 +124,14 @@ def compare_subject(walked: list[Path], listed: list[Path]) -> list[str]:
 
     for path in sorted(set(listed) - set(walked)):
         findings.append(
-            f"Platform.slnx lists {path.as_posix()}, which the walk over {roots} did "
+            f"{solution} lists {path.as_posix()}, which the walk over {roots} did "
             f"not find: the file is missing, or it sits outside the roots this gate "
             f"walks. Either way the solution describes a tree this walk is not "
             f"reading, so its other findings are about part of the repository")
 
     for path in sorted(set(walked) - set(listed)):
         findings.append(
-            f"{path.as_posix()} is on disk and absent from Platform.slnx. The "
+            f"{path.as_posix()} is on disk and absent from {solution}. The "
             f"solution has stopped being an independent inventory of what this walk "
             f"should find, so reconciling the two establishes nothing - and whether "
             f"a build reaches this project at all now rests on some listed project "
@@ -146,7 +172,7 @@ def find_duplicate_names(walked: list[Path]) -> list[str]:
     return findings
 
 
-def find_missing_output(artifacts: Path, walked: list[Path]) -> list[str]:
+def find_missing_output(artifacts: Path, walked: list[Path], solution: str) -> list[str]:
     """Every walked project appears under `artifacts/obj/` and `artifacts/bin/`.
 
     This is the assertion that makes a green result mean something. Without it
@@ -169,8 +195,8 @@ def find_missing_output(artifacts: Path, walked: list[Path]) -> list[str]:
         if len(missing) == len(names):
             return [
                 f"artifacts/{directory}/ has an entry for no project at all: no "
-                f"{stage} has run here. Run `dotnet restore Platform.slnx` and "
-                f"`dotnet build Platform.slnx` first - this gate reads what they "
+                f"{stage} has run here. Run `dotnet restore {solution}` and "
+                f"`dotnet build {solution}` first - this gate reads what they "
                 f"leave behind, and a tree nobody built holds output nowhere"]
 
         return [
@@ -208,15 +234,21 @@ def find_residue(repo_root: Path) -> list[str]:
 def audit(repo_root: Path) -> list[str]:
     """Every finding, in the order a reader can act on them.
 
-    The subject comes first on purpose: a mismatch there changes what the other
+    The solution is found before anything else, because the subject check is
+    a reconciliation against it and there is nothing to reconcile without one.
+    The subject comes next on purpose: a mismatch there changes what the other
     checks were even about, so reporting them alongside would be three findings
     where there is one. A duplicate name comes second for the narrower version
     of the same reason — every lookup after it is by name.
     """
-    walked = walked_projects(repo_root)
-    listed = solution_projects(repo_root / "Platform.slnx")
+    solution, findings = find_solution(repo_root)
+    if solution is None:
+        return findings
 
-    findings = compare_subject(walked, listed)
+    walked = walked_projects(repo_root)
+    listed = solution_projects(solution)
+
+    findings = compare_subject(walked, listed, solution.name)
     if findings:
         return findings
 
@@ -224,7 +256,8 @@ def audit(repo_root: Path) -> list[str]:
     if findings:
         return findings
 
-    return find_missing_output(repo_root / "artifacts", walked) + find_residue(repo_root)
+    return (find_missing_output(repo_root / "artifacts", walked, solution.name)
+            + find_residue(repo_root))
 
 
 def main(argv: list[str] | None = None) -> int:
