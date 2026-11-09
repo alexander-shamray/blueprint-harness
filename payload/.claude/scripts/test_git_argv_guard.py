@@ -4042,6 +4042,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                       "unlink ~/.claude/projects/p/memory/a.md", env=env)
         for command in ("rm -rf ~/.claude/projects", "rm -rf ~/.claude/projects/p",
                         "rm -rf ~/.claude/projects/p/memory", "rm -rf ~/.claude/projects/p/memory/*",
+                        "rm ~/.claude/projects/p/memory/*.md", "rm ~/.claude/projects/*/memory/a.md",
                         "rm ~/.claude/projects/p/a.jsonl", "mv ~/.claude/projects/p/memory/a.md /tmp/a.md",
                         "mv /tmp/a.md ~/.claude/projects/p/memory/a.md", "rm ~/.gitconfig"):
             with self.subTest(command=command):
