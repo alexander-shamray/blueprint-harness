@@ -1312,7 +1312,9 @@ the remote, whose destination writes a ref: `guard-git-argv.py`'s
 origin onto its own tracking ref and a tag onto itself, for a fetch and for a
 pull alike, and refuses `--refmap` on both and a fetch's `--stdin`. Each source
 is named in full because a short one takes origin's same-named tag first, which
-is also why `push_offence` refuses a tag named as a protected branch.
+is also why `push_offence` refuses `refs/tags/<name>` and `refs/<name>` for a
+protected branch's name, and admits no `--follow-tags`, whose tags it cannot
+read.
 
 `Bash(git pull --ff-only)` pins **nothing** — no remote name appears in it at
 all. What it does is drop the `:*`, so the grant is the documented

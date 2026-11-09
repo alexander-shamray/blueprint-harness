@@ -250,7 +250,7 @@ def home_place(parts):
 PUSH_ALLOWED_FLAGS = {
     "-u", "--set-upstream", "-q", "--quiet", "-v", "--verbose",
     "--porcelain", "--progress", "--no-progress", "--atomic", "--no-verify",
-    "--follow-tags", "-n", "--dry-run",
+    "-n", "--dry-run",
 }
 
 # A ref this guard is willing to read: no `*`, no `+`, no `:` beyond the one
@@ -2369,13 +2369,12 @@ def push_offence(segment):
     else:
         source, destination = refspec, refspec
     # Before the strip below, or `refs/heads/refs/tags/main`, a branch, reads as
-    # the tag.
-    if (destination.startswith("refs/tags/")
-            and destination.removeprefix("refs/tags/") in PROTECTED_BRANCHES):
+    # the tag. These two are the rules git tries ahead of `refs/heads/<name>`.
+    if any(destination == prefix + branch for prefix in ("refs/", "refs/tags/")
+           for branch in PROTECTED_BRANCHES):
         return (
-            f"a tag named as the branch, `{destination}`, is what a short "
-            "refspec source then reads on origin ahead of the branch. Name the "
-            "tag something else."
+            f"`{destination}` is what a short refspec source then reads on "
+            "origin ahead of the branch of that name. Name it something else."
         )
     # One prefix, not a loop: `refs/heads/heads/main` is a branch named
     # `heads/main`, and `heads/refs/heads/main` another, neither of them main.
