@@ -13,7 +13,9 @@ import sys
 import tempfile
 import threading
 import time
+import types
 import unittest
+import uuid
 from pathlib import Path
 from unittest import mock
 
@@ -307,11 +309,12 @@ class ATargetPinsItsOwnClasses(unittest.TestCase):
         """A `local_commands` module holding `body`, on a path of its own, and the runner's read of it."""
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
-        (Path(tmp) / "local_pins_fixture.py").write_text(body, encoding="utf-8")
+        name = "local_pins_fixture_" + uuid.uuid4().hex
+        (Path(tmp) / f"{name}.py").write_text(body, encoding="utf-8")
         sys.path.insert(0, tmp)
         self.addCleanup(sys.path.remove, tmp)
-        self.addCleanup(sys.modules.pop, "local_pins_fixture", None)
-        return SHARD.local_pins("local_pins_fixture")
+        self.addCleanup(sys.modules.pop, name, None)
+        return SHARD.local_pins(name)
 
     def test_a_target_with_no_module_pins_nothing(self):
         self.assertEqual((frozenset(), {}), SHARD.local_pins("no_such_local_module_here"))
@@ -333,6 +336,22 @@ class ATargetPinsItsOwnClasses(unittest.TestCase):
         serial, together = SHARD.pinned(frozenset({"a.A"}), {"b.B": "g"}, (frozenset({"c.C"}), {"d.D": "g"}))
         self.assertEqual(frozenset({"a.A", "c.C"}), serial)
         self.assertEqual({"b.B": "g", "d.D": "g"}, together)
+
+    def test_a_class_the_payload_already_pins_is_refused(self):
+        with self.assertRaises(ValueError):
+            SHARD.pinned(frozenset({"a.A"}), {"b.B": "g"}, (frozenset({"a.A"}), {}))
+        with self.assertRaises(ValueError):
+            SHARD.pinned(frozenset({"a.A"}), {"b.B": "g"}, (frozenset(), {"b.B": "other"}))
+
+    def test_the_tables_the_plan_reads_hold_what_a_fresh_load_reads_from_the_target(self):
+        # Reverting the module's own `pinned(...)` line would leave every case above green and a target's pins
+        # silently unapplied, so the runner is loaded afresh over a declaration module and its tables read.
+        fixture = types.SimpleNamespace(SERIAL_CLASSES=["t_x.Timed"], TOGETHER_CLASSES={"t_x.Shared": "g"})
+        with mock.patch("importlib.import_module", return_value=fixture):
+            fresh = loaded()
+        self.assertIn("t_x.Timed", fresh.SERIAL)
+        self.assertEqual("g", fresh.TOGETHER["t_x.Shared"])
+        self.assertLessEqual(set(SHARD.SERIAL), set(fresh.SERIAL))
 
     def test_a_class_pinned_both_ways_is_refused(self):
         with self.assertRaises(ValueError):
