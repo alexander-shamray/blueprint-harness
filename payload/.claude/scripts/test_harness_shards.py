@@ -351,7 +351,7 @@ class ATargetPinsItsOwnClasses(unittest.TestCase):
             fresh = loaded()
         self.assertIn("t_x.Timed", fresh.SERIAL)
         self.assertEqual("g", fresh.TOGETHER["t_x.Shared"])
-        self.assertLessEqual(set(SHARD.SERIAL), set(fresh.SERIAL))
+        self.assertLessEqual(set(SHARD._SERIAL), set(fresh.SERIAL))
 
     def test_a_class_pinned_both_ways_is_refused(self):
         with self.assertRaises(ValueError):
