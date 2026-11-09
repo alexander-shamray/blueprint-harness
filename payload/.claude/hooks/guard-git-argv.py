@@ -206,6 +206,42 @@ def denied_path(relative, whole=False):
     return None
 
 
+# ---- what the home directory holds -----------------------------------------
+
+# Named rather than bounded by an allow-list, which would refuse sibling
+# checkouts and the task list. `CLAUDE.md` and `AGENTS.md` stay out of the
+# control set: they are the owner's rules, not a grant. Both guards read these.
+HOME_TREES = frozenset({".ssh"})
+HOME_FILES = frozenset({
+    ".bash_login", ".bash_logout", ".bash_profile", ".bashrc", ".gitconfig",
+    ".profile", ".zlogin", ".zprofile", ".zshenv", ".zshrc",
+})
+CONTROL_DIRECTORIES = frozenset({
+    "agents", "commands", "hooks", "plugins", "sandbox", "scripts", "skills",
+})
+CONTROL_FILES = frozenset({
+    ".credentials.json", "settings.json", "settings.local.json",
+})
+# Below `~/.claude`, what later sessions load as the user's own. The editing
+# tools may save there, where a command's deny judges the path; a shell write
+# meets no such rule.
+STANDING_DIRECTORIES = frozenset({"output-styles", "projects"})
+
+
+def home_place(parts):
+    """What the path `parts` spells below the home is: `login`, `control` or `None`.
+
+    `parts` are folded as the caller's filesystem folds them.
+    """
+    if parts[0] in HOME_TREES or (len(parts) == 1 and parts[0] in HOME_FILES):
+        return "login"
+    if parts[0] == ".claude" and len(parts) > 1 and (
+            parts[1] in CONTROL_DIRECTORIES
+            or (len(parts) == 2 and parts[1] in CONTROL_FILES)):
+        return "control"
+    return None
+
+
 # ---- the push allow-list ---------------------------------------------------
 
 # Options a push may carry. Anything else — including a spelling git invented
@@ -2826,17 +2862,59 @@ def protected_target(path, whole=False):
     return None
 
 
-def destination_offence(word, cwd, command, writer, whole=False, inside=None):
+def home_target(path, cwd, command, whole=False, removing=False):
+    """The name below the home that shell-written `path` reaches, or `None`.
+
+    Spelling and resolution are both judged, and the checkout the session stands
+    in is left to the denies, as the edit guard leaves it to them. With `whole`,
+    `~/.claude` itself counts, since what it holds goes with it. With `removing`,
+    a file in a project's memory is free: no editing tool removes one, and a
+    removal plants nothing.
+    """
+    if whole and os.path.basename(path) == "*":
+        path = os.path.dirname(path)
+    session = checkout_of(os.path.abspath(EVENT_CWD or os.getcwd()))
+    homes = [written_path("~", cwd, command), os.path.expanduser("~")]
+    roots = {root for home in homes if home
+             for root in (os.path.abspath(home), os.path.realpath(home))}
+    for place in (path, os.path.realpath(path)):
+        if session is not None and beneath(place, session):
+            continue
+        for root in roots:
+            if not beneath(place, root) or os.path.normcase(place) == os.path.normcase(root):
+                continue
+            parts = os.path.relpath(place, root).replace("\\", "/").lower().split("/")
+            if removing and parts[:2] == [".claude", "projects"] and (
+                    len(parts) > 4 and parts[3] == "memory"):
+                continue
+            if home_place(parts) is not None or (parts[0] == ".claude" and (
+                    (len(parts) > 1 and parts[1] in STANDING_DIRECTORIES)
+                    or (whole and len(parts) == 1))):
+                return "~/" + "/".join(parts)
+    return None
+
+
+def destination_offence(word, cwd, command, writer, whole=False, inside=None, removing=False):
     """The reason to refuse writing the file shell `word` names, or `None`.
 
     `inside` is the name a copy gives its source in the directory `word` names.
+    `removing` is `home_target`'s.
     """
     path = written_path(word, cwd, command)
     if path is not None and inside is not None:
         path = os.path.join(path, inside)
     named = protected_target(path, whole) if path is not None else None
     if named is None:
-        return None
+        home = home_target(path, cwd, command, whole, removing) if path is not None else None
+        if home is None:
+            return None
+        return (
+            f"{writer} would write `{path}`, which is `{home}`: a key, a shell "
+            "profile, git's own configuration or what `~/.claude` applies to "
+            "later sessions. No rule judges a shell write there. Use an editing "
+            "tool, where one does, or hand it to the owner "
+            "(docs/harness-boundaries.md, *The edit-target guard*)."
+        )
     return (
         f"{writer} would write `{path}`, which {named} protects, and a deny "
         "binds the editing tools alone, so this writes straight past it. Use "
@@ -3140,8 +3218,8 @@ def verb_offence(verb, operands, cwd, command, writer):
         names = [None] if sources is None or verb not in TREE_VERBS else (
             landings(word, sources, into, cwd, command))
         for name in names:
-            refusal = destination_offence(word, cwd, command, writer,
-                                          verb in TREE_VERBS, name)
+            refusal = destination_offence(word, cwd, command, writer, verb in TREE_VERBS, name,
+                                          verb in ("rm", "unlink"))
             if refusal is not None:
                 return refusal
     return None
