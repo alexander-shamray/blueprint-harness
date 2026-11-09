@@ -530,34 +530,50 @@ class TheOrdinaryWriteIsNotDisturbed(GuardCase):
         # unconditionally would let a link to the same relative path under the
         # sibling compare equal to a path inside the checkout. Where the mount
         # equates the two names the sibling cannot exist, and the case says so.
+        #
+        # The link sits at the very relative path it points at, because only
+        # then does folding make the two paths one key; each linker takes its
+        # own pair, since one checkout has a single `docs`. A refusal alone
+        # would not tell the verdicts apart, and the reason does.
+        guard = self.guard_module()
         name = "caf\u00e9"
-        checkout = os.path.join(self.outside,
-                                unicodedata.normalize("NFC", name))
-        sibling = os.path.join(self.outside,
-                               unicodedata.normalize("NFD", name))
-        os.makedirs(os.path.join(checkout, ".git"), exist_ok=True)
-        os.makedirs(os.path.join(sibling, "docs"), exist_ok=True)
-        self.write(os.path.join(sibling, "docs", "a.md"), "secret\n")
-        try:
-            here, there = os.stat(checkout), os.stat(sibling)
-            coexist = (here.st_dev, here.st_ino) != (there.st_dev, there.st_ino)
-        except OSError:
-            coexist = False
-        if not coexist:
-            print("this filesystem equates NFC and NFD, so the sibling cannot "
-                  "exist and this case has no subject here", file=sys.stderr)
-            return
-
         for linker in linkers():
             with self.subTest(link=linker):
-                link = os.path.join(checkout, f"docs-{linker}")
+                pair = os.path.join(self.outside, linker)
+                checkout = os.path.join(pair,
+                                        unicodedata.normalize("NFC", name))
+                sibling = os.path.join(pair,
+                                       unicodedata.normalize("NFD", name))
+                os.makedirs(os.path.join(checkout, ".git"), exist_ok=True)
+                os.makedirs(os.path.join(sibling, "docs"), exist_ok=True)
+                self.write(os.path.join(sibling, "docs", "a.md"), "secret\n")
+                try:
+                    here, there = os.stat(checkout), os.stat(sibling)
+                    coexist = ((here.st_dev, here.st_ino)
+                               != (there.st_dev, there.st_ino))
+                except OSError:
+                    coexist = False
+                if not coexist:
+                    print("this filesystem equates NFC and NFD, so the sibling "
+                          "cannot exist and this case has no subject here",
+                          file=sys.stderr)
+                    return
+
+                link = os.path.join(checkout, "docs")
                 if linker == "symlink":
                     os.symlink(os.path.join(sibling, "docs"), link,
                                target_is_directory=True)
                 else:
                     JUNCTIONS(os.path.join(sibling, "docs"), link)
-                self.assertRefused(os.path.join(link, "a.md"),
-                                   cwd=checkout, project=checkout)
+                through = os.path.join(link, "a.md")
+                self.assertTrue(
+                    guard.same(through, os.path.join(sibling, "docs", "a.md"),
+                               (False, True)),
+                    "the two paths are not one key under composing, so this "
+                    "case does not build the collision it names")
+                self.assertIn("resolves outside the checkout",
+                              self.assertRefused(through, cwd=checkout,
+                                                 project=checkout))
 
     def test_a_checkout_whose_name_has_no_letters_is_still_asked(self):
         # The basename is not always flippable: a checkout at `/Users/me/123`
