@@ -1,4 +1,4 @@
-"""The draft target configs under `targets/` render against the real base (plan 5, Task 5)."""
+"""The draft target configs under `targets/` render against the real base (plan 5 Task 5, plan 6 Task 4)."""
 
 import json
 import unittest
@@ -49,6 +49,72 @@ FRONTEND_DENIES = (
 # and the renderer drops the copy from then on.
 RAW_FORMS = ("Bash(gh pr merge:*)", "Bash(git worktree remove:*)")
 
+ADMIN = ROOT / "targets" / "blueprint-admin.config.json"
+# Admin's settings.json at c5ec185c denies these and the base does not; plan 6 *Decisions* keeps them as additions.
+ADMIN_DENIES = (
+    "Edit(.claude/rules/**)",
+    "Edit(./.claude/rules/**)",
+    "Edit(.claude/output-styles/**)",
+    "Edit(./.claude/output-styles/**)",
+    "Edit(CLAUDE.local.md)",
+    "Edit(./CLAUDE.local.md)",
+    "Edit(Directory.Packages.props)",
+    "Edit(./Directory.Packages.props)",
+    "Edit(global.json)",
+    "Edit(./global.json)",
+    "Edit(BlueprintAdmin.slnx)",
+    "Edit(./BlueprintAdmin.slnx)",
+    "Edit(Directory.Build.targets)",
+    "Edit(./Directory.Build.targets)",
+    "Edit(Directory.Build.rsp)",
+    "Edit(./Directory.Build.rsp)",
+    "Edit(Directory.Solution.props)",
+    "Edit(./Directory.Solution.props)",
+    "Edit(Directory.Solution.targets)",
+    "Edit(./Directory.Solution.targets)",
+    "Edit(NuGet.Config)",
+    "Edit(./NuGet.Config)",
+    "Edit(nuget.config)",
+    "Edit(./nuget.config)",
+    "Edit(NuGet.config)",
+    "Edit(./NuGet.config)",
+    "Edit(BlueprintAdmin.slnx.targets)",
+    "Edit(./BlueprintAdmin.slnx.targets)",
+    "Edit(before.BlueprintAdmin.slnx.targets)",
+    "Edit(./before.BlueprintAdmin.slnx.targets)",
+    "Edit(after.BlueprintAdmin.slnx.targets)",
+    "Edit(./after.BlueprintAdmin.slnx.targets)",
+    "Edit(**/Directory.Build.*)",
+    "Edit(**/Directory.Solution.*)",
+    "Edit(**/NuGet.Config)",
+    "Edit(**/nuget.config)",
+    "Edit(**/NuGet.config)",
+    "Edit(**/*.slnx.targets)",
+    "Edit(**/Directory.Packages.*)",
+    "Edit(**/*.csproj.user)",
+    "Edit(**/obj/**)",
+    "Edit(MSBuild.rsp)",
+    "Edit(./MSBuild.rsp)",
+    "Edit(msbuild.rsp)",
+    "Edit(./msbuild.rsp)",
+    "Edit(**/MSBuild.rsp)",
+    "Edit(**/msbuild.rsp)",
+    "Edit(**/global.json)",
+    "Edit(AGENTS.md)",
+    "Edit(./AGENTS.md)",
+    "Bash(git *--no-index*)",
+)
+# Admin's ship.md denied these and its settings do not, and the payload's /ship denies none. An .npmrc is committed and
+# moves the registry `spa-ci.sh` installs from; no edit in admin's transcripts since 2026-10-19 touched one.
+ADMIN_NPMRC = ("Edit(.npmrc)", "Edit(./.npmrc)", "Edit(**/.npmrc)")
+# The forms admin's ship.md grants at the pin, where host-checks.sh takes a mode; the payload's /ship grants none.
+ADMIN_ALLOWS = (
+    "Bash(bash .claude/scripts/host-checks.sh:*)",
+    "Bash(bash .claude/scripts/spa-ci.sh)",
+    "Bash(bash .claude/scripts/harness-checks.sh:*)",
+    "Bash(bash .claude/scripts/npm-checks.sh:*)",
+)
+
 
 def real_base() -> dict:
     return json.loads(BASE.read_text(encoding="utf-8"))
@@ -91,6 +157,52 @@ class FrontendConfigTests(unittest.TestCase):
             with self.subTest(config=path.name):
                 self.assertFalse(set(FRONTEND_DENIES) & set(rendered["permissions"]["deny"]))
                 self.assertNotIn("Bash(bash .claude/scripts/npm-checks.sh:*)", rendered["permissions"]["allow"])
+
+
+class AdminConfigTests(unittest.TestCase):
+    def test_admin_config_renders(self) -> None:
+        base = real_base()
+        cfg = load_config(ADMIN)
+        self.assertEqual(cfg.repo, "alexander-shamray/blueprint-admin")
+        self.assertEqual(cfg.task_list, ".todo/blueprint-admin.md")
+        self.assertEqual(len(ADMIN_DENIES), 51)
+        self.assertEqual(tuple(cfg.settings["deny"]), ADMIN_DENIES + ADMIN_NPMRC)
+        self.assertEqual(tuple(cfg.settings["allow"]), ADMIN_ALLOWS)
+        self.assertEqual(cfg.settings["env"], {})
+        self.assertEqual(cfg.exclude, ())
+
+        rendered = render_settings(base, cfg)
+        deny = rendered["permissions"]["deny"]
+        self.assertEqual(len(deny), len(set(deny)))
+        self.assertEqual(deny, base["permissions"]["deny"] + list(ADMIN_DENIES + ADMIN_NPMRC))
+        for entry in ADMIN_ALLOWS:
+            with self.subTest(allow=entry):
+                self.assertIn(entry, rendered["permissions"]["allow"])
+        self.assertEqual(rendered["hooks"], base["hooks"])
+        self.assertEqual(rendered["env"], base["env"])
+
+    def test_admins_local_globs_take_no_payload_file(self) -> None:
+        """A glob that matched a payload file would leave that file unmanaged in admin, and stale after a sync."""
+        payload = ROOT / "payload"
+        files = [p.relative_to(payload).as_posix() for p in payload.rglob("*") if p.is_file()]
+        self.assertGreater(len(files), 100)
+        self.assertTrue(glob_match(".claude/scripts/test_*_admin.py", ".claude/scripts/test_x_admin.py"))
+        for glob in load_config(ADMIN).local:
+            with self.subTest(glob=glob):
+                self.assertEqual([], [rel for rel in files if glob_match(glob, rel)])
+
+    def test_the_other_configs_render_none_of_admins_additions(self) -> None:
+        """Admin's additions live in its config alone; the two it shares with frontend are frontend's own there."""
+        base = real_base()
+        admin_denies = set(ADMIN_DENIES) - set(FRONTEND_DENIES)
+        shared = {"Edit(AGENTS.md)", "Edit(./AGENTS.md)", "Bash(git *--no-index*)"}
+        self.assertEqual(set(ADMIN_DENIES) - admin_denies, shared)
+        admin_allows = set(ADMIN_ALLOWS) - {"Bash(bash .claude/scripts/npm-checks.sh:*)"}
+        for path in (*OTHERS, FRONTEND):
+            rendered = render_settings(base, load_config(path))
+            with self.subTest(config=path.name):
+                self.assertFalse(admin_denies & set(rendered["permissions"]["deny"]))
+                self.assertFalse(admin_allows & set(rendered["permissions"]["allow"]))
 
 
 if __name__ == "__main__":
