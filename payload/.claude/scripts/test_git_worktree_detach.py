@@ -13,6 +13,7 @@ from review_helpers import (
     COMMANDS,
     SCRIPTS,
     BASH,
+    code_lines,
     setUpModule,
     temp_root,
     run_bash,
@@ -346,7 +347,8 @@ class ARemovalGitLeftHalfDone(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertFalse(self.exists(path))
         self.assertFalse(self.registered(path))
-        self.assertIn("git -c core.longpaths=true worktree remove", DROP.read_text(encoding="utf-8"))
+        self.assertIn("git -c core.longpaths=true worktree remove",
+                      "\n".join(code_lines(DROP.read_text(encoding="utf-8"))))
 
     def test_a_tree_git_refused_keeps_its_work_and_its_lists_and_git_says_why(self):
         # Untracked work is git's refusal: still registered, so nothing here deletes anything.
