@@ -38,11 +38,11 @@ and the shapes only, no content.
   `<command-name>/<name></command-name>`, or `<command-message>` and then that
   tag. A diff or fixture quoting the tag holds it later in the message.
 - **Local command**: a slash command Claude Code runs itself, with an `isMeta`
-  line opening `<local-command-caveat>` right ahead of it. After it comes a `user`
-  line opening `<local-command-stdout>`, or for `/clear` and `/reload-plugins`
-  a `system` line with `subtype: "local_command"`. Read on 2026-11-09 across every
-  project: all 632 slash commands of this shape have both marks, and none of the
-  683 skill commands, such as `/ship`, has either.
+  line opening `<local-command-caveat>` right ahead of it. After it comes a
+  `user` line opening `<local-command-stdout>`, or for `/clear` and
+  `/reload-plugins` a `system` line with `subtype: "local_command"`. Read on
+  2026-11-09 across every project: all 632 slash commands of this shape have
+  both marks, and none of the 683 skill commands, such as `/ship`, has either.
 - **A session a `/clear` opens**: the new transcript's first genuine message is
   the `/clear`, a local command. Other local commands can follow it before the
   task's own command.
