@@ -7,7 +7,7 @@ The rest of the helper's cases are in `test_git_pr_trailer_helpers.py`, whose fi
 import unittest
 
 from review_helpers import setUpModule  # noqa: F401
-from test_git_pr_trailer_helpers import TRAILER, Fixture
+from test_git_pr_trailer_helpers import TRAILER, Fixture, sh
 
 SPELLINGS = ("main", "Main", "MAIN", "heads/main", "refs/heads/main",
              "origin/main", "refs/remotes/origin/main")
@@ -52,7 +52,9 @@ class TheHelperRefusesARedirectedPush(Fixture):
         for line in expected:
             self.assertIn(line, out.stderr)
         self.assertEqual(self.tip, self.git("rev-parse", "HEAD"), "the commits were rewritten")
-        self.assertEqual(self.tip, self.git("ls-remote", "origin", "feat/x").split()[0], "the branch was forced")
+        # Asked of the directory, since a rewritten fetch URL would answer for another repository.
+        on_origin = sh('git -C "$R" rev-parse refs/heads/feat/x', R=f"{self.root}/remote.git").stdout.strip()
+        self.assertEqual(self.tip, on_origin, "the branch was forced")
 
     def test_a_configured_push_redirect_is_refused_before_anything_is_rewritten(self):
         for key, value in (("remote.origin.pushurl", "https://example.invalid/x.git"),
@@ -71,6 +73,15 @@ class TheHelperRefusesARedirectedPush(Fixture):
         self.git("config", "--local", "--add", "remote.origin.url", f"{self.origin_url}-second")
         self.git("config", "--local", "remote.origin.pushurl", f"{self.origin_url}-second")
         self.assert_refused("origin has more than one url")
+
+    def test_a_fetch_url_parted_from_the_push_url_is_refused(self):
+        # `insteadOf` moves the fetch to a copy and `pushInsteadOf` puts the push back, so the push URL is the one the
+        # remote was added with while the lease reads another repository's tip.
+        copy = f"{self.root}/copy.git"
+        self.assertEqual(0, sh('git clone -q --bare "$R/remote.git" "$C"', R=self.root, C=copy).returncode)
+        self.git("config", "--local", f"url.{copy}.insteadof", self.origin_url)
+        self.git("config", "--local", f"url.{self.origin_url}.pushinsteadof", self.origin_url)
+        self.assert_refused("origin fetches from")
 
     def test_a_push_url_spelling_the_same_repository_differently_is_published(self):
         # The control for both refusals: the comparison is of the repository named, not of two strings.
