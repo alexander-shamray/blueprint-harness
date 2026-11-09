@@ -429,6 +429,23 @@ class LaunchTests(InRoot):
             out = run_cli(["launch", RUN, "S3", "--tasks", "todo.md", "--branch", BRANCH, "--worktree", WORKTREE])
         self.assertIn("refused: S3 is not in this run", out)
 
+    def test_a_launch_on_a_red_main_is_refused_and_changes_nothing(self):
+        # A resumed night's `moved, never launched` group was named by a `wake` that read a green main.
+        self.write_tasks(FIXTURE)
+        self.move("S1")
+        listed = f"worktree {(self.root / WORKTREE).as_posix()}\nHEAD {HEAD}\nbranch refs/heads/{BRANCH}\n\n"
+        earlier = state_dir() / "S1.refused.json"
+        earlier.write_text('{"refused": "stop file"}\n', encoding="utf-8")
+        argv = ["launch", RUN, "S1", "--tasks", "todo.md", "--branch", BRANCH, "--worktree", WORKTREE]
+        with mock.patch.object(dr, "git", lambda root, *args: listed):
+            out = run_cli(argv, red_source=lambda: ["main is red: #1895 u1", "main is red: #1896 u2"])
+        self.assertIn("refused: S1 is not launched: main is red: #1895 u1; main is red: #1896 u2", out)
+        self.assertIsNone(group_state(RUN, "S1").get("status"), "a refused launch recorded the group as running")
+        self.assertTrue(earlier.exists(), "a refused launch removed the earlier launch's files")
+        with mock.patch.object(dr, "git", lambda root, *args: listed):
+            self.assertEqual("", run_cli(argv))
+        self.assertEqual("running", group_state(RUN, "S1")["status"], "a green main launches the same group")
+
     def test_a_launch_after_a_hand_back_removes_the_earlier_launchs_files_or_is_refused(self):
         # tasks move reset the group, so nothing names the earlier launch's record as read: one a later run met beside
         # its own marker would be refused as unread, and the group would hold its slot all night.
