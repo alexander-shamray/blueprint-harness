@@ -3648,6 +3648,11 @@ class TheGitArgvGuard(unittest.TestCase):
             "git fetch --dep 1 origin main:refs/sweeps/bug",
             "git fetch --fi blob:none origin main:refs/sweeps/bug",
             "git fetch -qj 2 origin main:refs/sweeps/bug",
+            # Git reads the rest of each as `-S`'s or `-r`'s value, so the word
+            # after it is the repository and not a value of `-s`.
+            "git pull --ff-only -Ss origin main:refs/sweeps/bug",
+            "git pull -Sj origin main:refs/sweeps/bug",
+            "git pull -rmerges origin main:refs/sweeps/bug",
         ):
             with self.subTest(command=command):
                 self.assertIn("a plain fetch would not", self.assertRefused(command))

@@ -2573,6 +2573,10 @@ FETCH_VALUE_OPTIONS = {
     "--strategy-option": "--strategy",
 }
 FETCH_VALUE_LETTERS = frozenset("Xjos")
+# What may stand ahead of one in a cluster, by allow-list: `-Ss` and `-rmerges`
+# end in a value letter and are `-S`'s and `-r`'s values, so reading the next
+# word as theirs would hide the refspec after it.
+FETCH_CLUSTER_FLAGS = frozenset("qv")
 
 # `/ship`'s fast-forward of a `main` it is not standing on. The source is named
 # in full because `main:main` takes origin's same-named tag first.
@@ -2596,7 +2600,7 @@ def takes_next_word(word):
         return any(word.startswith(shortest) and option.startswith(word)
                    for option, shortest in FETCH_VALUE_OPTIONS.items())
     return (word.startswith("-") and word[-1] in FETCH_VALUE_LETTERS
-            and not FETCH_VALUE_LETTERS.intersection(word[1:-1]))
+            and set(word[1:-1]) <= FETCH_CLUSTER_FLAGS)
 
 
 def refspec_offence(segment):
