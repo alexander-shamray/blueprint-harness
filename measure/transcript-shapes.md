@@ -20,8 +20,9 @@ and the shapes only, no content.
   refusal is `is_error: true` and `toolDenialKind: "permission-rule"` too, so
   the flags cannot tell it from a permission refusal; only the text can.
   Permission refusals start "Permission for this action was denied", "The user
-  doesn't want to proceed" or "The server-side auto mode classifier gave no
-  verdict". Hook refusals start "PreToolUse:<Tool> hook error:".
+  doesn't want to proceed", "The user doesn't want to take this action" or "The
+  server-side auto mode classifier gave no verdict". Hook refusals start
+  "PreToolUse:<Tool> hook error:".
 - **Genuine user message**: a `user` line with `isMeta` absent, no
   `isSidechain`, no `isCompactSummary`, `origin` absent or `{"kind": "human"}`,
   and `message.content` either a string or a list of `text`/`image` parts with
