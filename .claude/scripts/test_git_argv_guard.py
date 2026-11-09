@@ -77,8 +77,11 @@ class TheGitArgvGuard(unittest.TestCase):
     commands no allow or deny rule is consulted for.
     """
 
-    def judge(self, command, tool="Bash"):
-        """The hook's verdict on one command: None to allow, or the reason."""
+    def judge(self, command, tool="Bash", cwd=None):
+        """The hook's verdict on one command: None to allow, or the reason.
+
+        `cwd` is the directory the hook runs in, the process's own when `None`.
+        """
         event = {"tool_name": tool, "tool_input": {"command": command}}
         # A verdict that arrives after the harness's 60 seconds is no verdict,
         # and a hook with none is non-blocking, so a slow answer is the failure
@@ -87,7 +90,7 @@ class TheGitArgvGuard(unittest.TestCase):
             result = subprocess.run(
                 [sys.executable, str(HOOK)],
                 input=json.dumps(event), capture_output=True, text=True, encoding="utf-8",
-                timeout=HOOK_TIMEOUT,
+                timeout=HOOK_TIMEOUT, cwd=cwd,
             )
         except subprocess.TimeoutExpired:
             self.fail(f"no verdict within {HOOK_TIMEOUT}s: {command[:80]!r}")
@@ -2686,7 +2689,9 @@ class TheGitArgvGuard(unittest.TestCase):
         self.assertEqual(
             2, len(guard.heredoc_spans(command)),
             "both bodies are found, not just the one before the apostrophe")
-        self.assertAdmitted(command)
+        # A relative `a.md` resolves under the directory the guard runs in, so
+        # the case sets one that no deny covers.
+        self.assertIsNone(self.judge(command, cwd=temp_root(self)), command)
 
         # And the fail-safe direction is unchanged: a command after a body,
         # however the body quotes, is still judged.
@@ -4018,7 +4023,11 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                    "git rm -q -r .claude/scripts/artifacts", "git mv .harness/a .harness/b",
                    "git restore --source=x .claude/settings.json")
         self.admitted(*written, cwd=worktree)
-        self.admitted(*written, cwd=os.path.join(self.root, ".claude", "worktrees", "gone"))
+        # A removed worktree's directory is no longer its own checkout: git
+        # there acts on the main checkout, so these are refused as that.
+        gone = os.path.join(self.root, ".claude", "worktrees", "gone")
+        os.makedirs(gone)
+        self.refused(*written, cwd=gone)
         self.admitted("cd .claude/worktrees/linked && git rm .claude/hooks/x")
         self.refused(*written)
 
@@ -4281,6 +4290,31 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         )
 
 
+    def lost(self, live=False):
+        path = os.path.join(self.root, ".claude", "worktrees", "gone")
+        os.makedirs(path, exist_ok=True)
+        if live:
+            with open(os.path.join(path, ".git"), "w", encoding="utf-8") as handle:
+                handle.write("gitdir: elsewhere\n")
+        return path
+
+    def test_git_from_a_worktree_removed_under_the_session_is_refused(self):
+        path = self.lost()
+        for command in ("git commit --allow-empty -m x",
+                        "git fetch origin main && git merge --ff-only origin/main",
+                        "bash .claude/scripts/git-branch-drop.sh x",
+                        "Git commit --allow-empty -m x", "GIT.EXE push", "git.cmd commit"):
+            with self.subTest(command=command):
+                reason = self.assertRefused(command, cwd=path)
+                self.assertIn("main checkout", reason)
+        self.assertRefused("git status", cwd=os.path.join(path, "sub"))
+
+    def test_a_live_worktree_the_main_checkout_and_a_non_git_command_are_admitted(self):
+        self.assertAdmitted("cd .. && ls", cwd=self.lost())
+        self.assertAdmitted("git status", cwd=self.root)
+        self.assertAdmitted("git commit --allow-empty -m x", cwd=self.lost(live=True))
+
+
 class TheListsTheGuardReads(unittest.TestCase):
     """What the write check and the push guard are looking at, not what they found."""
 
@@ -4305,10 +4339,11 @@ class TheListsTheGuardReads(unittest.TestCase):
         """Whether one of the folded `paths` names the root file `name`.
 
         `fnmatchcase` wants a `/` before `**/`, so `denied_path` asks such a rule
-        again without it, and so does this.
+        again without it, and a `x/**` rule names the root file `x`, so does this.
         """
         return any(fnmatch.fnmatchcase(name, path) or (
-                       path.startswith("**/") and fnmatch.fnmatchcase(name, path[3:]))
+                       path.startswith("**/") and fnmatch.fnmatchcase(name, path[3:])) or (
+                       path.endswith("/**") and name == path[:-3])
                    for path in paths)
 
     def managed_commands(self):
@@ -4364,10 +4399,12 @@ class TheListsTheGuardReads(unittest.TestCase):
         # The test above reaches a `**/` rule only where a target's own config
         # names a root file under one; these rules reach it in every copy.
         module = self.guard_module()
-        rules = ("**/playwright.config.ts", "**/*.config.mts", "package.json", ".github/**")
+        rules = ("**/playwright.config.ts", "**/*.config.mts", "package.json", ".github/**",
+                 "tools/**")
         module.edit_denies = lambda: rules
         for name, named in (("playwright.config.ts", True), ("vite.config.mts", True),
-                            ("package.json", True), ("playwright.config.ts.bak", False),
+                            ("package.json", True), (".github", True), ("tools", True),
+                            ("playwright.config.ts.bak", False),
                             ("readme.md", False)):
             with self.subTest(name=name):
                 self.assertEqual(named, self.named_at_root(name, rules))
