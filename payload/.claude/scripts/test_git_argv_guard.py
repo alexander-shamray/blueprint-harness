@@ -3639,12 +3639,12 @@ class TheGitArgvGuard(unittest.TestCase):
             "git fetch ../other +refs/heads/main:refs/remotes/origin/main",
             "git pull --ff-only origin +main:refs/sweeps/security",
             "git pull --ff-only origin main:refs/sweeps/security",
-            # With a tag `main` on origin, these took the tag's commit (#296).
+            # With a tag `main` on origin, these took the tag's commit.
             "git fetch origin main:main",
             "git fetch -q --depth 1 origin main:main",
             "git pull --ff-only origin main:main",
             # A value is taken only by an option git reads as one: an ambiguous
-            # prefix and a glued value leave the next word an operand (#300).
+            # prefix and a glued value leave the next word an operand.
             "git fetch --de origin main:refs/sweeps/bug",
             "git fetch --se origin main:refs/sweeps/bug",
             "git fetch --dep=1 origin main:refs/sweeps/bug",
@@ -3702,8 +3702,8 @@ class TheGitArgvGuard(unittest.TestCase):
                 self.assertAdmitted(command)
 
     def test_a_value_option_takes_its_value_however_it_is_abbreviated(self):
-        # #300: each read its value as an operand, and so refused as not origin
-        # or as a destination. The rows hold each option's shortest prefix git
+        # Each read its value as an operand, and so refused as not origin or as
+        # a destination. The rows hold each option's shortest prefix git
         # reads as it, and some a longer one.
         for command in (
             "git fetch --dep 1 origin refs/heads/main:main",
