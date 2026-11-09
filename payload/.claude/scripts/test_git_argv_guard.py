@@ -207,20 +207,27 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertRefused(command)
 
-    def test_a_tag_named_as_the_protected_branch_is_refused(self):
-        # A short refspec source takes such a tag on origin ahead of the branch.
+    def test_a_ref_a_short_source_reads_ahead_of_the_branch_is_refused(self):
+        # A short refspec source takes either on origin ahead of the branch.
         for command in (
             "git push origin HEAD:refs/tags/main",
             "git push origin abc1234:refs/tags/main",
             "git push origin refs/tags/main",
+            "git push origin HEAD:refs/main",
+            "git push origin refs/main",
         ):
             with self.subTest(command=command):
-                self.assertIn("a tag named as the branch", self.assertRefused(command))
-        # A tag merely beginning with the name, and a branch `refs/tags/main` only
-        # under a prefix of its own.
+                self.assertIn("ahead of the branch", self.assertRefused(command))
+        # `--follow-tags` sends an annotated tag no refspec here names, so this
+        # guard could not read its name.
+        self.assertIn("not one of the options",
+                      self.assertRefused("git push origin feature --follow-tags"))
+        # A tag merely beginning with the name, one git tries after the branch,
+        # and a branch `refs/tags/main` only under a prefix of its own.
         for command in (
             "git push origin v1:refs/tags/v1",
             "git push origin HEAD:refs/tags/mainline",
+            "git push origin HEAD:refs/remotes/main",
             "git push origin topic:refs/heads/refs/tags/main",
         ):
             with self.subTest(command=command):
@@ -379,10 +386,9 @@ class TheGitArgvGuard(unittest.TestCase):
                 self.assertAdmitted(command)
 
     def test_a_legitimate_push_flag_that_merely_looks_similar_is_admitted(self):
-        # `--follow-tags` is what shows the prefix test is the right way round:
-        # `"force".startswith("follow-tags")` is false, so it passes, while
-        # `--fo` is refused exactly as git refuses it for being ambiguous.
-        self.assertAdmitted("git push origin feature --follow-tags")
+        # `--set-upstream` is admitted while `--fo` is refused, exactly as git
+        # refuses it for being ambiguous.
+        self.assertRefused("git push origin feature --fo")
         self.assertAdmitted("git push origin feature --set-upstream")
 
     def test_an_unknown_global_option_cannot_hide_a_push(self):
