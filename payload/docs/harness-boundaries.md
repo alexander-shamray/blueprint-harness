@@ -2117,9 +2117,9 @@ spelled as itself is **admitted** here.
 **Two things a path deny cannot reach are judged here all the same, and
 neither takes a copy of a list.** A rule of more than one component anchors at
 the session's permission root (*Normalisation, residuals and the sweeps* has
-the shapes that do not), so a worktree of this repository that the session has not
-entered, the main checkout seen from a linked one included, launched there or
-entered with the project left at main, is reached by none
+the shapes that do not), so a worktree of this repository that the session has
+not entered, the main checkout seen from a linked one included, launched there
+or entered with the project left at main, is reached by none
 of those: its `.claude/scripts/x` and its `.git`
 are judged by this target's own `Edit(...)` denies, read from
 `.claude/settings.json` through `guard-git-argv.py`'s `denied_path`, anchored at
@@ -2337,8 +2337,9 @@ component reaches that name at any depth, a nested worktree's included, and
 refuses a same-named directory anywhere below the root (#333).
 `Edit(src/app.txt)` and a directory rule of two components, each with and
 without `./`, admitted the same path under `sub/`, so a rule of more than one
-component anchors at the root. `Edit(/.harness/**)` admitted `sub/.harness/config.json`,
-so a leading `/` anchors a rule of one component. `denied_path` matches every
+component anchors at the root. `Edit(/.harness/**)` admitted
+`sub/.harness/config.json`, so a leading `/` anchors a rule of one component.
+`denied_path` matches every
 rule from the checkout's root, so a rule's `**/` twin is not redundant: in a
 worktree the session has not entered, it is `Edit(**/NuGet.Config)` that holds
 the nested file.
