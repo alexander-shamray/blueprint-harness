@@ -3591,6 +3591,10 @@ class TheGitArgvGuard(unittest.TestCase):
             "git fetch origin +refs/heads/other:refs/remotes/origin/main",
             "git fetch origin refs/heads/other:refs/remotes/origin/main",
             "git fetch origin +refs/heads/other:refs/tags/v1",
+            # Two names, which only the reading with expansions empty sees as one.
+            'git fetch origin "+refs/heads/$A:refs/remotes/origin/$B"',
+            'git fetch origin "+refs/heads/$(a):refs/remotes/origin/$(b)"',
+            'git fetch origin "+refs/heads/main$X:refs/remotes/origin/main"',
             "git fetch origin +main:refs/heads/victim",
             "git fetch -u origin +main:refs/heads/victim",
             "git fetch origin main:refs/heads/victim",
