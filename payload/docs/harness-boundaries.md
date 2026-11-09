@@ -703,9 +703,9 @@ that blanket would deny a main-checkout session every edit to a live worktree.
 A test pins both halves: every loaded settings file denied, and the
 worktree root never denied.
 
-**A rule with a slash inside anchors at the session's permission root, and
-`EnterWorktree` moves it** (*Normalisation, residuals and the sweeps* has the
-shapes that do not). Measured with nested `claude -p` sessions: once a
+**A rule of more than one component anchors at the session's permission root,
+and `EnterWorktree` moves it** (*Normalisation, residuals and the sweeps* has
+the shapes that do not). Measured with nested `claude -p` sessions: once a
 session has entered `.claude/worktrees/<slug>`, `Edit(.claude/commands/**)`
 and `Edit(.claude/hooks/**)` refuse the worktree's own `.claude/` and `docs/`
 stays writable. From the main checkout the same paths sit under
@@ -2115,9 +2115,9 @@ refused by the guard on its way past. A test pins that control: a denied tree
 spelled as itself is **admitted** here.
 
 **Two things a path deny cannot reach are judged here all the same, and
-neither takes a copy of a list.** A rule with a slash inside anchors at the
-session's permission root (*Normalisation, residuals and the sweeps* has the
-shapes that do not), so a worktree of this repository that the session has not
+neither takes a copy of a list.** A rule of more than one component anchors at
+the session's permission root (*Normalisation, residuals and the sweeps* has
+the shapes that do not), so a worktree of this repository that the session has not
 entered, the main checkout seen from a linked one included, launched there or
 entered with the project left at main, is reached by none
 of those: its `.claude/scripts/x` and its `.git`
@@ -2336,8 +2336,8 @@ Measured the same way, one form denied per session. `Edit(NuGet.Config)` and
 component reaches that name at any depth, a nested worktree's included, and
 refuses a same-named directory anywhere below the root (#333).
 `Edit(src/app.txt)` and a directory rule of two components, each with and
-without `./`, admitted the same path under `sub/`, so a rule with a slash inside
-anchors at the root. `Edit(/.harness/**)` admitted `sub/.harness/config.json`,
+without `./`, admitted the same path under `sub/`, so a rule of more than one
+component anchors at the root. `Edit(/.harness/**)` admitted `sub/.harness/config.json`,
 so a leading `/` anchors a rule of one component. `denied_path` matches every
 rule from the checkout's root, so a rule's `**/` twin is not redundant: in a
 worktree the session has not entered, it is `Edit(**/NuGet.Config)` that holds
