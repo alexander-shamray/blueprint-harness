@@ -2523,8 +2523,8 @@ FETCH_VALUE_OPTIONS = frozenset({
     "--strategy-option", "-X", "-j", "-o", "-s",
 })
 
-# A branch of origin onto its own tracking ref, or a tag onto itself: what a
-# plain fetch writes anyway, so it can poison nothing. A dependabot rebase types
+# A branch of origin onto its own tracking ref, or a tag onto itself: only the
+# value origin holds there, so it can poison nothing. A dependabot rebase types
 # the first with `$B` for both names, and the guard also reads a command with
 # its expansions empty, so a name here may be empty.
 ORIGIN_OWN_REF = re.compile(
