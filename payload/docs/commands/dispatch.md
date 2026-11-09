@@ -418,9 +418,9 @@ before anything is written.
 Three residues are accepted. A relaunch reads nothing, since its group already
 holds its worktree and its session's work, and a hold would leave a running
 group that no `wake` line relaunches. `--dry-run` reads nothing either, since
-the dispatcher holds no grant on the helper and a read through `dispatch_board.py`
-would only preview what the night may hold. And the signal lags as step 6's
-does: the issue opens only once the push run has finished.
+the dispatcher holds no grant on the helper and a read through
+`dispatch_board.py` would only preview what the night may hold. And the signal
+lags as step 6's does: the issue opens only once the push run has finished.
 
 ## Issue text stays off the command line
 
