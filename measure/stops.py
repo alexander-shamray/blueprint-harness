@@ -1,16 +1,7 @@
 """Count the stops in Claude Code session transcripts.
 
-Owner: spec 2026-11-02-shared-harness-design.md section 4 ("Agents stop more
-often"). A stop is an AskUserQuestion tool use, a handover whose last line
-starts "⚠️ ACTION REQUIRED", or a tool error that is a permission refusal. The
-transcript field shapes are recorded in test_stops.py.
-
-Narrowing of the spec's definition: the exact handover "⚠️ ACTION REQUIRED
-— none" is not counted, because it hands the owner nothing to run.
-
-Usage:
-    py -3.12 measure/stops.py --project 'C--dev-ashamray-blueprint-backend*' \
-        --since 2026-10-19 [--until 2026-11-02] --command ship
+Owner: spec 2026-11-02-shared-harness-design.md section 4. What counts and the
+command lines: docs/baseline-2026-11.md. Field shapes: transcript-shapes.md.
 """
 
 import argparse
