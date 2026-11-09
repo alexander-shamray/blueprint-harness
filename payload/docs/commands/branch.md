@@ -281,8 +281,8 @@ its operation; the flags each raw grant would license — `git switch`,
 `git worktree add -B`, `git checkout -b … -f` — are owned by
 `docs/harness-boundaries.md`, *Prefix grants and wildcard denies*.
 `git-worktree-fork.sh` and `git-branch-create.sh` fix their commands the same
-way — every flag decided in the file, both arguments shape-checked, and
-creation only, so a name that already exists is refused rather than reset.
+way — every flag decided in the file, both arguments shape-checked, and a
+name that already exists refused rather than reset.
 `git worktree list` stays a raw grant because it reads and nothing else.
 
 The post-failure table's first row spells the base out for the reason
