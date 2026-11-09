@@ -51,9 +51,9 @@ class HarnessControlSurfaceIsDenied(unittest.TestCase):
             with self.subTest(rule=rule):
                 self.assertNotIn(rule, deny)
 
-    def test_no_directory_deny_of_the_base_reaches_a_tracked_tree_below_the_root(self):
-        # The subject is the tree, so a new unanchored rule meets whatever a checkout holds. Read from the base and
-        # not the settings: a target's own config may mean a name at any depth.
+    def test_no_one_component_directory_deny_of_the_base_reaches_a_tracked_tree_below_the_root(self):
+        # The subject is the tree, so a new rule of this shape meets whatever a checkout holds. A `**/` rule says it
+        # means any depth, so it is left out, and the base is read and not the settings, since a target's own may too.
         base = json.loads((SCRIPTS.parent.parent / ".harness" / "settings.base.json").read_text(encoding="utf-8"))
         rules = [rule[len("Edit("):-len("/**)")].removeprefix("./") for rule in base["permissions"]["deny"]
                  if rule.startswith("Edit(") and rule.endswith("/**)")]

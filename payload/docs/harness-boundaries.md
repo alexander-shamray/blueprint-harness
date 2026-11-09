@@ -173,7 +173,8 @@ its `payload` tree, which is where they are changed. Measured on Claude Code
 worktree and one launched in a worktree: the old spellings refused that path in
 all three, and this one admitted it in all three and refused `.harness/` itself
 in each (#333). `test_harness_denies.py` holds the spelling, and holds every
-directory rule of the base off a tree a checkout tracks below its root.
+directory rule of one component in the base off a tree a checkout tracks below
+its root.
 
 **`.claude/skills/**` is the same argument one directory over.** A skill's
 `allowed-tools` is auto-approval, so a session that can rewrite `SKILL.md`
