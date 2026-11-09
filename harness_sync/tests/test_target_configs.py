@@ -192,7 +192,7 @@ class AdminConfigTests(unittest.TestCase):
                 self.assertEqual([], [rel for rel in files if glob_match(glob, rel)])
 
     def test_the_other_configs_render_none_of_admins_additions(self) -> None:
-        """Admin's additions live in its config alone; the two it shares with frontend are frontend's own there."""
+        """Admin's additions are in its config alone, but for what frontend holds too: AGENTS.md, `--no-index`, npm."""
         base = real_base()
         admin_denies = set(ADMIN_DENIES) - set(FRONTEND_DENIES)
         shared = {"Edit(AGENTS.md)", "Edit(./AGENTS.md)", "Bash(git *--no-index*)"}
