@@ -2550,7 +2550,7 @@ def refspec_offence(segment):
             position += 1
         elif not word.startswith("-"):
             operands.append(word)
-        elif ((len(name) > 5 and "--refmap".startswith(name))
+        elif ((len(name) > 4 and "--refmap".startswith(name))
               or (stripped[0] == "fetch" and len(name) > 3
                   and "--stdin".startswith(name))):
             return (
