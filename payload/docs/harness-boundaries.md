@@ -1532,10 +1532,11 @@ session that names a head to it is bounded by the helper's own checks, which
 leave it nothing to delete but a merged sync's branch. It takes a sync head and
 no other name, in the one pattern `harness_sync` opens them under, reads
 origin's tip by the whole ref name, and deletes only when `pr-for-branch.sh`
-lists no `OPEN` row and a `MERGED` row into `main` whose head is that tip. The delete is leased to that
-tip, so a push made during the read is git's to refuse. The tip and the delete
-must reach one repository: `remote.origin.url` as added, the URL `get-url`
-fetches from and the one `get-url --push` pushes to have to be the same string,
+lists no `OPEN` row and a `MERGED` row into `main` whose head is that tip. The
+delete is leased to that tip, so a push made during the read is git's to refuse.
+The tip and the delete must reach one repository: `remote.origin.url` as added,
+the URL `get-url` fetches from and the one `get-url --push` pushes to have to be
+the same string,
 so a `pushurl`, a second URL or any `insteadOf` keeps the branch, the harmless
 protocol rewrite included. That costs a line in the morning report and the
 branch stays. Its residual is a sync head no `MERGED` row holds at its tip,
