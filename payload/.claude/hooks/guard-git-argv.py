@@ -3769,6 +3769,38 @@ def powershell_git(command):
     )
 
 
+GIT_WORD = re.compile(r"(?<![\w.])git(?:\.exe)?(?![\w.])")
+
+
+def lost_worktree(cwd):
+    """Whether `cwd` is a forked worktree's directory that git no longer knows.
+
+    A removed worktree's directory can outlive its registration on Windows, and
+    git there finds no `.git` and resolves up to the main checkout, whose
+    git-dir is its common-dir. A live linked worktree answers with its own
+    admin directory, so `.git` is a file in it and the walk stops there.
+    """
+    if not cwd:
+        return False
+    path = os.path.abspath(cwd)
+    root = checkout_of(path)
+    if root is None or not os.path.isdir(os.path.join(root, ".git")):
+        return False
+    return WORKTREE_BELOW.match(os.path.relpath(path, root) + os.sep) is not None
+
+
+def main_checkout_reason(command):
+    """The refusal for git run from a lost worktree, or `None`."""
+    if not GIT_WORD.search(command) or not lost_worktree(EVENT_CWD):
+        return None
+    return (
+        "this session's directory is under .claude/worktrees/ but git no longer "
+        "registers a worktree there: its git-dir equals its common-dir, so git "
+        "would act on the main checkout and a commit would land on main. Leave "
+        "the directory with a command that runs no git (cd to the main checkout "
+        "or to a live worktree), then rerun this one.")
+
+
 def refuse(reason):
     """Print the deny JSON for `reason`; the exit status stays 0 either way."""
     json.dump(
@@ -3814,6 +3846,10 @@ def main():
     command = (event.get("tool_input") or {}).get("command")
     if not isinstance(command, str):
         return 0
+
+    lost = main_checkout_reason(command)
+    if lost is not None:
+        return refuse(lost)
 
     try:
         reason = (powershell_git(command) if tool == "PowerShell"

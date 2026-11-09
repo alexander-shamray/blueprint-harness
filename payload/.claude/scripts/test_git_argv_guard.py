@@ -4023,7 +4023,11 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                    "git rm -q -r .claude/scripts/artifacts", "git mv .harness/a .harness/b",
                    "git restore --source=x .claude/settings.json")
         self.admitted(*written, cwd=worktree)
-        self.admitted(*written, cwd=os.path.join(self.root, ".claude", "worktrees", "gone"))
+        # A removed worktree's directory is no longer its own checkout: git
+        # there acts on the main checkout, so these are refused as that.
+        gone = os.path.join(self.root, ".claude", "worktrees", "gone")
+        os.makedirs(gone)
+        self.refused(*written, cwd=gone)
         self.admitted("cd .claude/worktrees/linked && git rm .claude/hooks/x")
         self.refused(*written)
 
@@ -4284,6 +4288,30 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
             "dd if=.claude/settings.json of=notes/x", "touch notes/x",
             "sed -i.bak s/a/b/ notes/x", "rm -rf notes",
         )
+
+
+    def lost(self, live=False):
+        path = os.path.join(self.root, ".claude", "worktrees", "gone")
+        os.makedirs(path, exist_ok=True)
+        if live:
+            with open(os.path.join(path, ".git"), "w", encoding="utf-8") as handle:
+                handle.write("gitdir: elsewhere\n")
+        return path
+
+    def test_git_from_a_worktree_removed_under_the_session_is_refused(self):
+        path = self.lost()
+        for command in ("git commit --allow-empty -m x",
+                        "git fetch origin main && git merge --ff-only origin/main",
+                        "bash .claude/scripts/git-branch-drop.sh x"):
+            with self.subTest(command=command):
+                reason = self.assertRefused(command, cwd=path)
+                self.assertIn("main checkout", reason)
+        self.assertRefused("git status", cwd=os.path.join(path, "sub"))
+
+    def test_a_live_worktree_the_main_checkout_and_a_non_git_command_are_admitted(self):
+        self.assertAdmitted("cd .. && ls", cwd=self.lost())
+        self.assertAdmitted("git status", cwd=self.root)
+        self.assertAdmitted("git commit --allow-empty -m x", cwd=self.lost(live=True))
 
 
 class TheListsTheGuardReads(unittest.TestCase):
