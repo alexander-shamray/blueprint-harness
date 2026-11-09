@@ -49,9 +49,8 @@ dir_there=$(git -C "$path" rev-parse --path-format=absolute --git-dir)
 # A refusal and a half-finished removal are different failures. On Windows a
 # process holding the tree fails git's delete of it, and git then drops the
 # registration anyway. The status is captured, so the checks below run whatever
-# git exits. Under `core.longpaths`, as git-worktree-remove.sh's, because git
-# cannot read a file past Windows' 260 characters without it and refuses the
-# clean tree as holding modified or untracked files.
+# git exits. Long paths as in git-worktree-remove.sh: past 260 characters git
+# reads a clean tree as modified or untracked, and refuses it.
 status=0
 git -c core.longpaths=true worktree remove "$resolved" || status=$?
 left=
