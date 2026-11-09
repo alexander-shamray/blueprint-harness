@@ -1479,7 +1479,8 @@ once more; any other failure stops. Its residual is a push that fails
 after the rewrite: the local branch then carries the trailers and origin's
 does not, and a rerun finishes it, because a commit that has the trailer is
 skipped. `git-revert-pr.sh` writes no remote; it reads trailers off
-`origin/main` and reverts on the current branch, so its grant is a plain one.
+`origin/main` and reverts on the current branch. No command grants it, so
+the owner runs it by hand, as `dispatch_run.py`'s revert line hands it over.
 
 **A third helper is the force push for every other rewrite.** A branch amended
 or reworded for a reason neither helper above covers had no route but the
