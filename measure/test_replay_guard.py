@@ -5,8 +5,10 @@ transcript-shapes.md records the field shapes. A ``tool_use`` line also carries
 """
 
 import contextlib
+import datetime
 import io
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -72,6 +74,16 @@ class Replay(unittest.TestCase):
                 "--guard", str(guard or self.guard), "--root", str(self.root),
             ])
         return code, [json.loads(line) for line in out.getvalue().splitlines()]
+
+    def test_the_window_reads_the_files_last_use_and_not_the_sessions_start(self):
+        started = {"timestamp": "1999-01-01T00:00:00.000Z"}
+        self.transcript("used_since", bash("refuse-me", **started))
+        self.transcript("not_since", bash("refuse-me too", session="not_since", **started))
+        stamp = datetime.datetime(1999, 6, 1).timestamp()
+        os.utime(self.project / "not_since.jsonl", (stamp, stamp))
+        _, lines = self.replay()
+        self.assertEqual(lines[-1], {"commands": 1, "refused": 1})
+        self.assertEqual(lines[0]["command"], "refuse-me")
 
     def test_a_refused_command_is_printed_with_its_session(self):
         self.transcript("s1", bash("git status"), bash("refuse-me", cwd="/worktree"))

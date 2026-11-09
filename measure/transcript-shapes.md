@@ -37,7 +37,17 @@ and the shapes only, no content.
 - **Slash command**: a genuine string message opening
   `<command-name>/<name></command-name>`, or `<command-message>` and then that
   tag. A diff or fixture quoting the tag holds it later in the message.
+- **Local command**: a slash command Claude Code runs itself, with an `isMeta`
+  line opening `<local-command-caveat>` right ahead of it. After it comes a `user`
+  line opening `<local-command-stdout>`, or for `/clear` and `/reload-plugins`
+  a `system` line with `subtype: "local_command"`. Read on 2026-11-09 across every
+  project: all 632 slash commands of this shape have both marks, and none of the
+  683 skill commands, such as `/ship`, has either.
 - **A session a `/clear` opens**: the new transcript's first genuine message is
-  the `/clear`, an ordinary slash command message, and no later message in the
-  file is one. `/model` or `/reload-plugins` can follow it before the task's own
-  command.
+  the `/clear`, a local command. Other local commands can follow it before the
+  task's own command.
+- **Timestamp**: an ISO string in UTC, ending `Z`, on most lines. Lines such as
+  `mode`, `last-prompt` and `ai-title` carry none and can open a file. A file's
+  first stamp is its earliest in 3,841 of 4,619 files. The rest are out of order
+  by seconds, at most 5 hours, and in backend, frontend and admin none of 3,748
+  falls on another UTC day than its earliest.
