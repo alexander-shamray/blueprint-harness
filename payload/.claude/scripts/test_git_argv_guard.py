@@ -3596,25 +3596,32 @@ class TheGitArgvGuard(unittest.TestCase):
             'git fetch origin "+refs/heads/$(a):refs/remotes/origin/$(b)"',
             'git fetch origin "+refs/heads/main$X:refs/remotes/origin/main"',
             "git fetch origin +main:refs/heads/victim",
-            "git fetch -u origin +main:refs/heads/victim",
             "git fetch origin main:refs/heads/victim",
             "git fetch origin main:victim",
             "git fetch origin :refs/sweeps/bug",
             "git fetch ../other main:main",
             "git fetch ../other +refs/heads/main:refs/remotes/origin/main",
+            "git pull --ff-only origin +main:refs/sweeps/security",
+            "git pull --ff-only origin main:refs/sweeps/security",
+        ):
+            with self.subTest(command=command):
+                self.assertIn("a plain fetch would not", self.assertRefused(command))
+        for command in (
             "git fetch origin --refmap=+refs/heads/other:refs/remotes/origin/main other",
             "git fetch origin --refm=+refs/heads/other:refs/sweeps/security other",
             "git fetch origin --refmap +refs/heads/other:refs/sweeps/security other",
             "echo +main:refs/sweeps/security | git fetch origin --stdin",
             "echo +main:refs/sweeps/security | git fetch origin --stdi",
-            "git pull --ff-only origin +main:refs/sweeps/security",
-            "git pull --ff-only origin main:refs/sweeps/security",
             "git pull --ff-only --refmap=+refs/heads/main:refs/sweeps/security origin main",
             "git pull --ff-only --ref=+refs/heads/main:refs/sweeps/security origin main",
-            "git -c remote.origin.fetch=+refs/heads/main:refs/sweeps/security fetch origin",
         ):
             with self.subTest(command=command):
-                self.assertRefused(command)
+                self.assertIn("no refspec operand names", self.assertRefused(command))
+        # Two more routes to the same refs, each refused by a check of its own.
+        self.assertIn("can move a local branch",
+                      self.assertRefused("git fetch -u origin +main:refs/heads/victim"))
+        self.assertIn("sets configuration", self.assertRefused(
+            "git -c remote.origin.fetch=+refs/heads/main:refs/sweeps/security fetch origin"))
         # Only what origin holds there, and a colon that is not a refspec's.
         for command in (
             "git fetch origin main:main", "git fetch -q --depth 1 origin main:main",
