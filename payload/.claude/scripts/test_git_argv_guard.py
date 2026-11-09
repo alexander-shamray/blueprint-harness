@@ -4113,8 +4113,8 @@ class TheListsTheGuardReads(unittest.TestCase):
                                  module.denied_path(name) is not None)
 
     def test_the_root_file_reading_takes_a_rule_as_the_guard_does(self):
-        # No rule of this repository's names a root file under `**/`, so only a
-        # target's suite would reach that branch; these rules reach it here.
+        # The test above reaches a `**/` rule only where a target's own config
+        # names a root file under one; these rules reach it in every copy.
         module = self.guard_module()
         rules = ("**/playwright.config.ts", "**/*.config.mts", "package.json", ".github/**")
         module.edit_denies = lambda: rules
