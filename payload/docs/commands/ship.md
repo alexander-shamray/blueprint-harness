@@ -1497,8 +1497,8 @@ directory the session is standing in, which Windows holds open, so it exits
 4 naming it. Lines 3 to
 6 go with them: the main checkout holds `main` for the whole night, so the
 switch to `main` is refused, and from a linked worktree
-`git fetch origin refs/heads/main:main` is refused too, git declining to move a branch
-another worktree has checked out; local `main` is then not pulled, so the
+`git fetch origin refs/heads/main:main` is refused too, git declining to move a
+branch another worktree has checked out; local `main` is then not pulled, so the
 containment read has nothing true to ask. A refused line would end a merged
 run on a stop. So only lines 1 and 8 run: step 6 verifies the merge from
 the remote and prunes, which is safe from anywhere; the dispatcher
