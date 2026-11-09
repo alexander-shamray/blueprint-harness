@@ -176,10 +176,10 @@ jobs:
               '' \
               'medium' \
               '' \
-              'A target whose job failed has no sync pull request for this payload, and' \
-              'stays behind until a rerun of the failed jobs or the next payload merge' \
-              'opens one (README.md, *The sync workflow*). This stops no landing. Close' \
-              'this issue once a `Sync` run is green.' \
+              'A target whose job failed may have no finished sync pull request for this' \
+              'payload; a rerun of the failed jobs or the next payload merge settles it' \
+              '(README.md, *The sync workflow*). This stops no landing. Close this issue' \
+              'once a `Sync` run is green.' \
               '' \
               'Filed by the sync-issue job in sync.yml, not by hand or by a sweep.' |
               gh issue create --title "$title" --label bug --label code --label medium --body-file -
