@@ -10,7 +10,7 @@ Narrowing of the spec's definition: the exact handover "⚠️ ACTION REQUIRED
 
 Usage:
     py -3.12 measure/stops.py --project 'C--dev-ashamray-blueprint-backend*' \
-        --since 2026-10-19 --command ship
+        --since 2026-10-19 [--until 2026-11-02] --command ship
 """
 
 import argparse
@@ -35,6 +35,10 @@ _ACTION_REQUIRED = "⚠️ ACTION REQUIRED"
 _NO_HANDOVER = _ACTION_REQUIRED + " — none"
 _NOT_A_TURN = ("<local-command", "<bash-input>", "<bash-stdout>", "<bash-stderr>", "<task-notification>",
                "<system-reminder>", "[Request interrupted")
+_COMMAND_TAG = re.compile(r"\s*(?:<command-message>[^<]*</command-message>\s*)?<command-name>/([^<]*)</command-name>")
+# Local commands that set a session up rather than ask it for anything, so its
+# task opens after them: `/clear` is what one task per session asks for.
+_SESSION_SETUP = ("clear", "model", "reload-plugins")
 
 
 def _lines(transcript):
@@ -63,6 +67,8 @@ def _flatten(content):
 def _is_genuine_user(entry):
     if entry.get("type") != "user" or entry.get("isMeta") or entry.get("isSidechain"):
         return False
+    if entry.get("isCompactSummary"):
+        return False
     if (entry.get("origin") or {}).get("kind", "human") != "human":
         return False
     content = (entry.get("message") or {}).get("content")
@@ -80,9 +86,14 @@ def _is_genuine_user(entry):
     return False
 
 
+def _command_opening(entry):
+    match = _COMMAND_TAG.match(_flatten((entry.get("message") or {}).get("content")))
+    return match.group(1) if match else None
+
+
 def count_stops(transcript):
     counts = dict.fromkeys(KEYS, 0)
-    genuine = 0
+    opened = False
     for entry in _lines(transcript):
         kind = entry.get("type")
         if kind == "assistant":
@@ -99,17 +110,19 @@ def count_stops(transcript):
                     if _PERMISSION_REFUSAL.match(_flatten(part.get("content") or "")):
                         counts["permission_refused"] += 1
             if _is_genuine_user(entry):
-                genuine += 1
-    counts["user_turns"] = max(genuine - 1, 0)
+                if opened:
+                    counts["user_turns"] += 1
+                else:
+                    opened = _command_opening(entry) not in _SESSION_SETUP
     return counts
 
 
 def is_command_session(transcript, command):
-    pattern = re.compile(r"<command-name>/" + re.escape(command) + r"(?![\w-])")
     for entry in _lines(transcript):
         if _is_genuine_user(entry):
-            content = (entry.get("message") or {}).get("content")
-            return bool(pattern.search(_flatten(content)))
+            opening = _command_opening(entry)
+            if opening not in _SESSION_SETUP:
+                return opening == command
     return False
 
 
@@ -124,11 +137,12 @@ def summarise(rows):
     }
 
 
-def sessions(project, since, root):
+def sessions(project, since, root, before=None):
     pattern = project if pathlib.Path(project).is_absolute() else str(root / project)
     for directory in sorted(glob.glob(pattern)):
         for path in sorted(pathlib.Path(directory).glob("*.jsonl")):
-            if datetime.datetime.fromtimestamp(path.stat().st_mtime) >= since:
+            modified = datetime.datetime.fromtimestamp(path.stat().st_mtime)
+            if modified >= since and (before is None or modified < before):
                 yield path
 
 
@@ -136,12 +150,17 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--project", required=True, help="project directory name or glob under --root")
     parser.add_argument("--since", required=True, type=datetime.date.fromisoformat)
-    parser.add_argument("--command", help="only sessions whose first user message is /<command>")
+    parser.add_argument("--until", type=datetime.date.fromisoformat, help="the window's last day, itself included")
+    parser.add_argument("--command", help="only sessions whose first user message, past any /clear, /model or "
+                                          "/reload-plugins, opens with /<command>")
     parser.add_argument("--root", type=pathlib.Path, default=pathlib.Path.home() / ".claude" / "projects")
     args = parser.parse_args(argv)
     since = datetime.datetime.combine(args.since, datetime.time.min)
+    before = None
+    if args.until:
+        before = datetime.datetime.combine(args.until + datetime.timedelta(days=1), datetime.time.min)
     rows = []
-    for path in sessions(args.project, since, args.root):
+    for path in sessions(args.project, since, args.root, before):
         if args.command and not is_command_session(path, args.command):
             continue
         row = count_stops(path)
