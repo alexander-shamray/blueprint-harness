@@ -146,9 +146,9 @@ jobs:
 
   # A target that failed stays behind the payload with nothing else saying so, and
   # the title is not `main is red`'s, which stops every landing (README, The sync
-  # workflow). A job past its limit reads `cancelled`, which of the three status
-  # checks only `!cancelled()` hears, and that is false for a run cancelled whole.
-  # The step tells such a job from a superseded waiting one, which ran no steps.
+  # workflow). At a job's limit `failure()` and `cancelled()` are both false, and
+  # `!cancelled()`, unlike `always()`, is false for a run cancelled whole. The step
+  # tells such a job from a superseded waiting one, which ran no steps.
   sync-issue:
     needs: [targets, sync]
     if: ${{ !cancelled() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
