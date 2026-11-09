@@ -14,9 +14,9 @@ CI = ROOT / ".github" / "workflows" / "ci.yml"
 HELPER = ROOT / "payload" / ".claude" / "scripts" / "main-red-open.sh"
 
 
-def _jobs() -> dict[str, str]:
+def _jobs(workflow: Path = CI) -> dict[str, str]:
     """Each job's text by id, with its comment lines left out."""
-    text = CI.read_text(encoding="utf-8").split("\njobs:\n", 1)[1]
+    text = workflow.read_text(encoding="utf-8").split("\njobs:\n", 1)[1]
     code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
     parts = re.split(r"^  ([\w-]+):$", code, flags=re.MULTILINE)
     return dict(zip(parts[1::2], parts[2::2]))
