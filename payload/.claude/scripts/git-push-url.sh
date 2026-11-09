@@ -15,8 +15,8 @@ repo_key() {
   [[ $url != *[\?#]* ]] || return 1
   url=${url%/}
   if [[ $url =~ ^([A-Za-z][A-Za-z0-9+.-]*)://([^@/]*@)?([^:/]+)(:[0-9]+)?/(.*)$ ]]; then
-    # Another port is another server, and any other scheme can be read or changed
-    # on the way, so it has no key.
+    # Another port is another server. Only https and ssh are compared: `http` and
+    # `git` can be read or changed on the way, and the rest fail closed.
     case "${BASH_REMATCH[1]}${BASH_REMATCH[4]}" in
       https | https:443 | ssh | ssh:22) port= ;;
       https:* | ssh:*) port=${BASH_REMATCH[4]} ;;
