@@ -77,7 +77,9 @@
       "harness (ubuntu-latest)",
       "harness (windows-latest)",
       "commit-gate",
-      "locality-gate"
+      "locality-gate",
+      "closure-gate",
+      "harness-drift"
     ]
   }
 }
