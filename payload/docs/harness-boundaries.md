@@ -164,6 +164,17 @@ to anything under `.harness/` is the owner's, as one to
 the config alone, because a sweep able to narrow its own rows has audited
 less than it reports.
 
+**It is spelled `Edit(/.harness/**)`, once, because the two usual spellings
+reach too far.** A rule of one component reaches any depth with or without
+`./` (*Normalisation, residuals and the sweeps*), and in the repository that
+develops this harness those two refused the base settings' own copy under
+its `payload` tree, which is where they are changed. Measured on Claude Code
+2.1.319 and Windows, in a nested session at the root, one that entered a
+worktree and one launched in a worktree: the old spellings refused that path in
+all three, and this one admitted it in all three and refused `.harness/` itself
+in each (#333). `test_harness_denies.py` holds the spelling, and holds every
+directory rule of the base off a tree a checkout tracks below its root.
+
 **`.claude/skills/**` is the same argument one directory over.** A skill's
 `allowed-tools` is auto-approval, so a session that can rewrite `SKILL.md`
 widens the next invocation's Bash surface. The deny list in

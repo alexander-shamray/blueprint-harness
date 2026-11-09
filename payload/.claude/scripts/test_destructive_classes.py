@@ -78,7 +78,8 @@ def deny_matches(rule, command):
     """Whether the permission `rule` matches `command`.
 
     `Bash(x:*)` matches `x` and `x …`; a `*` inside any run; no `:*`, whole.
-    `Edit(glob)` matches `Edit(<path>)`, `./` off both, `*` and `**` any run.
+    `Edit(glob)` matches `Edit(<path>)`, `./` off both and a leading `/` off the
+    rule, `*` and `**` any run. `//x` stays absolute, and matches no relative path.
     """
     name, _, rest = rule.partition("(")
     body = rest[:-1]
@@ -86,7 +87,8 @@ def deny_matches(rule, command):
         if not (command.startswith("Edit(") and command.endswith(")")):
             return False
         path = command[len("Edit("):-1].removeprefix("./")
-        return re.fullmatch(_regex(body.removeprefix("./")), path) is not None
+        glob = body.removeprefix("./") if body.startswith("./") else body.removeprefix("/")
+        return re.fullmatch(_regex(glob), path) is not None
     if name != "Bash":
         return False
     if body.endswith(":*"):
@@ -394,6 +396,11 @@ class DestructiveClasses(unittest.TestCase):
                                      "Edit(.claude/hooks/x.py)"))
         self.assertFalse(deny_matches("Edit(.claude/hooks/**)",
                                       "Edit(docs/x.md)"))
+        self.assertTrue(deny_matches("Edit(/.harness/**)",
+                                     "Edit(.harness/config.json)"))
+        self.assertFalse(deny_matches("Edit(/.harness/**)",
+                                      "Edit(payload/.harness/config.json)"))
+        self.assertFalse(deny_matches("Edit(//notes/**)", "Edit(notes/x.md)"))
 
 
 if __name__ == "__main__":
