@@ -2491,21 +2491,23 @@ def xargs_supplies_push(tokens):
 
 
 def fetch_offence(segment):
-    """The reason to refuse a fetch that can move a local branch backwards.
+    """The reason to refuse a fetch or pull that can move a branch backwards.
 
-    `-f` and `-u` are what discard local commits; `refspec_offence` judges a
-    `+` in a refspec, as it judges every destination.
+    `-f`, and a fetch's `-u`, are what discard local commits; `refspec_offence`
+    judges a `+` in a refspec, as it judges every destination.
     """
     stripped = after_global_options(segment)
-    if not stripped or stripped[0] != "fetch":
+    if not stripped or stripped[0] not in ("fetch", "pull"):
         return None
+    kind = stripped[0]
     for element in stripped[1:]:
         name = element.split("=", 1)[0]
-        if (short_flag(element, "fetch", "fu")
+        if (short_flag(element, kind, "fu" if kind == "fetch" else "f")
                 or (len(name) > 3 and "--force".startswith(name))
-                or (len(name) > 9 and "--update-head-ok".startswith(name))):
+                or (kind == "fetch" and len(name) > 9
+                    and "--update-head-ok".startswith(name))):
             return (
-                f"`git fetch {element}` can move a local branch to a commit "
+                f"`git {kind} {element}` can move a local branch to a commit "
                 "that does not contain it, which discards local commits under "
                 "a read's grant. Fetch without it; `main:main` fast-forwards."
             )
