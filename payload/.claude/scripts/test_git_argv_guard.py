@@ -213,6 +213,8 @@ class TheGitArgvGuard(unittest.TestCase):
             "git push origin HEAD:refs/tags/main",
             "git push origin abc1234:refs/tags/main",
             "git push origin refs/tags/main",
+            # With no destination, git names the same ref on origin as here.
+            "git push origin tags/main",
             "git push origin HEAD:refs/main",
             "git push origin refs/main",
         ):
@@ -223,12 +225,14 @@ class TheGitArgvGuard(unittest.TestCase):
         self.assertIn("not one of the options",
                       self.assertRefused("git push origin feature --follow-tags"))
         # A tag merely beginning with the name, one git tries after the branch,
-        # and a branch `refs/tags/main` only under a prefix of its own.
+        # and a branch `refs/tags/main` or `tags/main` only under a prefix of its
+        # own or by a named source.
         for command in (
             "git push origin v1:refs/tags/v1",
             "git push origin HEAD:refs/tags/mainline",
             "git push origin HEAD:refs/remotes/main",
             "git push origin topic:refs/heads/refs/tags/main",
+            "git push origin topic:tags/main",
         ):
             with self.subTest(command=command):
                 self.assertAdmitted(command)

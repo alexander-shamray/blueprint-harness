@@ -2369,8 +2369,11 @@ def push_offence(segment):
     else:
         source, destination = refspec, refspec
     # Before the strip below, or `refs/heads/refs/tags/main`, a branch, reads as
-    # the tag. These two are the rules git tries ahead of `refs/heads/<name>`.
-    if any(destination == prefix + branch for prefix in ("refs/", "refs/tags/")
+    # the tag. These are the rules git tries ahead of `refs/heads/<name>`, of
+    # which a git server itself refuses `refs/<name>` as a funny ref. A bare
+    # `tags/main` names the same tag here and on origin; after a `:` it does not.
+    shadows = ("refs/", "refs/tags/") + (() if ":" in refspec else ("tags/",))
+    if any(destination == prefix + branch for prefix in shadows
            for branch in PROTECTED_BRANCHES):
         return (
             f"`{destination}` is what a short refspec source then reads on "
