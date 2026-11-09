@@ -645,9 +645,10 @@ work.
 **A refused drop is reported and is not a stop.** The helper refuses a branch
 that has not landed, and keeping that branch is exactly right; the merge is
 done and stopping would strand a finished run, so on any non-zero exit the
-branch is kept and the merge stands. Exit 6 (no local branch) means
-there is nothing to drop, which a reader of the report wants to know and
-nothing more.
+merge stands. The branch is kept too, but for a branch already gone and the one
+residual *Grant inventory and push helpers* gives, where the helper exits 4 and
+names the tip. Exit 6 (no local branch) means there is nothing to drop, which a
+reader of the report wants to know and nothing more.
 
 ## Step 1: /branch
 
