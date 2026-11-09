@@ -1,12 +1,15 @@
 """Tests for apply, over throwaway payload and target trees."""
 
+import errno
 import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from harness_sync.apply import ApplyError, apply, glob_match
 from harness_sync.config import ConfigError
@@ -15,6 +18,77 @@ from harness_sync.manifest import Manifest, file_hash
 COMMIT = "a" * 40
 BASE = {"env": {}, "permissions": {"allow": [], "deny": []}, "hooks": {}}
 CONFIG = {"repo": "o/r", "task_list": ".todo/r.md"}
+NO_LINK = frozenset({errno.EPERM, errno.ENOTSUP, errno.ENOSYS})
+# ERROR_INVALID_FUNCTION and ERROR_NOT_SUPPORTED, a volume with no such link;
+# ERROR_PRIVILEGE_NOT_HELD, an unprivileged symlink. Read as winerror, since
+# Python gives all three the errno EINVAL.
+NO_LINK_ON_WINDOWS = frozenset({1, 50, 1314})
+
+
+def host_grants_no_link(refused: BaseException) -> bool:
+    if isinstance(refused, NotImplementedError):
+        return True
+    if sys.platform == "win32":
+        return getattr(refused, "winerror", None) in NO_LINK_ON_WINDOWS
+    return getattr(refused, "errno", None) in NO_LINK
+
+
+def skip_only_without_links(refused: BaseException, link: str) -> None:
+    """Skip the case if `refused` says the host grants no `link`, else raise it.
+    A missing parent is the case's own setup failing, and a skip would hide it."""
+    if host_grants_no_link(refused):
+        raise unittest.SkipTest(f"this host grants no {link}: {refused}") from refused
+    raise refused
+
+
+def windows_refusal(winerror: int, code: int = errno.EINVAL) -> OSError:
+    """An OSError as Windows raises it, on any host: POSIX drops the winerror."""
+    refused = OSError(code, "refused")
+    refused.winerror = winerror  # type: ignore[attr-defined]
+    return refused
+
+
+def link_directory(link: Path, outside: Path) -> None:
+    """Link `link` to `outside`; where Windows grants no symlink, a junction is the
+    same escape, and its failure fails the case."""
+    try:
+        os.symlink(outside, link, target_is_directory=True)
+    except (OSError, NotImplementedError) as refused:
+        if not host_grants_no_link(refused) or os.name != "nt":
+            skip_only_without_links(refused, "directory link")
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(outside)],
+                       capture_output=True, encoding="utf-8", check=True)
+
+
+class OnlyAHostThatGrantsNoLinkSkips(unittest.TestCase):
+    def attempt(self, platform: str, refused: BaseException) -> None:
+        with mock.patch.object(sys, "platform", platform):
+            skip_only_without_links(refused, "link")
+
+    def test_a_posix_host_that_grants_no_link_skips(self) -> None:
+        for refused in (OSError(errno.EPERM, "no"), OSError(errno.ENOTSUP, "no"),
+                        OSError(errno.ENOSYS, "no"), NotImplementedError()):
+            with self.subTest(refused=refused), self.assertRaises(unittest.SkipTest):
+                self.attempt("linux", refused)
+
+    def test_a_windows_host_that_grants_no_link_skips(self) -> None:
+        for refused in (windows_refusal(1314), windows_refusal(1), windows_refusal(50),
+                        NotImplementedError()):
+            with self.subTest(refused=refused), self.assertRaises(unittest.SkipTest):
+                self.attempt("win32", refused)
+
+    def test_a_missing_parent_raises_rather_than_skips(self) -> None:
+        for platform, missing in (("linux", FileNotFoundError(errno.ENOENT, "no parent")),
+                                  ("win32", windows_refusal(3, errno.ENOENT))):
+            with self.subTest(platform=platform), self.assertRaises(OSError) as caught:
+                self.attempt(platform, missing)
+            self.assertIs(missing, caught.exception)
+
+    def test_windows_is_read_by_winerror_and_not_by_errno(self) -> None:
+        denied = windows_refusal(5, errno.EPERM)
+        with self.assertRaises(OSError) as caught:
+            self.attempt("win32", denied)
+        self.assertIs(denied, caught.exception)
 
 
 class GlobTests(unittest.TestCase):
@@ -322,15 +396,7 @@ class ApplyTests(unittest.TestCase):
         outside = self.target.parent / "outside"
         outside.mkdir()
         (self.target).mkdir(exist_ok=True)
-        try:
-            os.symlink(outside, self.target / "docs", target_is_directory=True)
-        except (OSError, NotImplementedError):
-            # Windows without the symlink privilege can still make a junction, which is the same escape.
-            if os.name != "nt" or subprocess.run(
-                ["cmd", "/c", "mklink", "/J", str(self.target / "docs"), str(outside)],
-                capture_output=True, encoding="utf-8",
-            ).returncode:
-                self.skipTest("this OS refuses to create links")
+        link_directory(self.target / "docs", outside)
         self.put(self.payload, "docs/a.md", b"a\n")
         with self.assertRaises(ApplyError) as ctx:
             apply(self.payload, self.target, COMMIT)
@@ -342,8 +408,8 @@ class ApplyTests(unittest.TestCase):
         outside.write_bytes(b"keep")
         try:
             os.symlink(outside, self.target / "a.md")
-        except (OSError, NotImplementedError):
-            self.skipTest("this OS refuses to create symlinks")
+        except (OSError, NotImplementedError) as refused:
+            skip_only_without_links(refused, "symbolic link")
         self.put(self.payload, "a.md", b"a\n")
         with self.assertRaises(ApplyError) as ctx:
             apply(self.payload, self.target, COMMIT)
@@ -447,14 +513,7 @@ class ApplyTests(unittest.TestCase):
         outside.mkdir()
         self.put(outside, "config.json", json.dumps(CONFIG).encode())
         shutil.rmtree(self.target / ".harness")
-        try:
-            os.symlink(outside, self.target / ".harness", target_is_directory=True)
-        except (OSError, NotImplementedError):
-            if os.name != "nt" or subprocess.run(
-                ["cmd", "/c", "mklink", "/J", str(self.target / ".harness"), str(outside)],
-                capture_output=True, encoding="utf-8",
-            ).returncode:
-                self.skipTest("this OS refuses to create links")
+        link_directory(self.target / ".harness", outside)
         with self.assertRaises(ApplyError) as ctx:
             apply(self.payload, self.target, COMMIT)
         self.assertIn("passes through a link", str(ctx.exception))
@@ -470,14 +529,7 @@ class ApplyTests(unittest.TestCase):
         (self.target / "z.md").unlink()
         (self.target / "z.md").mkdir()
         link = self.target / "z.md" / "link"
-        try:
-            os.symlink(outside, link, target_is_directory=True)
-        except (OSError, NotImplementedError):
-            if os.name != "nt" or subprocess.run(
-                ["cmd", "/c", "mklink", "/J", str(link), str(outside)],
-                capture_output=True, encoding="utf-8",
-            ).returncode:
-                self.skipTest("this OS refuses to create links")
+        link_directory(link, outside)
         with self.assertRaises(ApplyError) as ctx:
             apply(self.payload, self.target, COMMIT)
         self.assertIn("link", str(ctx.exception))
