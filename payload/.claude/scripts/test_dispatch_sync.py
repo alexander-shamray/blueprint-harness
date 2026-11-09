@@ -313,14 +313,22 @@ class SyncDrop(Bound):
     def test_each_line_is_out_before_the_next_head_is_offered(self):
         # A run the dispatcher's timeout cuts short is killed here, and what it already deleted has to have been said.
         self.publish("chore/harness-sync-7654321", "chore/harness-sync-1111111")
-        real_helper, seen = dr.helper, []
+
+        class Piped(io.StringIO):
+            """Holds what a flush has sent, since `getvalue` also shows what a killed process would have lost."""
+            sent = ""
+
+            def flush(self):
+                self.sent = self.getvalue()
+
+        real_helper, seen, out = dr.helper, [], Piped()
 
         def watch(root, script, *args):
-            seen.append(sys.stdout.getvalue())
+            seen.append(out.sent)
             return real_helper(root, script, *args)
 
-        with mock.patch.object(dr, "helper", watch):
-            run_cli(["sync-drop"])
+        with mock.patch.object(dr, "helper", watch), contextlib.redirect_stdout(out):
+            db.main(["sync-drop"])
         self.assertEqual("", seen[0])
         self.assertIn("chore/harness-sync-1111111", seen[1])
 
