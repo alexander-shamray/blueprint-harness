@@ -56,8 +56,10 @@ def link_directory(link: Path, outside: Path) -> None:
     except (OSError, NotImplementedError) as refused:
         if not host_grants_no_link(refused) or os.name != "nt":
             skip_only_without_links(refused, "directory link")
-        subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(outside)],
-                       capture_output=True, check=True)
+        made = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(outside)],
+                              capture_output=True)
+        if made.returncode:
+            raise AssertionError(f"mklink /J failed ({made.returncode}): {made.stdout!r} {made.stderr!r}")
 
 
 class OnlyAHostThatGrantsNoLinkSkips(unittest.TestCase):
