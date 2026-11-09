@@ -2545,35 +2545,58 @@ def fetch_offence(segment):
             return (
                 f"`git {kind} {element}` can move a local branch to a commit "
                 "that does not contain it, which discards local commits under "
-                "a read's grant. Fetch without it; `main:main` fast-forwards."
+                "a read's grant. Fetch without it; "
+                f"`{MAIN_FAST_FORWARD}` fast-forwards."
             )
     return None
 
 
-# A fetch's or a pull's options that take the next word as their value, so a
-# colon in it is no refspec's. One this misses reads as a refspec, which costs a
-# false refusal at worst.
-FETCH_VALUE_OPTIONS = frozenset({
-    "--deepen", "--depth", "--filter", "--jobs", "--negotiation-tip",
-    "--server-option", "--shallow-exclude", "--shallow-since", "--strategy",
-    "--strategy-option", "-X", "-j", "-o", "-s",
-})
+# A fetch's or a pull's long options that take the next word as their value, so
+# a colon in it is no refspec's, each with the shortest prefix git reads as it:
+# `git fetch --dep` answers that `depth` requires a value, and `--de` that it is
+# ambiguous. One this misses reads as a refspec, which costs a false refusal at
+# worst. `--strategy` is the shortest for `--strategy-option` because
+# `EXECUTING_LONG_FLAGS` refuses every shorter word on a pull, and it takes a
+# value too.
+FETCH_VALUE_OPTIONS = {
+    "--deepen": "--dee", "--depth": "--dep", "--filter": "--fi", "--jobs": "--j",
+    "--negotiation-tip": "--negotiati", "--server-option": "--ser",
+    "--shallow-exclude": "--shallow-e", "--shallow-since": "--shallow-s",
+    "--strategy-option": "--strategy",
+}
+FETCH_VALUE_LETTERS = frozenset("Xjos")
+
+# `/ship`'s fast-forward of a `main` it is not standing on. The source is named
+# in full because `main:main` takes origin's same-named tag first.
+MAIN_FAST_FORWARD = "refs/heads/main:main"
 
 # A branch of origin onto its own tracking ref, or a tag onto itself: only the
 # value origin holds there, so it can poison nothing. The branch is named in full
-# because a short name takes origin's same-named tag first. A dependabot rebase
-# types that form with `$B` for both names.
+# for the same reason. A dependabot rebase types that form with `$B` for both
+# names.
 ORIGIN_OWN_REF = re.compile(
     r"^\+?refs/(?:heads/(?P<branch>[^:]+):refs/remotes/origin/(?P=branch)"
     r"|tags/(?P<tag>[^:]+):refs/tags/(?P=tag))$")
+
+
+def takes_next_word(word):
+    """Whether this option word of a fetch or a pull takes the next as its value.
+
+    A short letter does only at the end of its cluster, since in `-j4` the value
+    is glued; a `=` is too, so `--depth=1` is no prefix of anything."""
+    if word.startswith("--"):
+        return any(word.startswith(shortest) and option.startswith(word)
+                   for option, shortest in FETCH_VALUE_OPTIONS.items())
+    return (word.startswith("-") and word[-1] in FETCH_VALUE_LETTERS
+            and not FETCH_VALUE_LETTERS.intersection(word[1:-1]))
 
 
 def refspec_offence(segment):
     """The reason to refuse a fetch or a pull writing a ref of its own choosing.
 
     A destination, `--refmap` or `--stdin` writes what a sweep and `/ship`'s
-    review bar trust, under a read's grant; only `main:main` and `ORIGIN_OWN_REF`
-    stay, from origin."""
+    review bar trust, under a read's grant; only `MAIN_FAST_FORWARD` and
+    `ORIGIN_OWN_REF` stay, from origin."""
     stripped = after_global_options(segment)
     if not stripped or stripped[0] not in ("fetch", "pull"):
         return None
@@ -2582,7 +2605,7 @@ def refspec_offence(segment):
         word = stripped[position]
         name = word.split("=", 1)[0]
         position += 1
-        if word in FETCH_VALUE_OPTIONS:
+        if takes_next_word(word):
             position += 1
         elif not word.startswith("-"):
             operands.append(word)
@@ -2599,11 +2622,13 @@ def refspec_offence(segment):
         # slash, which git refuses as invalid; the raw reading judges the rest.
         if destination and not destination.endswith("/") and not (
                 operands[0] == "origin" and (
-                    refspec == "main:main" or ORIGIN_OWN_REF.match(refspec))):
+                    refspec == MAIN_FAST_FORWARD
+                    or ORIGIN_OWN_REF.match(refspec))):
             return (
                 f"`{refspec}` writes a ref a plain fetch would not, which a "
                 "sweep or a review may then trust. Fetch without a destination "
-                "and read FETCH_HEAD; `main:main` from origin fast-forwards, and "
+                f"and read FETCH_HEAD; `{MAIN_FAST_FORWARD}` from origin "
+                "fast-forwards, and "
                 "`refs/heads/<name>:refs/remotes/origin/<name>` tracks."
             )
     return None
