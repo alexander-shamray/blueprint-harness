@@ -21,8 +21,7 @@ def tree(root: Path, projects: dict[str, str], restored: list[str] | None = None
 
     `projects` maps a project to its directory; `restored`, `built`, `listed`
     name those with an `artifacts/obj/` entry, an `artifacts/bin/` one and a
-    solution entry, all by default, so a test overriding one is about that.
-    `solution` is the root solution's file name."""
+    solution entry, all by default, so a test overriding one is about that."""
     restored = list(projects) if restored is None else restored
     built = list(projects) if built is None else built
     listed = list(projects) if listed is None else listed
