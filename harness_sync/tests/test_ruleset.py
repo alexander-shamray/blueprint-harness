@@ -170,7 +170,8 @@ class RulesetTests(unittest.TestCase):
         self.assertEqual(compare(self.want(), have), [])
 
     def test_normal_form_reads_the_api_shape(self) -> None:
-        """Recorded from the live backend ruleset: the API's extra fields (ids,
+        """Recorded from the live backend ruleset, its checks since kept to the
+        data by hand (`harness-drift`, #248): the API's extra fields (ids,
         timestamps, the name) are dropped, so the data's body
         and the live one compare equal."""
         fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
