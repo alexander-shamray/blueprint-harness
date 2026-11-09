@@ -215,9 +215,10 @@ the whole point of those paths is to carry the state that is already in the
 tree. A base is not what they are short of.
 
 **`git-worktree-fork.sh` is the whole command, and it takes two arguments
-because everything else about it is fixed.** Its one git command that writes,
-but for removing what that command leaves when it fails, is
-`git worktree add --no-track -b <branch> <path> origin/main`, after which
+because everything else about it is fixed.** Its git commands that write, but
+for removing what they leave when the second fails, are
+`git branch --no-track <branch> origin/main` and
+`git worktree add <path> <branch>`, after which
 it starts the new worktree's index refresh — a `Bash(git worktree add:*)`
 grant would also buy `-B`, which does not create a branch but **resets**
 an existing one, the operation
@@ -271,16 +272,25 @@ created for permission reasons. Anything else stops the command and is
 reported verbatim, unnamed rather than misnamed.
 
 **The helper removes the branch a failed fork made, so the fallback can
-create it.** `git worktree add -b` creates the branch *before* it creates the
-directory or checks anything out, and git's cleanup of a failed add leaves it:
+create it.** The branch exists *before* the directory or any checkout, and
+git's cleanup of a failed add leaves it:
 against an unwritable directory it prints `fatal: could not create leading
 directories`, and the branch stays. Left there, it fails a retry with *branch
 already exists*, `git-branch-create.sh` refuses it on purpose, and
 `git-branch-drop.sh` refuses it as never landed, so nothing the session holds
 could remove it. The helper deletes it by compare-and-swap against the start
 point, so a branch that holds a commit stays, and only when no worktree holds
-it. One it keeps may be another session's, which is why the runbook's table
-stops there rather than adopting it.
+it.
+
+**The helper makes the branch apart from the add so that it knows the branch
+is its own.** Two sessions can fork one name at once, both past the check that
+it is free. With `git worktree add -b`, the loser's one exit status cannot say
+whether its branch step failed, and the winner's branch sits at the start point
+with no worktree yet, which is exactly what the removal takes: the loser would
+delete it. A separate `git branch` fails first, so the loser stops there with
+git's own line and removes nothing, and the winner's add goes on. A branch still
+standing after a failed fork is therefore not this fork's to adopt, which is
+why the runbook's table stops there.
 
 Every git write goes through a helper because a prefix grant buys more than
 its operation; the flags each raw grant would license — `git switch`,

@@ -50,14 +50,17 @@ git show-ref --verify --quiet refs/remotes/origin/main ||
 # the right one. origin/main is fixed because step 5 forks only from the
 # fetched base.
 start=$(git rev-parse refs/remotes/origin/main)
+# Apart from the add, whose one exit cannot say which step failed: a name
+# another fork took after the check above stops here, its branch left alone.
+git branch --no-track "$branch" origin/main
 added=0
-git worktree add --no-track -b "$branch" "$path" origin/main || added=$?
+git worktree add "$path" "$branch" || added=$?
 if [ "$added" -ne 0 ]; then
-  # `-b` makes the branch before the directory and the checkout, and git's
-  # cleanup of a failed add leaves it, where a retry exits 3 above and nothing
-  # the session holds can remove it. Only a branch at the start point goes,
-  # which holds no commit, and `update-ref` compares that but does not ask, as
-  # `git branch -D` would, whether a worktree has it. The exit stays git's.
+  # Git's cleanup of a failed add leaves the branch, where a retry exits 3 above
+  # and nothing the session holds can remove it. Only a branch at the start
+  # point goes, which holds no commit, and `update-ref` compares that but does
+  # not ask, as `git branch -D` would, whether a worktree has taken it since.
+  # The exit stays git's.
   if git show-ref --verify --quiet "refs/heads/$branch"; then
     if ! worktrees=$(git worktree list --porcelain); then
       echo "$branch is kept: the worktrees cannot be read, so whether one holds it is unknown" >&2

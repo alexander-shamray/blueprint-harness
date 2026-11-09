@@ -147,7 +147,7 @@ sweeps' `mktemp -d` ones.
    | After the failed fork | Take |
    |---|---|
    | `git branch --list <name>` prints nothing | `bash .claude/scripts/git-branch-create.sh <name> origin/main`, and continue in place; step 1's forgone-worktree rule applies |
-   | It prints it | Stop and report the helper's line saying why it kept it: the branch may not be this fork's |
+   | It prints it | Stop and report the line saying why it stands, the helper's or git's: the branch may not be this fork's |
 
    **If the session cannot enter a worktree that was created, stop and report
    the path**; never drive it with `git -C`, and leave it standing.
