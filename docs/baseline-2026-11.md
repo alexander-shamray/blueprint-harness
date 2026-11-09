@@ -1,7 +1,8 @@
 # Stop baseline, November 2026
 
 The measuring tool for the anti-goal "agents stop more often" (spec section
-4). Every later sync is compared with these numbers: the count per typical
+4). Every later sync is compared with these numbers, the tables under *After
+#276* being the ones the present filter can reproduce: the count per typical
 task must not rise in any repository.
 
 ## What is counted
@@ -12,24 +13,30 @@ tool uses), `action_required` (assistant messages whose last line starts
 `⚠️ ACTION REQUIRED`, except the exact `⚠️ ACTION REQUIRED — none`, which
 hands over nothing),
 `permission_refused` (tool errors whose text is a permission refusal, not a
-hook refusal) and `user_turns` (genuine user messages after the first;
-interruption markers, hook and system injections and tool results are not).
+hook refusal) and `user_turns` (genuine user messages after the one that opens
+the task; interruption markers, hook and system injections, `/compact`
+summaries and tool results are not, and a leading `/clear`, `/model` or
+`/reload-plugins` only sets the session up).
 
 A session counts when its transcript file was last modified on or after the
-`--since` date and, with `--command`, its first genuine user message is that
-slash command. The median is taken per count across the sessions.
+`--since` date, on or before any `--until` date, both read in local time, and,
+with `--command`, its first genuine user message past that set-up opens with
+that slash command. The median is taken per count across the sessions.
 
 ## Limits of the measure
 
 - A permission prompt the owner approved leaves no mark in the transcript, so
   only refused prompts and auto-mode blocks are counted. The count is a floor.
-- A session that was resumed later has a later modification time, so it can
-  enter the window on its last day of use, not its first.
+- The window reads a modification time, not a start. A session that was
+  resumed later can enter a window on its last day of use, not its first, and
+  leave an `--until` it once sat inside; one started before `--since` counts if
+  it was last touched inside.
 - A median of zero hides a skewed tail; the totals below show it.
-- `--command` reads a session's first genuine message and looks for the tag
-  anywhere in it. A session a `/clear` opens drops out, and one whose first
-  message only quotes the tag counts (#276). *After plan 5* gives frontend's
-  count without either.
+- Until #276 `--command` read a session's first genuine message and looked for
+  the tag anywhere in it, so a session a `/clear` opened dropped out and one
+  whose first message only quoted the tag counted, and the `user_turns` of a
+  session counted its `/compact` summaries. Every table ahead of *After #276*
+  was taken that way.
 
 ## Command lines
 
@@ -44,7 +51,9 @@ py -3.12 measure/stops.py --project 'C--dev-ashamray-blueprint-frontend*' --sinc
 py -3.12 measure/stops.py --project 'C--dev-ashamray-blueprint-admin*' --since 2026-10-19 --command ship
 ```
 
-and the same three with `--command bug-sweep`. Run on 2026-11-02.
+and the same three with `--command bug-sweep`. Run on 2026-11-02, on the filter
+#276 replaced, so these lines no longer print the two tables below; *After
+#276* gives the window on the present one.
 
 ## Medians per session, since 2026-10-19
 
@@ -65,8 +74,8 @@ one session and is not a median in any useful sense.
 
 The medians are mostly zero, so the totals show where the stops fall. Each
 cell is the total over the sessions, then the largest in one session. They
-come from the `total` and `max` fields of the final line the commands above
-print for `--command ship`, so the table is reproducible from them.
+came from the `total` and `max` fields of the final line the commands above
+printed for `--command ship` on 2026-11-02.
 
 | Repository | ask_user | action_required | permission_refused | user_turns |
 | --- | --- | --- | --- | --- |
@@ -105,7 +114,7 @@ The stop count after plan 2 is the first command line above with
 transcript was last modified on or after that day. It is added here, as
 medians and as totals with their largest session, once two or more have
 ended; a rise against the two tables above is a harness defect, filed in
-this repository.
+this repository. *After #276* holds it, on the present filter.
 
 ## After plan 5
 
@@ -140,7 +149,7 @@ baseline's five that are not `/ship`: security reviews whose first message
 quotes the tag. Without those two the baseline's `action_required` median is
 already 2, so the rise in the median rests on them. Counted as sessions whose
 first genuine message, or the one after a `/clear`, opens with the `/ship` tag,
-which no command line offers yet, and read at 16:13 UTC with each window's
+which no command line offered then, and read at 16:13 UTC with each window's
 sessions by when they started, each cell is the median, then the total, then
 the largest session, and `user_turns` counts what follows the `/ship`:
 
@@ -178,3 +187,70 @@ rises by 599 bytes: the import brings the hand-over, wait and model-choice
 rules the old copy lacked, and the triage takes back most of that. Backend's
 22,028 is another repository on an earlier `agent-rules.md`, so it is not the
 comparison.
+
+## After #276
+
+Measured on 2026-11-09, on the filter *What is counted* describes. The tables
+above stay as the record of what was read then, and a later sync is compared
+with these, same command and same repository.
+
+### The baseline window
+
+The window of *Command lines*, closed at the day it was first run:
+
+```bash
+py -3.12 measure/stops.py --project 'C--dev-ashamray-blueprint-backend*' --since 2026-10-19 --until 2026-11-02 --command ship
+py -3.12 measure/stops.py --project 'C--dev-ashamray-blueprint-frontend*' --since 2026-10-19 --until 2026-11-02 --command ship
+py -3.12 measure/stops.py --project 'C--dev-ashamray-blueprint-admin*' --since 2026-10-19 --until 2026-11-02 --command ship
+```
+
+and the same three with `--command bug-sweep`.
+
+| Repository | Command | Sessions | ask_user | action_required | permission_refused | user_turns |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| backend | `ship` | 94 | 0 | 0 | 0 | 0 |
+| backend | `bug-sweep` | 3 | 0 | 0 | 0 | 1 |
+| frontend | `ship` | 11 | 0 | 2 | 0 | 1 |
+| frontend | `bug-sweep` | 1 | 0 | 0 | 0 | 0 |
+| admin | `ship` | 44 | 0 | 3.5 | 0 | 1 |
+| admin | `bug-sweep` | 2 | 0 | 5 | 0 | 2 |
+
+| Repository | ask_user | action_required | permission_refused | user_turns |
+| --- | --- | --- | --- | --- |
+| backend | 5, max 1 | 167, max 27 | 18, max 5 | 218, max 58 |
+| frontend | 3, max 3 | 36, max 17 | 3, max 2 | 9, max 2 |
+| admin | 0, max 0 | 286, max 67 | 15, max 5 | 95, max 21 |
+
+The filter finds three times what the first run did in backend, 94 against 31,
+four times in admin, 44 against 11, and twice in frontend, 11 against 5. Most of
+the gain is sessions a `/clear` opens.
+
+### Since a repository's first sync
+
+Admin has had no sync, so it has no row. Each window closes on 2026-11-08, the
+last whole day. Backend's is `--since 2026-11-06`, as *After plan 2* names it,
+and frontend's `--since 2026-11-08`, as *After plan 5* names it. Each cell but
+the count of sessions is the median, then the total, then the largest session.
+
+| Repository | Command | Sessions | ask_user | action_required | permission_refused | user_turns |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| backend | `ship` | 27 | 0; 0, max 0 | 1; 26, max 5 | 0; 1, max 1 | 0; 9, max 3 |
+| frontend | `ship` | 11 | 0; 0, max 0 | 1; 16, max 5 | 0; 3, max 2 | 0; 4, max 1 |
+
+Against the baseline window, `action_required` per session falls in both, from
+167 over 94 to 26 over 27 in backend, with the largest session from 27 to 5, and
+from 36 over 11 to 16 over 11 in frontend, with its median from 2 to 1. Backend's
+median alone rises, from 0 to 1, and by the plan's rule that goes on #272 with
+frontend's: most baseline sessions there stop nowhere, and a typical one since
+hands something over.
+
+### Against *After plan 5*'s count by start
+
+Frontend's rows differ from that table in what the window reads, and every
+difference is accounted for. Its baseline holds two sessions more, `2f9f0e08` and
+`7f2aa868`, which started on 2026-10-18 UTC and were last modified on 2026-10-19
+with 3 and 17 handovers; without them the row is that table's 16 over 9. Since
+#382 it holds one less, `2952e181`, which started on 2026-11-08 and was last
+modified on 2026-11-09, with 1 handover; with it the row is that table's 17 over
+12. Baseline `user_turns` is 7 without those two, not that table's 8, because
+`35bca2b1` holds a `/compact` summary the count no longer takes for a turn.
