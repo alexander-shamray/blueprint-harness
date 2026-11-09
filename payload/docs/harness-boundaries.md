@@ -2108,24 +2108,22 @@ change to `~/.claude/settings.json` is the owner's to run from a script.
 
 **The git guard refuses the same names for a shell write**, and reads them from
 one list, `HOME_TREES` and its neighbours in `guard-git-argv.py`, which the edit
-guard loads; if it cannot load them it refuses a target under the home directory.
-A redirect and a writing verb's operand are judged by spelling and by resolution,
-with `HOME` and the process's own home both read as the root, and a checkout the
-session stands in is left to its denies. The shell also may not write
-`~/.claude/projects/` or `~/.claude/output-styles/`, which the edit guard admits:
-a `Write` there meets the command's deny and a shell write meets none. Before
-this, every target outside a checkout was admitted, and
-`test_a_tilde_and_a_known_variable_are_judged_and_an_unknown_one_admitted` passed
-only because it sets `HOME` to a checkout.
+guard loads; if it cannot load them it refuses a target under the home
+directory. A redirect and a writing verb's operand are judged by spelling and by
+resolution, with `HOME` and the process's own home both read as the root, and a
+checkout the session stands in is left to its denies. The shell also may not
+write `~/.claude/projects/` or `~/.claude/output-styles/`, which the edit guard
+admits: a `Write` there meets a command's deny in the turn that holds one, and a
+shell write meets none.
 
 **A replay narrowed it.** 79,469 commands of these repositories' sessions since
 2026-10-01 gave 34 new refusals, none under the login or control names. 30 wrote
-a memory or an output style with a redirect or `sed -i`, most appending a line to
-`MEMORY.md`; the refusal names the editing tool, which does the same. 3 were `rm`
-of a stale memory, which no editing tool can do and which plants nothing, so `rm`
-and `unlink` of a file below a project's `memory/` are admitted. A `mv` stays
-refused, as the 1 typed was, since the same verb plants a file, and so does a
-removal of the directory or anything wider.
+a memory or an output style with a redirect or `sed -i`, most appending a line
+to `MEMORY.md`; the refusal names the editing tool, which does the same. 3 were
+`rm` of a stale memory, which no editing tool can do and which plants nothing,
+so `rm` and `unlink` of a file below a project's `memory/` are admitted. A `mv`
+stays refused, as the 1 typed was, since the same verb plants a file, and so
+does a removal of the directory or anything wider.
 
 ## Edit guard path resolution
 
