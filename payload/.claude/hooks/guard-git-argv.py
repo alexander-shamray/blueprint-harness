@@ -2562,11 +2562,11 @@ def fetch_offence(segment):
     return None
 
 
-# A fetch's or a pull's long options that take the next word as their value, each
-# with the shortest prefix git reads as it: `git fetch --dep` answers that `depth`
-# requires a value, and `--de` that it is ambiguous. One this misses reads as a
-# refspec, a false refusal at worst. `EXECUTING_LONG_FLAGS` refuses every word
-# shorter than `--strategy` on a pull, hence that entry's prefix.
+# A fetch's or a pull's long options that take the next word as their value,
+# each with the shortest prefix git reads as it: `git fetch --dep` answers that
+# `depth` requires a value, and `--de` that it is ambiguous. One this misses has
+# its value read as an operand, usually a false refusal. `EXECUTING_LONG_FLAGS`
+# refuses every word shorter than `--strategy` on a pull, hence its prefix here.
 FETCH_VALUE_OPTIONS = {
     "--deepen": "--dee", "--depth": "--dep", "--filter": "--fi", "--jobs": "--j",
     "--negotiation-tip": "--negotiati", "--server-option": "--ser",
