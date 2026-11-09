@@ -87,6 +87,7 @@ sweeps' `mktemp -d` ones.
 
    Match `docs/split-the-runbook`, `chore/repo-guidance-and-explicit-types`.
    Summarise the change: `docs/sql-sample-indentation`, not `docs/update-docs`.
+   Keep `git-` out of the summary, which a worktree session's push can refuse.
    For a PR the roadmap `docs/harness-local.md` *Documents* names lists,
    derive it from the title there:
    `chore: solution structure, SDK pin, central package management, CI skeleton`
