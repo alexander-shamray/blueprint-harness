@@ -3773,12 +3773,10 @@ GIT_WORD = re.compile(r"(?i)(?<![\w.])git(?:\.(?:exe|cmd|bat|com))?(?![\w.])")
 
 
 def lost_worktree(cwd):
-    """Whether `cwd` is a forked worktree's directory that git no longer knows.
+    """Whether `cwd` is under `.claude/worktrees/` with git no longer there.
 
-    A removed worktree's directory can outlive its registration on Windows, and
-    git there finds no `.git` and resolves up to the main checkout, whose
-    git-dir is its common-dir. A live linked worktree answers with its own
-    admin directory, so `.git` is a file in it and the walk stops there.
+    Git resolves up to the main checkout, whose `.git` is a directory; a live
+    linked worktree has a `.git` file, so the walk stops there.
     """
     if not cwd:
         return False
