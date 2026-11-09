@@ -114,12 +114,12 @@ with `+`, as `C+E`, for a change the contract says needs both, or the one
 three it admits, `A+D+E`, with the touch set as the union. `Touch set` is
 the paths that class allows and this branch actually edited, as globs or files
 on one line. A widened token takes its reason after its closing backtick, as
-`` `docs/x.md` (added: why) ``, in plain text; a bare token takes none. The reason's
-grammar is `docs/harness-boundaries.md`'s, *Pull request reads and the
-locality verdict*. A reason that does not fit that grammar or one line goes in
-the body beside the table, a line under it, never in the row, which
-`pr-locality.sh` refuses. A file in the diff outside the set is a finding for the
-review, and the answer is a narrower diff, a row widened with its
+`` `docs/x.md` (added: why) ``, in plain text; a bare token takes none. The
+reason's grammar is `docs/harness-boundaries.md`'s, *Pull request reads and
+the locality verdict*. A reason that does not fit that grammar or one line
+goes in the body beside the table, a line under it, never in the row, which
+`pr-locality.sh` refuses. A file in the diff outside the set is a finding for
+the review, and the answer is a narrower diff, a row widened with its
 reason beside it, or a different class — never a row widened silently.
 
 ### What the branch closes
