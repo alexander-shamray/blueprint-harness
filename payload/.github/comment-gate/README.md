@@ -147,8 +147,9 @@ the run.
 
 **`--tree` judges every line of the tracked files under the paths it is
 given**, as the working tree holds them, instead of a diff, and prints the
-same two lines for the whole tree, failing neither. It is how a sweep shows
-that a tree is under the rule; CI does not run it.
+same two lines for the whole tree, failing neither. It reads the files `--base`
+reads, Markdown prose at its width included. It is how a sweep shows that a
+tree is under the rule; CI does not run it.
 
 ## How it runs
 
