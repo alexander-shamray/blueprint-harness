@@ -3590,6 +3590,7 @@ class TheGitArgvGuard(unittest.TestCase):
             "git fetch origin main main:refs/sweeps/bug",
             "git fetch origin +refs/heads/other:refs/remotes/origin/main",
             "git fetch origin refs/heads/other:refs/remotes/origin/main",
+            "git fetch origin other:refs/remotes/origin/main",
             "git fetch origin +refs/heads/other:refs/tags/v1",
             # Two names, which the raw reading sees though an expansion's may not.
             'git fetch origin "+refs/heads/$A:refs/remotes/origin/$B"',
@@ -3630,6 +3631,7 @@ class TheGitArgvGuard(unittest.TestCase):
             "git fetch origin +refs/heads/*:refs/remotes/origin/*",
             "git fetch origin refs/heads/x:refs/remotes/origin/x",
             "git fetch -q origin +refs/heads/$B:refs/remotes/origin/$B",
+            "git fetch origin main:refs/remotes/origin/main",
             "git fetch git@github.com:alexander-shamray/blueprint-harness.git main",
             "git fetch --filter blob:none origin main",
             "git fetch origin main --filter blob:none",

@@ -2527,8 +2527,8 @@ FETCH_VALUE_OPTIONS = frozenset({
 # value origin holds there, so it can poison nothing. A dependabot rebase types
 # the first with `$B` for both names.
 ORIGIN_OWN_REF = re.compile(
-    r"^\+?refs/(?:heads/(?P<branch>[^:]+):refs/remotes/origin/(?P=branch)"
-    r"|tags/(?P<tag>[^:]+):refs/tags/(?P=tag))$")
+    r"^\+?(?:(?:refs/heads/)?(?P<branch>[^:]+):refs/remotes/origin/(?P=branch)"
+    r"|refs/tags/(?P<tag>[^:]+):refs/tags/(?P=tag))$")
 
 
 def refspec_offence(segment):
