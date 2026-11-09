@@ -1118,11 +1118,12 @@ def absorb(root, run, gid, run_refused=None):
     worktree = _field(entry, gid, "worktree", _path_text)
     source = Path(root) / worktree / "artifacts" / "dispatch" / run / f"{gid}.json"
     copy = directory / f"{gid}.json"
+    # With none in the worktree, a copy already here is this launch's: an executor wrote it to the main checkout's run
+    # directory, as H22 of run 20261108-071135 did, since the launch removed any earlier one before starting it and an
+    # unread record is proof that removal ran.
     try:
         if source.is_file():
             shutil.copyfile(source, copy)
-        else:
-            copy.unlink(missing_ok=True)
     except OSError as error:
         raise Refusal(f"could not copy {source}: {error}") from None
     issues = _field(entry, gid, "issues", _numbers_list)

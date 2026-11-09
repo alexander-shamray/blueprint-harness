@@ -257,7 +257,11 @@ one.
 ## What an executor returns
 
 The executor writes `<group>.json` in its own worktree, and `result` copies
-it into the run and checks it as untrusted data: a missing, unparsable or
+it into the run and checks it as untrusted data. One written to the main
+checkout's run directory instead is read there, under the same checks: `run`
+removed any earlier copy before it started the executor, so what stands there
+is this launch's, and a hand-back's `reason` is not lost to a relaunch. A
+missing, unparsable or
 mis-shaped result is a crash, never a success (spec §6.3), unless GitHub shows
 the merge at the worktree's tip (*Waking*). A claimed merge is believed only
 once `verify` has read it from GitHub — merged, at that oid, from that branch,
