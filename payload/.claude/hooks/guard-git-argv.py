@@ -2573,9 +2573,9 @@ FETCH_VALUE_OPTIONS = {
     "--strategy-option": "--strategy",
 }
 FETCH_VALUE_LETTERS = frozenset("Xjos")
-# What may stand ahead of one in a cluster, by allow-list: `-Ss` and `-rmerges`
-# end in a value letter and are `-S`'s and `-r`'s values, so reading the next
-# word as theirs would hide the refspec after it.
+# What may stand ahead of one in a cluster, by allow-list: `-Sj` ends in a value
+# letter and is `-S` with the key `j`, so reading the next word as its value
+# would hide the refspec after it.
 FETCH_CLUSTER_FLAGS = frozenset("qv")
 
 # `/ship`'s fast-forward of a `main` it is not standing on. The source is named
