@@ -298,7 +298,7 @@ each line of
 | `wait <g>: the window resets …` | A background `wait`, then `run`; after `stop file: yes`, `tasks back` |
 | `wait <g>: the week resets …` | Nothing; `wake` ends the night |
 | `relaunch <g>` | A background `run`; after the stop file it refuses, and `result` sends the group back |
-| `launch <g>: moved, never launched` | Fork its worktree where none exists, then `launch` and a background `run`; `launch` refusing on a red `main` is `tasks back` of the group, its worktree staying for the launch after a green one |
+| `launch <g>: moved, never launched` | Fork its worktree where none exists, then `launch` and a background `run`; `launch` refusing on a red `main` is `tasks back` of the group, as any refused launch: its rows return marked `OWNER` and its worktree stays for the owner |
 | `verify <g>` | As `merged-claimed` |
 | `done <g>: …` | Pull, containment, `tasks done`, removal, then the drop, the branch read from `git worktree list` before the removal |
 | `back <g>: …` | `tasks back` |
