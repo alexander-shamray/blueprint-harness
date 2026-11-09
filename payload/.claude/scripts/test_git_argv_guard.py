@@ -207,6 +207,25 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertRefused(command)
 
+    def test_a_tag_named_as_the_protected_branch_is_refused(self):
+        # A short refspec source takes such a tag on origin ahead of the branch.
+        for command in (
+            "git push origin HEAD:refs/tags/main",
+            "git push origin abc1234:refs/tags/main",
+            "git push origin refs/tags/main",
+        ):
+            with self.subTest(command=command):
+                self.assertIn("a tag named as the branch", self.assertRefused(command))
+        # A tag merely beginning with the name, and a branch `refs/tags/main` only
+        # under a prefix of its own.
+        for command in (
+            "git push origin v1:refs/tags/v1",
+            "git push origin HEAD:refs/tags/mainline",
+            "git push origin topic:refs/heads/refs/tags/main",
+        ):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
     def test_a_branch_that_only_looks_like_a_prefixed_main_is_admitted(self):
         # The control for the prefix strip: it removes one prefix and compares,
         # so a branch merely named `heads/main` or `refs/heads/main` under a
