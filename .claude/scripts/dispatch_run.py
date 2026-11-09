@@ -374,7 +374,7 @@ def _claimed(entries):
             if isinstance(entry, dict) and entry.get("kind") == "sync" and entry.get("status") == "merged-claimed"]
 
 
-def launch(root, run, gid, tasks_path, branch, worktree, owned_source):
+def launch(root, run, gid, tasks_path, branch, worktree, owned_source, red_source):
     directory = run_dir(root, run)
     state = load_state(directory)
     entry = _entry(state, gid)
@@ -399,6 +399,11 @@ def launch(root, run, gid, tasks_path, branch, worktree, owned_source):
     held_rows = strangers(group, owned_source())
     if held_rows:
         raise Refusal(f"{gid} is not launched: {NOT_OWNERS}: {', '.join(held_rows)}")
+    # A resumed night launches a group an earlier `wake` named before `main` turned red, and its executor would spend
+    # its session to stop at `/ship` step 6 on that issue; so the read is made here again, as `sync-launch` makes it.
+    red = red_source()
+    if red:
+        raise Refusal(f"{gid} is not launched: {'; '.join(red)}")
     # A group sent back and launched again starts afresh, as its move did: its state no longer names the earlier
     # launch's session as read, so that launch's marker, result copy, record and pid go now, or this launch is
     # refused, rather than a later run meeting them beside its own and _refused holding the slot all night.
@@ -1786,7 +1791,7 @@ def command(args: argparse.Namespace, today, bodies_from, open_from, branch_from
             return 3
         print(new_run(root, args.pairs, args.lang, now(), args.berserk))
     elif args.command == "launch":
-        launch(root, args.run, args.group, args.tasks, args.branch, args.worktree, owned_from)
+        launch(root, args.run, args.group, args.tasks, args.branch, args.worktree, owned_from, red_from)
     elif args.command == "sync-launch":
         sync_launch(root, args.run, args.pr, args.branch, args.worktree, args.oid, red_from)
     elif args.command == "sync-ready":
