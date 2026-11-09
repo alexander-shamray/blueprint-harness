@@ -2314,7 +2314,7 @@ of 34, under `Edit(<name>)`, `Edit(./<name>)`, `Edit(**/<name>)`,
 file and by `Edit` on one seeded in the listed casing, with the harness's own
 *"denied by your permission settings"*. The 18 deny controls were refused and
 the 10 allow controls written, and no refused file changed. **The fold is in
-the string, not the filesystem**: `Nuget.config` is refused with nothing on
+the comparison, not the filesystem**: `Nuget.config` is refused with nothing on
 disk, by a rule that names one casing. So this guard does not ask `denied_path`
 for the session's own project. Raised by the security-guidance plugin, on
 `blueprint-admin`'s first sync.
