@@ -76,10 +76,10 @@ class RulesetTests(unittest.TestCase):
 
     def test_every_repository_has_a_checks_entry(self) -> None:
         """A repository with no entry is one whose protection the tool cannot
-        state: targets.json's three, plus the one that follows, and no others."""
+        state: targets.json's four, and no others."""
         targets = {t["repo"] for t in json.loads((ROOT / "targets.json").read_text(encoding="utf-8"))}
-        self.assertEqual(targets, {BACKEND, FRONTEND, HARNESS})
-        self.assertEqual(set(self.data.checks), targets | {ADMIN})
+        self.assertEqual(targets, {BACKEND, FRONTEND, HARNESS, ADMIN})
+        self.assertEqual(set(self.data.checks), targets)
 
     def test_harness_checks_are_its_job_ids(self) -> None:
         """A required check is a job id; a renamed job leaves every pull
