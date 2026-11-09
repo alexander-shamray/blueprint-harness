@@ -115,8 +115,9 @@ The stop count after plan 2 is the first command line above with
 `--since 2026-11-06`, which admits the backend `ship` sessions whose
 transcript was last modified on or after that day. It is added here, as
 medians and as totals with their largest session, once two or more have
-ended; a rise against the two tables above is a harness defect, filed in
-this repository. *After #276* holds it, on the present filter.
+ended; a rise against the baseline is a harness defect, filed in this
+repository. *After #276* holds that count and the baseline it reads against,
+both on the present filter.
 
 ## After plan 5
 
