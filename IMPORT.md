@@ -165,6 +165,9 @@ A shape those names cannot see, such as a C# sample, rests on review.
 - `.github/comment-gate/README.md#.yaml` and
   `.github/comment-gate/README.md#CDATA` — `MSBuild` as a file kind the gate
   reads: true in any target.
+- `docs/harness-boundaries.md#Msbuild.rsp` — a build file named as the subject
+  of the deny matcher's case measurement (#316), a record of what was run. Its
+  lower-case `b` is what passes the gate, so this entry is the reason it stays.
 - Test fixtures that use a `dotnet` command line as a sample string
   (`test_git_argv_guard.py`, `test_index_search_hint.py`,
   `test_watch_session.py`, `test_cbx.py`) — data, right in any
