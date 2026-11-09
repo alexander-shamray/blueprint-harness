@@ -773,6 +773,7 @@ about it:
 | `Bash(git worktree add:*)` | `-B`, which resets an existing branch rather than creating one |
 | `Bash(git checkout -b:*)` | the trailing flag — `git checkout -b <name> -f origin/main` discards tracked modifications |
 | `Bash(git branch:*)` | `git branch -fd <name>` — force and delete behind a spelling the `-d`/`-D`/`--delete` denies do not match |
+| `Bash(git branch --list:*)` | `--no-list`, abbreviated down to `--no-l`, which turns list mode off, so `git branch --list --no-list -D <name>` deletes and `-f`, `-m`, `-C` and `-u` work too. With list mode on each is git's usage error or a listing, and `--no-merged`, `--no-color` and `--no-column` are reads, so the deny is `Bash(git branch --list *--no-l*)` and the grant stays, `/branch` and `/ship` needing `git branch --list <name>` |
 | `Bash(git reset HEAD:*)` | `git reset HEAD --hard` — the `--hard` deny matches the other word order |
 | `Bash(git log:*)`, `Bash(git diff:*)`, `Bash(git show:*)` | `--output=<path>`, which is an arbitrary file write with `--format=` choosing the bytes. Reproduced: `git log -1 --format=%s --output=<scratch>` wrote the commit subject, silently |
 | `Bash(git fetch:*)`, `Bash(git pull --ff-only:*)` | a URL in the repository position, and `ext::<cmd>` is a git transport that **runs its argument as a command** |
@@ -1053,6 +1054,7 @@ row is therefore a spelling the deny list does not match.
 | Rename a branch, forced | `git branch -M feature other` | `deny` | `test_destructive_classes.py` |
 | Rename a branch, long option | `git branch --move feature other` | `deny` | `test_destructive_classes.py` |
 | Move a branch over another | `git branch --force feature HEAD~1` | `deny` | `test_destructive_classes.py` |
+| Turn list mode off behind the list grant | `git branch --list --no-list -D feature` | `deny` | `test_destructive_classes.py` |
 | Remove a worktree, discarding its work | `git worktree remove -f .claude/worktrees/x` | `deny` | `test_destructive_classes.py` |
 | Merge a pull request past its checks | `gh pr merge 7 --rebase --admin` | `deny` | `test_destructive_classes.py` |
 | Write a file through a read-only command | `git log --output=out.txt` | `deny` | `test_destructive_classes.py` |
