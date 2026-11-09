@@ -51,12 +51,13 @@ class TheJobHearsARedRun(unittest.TestCase):
         self.assertNotIn("cancelled", _job())
 
     def test_the_open_pr_step_times_out_inside_the_job(self) -> None:
-        # A step past its timeout fails, and a job past its own reads `cancelled`, which the condition does not hear.
+        # A step past its timeout fails, and a job past its own reads `cancelled`, which the condition does not hear. The
+        # job's clock runs through the checkouts and setup-python first, so the step's must end with minutes to spare.
         sync = _jobs(SYNC)["sync"]
         job_limit = int(re.search(r"(?m)^    timeout-minutes: (\d+)$", sync).group(1))
         step = sync.split("- name: Open the sync pull request\n", 1)[1]
         step_limit = int(re.search(r"(?m)^        timeout-minutes: (\d+)$", step).group(1))
-        self.assertLess(step_limit, job_limit)
+        self.assertGreaterEqual(job_limit - step_limit, 5)
 
     def test_it_holds_no_token_but_the_workflows_own(self) -> None:
         # The sync token is the harness-sync environment's, and a job that names neither cannot reach it.
