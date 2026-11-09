@@ -144,14 +144,43 @@ jobs:
           python -E -s -m harness_sync open-pr --payload payload --harness . --target target \
             --commit "$commit" --repo "$TARGET" --run-url "$RUN_URL"
 
-  # A target that failed stays behind the payload with nothing else saying so, and
-  # the title is not `main is red`'s, which stops every landing (README, The sync
-  # workflow). At a job's limit `failure()` and `cancelled()` are both false, and
-  # `!cancelled()`, unlike `always()`, is false for a run cancelled whole. The step
-  # tells such a job from a superseded waiting one, which ran no steps.
-  sync-issue:
+  # Apart from sync-issue, whose group keeps one waiting job, so that only a red
+  # run can take a waiting one's place. At a job's limit `failure()` and
+  # `cancelled()` are both false, and `!cancelled()`, unlike `always()`, is false
+  # for a run cancelled whole. A cancelled job that ran steps is red, and one that
+  # ran none was superseded while waiting, or no runner took it.
+  sync-red:
     needs: [targets, sync]
     if: ${{ !cancelled() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      red: ${{ steps.read.outputs.red }}
+    steps:
+      - name: Tell a red job from a superseded one
+        id: read
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          red=$(gh api --paginate "repos/$GH_REPO/actions/runs/$GITHUB_RUN_ID/jobs" |
+            jq -r '.jobs[] | select(.conclusion == "failure" or (.conclusion == "cancelled" and (.steps | length) > 0)) | .name')
+          if [ -n "$red" ]; then
+            echo 'red=true' >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::every cancelled job here ran no steps: a newer run superseded it, or no runner took it"
+          fi
+
+  # A target that failed stays behind the payload with nothing else saying so, and
+  # the title is not `main is red`'s, which stops every landing (README, The sync
+  # workflow). A sync-red that failed gave no all-clear, so that files too.
+  sync-issue:
+    needs: [sync-red]
+    if: ${{ !cancelled() && (needs.sync-red.result == 'failure' || needs.sync-red.outputs.red == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     # One at a time, so two red runs never both see no open issue.
@@ -159,7 +188,6 @@ jobs:
       group: sync-issue
       cancel-in-progress: false
     permissions:
-      actions: read
       issues: write
     steps:
       - name: A red sync is an issue, not a notification
@@ -169,12 +197,6 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          red=$(gh api --paginate "repos/$GH_REPO/actions/runs/$GITHUB_RUN_ID/jobs" |
-            jq -r '.jobs[] | select(.conclusion == "failure" or (.conclusion == "cancelled" and (.steps | length) > 0)) | .name')
-          if [ -z "$red" ]; then
-            echo "::notice::every cancelled job here ran no steps: a newer run superseded it, or no runner took it"
-            exit 0
-          fi
           title='A sync run failed, so a target may be behind the payload'
           # A list as long as its limit may be cut, and a listing that cannot see
           # the open issue files a second one, so it is refused.
