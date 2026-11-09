@@ -1,7 +1,7 @@
 """Tests for the guard replay, against synthetic transcripts and stub guards.
 
-test_stops.py records the field shapes. A ``tool_use`` line also carries ``cwd``
-and ``sessionId``, and a subagent's lines are in ``<session>/subagents/``.
+transcript-shapes.md records the field shapes. A ``tool_use`` line also carries
+``cwd`` and ``sessionId``, and a subagent's lines are in ``<session>/subagents/``.
 """
 
 import contextlib
