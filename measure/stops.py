@@ -142,7 +142,7 @@ def _transcripts(project, root):
 
 
 def _started(transcript):
-    # Bookkeeping lines carry no timestamp, so the first one that does is the start.
+    # Some lines ahead of it carry no timestamp, and any line that does can be the start.
     for entry in _lines(transcript):
         stamp = entry.get("timestamp")
         if isinstance(stamp, str):
