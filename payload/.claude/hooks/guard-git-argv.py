@@ -231,7 +231,7 @@ STANDING_DIRECTORIES = frozenset({"output-styles", "projects"})
 def home_place(parts):
     """What the path `parts` spells below the home is: `login`, `control` or `None`.
 
-    `parts` are folded as the caller's filesystem folds them.
+    `parts` are folded by the caller: the edit guard as the filesystem does, this one always.
     """
     if parts[0] in HOME_TREES or (len(parts) == 1 and parts[0] in HOME_FILES):
         return "login"
