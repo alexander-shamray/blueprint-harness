@@ -57,7 +57,7 @@ def link_directory(link: Path, outside: Path) -> None:
         if not host_grants_no_link(refused) or os.name != "nt":
             skip_only_without_links(refused, "directory link")
         subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(outside)],
-                       capture_output=True, encoding="utf-8", check=True)
+                       capture_output=True, check=True)
 
 
 class OnlyAHostThatGrantsNoLinkSkips(unittest.TestCase):
