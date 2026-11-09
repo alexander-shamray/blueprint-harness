@@ -41,13 +41,13 @@ repo_key() {
   printf '%s|%s' "$(printf '%s' "$host" | tr 'A-Z' 'a-z')" "$path"
 }
 
-# Non-zero, with the reason on stderr, unless a force goes to one URL naming the
-# host and path the remote was added with. A protocol rewrite on one host passes;
-# another host, another path or a transport with no host does not. Its callers
-# test its status, which suspends `set -e` inside it, so each read says its own
-# failure.
+# Non-zero, with the reason on stderr, unless a force goes to one URL, and its
+# lease is read from one, each naming the host and path the remote was added
+# with. A protocol rewrite on one host passes; another host, another path or a
+# transport with no host does not. Its callers test its status, which suspends
+# `set -e` inside it, so each read says its own failure.
 origin_pushes_where_added() {
-  local urls pushes added configured resolved
+  local urls pushes added configured resolved fetched
   urls=$(git remote get-url --push --all origin) ||
     { echo "cannot read origin's push URLs, so nothing is published" >&2; return 1; }
   # A remote with several `url` values pushes to every one of them.
@@ -66,5 +66,13 @@ origin_pushes_where_added() {
   resolved=$(repo_key "$urls") || resolved=
   [ -n "$configured" ] && [ "$configured" = "$resolved" ] ||
     { echo "origin pushes to '$resolved' but was added as '$configured'; a redirected force is not published" >&2
+      return 1; }
+  # `insteadOf` moves the fetch and `pushInsteadOf` can put the push back, which
+  # leaves the comparison above whole with the lease read from elsewhere.
+  fetched=$(git remote get-url origin) ||
+    { echo "cannot read origin's fetch URL, so nothing is published" >&2; return 1; }
+  fetched=$(repo_key "$fetched") || fetched=
+  [ "$configured" = "$fetched" ] ||
+    { echo "origin fetches from '$fetched' but was added as '$configured'; a lease read there is none here; nothing is published" >&2
       return 1; }
 }

@@ -1031,6 +1031,26 @@ class TheHelperPublishesWhatItRebased(unittest.TestCase):
         self.assertIn("origin has more than one url", result.stderr)
         self.assertEqual(before, self.at("git ls-remote origin refs/heads/feat/x").stdout.split()[0])
 
+    def test_a_fetch_url_parted_from_the_push_url_is_refused_before_the_replay(self):
+        # `insteadOf` moves the fetch to a copy and `pushInsteadOf` puts the push back, so the push URL is the one the
+        # remote was added with while the lease reads another repository's tip. `start` asks before it fetches, so
+        # nothing is read from there, the branch is not replayed and no record waits for a `publish`.
+        origin = self.at("git config --get remote.origin.url").stdout.strip()
+        copy = self.root + "/copy.git"
+        self.assertEqual(0, self.at(f'git clone -q --bare "{origin}" "{copy}"').returncode)
+        self.at(f'git config --local "url.{copy}.insteadof" "{origin}"')
+        self.at(f'git config --local "url.{origin}.pushinsteadof" "{origin}"')
+        head = self.at("git rev-parse HEAD").stdout.strip()
+
+        result = self.helper()
+
+        self.assertEqual(7, result.returncode, result.stderr)
+        self.assertIn("origin fetches from", result.stderr)
+        self.assertEqual(head, self.at("git rev-parse HEAD").stdout.strip(), "the branch was replayed")
+        self.assertEqual(head, self.at(f'git -C "{origin}" rev-parse refs/heads/feat/x').stdout.strip())
+        self.assertNotEqual(0, self.at('test -e "$(git rev-parse --git-path claude-rebase-pending)"').returncode,
+                            "a record waits for a publish")
+
     def test_configuration_cannot_change_what_the_replay_does(self):
         # `rebase.rebaseMerges` would keep the merge commits this helper
         # exists to be rid of.

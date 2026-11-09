@@ -232,6 +232,19 @@ class TheHelperRefusesBeforeItPushes(Fixture):
         self.assertIn("origin has more than one url", result.stderr)
         self.assertEqual(before, self.remote(), "the branch was forced")
 
+    def test_a_fetch_url_parted_from_the_push_url_is_refused(self):
+        # `insteadOf` moves the fetch to a copy and `pushInsteadOf` puts the push back, so the push URL is the one the
+        # remote was added with while the lease and the reflog check read another repository's tip.
+        self.amend()
+        before = self.remote()
+        self.at('git clone -q --bare "$R/remote.git" "$R/copy.git"')
+        self.at('git config --local "url.$R/copy.git.insteadof" "$(git config --get remote.origin.url)"')
+        self.at('u="$(git config --get remote.origin.url)"; git config --local "url.$u.pushinsteadof" "$u"')
+        result = self.helper()
+        self.assertEqual(7, result.returncode, result.stderr)
+        self.assertIn("origin fetches from", result.stderr)
+        self.assertEqual(before, self.remote(), "the branch was forced on a lease read elsewhere")
+
     def test_remote_commits_this_checkout_never_held_are_refused(self):
         # The lease alone passes this: the other session's commit has been
         # fetched, so the tracking ref names it and git would push over it.

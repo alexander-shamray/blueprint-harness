@@ -378,6 +378,9 @@ case "$mode" in
           exit 5; }
     fi
 
+    # Ahead of the fetch, so a redirect reads nothing from where it points and the
+    # branch is not replayed; `publish` asks again, since `continue` comes later.
+    origin_pushes_where_added || exit 7
     git fetch origin
     git show-ref --verify --quiet refs/remotes/origin/main ||
       { echo "no refs/remotes/origin/main to rebase onto" >&2; exit 6; }
