@@ -156,6 +156,12 @@ The type is the one the commit will carry, so the branch and its commits
 agree. A roadmap PR's name derives from its title so the branch, the
 commit and the plan all read the same.
 
+**`git-` stays out of the summary** because Claude Code's isolation check
+refused `git push -u origin fix/git-helpers-from-admin` inside a worktree
+session as naming git more than once, so the name that holds it is the one
+thing about that push no retry changes (`docs/harness/pitfalls.md`, *Git and
+worktrees*).
+
 ## Step 4
 
 **The directory check runs only on the path that uses the directory** —
