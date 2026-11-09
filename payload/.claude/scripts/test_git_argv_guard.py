@@ -3581,7 +3581,7 @@ class TheGitArgvGuard(unittest.TestCase):
     def test_a_refspec_writes_no_ref_a_plain_fetch_would_not(self):
         # `sweep-slices.sh` narrows a sweep by `refs/sweeps/<kind>`, and `/ship`
         # reads the review bar from `origin/main`: each spelling here asks for a
-        # ref a plain fetch would not write, those two among them.
+        # ref, or a value of one, that a plain fetch would not write.
         for command in (
             "git fetch origin +main:refs/sweeps/security",
             "git fetch origin main:refs/sweeps/security",
