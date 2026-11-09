@@ -279,8 +279,7 @@ def home_offence(spelled, lexical, resolved):
     """The reason to refuse a target outside every checkout, or `None`.
 
     Spelling and resolution are both judged, so a link into `~/.ssh` is held.
-    Only `~/.claude`'s first component is control: below it is session state.
-    Names that cannot be read refuse the write rather than admit it.
+    Only `~/.claude`'s first component is control. Unreadable names refuse.
     """
     home = os.path.abspath(os.path.expanduser("~"))
     traits = traits_of(home)

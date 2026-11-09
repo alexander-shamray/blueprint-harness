@@ -2807,11 +2807,8 @@ def protected_target(path, whole=False):
 def home_target(path, cwd, command, whole=False, removing=False):
     """The name below the home that shell-written `path` reaches, or `None`.
 
-    Spelling and resolution are both judged, and the checkout the session stands
-    in is left to the denies, as the edit guard leaves it to them. With `whole`,
-    `~/.claude` itself counts, since what it holds goes with it. With `removing`,
-    a file in a project's memory is free: no editing tool removes one, and a
-    removal plants nothing.
+    Judged as spelled and as resolved, the session's own checkout left to its denies. `whole` counts
+    `~/.claude` itself; `removing` frees a project's memory file, which no editing tool can remove.
     """
     if whole and os.path.basename(path) == "*":
         path = os.path.dirname(path)
