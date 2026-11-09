@@ -385,10 +385,10 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
 
-    def test_a_legitimate_push_flag_that_merely_looks_similar_is_admitted(self):
-        # `--set-upstream` is admitted while `--fo` is refused, exactly as git
-        # refuses it for being ambiguous.
-        self.assertRefused("git push origin feature --fo")
+    def test_a_listed_push_flag_is_admitted_and_an_unlisted_prefix_is_not(self):
+        # `--fo` is refused, as git refuses it for being ambiguous.
+        self.assertIn("not one of the options",
+                      self.assertRefused("git push origin feature --fo"))
         self.assertAdmitted("git push origin feature --set-upstream")
 
     def test_an_unknown_global_option_cannot_hide_a_push(self):
