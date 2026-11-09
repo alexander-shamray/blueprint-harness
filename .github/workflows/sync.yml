@@ -144,14 +144,11 @@ jobs:
           python -E -s -m harness_sync open-pr --payload payload --harness . --target target \
             --commit "$commit" --repo "$TARGET" --run-url "$RUN_URL"
 
-  # A red run is an issue, not a notification: a target that failed stays behind
-  # the payload with nothing else saying so, and the next red run comments rather
-  # than filing again. The title is not `main is red`'s, which stops every landing
-  # (README, The sync workflow). A job past its limit reads `cancelled`, and
-  # neither `failure()` nor `cancelled()` hears that, so `!cancelled()`, which is
-  # false only for a run somebody cancels whole. The step then tells that job from
-  # a waiting one a newer run superseded, which ran no steps, and that run syncs
-  # main's tip itself.
+  # A target that failed stays behind the payload with nothing else saying so, and
+  # the title is not `main is red`'s, which stops every landing (README, The sync
+  # workflow). A job past its limit reads `cancelled`, which of the three status
+  # checks only `!cancelled()` hears, and that is false for a run cancelled whole.
+  # The step tells such a job from a superseded waiting one, which ran no steps.
   sync-issue:
     needs: [targets, sync]
     if: ${{ !cancelled() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
