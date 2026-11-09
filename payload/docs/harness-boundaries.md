@@ -191,11 +191,10 @@ Windows, in a turn whose `/ship` frontmatter was in force, a `Write` to each
 directory was refused with no prompt and one to `~/.claude/scratch/` succeeded,
 so the home-relative specifier binds the absolute path a tool is given. **The
 git guard backs them for a redirect and a writing verb, in every turn:**
-`guard-git-argv.py` refuses both under either directory (*The edit-target
-guard*). `curl -o`, `tar -x` and
-an interpreter are not on its list of verbs, so they stay open, the residual
-*Git argv guard hook* states. Whether a frontmatter deny
-reaches such a command has not been measured in blueprint-harness; a path deny
+`guard-git-argv.py` refuses both under either directory, all but the removal of
+a named memory file (*The edit-target guard*). `curl -o`, `tar -x` and an
+interpreter are not on its list of verbs, so they stay open, the residual *Git
+argv guard hook* states. Whether a frontmatter deny reaches such a command has not been measured in blueprint-harness; a path deny
 reaches a `Bash` command naming the path where it was (*A boundary an agent must
 keep across turns*), and a command that computes its path would not name it.
 
