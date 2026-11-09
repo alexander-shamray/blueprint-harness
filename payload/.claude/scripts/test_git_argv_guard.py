@@ -3610,6 +3610,7 @@ class TheGitArgvGuard(unittest.TestCase):
             "git pull --ff-only origin +main:refs/sweeps/security",
             "git pull --ff-only origin main:refs/sweeps/security",
             "git pull --ff-only --refmap=+refs/heads/main:refs/sweeps/security origin main",
+            "git pull --ff-only --ref=+refs/heads/main:refs/sweeps/security origin main",
             "git -c remote.origin.fetch=+refs/heads/main:refs/sweeps/security fetch origin",
         ):
             with self.subTest(command=command):
