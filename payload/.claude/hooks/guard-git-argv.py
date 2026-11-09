@@ -3769,7 +3769,7 @@ def powershell_git(command):
     )
 
 
-GIT_WORD = re.compile(r"(?<![\w.])git(?:\.exe)?(?![\w.])")
+GIT_WORD = re.compile(r"(?i)(?<![\w.])git(?:\.(?:exe|cmd|bat|com))?(?![\w.])")
 
 
 def lost_worktree(cwd):
