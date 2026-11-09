@@ -407,9 +407,13 @@ it would save a night a flake holds; it is rejected because it needs a new write
 grant on a session nobody is watching.
 
 `launch` reads it too, so resume's `moved, never launched` cannot start a group
-an earlier `wake` named before `main` turned red: it refuses, the dispatcher
-puts the group `tasks back`, and its worktree stays. It reads after the group's
-own checks and before anything is written.
+an earlier `wake` named before `main` turned red: it refuses, and the
+dispatcher puts the group `tasks back` as for any refused launch, so its rows
+return marked `OWNER`, no later `wake` launches it, and its worktree stays for
+the owner. That group is not held for a green `main`; the alternative, leaving
+it moved so the next resume offers it again, is rejected because no `wake` line
+would launch it in the meantime. It reads after the group's own checks and
+before anything is written.
 
 Three residues are accepted. A relaunch reads nothing, since its group already
 holds its worktree and its session's work, and a hold would leave a running
