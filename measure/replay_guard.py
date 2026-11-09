@@ -16,7 +16,7 @@ import sys
 # Run as the script the usage names, `measure/` is on the path and its parent is not.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-from measure.stops import _lines, _parts, sessions  # noqa: E402
+from measure.stops import _lines, _parts, _transcripts  # noqa: E402
 
 GUARD_TIMEOUT = 120
 PROGRESS_EVERY = 5000
@@ -26,10 +26,17 @@ _CRASHED_DENY = "crashed the guard"
 _UNJUDGED_STDERR = ("Traceback (most recent call last)", "not judging")
 
 
+def touched(project, since, root):
+    # The commands run since a day, so a session started earlier holds some of them.
+    for path in _transcripts(project, root):
+        if datetime.datetime.fromtimestamp(path.stat().st_mtime) >= since:
+            yield path
+
+
 def transcripts(project, since, root):
-    # Subagents write their own files, under a directory sessions() stops above.
-    yield from sessions(project, since, root)
-    yield from sessions(f"{project}/*/subagents", since, root)
+    # Subagents write their own files, under a directory touched() stops above.
+    yield from touched(project, since, root)
+    yield from touched(f"{project}/*/subagents", since, root)
 
 
 def bash_uses(transcript):

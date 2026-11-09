@@ -32,6 +32,14 @@ def tool_result(value, is_error=True, **extra):
     return user([part], **extra)
 
 
+def local(name):
+    """A command Claude Code runs itself, in the shape transcript-shapes.md records."""
+    command = f"<command-name>/{name}</command-name>\n<command-message>{name}</command-message>"
+    shown = {"type": "system", "subtype": "local_command"} if name in ("clear", "reload-plugins") else user(
+        "<local-command-stdout></local-command-stdout>")
+    return [user("<local-command-caveat>x</local-command-caveat>", isMeta=True), user(command), shown]
+
+
 class StopsTest(unittest.TestCase):
     def transcript(self, *lines):
         directory = tempfile.TemporaryDirectory()
@@ -97,7 +105,7 @@ class StopsTest(unittest.TestCase):
 
     def test_command_filter_matches_first_user_message(self):
         ship = self.transcript(
-            user("<local-command-caveat>x</local-command-caveat>", isMeta=True),
+            user("<system-reminder>x</system-reminder>", isMeta=True),
             user("<command-message>ship</command-message>\n<command-name>/ship</command-name>"),
         )
         later = self.transcript(user("hello"), user("<command-name>/ship</command-name>"))
@@ -107,23 +115,27 @@ class StopsTest(unittest.TestCase):
         self.assertFalse(stops.is_command_session(other, "ship"))
 
     def test_command_filter_reads_past_the_local_commands_that_open_a_session(self):
-        clear = "<command-name>/clear</command-name>\n<command-message>clear</command-message>"
-        model = "<command-name>/model</command-name>\n<command-message>model</command-message>"
-        plugins = "<command-name>/reload-plugins</command-name>"
-        ship = "<command-message>ship</command-message>\n<command-name>/ship</command-name>\n<command-args>x</command-args>"
-        after_clear = self.transcript(
-            user("<local-command-caveat>x</local-command-caveat>", isMeta=True),
-            user(clear),
-            user("<local-command-stdout></local-command-stdout>"),
-            user(ship),
-        )
-        after_all = self.transcript(user(clear), user(model), user(plugins), user(ship))
-        prose = self.transcript(user(clear), user("hello"), user(ship))
-        alone = self.transcript(user(clear))
+        ship = user("<command-message>ship</command-message>\n<command-name>/ship</command-name>\n<command-args>x</command-args>")
+        after_clear = self.transcript(*local("clear"), ship)
+        after_all = self.transcript(*local("clear"), *local("model"), *local("reload-plugins"), ship)
+        after_any = self.transcript(*local("clear"), *local("mcp"), ship)
+        prose = self.transcript(*local("clear"), user("hello"), ship)
+        alone = self.transcript(*local("clear"))
         self.assertTrue(stops.is_command_session(after_clear, "ship"))
         self.assertTrue(stops.is_command_session(after_all, "ship"))
+        self.assertTrue(stops.is_command_session(after_any, "ship"))
         self.assertFalse(stops.is_command_session(prose, "ship"))
         self.assertFalse(stops.is_command_session(alone, "ship"))
+
+    def test_only_a_caveat_right_ahead_makes_a_command_local(self):
+        ship = user("<command-name>/ship</command-name>")
+        caveat = user("<local-command-caveat>x</local-command-caveat>", isMeta=True)
+        shell = self.transcript(caveat, user("<bash-input>ls</bash-input>"), ship, user("more"))
+        quoted = self.transcript(user("<local-command-caveat>x</local-command-caveat>"), ship, user("more"))
+        answer = self.transcript(assistant(text("<local-command-caveat>x")), ship, user("more"))
+        for path in (shell, quoted, answer):
+            self.assertTrue(stops.is_command_session(path, "ship"))
+            self.assertEqual(stops.count_stops(path)["user_turns"], 1)
 
     def test_command_filter_refuses_a_message_that_only_quotes_the_tag(self):
         quoted = self.transcript(user("Review this change:\n+ <command-name>/ship</command-name>"))
@@ -134,18 +146,26 @@ class StopsTest(unittest.TestCase):
         self.assertFalse(stops.is_command_session(unclosed, "ship"))
 
     def test_user_turns_start_after_the_command_a_clear_opens(self):
-        clear = "<command-name>/clear</command-name>"
-        ship = "<command-name>/ship</command-name>"
+        ship = user("<command-name>/ship</command-name>")
+        more = user("more")
         cases = (
-            (0, [user(clear)]),
-            (0, [user(clear), user(ship)]),
-            (1, [user(clear), user(ship), user("more")]),
-            (1, [user(clear), user("<command-name>/model</command-name>"), user(ship), user("more")]),
-            (1, [user(ship), user("more")]),
-            (2, [user(ship), user("<command-name>/model</command-name>"), user("more")]),
+            (0, [*local("clear")]),
+            (0, [*local("clear"), ship]),
+            (1, [*local("clear"), ship, more]),
+            (1, [*local("clear"), *local("model"), ship, more]),
+            (1, [ship, more]),
         )
         for expected, lines in cases:
             self.assertEqual(stops.count_stops(self.transcript(*lines))["user_turns"], expected, lines)
+
+    def test_a_local_command_later_in_a_session_is_not_a_turn(self):
+        ship = user("<command-name>/ship</command-name>")
+        more = user("more")
+        for name in ("model", "compact", "mcp", "reload-plugins", "exit"):
+            lines = [ship, *local(name), more]
+            self.assertEqual(stops.count_stops(self.transcript(*lines))["user_turns"], 1, name)
+        skill = user("<command-name>/commit</command-name>")
+        self.assertEqual(stops.count_stops(self.transcript(ship, skill, more))["user_turns"], 2)
 
     def test_a_compact_summary_is_not_a_user_turn(self):
         summary = user("This session is being continued from a previous conversation.", isCompactSummary=True,
@@ -155,29 +175,62 @@ class StopsTest(unittest.TestCase):
         self.assertTrue(stops.is_command_session(self.transcript(summary, user("<command-name>/ship</command-name>")),
                                                  "ship"))
 
-    def test_until_bounds_the_window_and_holds_its_own_day(self):
+    def window(self, sessions, *args):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         project = pathlib.Path(directory.name) / "project"
         project.mkdir()
-        modified = {"before": (2026, 10, 18, 23, 59), "first": (2026, 10, 19, 0, 0), "last": (2026, 11, 2, 23, 59),
-                    "after": (2026, 11, 3, 0, 0)}
-        for name, when in modified.items():
-            path = project / f"{name}.jsonl"
-            path.write_text(json.dumps(user("go")) + "\n", encoding="utf-8")
-            stamp = datetime.datetime(*when).timestamp()
-            os.utime(path, (stamp, stamp))
+        for name, lines in sessions.items():
+            (project / f"{name}.jsonl").write_text("\n".join(json.dumps(line) for line in lines) + "\n", encoding="utf-8")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = stops.main(["--project", "project", "--root", directory.name, *args])
+        self.assertEqual(code, 0)
+        rows = [json.loads(line) for line in out.getvalue().splitlines()]
+        return [row["session"] for row in rows[:-1]]
 
-        def run(*window):
-            out = io.StringIO()
-            with contextlib.redirect_stdout(out):
-                code = stops.main(["--project", "project", "--root", directory.name, *window])
-            self.assertEqual(code, 0)
-            rows = [json.loads(line) for line in out.getvalue().splitlines()]
-            return [row["session"] for row in rows[:-1]]
+    def test_until_bounds_the_window_and_holds_its_own_day(self):
+        sessions = {
+            "before": [user("go", timestamp="2026-10-18T23:59:59.999Z")],
+            "first": [user("go", timestamp="2026-10-19T00:00:00.000Z")],
+            "last": [user("go", timestamp="2026-11-02T23:59:59.999Z")],
+            "after": [user("go", timestamp="2026-11-03T00:00:00.000Z")],
+        }
+        self.assertEqual(self.window(sessions, "--since", "2026-10-19", "--until", "2026-11-02"), ["first", "last"])
+        self.assertEqual(self.window(sessions, "--since", "2026-10-19"), ["after", "first", "last"])
 
-        self.assertEqual(run("--since", "2026-10-19", "--until", "2026-11-02"), ["first", "last"])
-        self.assertEqual(run("--since", "2026-10-19"), ["after", "first", "last"])
+    def test_the_window_reads_a_sessions_start_and_not_its_later_use(self):
+        sessions = {
+            "resumed_inside": [user("go", timestamp="2026-10-18T02:25:20.788Z"),
+                               user("more", timestamp="2026-10-19T04:01:06.901Z")],
+            "resumed_after": [user("go", timestamp="2026-11-02T10:00:00.000Z"),
+                              user("more", timestamp="2026-11-03T10:00:00.000Z")],
+        }
+        self.assertEqual(self.window(sessions, "--since", "2026-10-19", "--until", "2026-11-02"), ["resumed_after"])
+
+    def test_the_window_ignores_the_files_modification_time(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        project = pathlib.Path(directory.name) / "project"
+        project.mkdir()
+        path = project / "session.jsonl"
+        path.write_text(json.dumps(user("go", timestamp="2026-10-20T00:00:00.000Z")) + "\n", encoding="utf-8")
+        stamp = datetime.datetime(2026, 12, 1).timestamp()
+        os.utime(path, (stamp, stamp))
+        since = datetime.datetime(2026, 10, 19, tzinfo=datetime.UTC)
+        before = datetime.datetime(2026, 11, 3, tzinfo=datetime.UTC)
+        self.assertEqual(list(stops.sessions("project", since, pathlib.Path(directory.name), before)), [path])
+
+    def test_a_sessions_start_is_its_first_stamped_line_in_utc(self):
+        ahead = [{"type": "mode", "mode": "auto"}, {"type": "ai-title", "aiTitle": "x"}]
+        sessions = {
+            "bookkeeping": [*ahead, {"type": "queue-operation", "timestamp": "2026-10-19T01:00:00.000Z"}, user("go")],
+            "offset": [user("go", timestamp="2026-10-19T06:00:00+07:00")],
+            "unreadable": [user("go", timestamp="not a date"), user("go", timestamp=1),
+                           user("more", timestamp="2026-10-19T02:00:00.000Z")],
+            "unstamped": [*ahead, user("go")],
+        }
+        self.assertEqual(self.window(sessions, "--since", "2026-10-19"), ["bookkeeping", "unreadable"])
 
     def test_median_line_reports_zero_sessions(self):
         self.assertEqual(stops.summarise([]), {"sessions": 0, "median": None})

@@ -27,9 +27,7 @@ _NO_HANDOVER = _ACTION_REQUIRED + " — none"
 _NOT_A_TURN = ("<local-command", "<bash-input>", "<bash-stdout>", "<bash-stderr>", "<task-notification>",
                "<system-reminder>", "[Request interrupted")
 _COMMAND_TAG = re.compile(r"\s*(?:<command-message>[^<]*</command-message>\s*)?<command-name>/([^<]*)</command-name>")
-# Local commands that set a session up rather than ask it for anything, so its
-# task opens after them: `/clear` is what one task per session asks for.
-_SESSION_SETUP = ("clear", "model", "reload-plugins")
+_LOCAL_CAVEAT = "<local-command-caveat"
 
 
 def _lines(transcript):
@@ -82,9 +80,18 @@ def _command_opening(entry):
     return match.group(1) if match else None
 
 
+def _is_local_command(entry, previous):
+    # A command Claude Code runs itself asks the session for nothing, so it opens
+    # no task and is no turn. Only such a command has this line right ahead of it.
+    if _command_opening(entry) is None or previous.get("type") != "user" or not previous.get("isMeta"):
+        return False
+    return _flatten((previous.get("message") or {}).get("content") or "").lstrip().startswith(_LOCAL_CAVEAT)
+
+
 def count_stops(transcript):
     counts = dict.fromkeys(KEYS, 0)
     opened = False
+    previous = {}
     for entry in _lines(transcript):
         kind = entry.get("type")
         if kind == "assistant":
@@ -100,20 +107,20 @@ def count_stops(transcript):
                 if part.get("type") == "tool_result" and part.get("is_error"):
                     if _PERMISSION_REFUSAL.match(_flatten(part.get("content") or "")):
                         counts["permission_refused"] += 1
-            if _is_genuine_user(entry):
+            if _is_genuine_user(entry) and not _is_local_command(entry, previous):
                 if opened:
                     counts["user_turns"] += 1
-                else:
-                    opened = _command_opening(entry) not in _SESSION_SETUP
+                opened = True
+        previous = entry
     return counts
 
 
 def is_command_session(transcript, command):
+    previous = {}
     for entry in _lines(transcript):
-        if _is_genuine_user(entry):
-            opening = _command_opening(entry)
-            if opening not in _SESSION_SETUP:
-                return opening == command
+        if _is_genuine_user(entry) and not _is_local_command(entry, previous):
+            return _command_opening(entry) == command
+        previous = entry
     return False
 
 
@@ -128,28 +135,45 @@ def summarise(rows):
     }
 
 
-def sessions(project, since, root, before=None):
+def _transcripts(project, root):
     pattern = project if pathlib.Path(project).is_absolute() else str(root / project)
     for directory in sorted(glob.glob(pattern)):
-        for path in sorted(pathlib.Path(directory).glob("*.jsonl")):
-            modified = datetime.datetime.fromtimestamp(path.stat().st_mtime)
-            if modified >= since and (before is None or modified < before):
-                yield path
+        yield from sorted(pathlib.Path(directory).glob("*.jsonl"))
+
+
+def _started(transcript):
+    # Bookkeeping lines carry no timestamp, so the first one that does is the start.
+    for entry in _lines(transcript):
+        stamp = entry.get("timestamp")
+        if isinstance(stamp, str):
+            try:
+                return datetime.datetime.fromisoformat(stamp).astimezone(datetime.UTC)
+            except ValueError:
+                continue
+    return None
+
+
+def sessions(project, since, root, before=None):
+    for path in _transcripts(project, root):
+        started = _started(path)
+        if started is not None and started >= since and (before is None or started < before):
+            yield path
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--project", required=True, help="project directory name or glob under --root")
-    parser.add_argument("--since", required=True, type=datetime.date.fromisoformat)
+    parser.add_argument("--since", required=True, type=datetime.date.fromisoformat,
+                        help="the window's first day, in UTC: a session counts by the day it started")
     parser.add_argument("--until", type=datetime.date.fromisoformat, help="the window's last day, itself included")
-    parser.add_argument("--command", help="only sessions whose first user message, past any /clear, /model or "
-                                          "/reload-plugins, opens with /<command>")
+    parser.add_argument("--command", help="only sessions whose first user message, past any local command such as "
+                                          "/clear or /model, opens with /<command>")
     parser.add_argument("--root", type=pathlib.Path, default=pathlib.Path.home() / ".claude" / "projects")
     args = parser.parse_args(argv)
-    since = datetime.datetime.combine(args.since, datetime.time.min)
+    since = datetime.datetime.combine(args.since, datetime.time.min, datetime.UTC)
     before = None
     if args.until:
-        before = datetime.datetime.combine(args.until + datetime.timedelta(days=1), datetime.time.min)
+        before = datetime.datetime.combine(args.until + datetime.timedelta(days=1), datetime.time.min, datetime.UTC)
     rows = []
     for path in sessions(args.project, since, args.root, before):
         if args.command and not is_command_session(path, args.command):
