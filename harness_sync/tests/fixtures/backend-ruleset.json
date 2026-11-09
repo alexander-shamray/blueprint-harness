@@ -67,6 +67,10 @@
           {
             "context": "commit-gate",
             "integration_id": 15368
+          },
+          {
+            "context": "harness-drift",
+            "integration_id": 15368
           }
         ]
       }

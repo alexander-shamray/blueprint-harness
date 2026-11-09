@@ -81,6 +81,16 @@ class RulesetTests(unittest.TestCase):
         self.assertEqual(targets, {BACKEND, FRONTEND, HARNESS, ADMIN})
         self.assertEqual(set(self.data.checks), targets)
 
+    def test_every_synced_repository_requires_harness_drift(self) -> None:
+        """The drift gate refuses a changed managed file only where a ruleset
+        requires it; elsewhere it reads red and the pull request merges. Read
+        from `targets/`, so a target onboarded later is covered too."""
+        configs = sorted((ROOT / "targets").glob("*.config.json"))
+        repos = {json.loads(p.read_text(encoding="utf-8"))["repo"] for p in configs}
+        self.assertTrue(repos, "no target config under targets/")
+        missing = sorted(r for r in repos | {HARNESS} if "harness-drift" not in self.data.checks.get(r, []))
+        self.assertEqual(missing, [], "harness-drift is not required")
+
     def test_harness_checks_are_its_job_ids(self) -> None:
         """A required check is a job id; a renamed job leaves every pull
         request waiting for a check that never reports. Read from the

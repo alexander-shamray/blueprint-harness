@@ -39,7 +39,8 @@
       "commits",
       "closure-gate",
       "locality-gate",
-      "commit-gate"
+      "commit-gate",
+      "harness-drift"
     ],
     "alexander-shamray/blueprint-harness": [
       "sync-tool",
