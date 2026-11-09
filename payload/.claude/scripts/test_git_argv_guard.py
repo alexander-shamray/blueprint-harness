@@ -3699,8 +3699,8 @@ class TheGitArgvGuard(unittest.TestCase):
 
     def test_a_value_option_takes_its_value_however_it_is_abbreviated(self):
         # #300: each read its value as an operand, and so refused as not origin
-        # or as a destination. One row an option, at the shortest prefix git reads
-        # as it, beside one option the value has a colon in and one that does not.
+        # or as a destination. The rows hold each option's shortest prefix git
+        # reads as it, and some a longer one.
         for command in (
             "git fetch --dep 1 origin refs/heads/main:main",
             "git fetch --dee 1 origin refs/heads/main:main",
