@@ -127,8 +127,10 @@ class AnythingElseStays(Fixture):
         self.assertTrue(self.on_origin("main"))
 
     def test_an_argument_more_or_less_is_usage(self):
-        result = run_bash('cd "$W"\nbash "$H"', W=self.work, H=str(HELPER))
-        self.assert_kept(result, 2, "usage: git-sync-head-drop.sh")
+        for arguments in ("", f"{SYNC} {SYNC}"):
+            with self.subTest(arguments=arguments):
+                result = run_bash(f'cd "$W"\nbash "$H" {arguments}', W=self.work, H=str(HELPER))
+                self.assert_kept(result, 2, "usage: git-sync-head-drop.sh")
 
     def test_a_merged_row_at_another_tip_is_work_no_merge_holds(self):
         self.assert_kept(self.helper(rows=[self.row(oid=OTHER_OID)]), 7, "at origin's tip")
