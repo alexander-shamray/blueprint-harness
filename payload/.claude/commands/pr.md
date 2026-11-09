@@ -114,8 +114,11 @@ with `+`, as `C+E`, for a change the contract says needs both, or the one
 three it admits, `A+D+E`, with the touch set as the union. `Touch set` is
 the paths that class allows and this branch actually edited, as globs or files
 on one line. A widened token takes its reason after its closing backtick, as
-`` `docs/x.md` (added: why) ``, in plain text; a bare token takes none. A file
-in the diff outside the set is a finding for the
+`` `docs/x.md` (added: why) ``, in plain text with no backtick and no nested
+parenthesis; a bare token takes none. A longer reason goes in the body beside
+the table, a line under it, never in the row: `pr-locality.sh` refuses a row
+holding anything but a path list and those short reasons, and its grammar is
+pinned by tests. A file in the diff outside the set is a finding for the
 review, and the answer is a narrower diff, a row widened with its
 reason beside it, or a different class — never a row widened silently.
 
@@ -140,6 +143,10 @@ and a commit message is not, which is why withdrawing a closure from the body
 reads as sufficient and is not. If a commit already closes an issue the branch
 has since decided to leave open, name it in the description, let it close, and
 reopen it with the reason on the issue itself.
+
+**A pull request that takes only part of an issue names it without a closing
+keyword**: `Refs #n`, or `Part of #n`, in the body and the commits. A
+`Closes` on the part closes the issue with the rest of its work undone.
 
 **A keyword the body only *discusses* still links.** GitHub's linker does not
 read markdown, so a `` `Closes #30` `` quoted inside an argument about closures
