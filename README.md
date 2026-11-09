@@ -161,12 +161,11 @@ the target's manifest, or than a sync already open, is refused.
 
 It needs `HARNESS_SYNC_TOKEN`: a fine-grained token with Contents, Pull
 requests and Workflows read-write on every repository in `targets.json`, this
-one included (four once admin is listed). Workflows, because the
-payload ships `.github/workflows/` files and GitHub refuses a push that
-changes one without it. The workflow's own `GITHUB_TOKEN` cannot stand in,
-because a pull request it opens starts none of the target's required checks.
-Until the secret is set, each target is skipped with a notice and the run
-stays green.
+one included. Workflows, because the payload ships `.github/workflows/` files
+and GitHub refuses a push that changes one without it. The workflow's own
+`GITHUB_TOKEN` cannot stand in, because a pull request it opens starts none of
+the target's required checks. Until the secret is set, each target is skipped
+with a notice and the run stays green.
 
 The token is a secret of the `harness-sync` environment, never of the
 repository. The first `sync.yml` run on `main` creates a missing environment
