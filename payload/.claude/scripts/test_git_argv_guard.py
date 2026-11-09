@@ -77,8 +77,11 @@ class TheGitArgvGuard(unittest.TestCase):
     commands no allow or deny rule is consulted for.
     """
 
-    def judge(self, command, tool="Bash"):
-        """The hook's verdict on one command: None to allow, or the reason."""
+    def judge(self, command, tool="Bash", cwd=None):
+        """The hook's verdict on one command: None to allow, or the reason.
+
+        `cwd` is the directory the hook runs in, the process's own when `None`.
+        """
         event = {"tool_name": tool, "tool_input": {"command": command}}
         # A verdict that arrives after the harness's 60 seconds is no verdict,
         # and a hook with none is non-blocking, so a slow answer is the failure
@@ -87,7 +90,7 @@ class TheGitArgvGuard(unittest.TestCase):
             result = subprocess.run(
                 [sys.executable, str(HOOK)],
                 input=json.dumps(event), capture_output=True, text=True, encoding="utf-8",
-                timeout=HOOK_TIMEOUT,
+                timeout=HOOK_TIMEOUT, cwd=cwd,
             )
         except subprocess.TimeoutExpired:
             self.fail(f"no verdict within {HOOK_TIMEOUT}s: {command[:80]!r}")
@@ -2686,7 +2689,9 @@ class TheGitArgvGuard(unittest.TestCase):
         self.assertEqual(
             2, len(guard.heredoc_spans(command)),
             "both bodies are found, not just the one before the apostrophe")
-        self.assertAdmitted(command)
+        # A relative `a.md` resolves under the directory the guard runs in, so
+        # the case sets one that no deny covers.
+        self.assertIsNone(self.judge(command, cwd=temp_root(self)), command)
 
         # And the fail-safe direction is unchanged: a command after a body,
         # however the body quotes, is still judged.
@@ -4305,10 +4310,11 @@ class TheListsTheGuardReads(unittest.TestCase):
         """Whether one of the folded `paths` names the root file `name`.
 
         `fnmatchcase` wants a `/` before `**/`, so `denied_path` asks such a rule
-        again without it, and so does this.
+        again without it, and a `x/**` rule names the root file `x`, so does this.
         """
         return any(fnmatch.fnmatchcase(name, path) or (
-                       path.startswith("**/") and fnmatch.fnmatchcase(name, path[3:]))
+                       path.startswith("**/") and fnmatch.fnmatchcase(name, path[3:])) or (
+                       path.endswith("/**") and name == path[:-3])
                    for path in paths)
 
     def managed_commands(self):
@@ -4364,10 +4370,12 @@ class TheListsTheGuardReads(unittest.TestCase):
         # The test above reaches a `**/` rule only where a target's own config
         # names a root file under one; these rules reach it in every copy.
         module = self.guard_module()
-        rules = ("**/playwright.config.ts", "**/*.config.mts", "package.json", ".github/**")
+        rules = ("**/playwright.config.ts", "**/*.config.mts", "package.json", ".github/**",
+                 "tools/**")
         module.edit_denies = lambda: rules
         for name, named in (("playwright.config.ts", True), ("vite.config.mts", True),
-                            ("package.json", True), ("playwright.config.ts.bak", False),
+                            ("package.json", True), (".github", True), ("tools", True),
+                            ("playwright.config.ts.bak", False),
                             ("readme.md", False)):
             with self.subTest(name=name):
                 self.assertEqual(named, self.named_at_root(name, rules))
