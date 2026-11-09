@@ -26,7 +26,7 @@ the whole is about 31k. `Grep -n "^## <title>"` gives its first line.
 | Agent-type and push entries | Agent-type deny enumeration and the inverted push check. |
 | The edit-target guard | The symbolic-link premise and guard-edit-target.py refusing spelling mismatches. |
 | Edit guard path resolution | Link anchors, case folding, checkout-root anchors, UNC and device prefixes, and short-name aliases. |
-| Normalisation, residuals and the sweeps | Unicode and per-directory traits, the .. admission, out-of-tree residual, how the sweeps share worktrees, and their slice lists and ref. |
+| Normalisation, residuals and the sweeps | Unicode and per-directory traits, the deny matcher's case folding, the .. admission, out-of-tree residual, how the sweeps share worktrees, and their slice lists and ref. |
 | The sed line-ending guard | guard-sed-crlf.py refusing `sed -i` on a tracked CRLF file: what it reads, what a crafted path makes it run, where it fails open, and its residuals. |
 | Headless dispatched sessions | Unattended `claude -p` executors, what holds them, why no grant was added, and the night's residuals: a refusal read in the morning, and the weekly stop. |
 | The suite's shard runner | shard-harness-suite.py dealing the `.claude/scripts` classes to parallel workers, what it may never stop placing, its tables, and its one-run-per-user lock. |
@@ -2297,6 +2297,42 @@ missing-leaf case was the other suggestion, and it is refused on this guard's
 own rule**: `expected` rarely exists when a `Write` creates a file, so refusing
 there would fire on the commonest innocent call the hook sees, and a guard that
 fires on innocent traffic is one somebody turns off.
+
+**An edit in the session's own project meets no list of this guard's, so what
+holds another casing of a denied name there is the harness's own matcher, and
+on Windows it folds.** A build tool loads `Nuget.config`,
+`directory.build.targets` and `Msbuild.rsp` as it loads the listed spellings on
+a filesystem that folds, a config can only enumerate spellings, and
+`guard-edit-target.py` asks `denied_path`, which folds, only for a checkout the
+session is not standing in (#316). Measured on Claude Code 2.1.319, Windows 11
+and NTFS, in 62 nested `claude -p` sessions, each in a scratch project whose
+only settings were the denies under test: every other casing was refused, 34
+of 34, under `Edit(<name>)`, `Edit(./<name>)`, `Edit(**/<name>)`,
+`blueprint-admin`'s own rules and `Edit(.harness/**)`, by `Write` on an absent
+file and by `Edit` on one seeded in the listed casing, with the harness's own
+*"denied by your permission settings"*. The 18 deny controls were refused and
+the 10 allow controls written, and no refused file changed. **The fold is in
+the string, not the filesystem**: `Nuget.config` is refused with nothing on
+disk, by a rule that names one casing. So this guard does not ask `denied_path`
+for the session's own project. Raised by the security-guidance plugin, on
+`blueprint-admin`'s first sync.
+
+**Its residual is macOS, which is read and not measured, and the next release,
+which is neither.** No other platform was to hand to measure on, and a fold
+conditioned on the platform would pass on Windows and miss on APFS. The binary
+bundles the `ignore` library, whose constructor defaults `ignorecase` to true,
+and its strings name that library beside the permission rules; the call site is
+bytecode, so neither the options it passes nor a branch on the platform was
+seen. That makes macOS likely to fold and does not establish it. If it is ever
+measured not to, the answer is this guard asking `denied_path` for the session's
+own project too, with a replay of the edits it would newly refuse.
+
+**A name with no slash is unanchored in the matcher and anchored in
+`denied_path`, so a rule's `**/` twin is not redundant.** `Edit(NuGet.Config)`
+and `Edit(./NuGet.Config)` both refused `src/NuGet.Config` in the same
+sessions, so in the session's own project the `./` anchors nothing.
+`denied_path` matches from the checkout's root, so in a worktree the session
+has not entered it is `Edit(**/NuGet.Config)` that holds the nested file.
 
 **A `..` that traverses no link is admitted, and the reason is a measurement
 of the harness rather than a judgement about paths.** The case for refusing it
