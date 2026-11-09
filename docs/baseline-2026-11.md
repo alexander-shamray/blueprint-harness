@@ -242,18 +242,19 @@ the count of sessions is the median, then the total, then the largest session.
 
 Against the baseline window, `action_required` per session falls in both, from
 167 over 94 to 26 over 27 in backend, with the largest session from 27 to 5, and
-from 36 over 11 to 16 over 11 in frontend, with its median from 2 to 1. Backend's
-median alone rises, from 0 to 1, and by the plan's rule that goes on #272 with
-frontend's: most baseline sessions there stop nowhere, and a typical one since
-hands something over.
+from 36 over 11 to 16 over 11 in frontend, with its median from 2 to 1.
+Backend's median alone rises, from 0 to 1, and by the plan's rule that goes on
+#272 with frontend's: most baseline sessions there stop nowhere, and a typical
+one since hands something over.
 
 ### Against *After plan 5*'s count by start
 
 Frontend's rows differ from that table in what the window reads, and every
-difference is accounted for. Its baseline holds two sessions more, `2f9f0e08` and
-`7f2aa868`, which started on 2026-10-18 UTC and were last modified on 2026-10-19
-with 3 and 17 handovers; without them the row is that table's 16 over 9. Since
-#382 it holds one less, `2952e181`, which started on 2026-11-08 and was last
-modified on 2026-11-09, with 1 handover; with it the row is that table's 17 over
-12. Baseline `user_turns` is 7 without those two, not that table's 8, because
-`35bca2b1` holds a `/compact` summary the count no longer takes for a turn.
+difference is accounted for. Its baseline holds two sessions more, `2f9f0e08`
+and `7f2aa868`, which started on 2026-10-18 UTC and were last modified on
+2026-10-19 with 3 and 17 handovers; without them the row is that table's 16
+over 9. Since #382 it holds one less, `2952e181`, which started on 2026-11-08
+and was last modified on 2026-11-09, with 1 handover; with it the row is that
+table's 17 over 12. Baseline `user_turns` is 7 without those two, not that
+table's 8, because `35bca2b1` holds a `/compact` summary the count no longer
+takes for a turn.
