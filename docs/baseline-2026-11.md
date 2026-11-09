@@ -67,13 +67,13 @@ and the same three with `--command bug-sweep`. Run on 2026-11-02, on the filter
 | admin | `ship` | 11 | 0 | 2 | 0 | 2 |
 | admin | `bug-sweep` | 0 | none | none | none | none |
 
-There are no `bug-sweep` sessions in backend or admin in the window, so those
-two rows have no median and give no baseline. The frontend `bug-sweep` row is
-one session and is not a median in any useful sense.
+That filter read no `bug-sweep` sessions in backend or admin in the window, so
+those two rows have no median and give no baseline. The frontend `bug-sweep` row
+is one session and is not a median in any useful sense.
 
 ## Totals and the largest session, `ship` sessions
 
-The medians are mostly zero, so the totals show where the stops fall. Each
+The medians were mostly zero, so the totals show where the stops fell. Each
 cell is the total over the sessions, then the largest in one session. They
 came from the `total` and `max` fields of the final line the commands above
 printed for `--command ship` on 2026-11-02.
@@ -84,9 +84,10 @@ printed for `--command ship` on 2026-11-02.
 | frontend | 3, max 3 | 5, max 3 | 2, max 2 | 3, max 3 |
 | admin | 0, max 0 | 89, max 38 | 6, max 4 | 50, max 29 |
 
-Most `ship` sessions run without a stop; a few long ones carry most of the
-handovers. A comparison after the move should read both tables, and should
-compare like with like: the same command, the same repository.
+As that filter read them, most `ship` sessions ran without a stop and a few long
+ones carried most of the handovers. A comparison after the move should read the
+medians and the totals both, and should compare like with like: the same
+command, the same repository.
 
 ## After plan 2
 
