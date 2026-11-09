@@ -3580,8 +3580,8 @@ class TheGitArgvGuard(unittest.TestCase):
 
     def test_a_refspec_writes_no_ref_a_plain_fetch_would_not(self):
         # `sweep-slices.sh` narrows a sweep by `refs/sweeps/<kind>`, and `/ship`
-        # reads the review bar from `origin/main`: each spelling here wrote one
-        # of them in a repository with a local bare origin.
+        # reads the review bar from `origin/main`: each spelling here asks for a
+        # ref a plain fetch would not write, those two among them.
         for command in (
             "git fetch origin +main:refs/sweeps/security",
             "git fetch origin main:refs/sweeps/security",
@@ -3615,7 +3615,7 @@ class TheGitArgvGuard(unittest.TestCase):
         ):
             with self.subTest(command=command):
                 self.assertRefused(command)
-        # What a plain fetch writes anyway, and a colon that is not a refspec's.
+        # Only what origin holds there, and a colon that is not a refspec's.
         for command in (
             "git fetch origin main:main", "git fetch -q --depth 1 origin main:main",
             "git fetch origin main:", "git fetch origin +main", "git fetch origin tag v1",
