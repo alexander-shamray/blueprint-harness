@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fork /branch step 5's worktree under .claude/worktrees/, and nothing else.
+# Fork /branch step 5's worktree under .claude/worktrees/, or undo its branch.
 #
 # The whole command is fixed: `git worktree add --no-track -b <branch> <path>
 # origin/main`. A prefix grant on `git worktree add` also buys `-B`, which
