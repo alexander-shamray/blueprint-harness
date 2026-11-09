@@ -38,14 +38,10 @@ ARTIFACT_STAGES = (("obj", "restore"), ("bin", "build"))
 
 
 def find_solution(repo_root: Path) -> tuple[Path | None, list[str]]:
-    """The one `.slnx` at the repository's root, or why there is not one.
-
-    Found rather than named, because each target calls its solution something
-    of its own and the tree already says what. Exactly one is accepted: with
-    none there is no inventory to reconcile the walk against, and with several
-    the gate cannot tell which one CI builds, so it refuses both rather than
-    reconcile against a guess.
-    """
+    """The one `.slnx` at the root, found rather than named, since each target
+    names its own. None leaves no inventory to reconcile the walk against, and
+    several leave the gate unable to tell which one CI builds, so both are
+    refused rather than reconciled against a guess."""
     solutions = sorted(path for path in repo_root.glob("*.slnx") if path.is_file())
     if len(solutions) == 1:
         return solutions[0], []
@@ -66,12 +62,9 @@ def find_solution(repo_root: Path) -> tuple[Path | None, list[str]]:
 def solution_projects(solution: Path) -> list[Path]:
     """Every project the solution lists, as repository-relative paths.
 
-    Stdlib `ElementTree` rather than `defusedxml`, on the licence gate's
-    argument one directory over and for the same reason: no dependency, and the
-    input is not untrusted. This parses the solution from the checkout the
-    gate is running inside, and a repository that could plant a hostile
-    solution file could plant this script instead.
-    """
+    Stdlib `ElementTree`, not `defusedxml`, on the licence gate's argument: no
+    dependency, and a checkout that could plant a hostile solution file could
+    plant this script instead."""
     root = ElementTree.parse(solution).getroot()
 
     projects: list[Path] = []
@@ -232,15 +225,10 @@ def find_residue(repo_root: Path) -> list[str]:
 
 
 def audit(repo_root: Path) -> list[str]:
-    """Every finding, in the order a reader can act on them.
-
-    The solution is found before anything else, because the subject check is
-    a reconciliation against it and there is nothing to reconcile without one.
-    The subject comes next on purpose: a mismatch there changes what the other
-    checks were even about, so reporting them alongside would be three findings
-    where there is one. A duplicate name comes third for the narrower version
-    of the same reason — every lookup after it is by name.
-    """
+    """Every finding, in the order a reader can act on them: the solution first,
+    as the subject check reconciles against it; the subject next, as a mismatch
+    there changes what the other checks were about and would make one finding
+    three; a duplicate name third, as every lookup after it is by name."""
     solution, findings = find_solution(repo_root)
     if solution is None:
         return findings
