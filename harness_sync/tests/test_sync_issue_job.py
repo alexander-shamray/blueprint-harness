@@ -72,7 +72,8 @@ class TheJobHearsARedRun(unittest.TestCase):
         self.assertRegex(_job(), r"(?m)^      group: sync-issue$")
         self.assertNotIn("concurrency:", _red())
         self.assertIn(
-            "if: ${{ !cancelled() && (needs.sync-red.result == 'failure' || needs.sync-red.outputs.red == 'true') }}",
+            "if: ${{ !cancelled() && (needs.sync-red.result == 'failure' || needs.sync-red.result == 'cancelled'"
+            " || needs.sync-red.outputs.red == 'true') }}",
             _job())
         self.assertRegex(_red(), r"(?m)^      red: \$\{\{ steps\.read\.outputs\.red \}\}$")
         self.assertRegex(_red(), r"(?m)^        id: read$")

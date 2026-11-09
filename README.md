@@ -208,7 +208,7 @@ so a newer run cancels a waiting one and syncs `main`'s tip itself. The `sync-re
 job tells them apart by reading the run's jobs: a cancelled job that ran steps is
 red, and one that ran none files nothing. It holds no concurrency group, so a run
 with nothing red cannot take a red run's waiting place in `sync-issue`'s, and if
-it cannot read the jobs it fails, which files too. A leg GitHub cancels from the
+it fails or is itself cancelled, that files too. A leg GitHub cancels from the
 runner queue ran none either, so it is seen only in the run, and a run somebody
 cancels whole files nothing, because the job's `!cancelled()` is false only there.
 
