@@ -703,8 +703,9 @@ that blanket would deny a main-checkout session every edit to a live worktree.
 A test pins both halves: every loaded settings file denied, and the
 worktree root never denied.
 
-**Every rule here anchors at the session's permission root, and
-`EnterWorktree` moves it.** Measured with nested `claude -p` sessions: once a
+**A rule with a slash inside anchors at the session's permission root, and
+`EnterWorktree` moves it** (*Normalisation, residuals and the sweeps* has the
+shapes that do not). Measured with nested `claude -p` sessions: once a
 session has entered `.claude/worktrees/<slug>`, `Edit(.claude/commands/**)`
 and `Edit(.claude/hooks/**)` refuse the worktree's own `.claude/` and `docs/`
 stays writable. From the main checkout the same paths sit under
@@ -2114,11 +2115,12 @@ refused by the guard on its way past. A test pins that control: a denied tree
 spelled as itself is **admitted** here.
 
 **Two things a path deny cannot reach are judged here all the same, and
-neither takes a copy of a list.** Every rule anchors at the session's
-permission root, so a worktree of this repository that the session has not
+neither takes a copy of a list.** A rule with a slash inside anchors at the
+session's permission root (*Normalisation, residuals and the sweeps* has the
+shapes that do not), so a worktree of this repository that the session has not
 entered, the main checkout seen from a linked one included, launched there or
 entered with the project left at main, is reached by none
-of them: its `.claude/scripts/x` and its `.git`
+of those: its `.claude/scripts/x` and its `.git`
 are judged by this target's own `Edit(...)` denies, read from
 `.claude/settings.json` through `guard-git-argv.py`'s `denied_path`, anchored at
 that worktree's root and folded for case, and a link inside it is judged as in
@@ -2327,12 +2329,19 @@ seen. That makes macOS likely to fold and does not establish it. If it is ever
 measured not to, the answer is this guard asking `denied_path` for the session's
 own project too, with a replay of the edits it would newly refuse.
 
-**A name with no slash is unanchored in the matcher and anchored in
-`denied_path`, so a rule's `**/` twin is not redundant.** `Edit(NuGet.Config)`
-and `Edit(./NuGet.Config)` both refused `src/NuGet.Config` in the same
-sessions, so in the session's own project the `./` anchors nothing.
-`denied_path` matches from the checkout's root, so in a worktree the session
-has not entered it is `Edit(**/NuGet.Config)` that holds the nested file.
+**What a rule anchors to depends on its shape, and `./` does not decide it.**
+Measured the same way, one form denied per session. `Edit(NuGet.Config)` and
+`Edit(./NuGet.Config)` refused `src/NuGet.Config`, and `Edit(.harness/**)` and
+`Edit(./.harness/**)` refused `sub/.harness/config.json`, so a rule of one
+component reaches that name at any depth, a nested worktree's included, and
+refuses a same-named directory anywhere below the root (#333).
+`Edit(src/app.txt)` and a directory rule of two components, each with and
+without `./`, admitted the same path under `sub/`, so a rule with a slash inside
+anchors at the root. `Edit(/.harness/**)` admitted `sub/.harness/config.json`,
+so a leading `/` anchors a rule of one component. `denied_path` matches every
+rule from the checkout's root, so a rule's `**/` twin is not redundant: in a
+worktree the session has not entered, it is `Edit(**/NuGet.Config)` that holds
+the nested file.
 
 **A `..` that traverses no link is admitted, and the reason is a measurement
 of the harness rather than a judgement about paths.** The case for refusing it
