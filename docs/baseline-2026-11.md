@@ -35,8 +35,9 @@ that slash command. The median is taken per count across the sessions.
 - Until #276 `--command` read a session's first genuine message and looked for
   the tag anywhere in it, so a session a `/clear` opened dropped out and one
   whose first message only quoted the tag counted, and the `user_turns` of a
-  session counted its `/compact` summaries. Every table ahead of *After #276*
-  was taken that way.
+  session counted its `/compact` summaries. Every table those command lines
+  printed ahead of *After #276* was taken that way; *After plan 5*'s count by
+  start chose its own sessions and kept only the `/compact` handling.
 
 ## Command lines
 
