@@ -30,7 +30,8 @@ and the shapes only, no content.
   system-reminder expansions); a `/compact` summary, a string line carrying
   `isCompactSummary` and `isVisibleInTranscriptOnly`; `origin.kind` other than
   human (`task-notification`, `plugin`); strings opening `<local-command`,
-  `<bash-input>`, `<bash-stdout>`, `<task-notification>` or `<system-reminder>`.
+  `<bash-input>`, `<bash-stdout>`, `<bash-stderr>`, `<task-notification>` or
+  `<system-reminder>`.
 - **Interruption marker**: a `user` line whose content is a list holding one
   `text` part opening `[Request interrupted`; no `origin` or `isMeta`.
 - **Slash command**: a genuine string message opening
