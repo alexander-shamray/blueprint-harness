@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Delete a merged sync's branch from origin, which no merge does here. It takes a
-# sync head and no other name, and only `dispatch_board.py sync-drop` runs it. Its
-# guards, its lease and its exit codes are `docs/harness-boundaries.md`'s, *Grant
-# inventory and push helpers*.
+# sync head and no other name, and `dispatch_board.py sync-drop` is its caller; what
+# bounds it is its own checks, not that caller. Its guards, its lease and its exit
+# codes are `docs/harness-boundaries.md`'s, *Grant inventory and push helpers*.
 set -euo pipefail
 
 [ "$#" -eq 1 ] || { echo "usage: git-sync-head-drop.sh <branch>" >&2; exit 2; }
