@@ -49,7 +49,7 @@ jobs:
   sync:
     needs: targets
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     # A pull request from a branch here gets repository secrets and runs that
     # branch's workflows, so the token is a secret of this environment alone,
     # which deploys from main only: no branch's edit to a workflow reaches it
@@ -116,8 +116,9 @@ jobs:
       # path; `-E -s` still ignore PYTHON* variables and user site (R33).
       - name: Open the sync pull request
         if: steps.token.outputs.present == 'true'
-        # Shorter than the job's: a step past its timeout fails, where a job past
-        # its own reads `cancelled`, which sync-issue does not hear.
+        # Well inside the job's, whose clock also runs through the steps before
+        # this one: a step past its timeout fails, where a job past its own reads
+        # `cancelled`, which sync-issue does not hear.
         timeout-minutes: 12
         env:
           GH_TOKEN: ${{ secrets.HARNESS_SYNC_TOKEN }}
