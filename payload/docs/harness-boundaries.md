@@ -993,7 +993,8 @@ holds the row, which the suite checks exists (a `ruleset` row names
   entry follows Claude Code's prefix reading: `Bash(x:*)` matches `x` and
   `x …`, and a `*` inside a rule matches any run. An `Edit` entry is
   matched by an example spelled `Edit(<path>)`, with the `./` stripped from
-  both sides, so one row holds a rule and its `./`-prefixed twin.
+  both sides and a leading `/` from the rule, so one row holds a rule and its
+  `./`-prefixed twin.
 - `guard-git-argv` — the example is a command, fed to
   `.claude/hooks/guard-git-argv.py` as the JSON a PreToolUse call carries.
   The hook exits 0 and its stdout holds `permissionDecision` `deny`.
