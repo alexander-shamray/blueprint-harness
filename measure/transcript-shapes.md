@@ -6,7 +6,7 @@ and the shapes only, no content.
 
 - **A session** is one `.jsonl` file. Lines of interest have `type` of `user` or
   `assistant`; the rest (`attachment`, `ai-title`, `api-request` ...) are
-  bookkeeping and ignored.
+  bookkeeping, which no count reads, though its *Timestamp* can be the start.
 - **AskUserQuestion**: an `assistant` line whose `message.content` is a list
   holding `{"type": "tool_use", "name": "AskUserQuestion", "input": {...}}`.
 - **Handover**: an `assistant` line holding `{"type": "text", "text": ...}`
