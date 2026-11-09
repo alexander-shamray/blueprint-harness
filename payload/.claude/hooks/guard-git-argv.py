@@ -2524,11 +2524,12 @@ FETCH_VALUE_OPTIONS = frozenset({
 })
 
 # A branch of origin onto its own tracking ref, or a tag onto itself: only the
-# value origin holds there, so it can poison nothing. A dependabot rebase types
-# the first with `$B` for both names.
+# value origin holds there, so it can poison nothing. The branch is named in full
+# because a short name takes origin's same-named tag first. A dependabot rebase
+# types that form with `$B` for both names.
 ORIGIN_OWN_REF = re.compile(
-    r"^\+?(?:(?:refs/heads/)?(?P<branch>[^:]+):refs/remotes/origin/(?P=branch)"
-    r"|refs/tags/(?P<tag>[^:]+):refs/tags/(?P=tag))$")
+    r"^\+?refs/(?:heads/(?P<branch>[^:]+):refs/remotes/origin/(?P=branch)"
+    r"|tags/(?P<tag>[^:]+):refs/tags/(?P=tag))$")
 
 
 def refspec_offence(segment):
@@ -2566,7 +2567,8 @@ def refspec_offence(segment):
             return (
                 f"`{refspec}` writes a ref a plain fetch would not, which a "
                 "sweep or a review may then trust. Fetch without a destination "
-                "and read FETCH_HEAD; `main:main` from origin fast-forwards."
+                "and read FETCH_HEAD; `main:main` from origin fast-forwards, and "
+                "`refs/heads/<name>:refs/remotes/origin/<name>` tracks."
             )
     return None
 
