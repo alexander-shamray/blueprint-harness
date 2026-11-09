@@ -177,10 +177,10 @@ jobs:
 
   # A target that failed stays behind the payload with nothing else saying so, and
   # the title is not `main is red`'s, which stops every landing (README, The sync
-  # workflow). A sync-red that failed gave no all-clear, so that files too.
+  # workflow). A sync-red that did not finish gave no all-clear, so that files too.
   sync-issue:
     needs: [sync-red]
-    if: ${{ !cancelled() && (needs.sync-red.result == 'failure' || needs.sync-red.outputs.red == 'true') }}
+    if: ${{ !cancelled() && (needs.sync-red.result == 'failure' || needs.sync-red.result == 'cancelled' || needs.sync-red.outputs.red == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     # One at a time, so two red runs never both see no open issue.
