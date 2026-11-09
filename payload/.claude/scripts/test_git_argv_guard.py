@@ -4031,6 +4031,22 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         self.admitted("cd .claude/worktrees/linked && git rm .claude/hooks/x")
         self.refused(*written)
 
+    def test_a_git_path_write_into_main_from_a_linked_worktree_is_refused(self):
+        # The temp root moves off the fixture, as a real main checkout sits off
+        # it: under it, the main checkout reads as scratch and is admitted.
+        worktree = os.path.join(self.root, ".claude", "worktrees", "linked")
+        os.makedirs(worktree)
+        with open(os.path.join(worktree, ".git"), "w", encoding="utf-8") as handle:
+            handle.write("gitdir: elsewhere\n")
+        temp = temp_root(self)
+        env = {"TMPDIR": temp, "TEMP": temp, "TMP": temp}
+        hook = self.hook_denying(".claude/**", ".harness/**")
+        main = self.spelled()
+        self.refused(f"git -C {main} rm .claude/hooks/x",
+                     f"git -C {main} checkout origin/main -- .claude/settings.json",
+                     cwd=worktree, env=env, hook=hook)
+        self.admitted(f"git -C {main} rm docs/a.md", cwd=worktree, env=env, hook=hook)
+
     def test_a_rule_is_read_in_the_permission_grammar(self):
         # `/x` is the project root's, `//x` absolute and `~/x` the home's.
         hook = self.hook_denying("/package.json", "/.github/**", "//notes/**", "~/notes/**")
