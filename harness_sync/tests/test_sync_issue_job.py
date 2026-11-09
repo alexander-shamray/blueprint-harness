@@ -67,7 +67,7 @@ class TheJobHearsARedRun(unittest.TestCase):
             _red())
         self.assertNotIn("always()", _red())
 
-    def test_only_a_red_run_can_take_a_waiting_issue_job_s_place(self) -> None:
+    def test_a_run_read_as_not_red_cannot_take_a_waiting_issue_job_s_place(self) -> None:
         # A group keeps one waiting job, so a run that found nothing red and entered it could cancel a red run's.
         self.assertRegex(_job(), r"(?m)^      group: sync-issue$")
         self.assertNotIn("concurrency:", _red())

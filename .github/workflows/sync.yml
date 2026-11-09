@@ -144,11 +144,11 @@ jobs:
           python -E -s -m harness_sync open-pr --payload payload --harness . --target target \
             --commit "$commit" --repo "$TARGET" --run-url "$RUN_URL"
 
-  # Apart from sync-issue, whose group keeps one waiting job, so that only a red
-  # run can take a waiting one's place. At a job's limit `failure()` and
-  # `cancelled()` are both false, and `!cancelled()`, unlike `always()`, is false
-  # for a run cancelled whole. A cancelled job that ran steps is red, and one that
-  # ran none was superseded while waiting, or no runner took it.
+  # Apart from sync-issue, whose group keeps one waiting job, so that a run read
+  # as having nothing red cannot take a waiting one's place. At a job's limit
+  # `failure()` and `cancelled()` are both false, and `!cancelled()`, unlike
+  # `always()`, is false for a run cancelled whole. A cancelled job that ran steps
+  # is red, and one that ran none was superseded, or no runner took it.
   sync-red:
     needs: [targets, sync]
     if: ${{ !cancelled() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
