@@ -2871,11 +2871,12 @@ def home_target(path, cwd, command, whole=False, removing=False):
     if whole and os.path.basename(path) == "*":
         path = os.path.dirname(path)
     session = checkout_of(os.path.abspath(EVENT_CWD or os.getcwd()))
+    standing = (session, os.path.realpath(session)) if session is not None else ()
     homes = [written_path("~", cwd, command), os.path.expanduser("~")]
     roots = {root for home in homes if home
              for root in (os.path.abspath(home), os.path.realpath(home))}
     for place in (path, os.path.realpath(path)):
-        if session is not None and beneath(place, session):
+        if any(beneath(place, checkout) for checkout in standing):
             continue
         for root in roots:
             if not beneath(place, root) or os.path.normcase(place) == os.path.normcase(root):
