@@ -3718,7 +3718,7 @@ class TheGitArgvGuard(unittest.TestCase):
             "git fetch --shallow-e a:b origin main",
             "git fetch --shallow-s '2026-01-01 10:00' origin main",
             "git pull --ff-only --dep 1 origin refs/heads/main:main",
-            "git pull --ff-only origin main --strategy-o a:b",
+            "git pull --ff-only origin main --strategy- a:b",
             "git pull --ff-only origin main -X a:b",
             # A short letter at the end of its cluster.
             "git fetch -qj 2 origin refs/heads/main:main",
