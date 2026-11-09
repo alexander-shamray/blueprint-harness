@@ -161,7 +161,7 @@ class TheGrantAndTheInvocationAgree(unittest.TestCase):
         self.assertIn("--is-ancestor <merge-oid> main ", block)
 
     def test_a_tag_named_main_on_origin_does_not_reach_the_teardown_s_fetch(self):
-        # #296: the short source took the tag, which no branch reviewed.
+        # The short source took the tag, which no branch reviewed.
         text = SHIP.read_text(encoding="utf-8")
         start = text.index("# 1. MERGED")
         refspec = re.search(r"git fetch origin (\S+)",
