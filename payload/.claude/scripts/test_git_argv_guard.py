@@ -3990,6 +3990,11 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         os.makedirs(os.path.join(plugin, ".git"))
         self.assertAdmitted("ls > notes.md", cwd=plugin, env=env)
         self.assertIn("No rule judges a shell write", self.assertRefused("ls > ~/.gitconfig", cwd=plugin, env=env))
+        # Reached through a link, as macOS's `/var` is `/private/var`, it is still
+        # the session's: the write's resolution is judged, so the checkout's is too.
+        reached = os.path.join(self.root, "notes", "plugin")
+        self.link(plugin, reached)
+        self.assertAdmitted("ls > notes.md", cwd=reached, env=env)
 
     def test_a_redirection_through_a_link_into_a_protected_tree_is_refused(self):
         self.link(os.path.join(self.root, ".claude"),
