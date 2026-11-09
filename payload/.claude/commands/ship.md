@@ -513,7 +513,8 @@ target*)
       branch by name.
    3. **Choose the next round.** A recheck reads the diff since the round
       before and the findings still open, and nothing else. A **full pass**
-      runs instead when a fix closed a `bug`-severity finding, or when the
+      runs instead when a fix closed a finding the round that raised it labelled
+      `bug` (a recheck carries that label), or when the
       fixes since the last full pass change more than 400 lines
       (`git diff --stat`).
 
