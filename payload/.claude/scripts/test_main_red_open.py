@@ -83,11 +83,13 @@ class MainRedOpen(unittest.TestCase):
     def test_a_failed_state_read_exits_2(self):
         result = self.run_helper(rows("main is red"), STUB_VIEW_FAIL="1")
         self.assertEqual(2, result.returncode)
+        self.assertIn("cannot read the state of #1", result.stderr)
         self.assertEqual("", result.stdout)
 
     def test_a_state_that_is_neither_open_nor_closed_exits_2(self):
         result = self.run_helper(rows("main is red"), STUB_STATE="")
         self.assertEqual(2, result.returncode)
+        self.assertIn("state of #1 reads ''", result.stderr)
         self.assertEqual("", result.stdout)
 
     def test_a_title_that_only_contains_the_phrase_exits_0(self):
