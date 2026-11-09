@@ -1018,6 +1018,19 @@ class TheHelperPublishesWhatItRebased(unittest.TestCase):
         self.assertIn("origin has 2 push URLs", result.stderr)
         self.assertEqual(before, self.at("git ls-remote origin refs/heads/feat/x").stdout.split()[0])
 
+    def test_a_second_url_behind_a_single_push_url_is_refused(self):
+        # `pushurl` names the second `url`, so one push URL matches the last `url` while the fetch and the lease read
+        # the first: the force would go to a repository its lease was never read from.
+        self.at('git config --local --add remote.origin.url "$(git config --get remote.origin.url)-second"')
+        self.at('git config --local remote.origin.pushurl "$(git config --get remote.origin.url)"')
+        before = self.remote_tip()
+
+        result = self.helper()
+
+        self.assertEqual(7, result.returncode, result.stderr)
+        self.assertIn("origin has more than one url", result.stderr)
+        self.assertEqual(before, self.at("git ls-remote origin refs/heads/feat/x").stdout.split()[0])
+
     def test_configuration_cannot_change_what_the_replay_does(self):
         # `rebase.rebaseMerges` would keep the merge commits this helper
         # exists to be rid of.

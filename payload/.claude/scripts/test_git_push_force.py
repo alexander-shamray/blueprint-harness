@@ -220,6 +220,18 @@ class TheHelperRefusesBeforeItPushes(Fixture):
         self.assertIn("origin has 2 push URLs", result.stderr)
         self.assertEqual(before, self.remote(), "the branch was forced")
 
+    def test_a_second_url_behind_a_single_push_url_is_refused(self):
+        # `pushurl` names the second `url`, so one push URL matches the last `url` while the fetch and the lease read
+        # the first: the force would go to a repository its lease was never read from.
+        self.amend()
+        before = self.remote()
+        self.at('git config --local --add remote.origin.url "$(git config --get remote.origin.url)-second"')
+        self.at('git config --local remote.origin.pushurl "$(git config --get remote.origin.url)"')
+        result = self.helper()
+        self.assertEqual(7, result.returncode, result.stderr)
+        self.assertIn("origin has more than one url", result.stderr)
+        self.assertEqual(before, self.remote(), "the branch was forced")
+
     def test_remote_commits_this_checkout_never_held_are_refused(self):
         # The lease alone passes this: the other session's commit has been
         # fetched, so the tracking ref names it and git would push over it.

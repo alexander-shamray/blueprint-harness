@@ -47,7 +47,7 @@ repo_key() {
 # test its status, which suspends `set -e` inside it, so each read says its own
 # failure.
 origin_pushes_where_added() {
-  local urls pushes configured resolved
+  local urls pushes added configured resolved
   urls=$(git remote get-url --push --all origin) ||
     { echo "cannot read origin's push URLs, so nothing is published" >&2; return 1; }
   # A remote with several `url` values pushes to every one of them.
@@ -55,7 +55,14 @@ origin_pushes_where_added() {
   pushes=$((pushes))  # BSD wc pads its count, and arithmetic reads it as a number
   [ "$pushes" -eq 1 ] ||
     { echo "origin has $pushes push URLs; a force goes to every one of them, so nothing is published" >&2; return 1; }
-  configured=$(repo_key "$(git config --get remote.origin.url)") || configured=
+  # A `pushurl` hides the `url` values from the count above, and the fetch and the
+  # lease read the first of them where `--get` answers the last.
+  added=$(git config --get-all remote.origin.url) || added=
+  case "$added" in
+    *$'\n'*) echo "origin has more than one url, and a force need not go to the one read; nothing is published" >&2
+             return 1 ;;
+  esac
+  configured=$(repo_key "$added") || configured=
   resolved=$(repo_key "$urls") || resolved=
   [ -n "$configured" ] && [ "$configured" = "$resolved" ] ||
     { echo "origin pushes to '$resolved' but was added as '$configured'; a redirected force is not published" >&2

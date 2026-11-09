@@ -1434,8 +1434,9 @@ out, which leaves a commit it never applied looking like one a resolution
 emptied), takes one branch name that has to equal the one checked out, refuses
 `main` by name before it reads the checkout at all, refuses a remote holding
 commits this checkout lacks, leases the push against the commit the same run
-read, and refuses (exit 7) an `origin` with more than one push URL, or whose
-one URL, after `pushurl`, `pushInsteadOf` and `insteadOf`, names another host
+read, and refuses (exit 7) an `origin` with more than one push URL or more
+than one `url`, or whose one URL, after `pushurl`, `pushInsteadOf` and
+`insteadOf`, names another host
 or path than the URL the remote was added with. A protocol rewrite on one host
 passes, and a URL with no host and path to compare has no key and is refused:
 `file://`, `ext::`, a one-component hosted path, a dot or empty segment, a
