@@ -202,16 +202,16 @@ workflow's own token and no environment, since it writes only this repository's
 issues. The title does not match `main-red-open.sh`'s rule, so it stops no
 landing. Every step of `targets` and `sync` has a timeout and each job's add up
 to less than its limit, since a step past its own fails. A hang outside a step,
-in the runner's set-up or post-run work, can still reach the job's limit, and the
-job then reads as cancelled. So does a waiting job: a concurrency group keeps one,
-so a newer run cancels a waiting one and syncs `main`'s tip itself. The `sync-red`
-job tells them apart by reading the run's jobs: a cancelled job that ran steps is
-red, and one that ran none files nothing. It holds no concurrency group, so a run
-it read as having nothing red cannot take a red run's waiting place in
-`sync-issue`'s, and if it fails or is itself cancelled, that files too. A leg
-GitHub cancels from the runner queue ran none either, so it is seen only in the
-run, and a run somebody cancels whole files nothing, because the job's
-`!cancelled()` is false only there.
+in the runner's set-up or post-run work, can still reach the job's limit, and
+the job then reads as cancelled. So does a waiting job: a concurrency group
+keeps one, so a newer run cancels a waiting one and syncs `main`'s tip itself.
+The `sync-red` job tells them apart by reading the run's jobs: a cancelled job
+that ran steps is red, and one that ran none files nothing. It holds no
+concurrency group, so a run it read as having nothing red cannot take a red
+run's waiting place in `sync-issue`'s, and if it fails or is itself cancelled,
+that files too. A leg GitHub cancels from the runner queue ran none either, so
+it is seen only in the run, and a run somebody cancels whole files nothing,
+because the job's `!cancelled()` is false only there.
 
 A target is **current** when applying the payload writes and deletes no
 managed path: only the manifest's commit would move, so no pull request is
