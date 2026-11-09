@@ -60,8 +60,14 @@ def local_pins(name=LOCAL_PINS):
 
 
 def pinned(serial, together, local):
-    """The runner's tables with a target's `local` pins added; a class pinned both ways is refused."""
+    """The runner's tables with a target's `local` pins added.
+
+    A class pinned both ways, or already pinned by the payload, is refused.
+    """
     local_serial, local_together = local
+    regrouped = sorted((local_serial & serial) | (set(local_together) & set(together)))
+    if regrouped:
+        raise ValueError(f"{regrouped} already pinned by the payload; a target pins only a class of its own")
     serial, together = serial | local_serial, {**together, **local_together}
     both = sorted(serial & set(together))
     if both:
