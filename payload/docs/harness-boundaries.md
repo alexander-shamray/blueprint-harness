@@ -1306,8 +1306,8 @@ the repository position, so a URL never reaches it. That is the control the
 sentence describes, and it is real. It says nothing about the refspec after
 the remote, whose destination writes a ref: `guard-git-argv.py`'s
 `refspec_offence` admits only `main:main`, a branch of origin onto its own
-tracking ref and a tag onto itself, and refuses `--refmap` and `--stdin`, for a
-fetch and for a pull alike.
+tracking ref and a tag onto itself, for a fetch and for a pull alike, and
+refuses `--refmap` on both and a fetch's `--stdin`.
 
 `Bash(git pull --ff-only)` pins **nothing** — no remote name appears in it at
 all. What it does is drop the `:*`, so the grant is the documented
