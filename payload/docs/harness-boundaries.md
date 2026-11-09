@@ -1439,7 +1439,9 @@ one URL, after `pushurl`, `pushInsteadOf` and `insteadOf`, names another host
 or path than the URL the remote was added with. A protocol rewrite on one host
 passes, and a URL with no host and path to compare has no key and is refused:
 `file://`, `ext::`, a one-component hosted path, a dot or empty segment, a
-query or a fragment. **A rule could have bought none of that**: a permission
+query or a fragment. That refusal is `git-push-url.sh`'s, which all three
+force helpers source, each at its own exit code. **A rule could have bought
+none of that**: a permission
 pattern matches the text of a command, and every guard in that list is a fact
 about the checkout. Which is the general form — where the safety is a property
 of the state rather than of the words, the grant has to be a helper.
@@ -1452,7 +1454,10 @@ It takes one number and spells the `git rebase -x` command itself, so no
 folded as the rebase helper folds it, a pull request that is not an open,
 same-repository one into `main` for this branch, a dirty tree, a remote that
 differs from the checkout in either direction, a merge commit, and a commit
-that already names another pull request. A rewrite failing on `index.lock`, as
+that already names another pull request. It refuses the rebase helper's
+redirected or two-URL `origin` at exit 8, before anything is rewritten: its 7
+is a push that failed after the rewrite, whose answer is a rerun, and a rerun
+cannot answer a redirect. A rewrite failing on `index.lock`, as
 one does when a concurrent git reader holds the index, is aborted and tried
 once more; any other failure stops. Its residual is a push that fails
 after the rewrite: the local branch then carries the trailers and origin's
@@ -1465,8 +1470,9 @@ or reworded for a reason neither helper above covers had no route but the
 deny. `git-push-force.sh` publishes the branch checked out and takes no
 argument, so no name a caller passes can point it at another. It refuses
 `main` in any spelling, folded as the rebase helper folds it; a detached
-`HEAD`; and a branch origin lacks, asked of origin itself rather than of a
-tracking ref a deleted branch leaves behind. It fetches the branch fresh and
+`HEAD`; a redirected or two-URL `origin`, as the rebase helper does; and a
+branch origin lacks, asked of origin itself rather than of a tracking ref a
+deleted branch leaves behind. It fetches the branch fresh and
 leases the push against the tip it fetched, so a push landing in between is
 git's to refuse. And it refuses a remote tip the branch's own reflog does not
 hold, because a lease is not consent: once another session's commits have been
@@ -1481,7 +1487,8 @@ Its exit codes are the rebase helper's, those it can reach: 0 published, or
 nothing to force because origin already holds `HEAD`; 2 usage, an argument
 given; 3 the branch is `main`, however it is spelled; 4 a detached `HEAD`; 6
 origin has no such branch, so push it normally; 7 origin carries commits this
-checkout never held; 12 origin could not be asked where the branch is, or
+checkout never held, or would take the force at a second URL or a redirected
+one; 12 origin could not be asked where the branch is, or
 fetched from. A push origin refuses, a lease that no longer holds among them,
 exits with git's own status, as the rebase helper's does.
 
@@ -2365,7 +2372,8 @@ a worktree the next sweep's start can drop.
 `sweep-slices.sh` writes its slice lists to the worktree's path plus
 `.slices`, a name it derives from the same checked shape rather than takes,
 and `git-worktree-drop.sh` removes that directory once git has removed the
-worktree, a half-finished removal included: where git unregistered the worktree
+worktree, under `core.longpaths` as `git-worktree-remove.sh` does, a
+half-finished removal included: where git unregistered the worktree
 and failed to delete its tree, an empty directory goes and any other is named,
 exit 4, for the owner to remove, since no later sweep's start can see it.
 `sweep-mark.sh` moves `refs/sweeps/bug` or `refs/sweeps/security`
