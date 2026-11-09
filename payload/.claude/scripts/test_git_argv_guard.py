@@ -3634,6 +3634,17 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
 
+    def test_a_forced_pull_that_discards_a_local_branch_is_refused(self):
+        # Run from another branch, the first moved local main to origin's and
+        # dropped the commit only main held.
+        for command in (
+            "git pull --ff-only -f origin main:main",
+            "git pull --ff-only --force origin main:main",
+            "git pull --ff-only --forc origin", "git pull -qf --ff-only",
+        ):
+            with self.subTest(command=command):
+                self.assertIn("can move a local branch", self.assertRefused(command))
+
     def test_nothing_overrides_the_fast_forward_of_a_granted_pull(self):
         for command in (
             "git pull --ff-only --no-ff", "git pull --ff-only --ff",
