@@ -14,6 +14,7 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from review_helpers import (
     SCRIPTS,
@@ -3923,6 +3924,72 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                       'cp "$a" "$b"', 'mv "$a" "$b"', 'rm -f "$out"', 'tee "$log"',
                       env=env)
 
+    def real_home(self):
+        """A home directory that is no checkout, as a real one is, and its premise."""
+        home = temp_root(self)
+        self.assertFalse(os.path.exists(os.path.join(home, ".git")))
+        return home, {"HOME": home}
+
+    def test_what_runs_at_login_is_refused_in_a_home_that_is_no_checkout(self):
+        home, env = self.real_home()
+        for command in ("ls > ~/.gitconfig", "git show HEAD:x > ~/.gitconfig", "echo x >> ~/.bashrc",
+                        "ls > $HOME/.zshrc", 'ls > "$HOME/.profile"', "ls > ~/.ssh/authorized_keys",
+                        "tee ~/.gitconfig", "cp a ~/.bash_profile", "rm ~/.ssh/config",
+                        f"ls > {Path(home, '.gitconfig').as_posix()}"):
+            with self.subTest(command=command):
+                self.assertIn("No rule judges a shell write", self.assertRefused(command, env=env))
+
+    def test_what_the_home_claude_applies_is_refused_in_a_home_that_is_no_checkout(self):
+        # `test_a_tilde_and_a_known_variable…` sets `HOME` to a checkout, so it
+        # says nothing about these: there the checkout's denies refuse them.
+        _, env = self.real_home()
+        for command in ("ls > ~/.claude/settings.json", "ls > $HOME/.claude/settings.local.json",
+                        "ls > ~/.claude/.credentials.json", "ls > ~/.claude/hooks/x.py",
+                        "cp a ~/.claude/commands/x.md", "ls > ~/.claude/plugins/p/x",
+                        "echo x > ~/.claude/projects/p/memory/a.md",
+                        "echo x > $HOME/.claude/output-styles/a.md",
+                        "tee ~/.claude/output-styles/a.md", "rm ~/.claude/output-styles/a.md",
+                        "rm -rf ~/.claude", "rm -rf ~/.claude/*", "mv ~/.claude /tmp/x",
+                        "find ~/.claude/projects -delete"):
+            with self.subTest(command=command):
+                self.assertIn("No rule judges a shell write", self.assertRefused(command, env=env))
+
+    def test_a_memory_file_may_be_removed_and_nothing_wider(self):
+        # The replay's 3 `rm` of a stale memory: no editing tool removes a file.
+        # A `mv` is held, since the same verb plants one.
+        _, env = self.real_home()
+        self.admitted("rm ~/.claude/projects/p/memory/a.md", 'rm -f "$HOME/.claude/projects/p/memory/a.md"',
+                      "unlink ~/.claude/projects/p/memory/a.md", env=env)
+        for command in ("rm -rf ~/.claude/projects", "rm -rf ~/.claude/projects/p",
+                        "rm -rf ~/.claude/projects/p/memory", "rm -rf ~/.claude/projects/p/memory/*",
+                        "rm ~/.claude/projects/p/a.jsonl", "mv ~/.claude/projects/p/memory/a.md /tmp/a.md",
+                        "mv /tmp/a.md ~/.claude/projects/p/memory/a.md", "rm ~/.gitconfig"):
+            with self.subTest(command=command):
+                self.assertIn("No rule judges a shell write", self.assertRefused(command, env=env))
+
+    def test_a_link_into_the_home_keys_is_refused(self):
+        home, env = self.real_home()
+        os.makedirs(os.path.join(home, ".ssh"))
+        self.link(os.path.join(home, ".ssh"), os.path.join(self.root, "notes", "keys"))
+        self.assertIn("No rule judges a shell write",
+                      self.assertRefused("ls > notes/keys/authorized_keys", env=env))
+
+    def test_the_rest_of_the_home_stays_admitted(self):
+        _, env = self.real_home()
+        self.admitted("ls > ~/notes.md", "ls > ~/projects/.bashrc", "ls > ~/.ssh-notes",
+                      "ls > ~/.claude/CLAUDE.md", "ls > ~/.claude/scratch/x", "ls > ~/.claude/.last",
+                      "rm ~/.claude/scratch/x", "ls > '~/.gitconfig'", "ls ~/.ssh", "cat ~/.gitconfig",
+                      "ls > $HOME/.claude/scratch/x", env=env)
+
+    def test_a_home_the_session_stands_in_is_left_to_its_denies(self):
+        # As the edit guard's anchors leave it: a checkout at `~/.claude/plugins/p`
+        # is the project there, and its own files are not the control surface.
+        home, env = self.real_home()
+        plugin = os.path.join(home, ".claude", "plugins", "p")
+        os.makedirs(os.path.join(plugin, ".git"))
+        self.assertAdmitted("ls > notes.md", cwd=plugin, env=env)
+        self.assertIn("No rule judges a shell write", self.assertRefused("ls > ~/.gitconfig", cwd=plugin, env=env))
+
     def test_a_redirection_through_a_link_into_a_protected_tree_is_refused(self):
         self.link(os.path.join(self.root, ".claude"),
                   os.path.join(self.root, "notes", "linked"))
@@ -4072,14 +4139,21 @@ class TheListsTheGuardReads(unittest.TestCase):
         self.assertGreater(len(module.edit_denies()), 9, "the deny list went empty")
         commands = self.managed_commands()
         self.assertGreater(len(commands), 5, "the managed commands went empty")
-        # A home-relative rule names no checkout path, and the guard reads none under the home directory.
-        denied = [rule for path in commands
-                  for rule in self.command_edit_paths(path.read_text(encoding="utf-8"))
-                  if not rule.startswith("~/")]
+        rules = [rule for path in commands
+                 for rule in self.command_edit_paths(path.read_text(encoding="utf-8"))]
+        denied = [rule for rule in rules if not rule.startswith("~/")]
         for rule in [*module.edit_denies(), *denied]:
             with self.subTest(rule=rule):
                 path = rule.removeprefix("./").removesuffix("/**")
                 self.assertIsNotNone(module.denied_path(path + "/x" if rule.endswith("/**") else path))
+        home_rules = sorted({rule for rule in rules if rule.startswith("~/")})
+        self.assertGreater(len(home_rules), 1, "the home-relative denies went empty")
+        home = temp_root(self)
+        for rule in home_rules:
+            with self.subTest(rule=rule):
+                path = os.path.join(home, *rule[2:].removesuffix("/**").split("/"), "x")
+                with mock.patch.dict(os.environ, {"HOME": home}):
+                    self.assertIsNotNone(module.home_target(path, home, ""), rule)
 
     def test_the_protected_files_cover_every_tracked_root_file(self):
         # The side of the boundary each root file is on is the target's config
