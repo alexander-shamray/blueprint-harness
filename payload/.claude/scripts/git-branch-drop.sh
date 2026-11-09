@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Delete a local branch once it has landed, by `/ship` step 0's predicate, or
 # is a superseded sync's: the only route, as raw `git branch` deletes stay
-# denied. Its guards, its compare-and-swap and its exit codes are
+# denied, but for `git-worktree-fork.sh` removing what its own failed add made.
+# Its guards, its compare-and-swap and its exit codes are
 # `docs/harness-boundaries.md`'s, *Grant inventory and push helpers*.
 set -euo pipefail
 
