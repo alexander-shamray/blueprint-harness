@@ -2,8 +2,8 @@
 
 ## Index
 
-**Read the section you need, not the file**: each is under 3.5k tokens and
-the whole is about 31k. `Grep -n "^## <title>"` gives its first line.
+**Read the section you need, not the file**: each is under 7k tokens and
+the whole is about 46k. `Grep -n "^## <title>"` gives its first line.
 
 | Section | What it covers |
 |---|---|
