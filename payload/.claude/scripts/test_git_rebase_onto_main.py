@@ -978,8 +978,9 @@ class TheHelperPublishesWhatItRebased(unittest.TestCase):
                          self.at("git ls-remote origin refs/heads/feat/x").stdout.split()[:1])
 
     def test_repo_key_agrees_across_protocols_on_one_host_and_nowhere_else(self):
-        # `repo_key` is lifted out of the helper and run alone, so the spellings are exact. One URL per call, through
-        # the environment: a subject on stdin arrives with CRLF on Windows, and a trailing CR is part of the URL.
+        # `repo_key` is lifted out of the file the force helpers source and run alone, so the spellings are exact. One
+        # URL per call, through the environment: a subject on stdin arrives with CRLF on Windows, and a trailing CR is
+        # part of the URL.
         script = 'eval "$(sed -n \'/^repo_key() {/,/^}/p\' "$H")"; repo_key "$U" || echo "(none)"'
         urls = [
             "https://github.com/o/r.git", "git@github.com:o/r.git", "ssh://git@github.com:22/o/r",
@@ -990,7 +991,7 @@ class TheHelperPublishesWhatItRebased(unittest.TestCase):
             "https://github.com/evil/o/r", "https://github.com/x/../o/r", "https://github.com/o//r",
             "/evil/o/r",
         ]
-        got = {u: run_bash(script, H=str(HELPER), U=u).stdout.strip() for u in urls}
+        got = {u: run_bash(script, H=str(SCRIPTS / "git-push-url.sh"), U=u).stdout.strip() for u in urls}
         for same in urls[:4]:
             self.assertEqual("github.com|o/r", got[same], same)
         self.assertEqual("evil.example|o/r", got["https://evil.example/o/r"])
