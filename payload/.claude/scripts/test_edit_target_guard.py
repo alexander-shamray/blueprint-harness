@@ -530,11 +530,6 @@ class TheOrdinaryWriteIsNotDisturbed(GuardCase):
         # unconditionally would let a link to the same relative path under the
         # sibling compare equal to a path inside the checkout. Where the mount
         # equates the two names the sibling cannot exist, and the case says so.
-        #
-        # The link sits at the very relative path it points at, because only
-        # then does folding make the two paths one key; each linker takes its
-        # own pair, since one checkout has a single `docs`. A refusal alone
-        # would not tell the verdicts apart, and the reason does.
         guard = self.guard_module()
         name = "caf\u00e9"
         for linker in linkers():
@@ -559,6 +554,10 @@ class TheOrdinaryWriteIsNotDisturbed(GuardCase):
                           file=sys.stderr)
                     return
 
+                # The link sits at the relative path it points at, because only
+                # then does folding make the two paths one key; each linker
+                # takes its own pair, since one checkout has a single `docs`.
+                # Only the refusal's reason tells the two verdicts apart.
                 link = os.path.join(checkout, "docs")
                 if linker == "symlink":
                     os.symlink(os.path.join(sibling, "docs"), link,
