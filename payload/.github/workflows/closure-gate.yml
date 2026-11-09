@@ -100,9 +100,8 @@ jobs:
           fi
           echo "enforcing with the gate as of $BASE_SHA"
 
-      # One `gh` call, and it is the only network in the check. The deciding
-      # takes JSON on stdin and is pure, so the suite feeds it fixtures and what
-      # is tested is the judgement, not the fetch.
+      # One `gh` call, the only network in the check. The deciding takes JSON on
+      # stdin and is pure: the suite tests the judgement, not the fetch.
       # `closingIssuesReferences` is GitHub's own parse of the body, which is
       # what makes this a comparison rather than a second implementation of a
       # linker nobody here has the spec for.
