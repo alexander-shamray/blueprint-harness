@@ -1521,6 +1521,27 @@ that name, so nothing to drop; 7 it has not landed, with no `MERGED` row into
 or its worktrees could not be read, so whether it landed or is in use is
 unknown.
 
+**A merged sync's branch goes from origin through a helper no setting grants.**
+`git push --delete` stays denied, and `git-sync-head-drop.sh <branch>` is run
+only by `dispatch_board.py sync-drop`, which `/dispatch` alone grants, so a
+session cannot name a branch to it. It takes a sync head and no other name, in
+the one pattern `harness_sync` opens them under, reads origin's tip by the whole
+ref name, and deletes only when `pr-for-branch.sh` lists no `OPEN` row and a
+`MERGED` row into `main` whose head is that tip. The delete is leased to that
+tip, so a push made during the read is git's to refuse. The tip and the delete
+must reach one repository: `remote.origin.url` as added, the URL `get-url`
+fetches from and the one `get-url --push` pushes to have to be the same string,
+so a `pushurl`, a second URL or any `insteadOf` keeps the branch, the harmless
+protocol rewrite included. That costs a line in the morning report and the
+branch stays. Its residual is a sync head no `MERGED` row holds at its tip,
+which stays on origin for a human.
+
+Its exit codes: 0 deleted; 2 usage, or a name that is not a sync head; 6 origin
+has no such branch; 7 no merge into `main` at origin's tip, an open row, or a
+rewritten origin; 12 origin's URLs, origin or the pull requests could not be
+read. A push origin refuses, a lease that no longer holds among them, exits with
+git's own status.
+
 **A reader of pull requests is granted by its whole command line.** `Bash(py
 -3.12 .claude/scripts/sync_pr.py:*)` admits `list`, `verify <n>`, `review-diff
 <n> <out>`, `local-suites` and `run-local-suites <n> --head <oid>`, the one that

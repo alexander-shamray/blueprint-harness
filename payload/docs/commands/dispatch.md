@@ -402,6 +402,11 @@ branch for a launch that was never going to happen. `sync-drop`, before the
 report, offers `git-branch-drop.sh` every local branch named as a sync head:
 what merged goes, as does one whose pull request closed with origin's branch
 gone at this tip, which no merge can land and which a worktree does not hold.
+It first offers `git-sync-head-drop.sh` every branch on origin named as a sync
+head, since `harness_sync` deletes a superseded one and nothing deletes a merged
+one: the repository's delete-on-merge would, but that is the owner's setting.
+Each head costs GitHub reads and a push, so the first run over a backlog is
+slow; it is idempotent, and a run cut short leaves the rest for the next.
 
 **The proof binds.** The verify at step 0.3 and after each exit runs in the
 main checkout, because the executor runs that head's own copy of `sync_pr.py`,
