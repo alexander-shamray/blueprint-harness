@@ -4,6 +4,7 @@
 # would take any command (`docs/harness-boundaries.md`); this takes a number and spells the exec itself.
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/gh-read-bound.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/git-push-url.sh"
 
 [ "$#" -eq 1 ] || { echo "usage: git-trailer-pr.sh <pr-number>" >&2; exit 2; }
 pr="$1"
@@ -42,6 +43,10 @@ IFS=$'\t' read -r state head_branch base cross <<<"${row%$'\r'}"
 [ "$head_branch" = "$branch" ] || { echo "pull request #$pr is for $head_branch, not $branch" >&2; exit 3; }
 [ "$base" = main ] && [ "$cross" = false ] || { echo "pull request #$pr is not a same-repository one into main" >&2; exit 3; }
 
+# Ahead of the rewrite, so a refusal leaves the commits as they were, and at its own exit: 7 below is a push that failed
+# after the rewrite, whose answer is a rerun, and a rerun cannot answer this.
+origin_pushes_where_added || exit 8
+
 # Rewriting is only safe over what origin already holds: an unpushed commit would be published by the lease, and an
 # unseen one discarded by it.
 git fetch --quiet origin main "$branch"
@@ -78,14 +83,32 @@ fi
 # The exec skips a commit that has the trailer, so a rerun after a failed push changes nothing already done.
 if [ "$owned" -lt "$total" ]; then
   exec_cmd="git log -1 --format=%B | git interpret-trailers --parse | grep -qx '$wanted' || git commit --amend --no-edit --trailer '$wanted'"
+  # A concurrent git reader can hold the worktree index for an instant, which fails the rewrite with an `index.lock`
+  # message and nothing wrong. One more attempt after the abort is safe, since the abort restores the branch; any other
+  # failure, and a second lock failure, stops. The wait comes first: the abort wants that lock too, and one that
+  # cannot take it leaves the rewrite in progress, which is said rather than called the branch as it was.
+  attempt=1
   # The flags are spelled, as git-rebase-onto-main.sh spells them, and the result is force-pushed. The last three are
   # defensive: git limits `rebase.autoSquash` to interactive mode and takes no fork point when a base is named, so
   # they hold against a change of git's version or mode.
-  if ! GIT_SEQUENCE_EDITOR=true git rebase --quiet --no-rebase-merges --no-update-refs --no-autosquash \
-      --no-fork-point --no-autostash -x "$exec_cmd" "$base_oid"; then
-    git rebase --abort || true
+  until err=$(GIT_SEQUENCE_EDITOR=true git rebase --quiet --no-rebase-merges --no-update-refs --no-autosquash \
+      --no-fork-point --no-autostash -x "$exec_cmd" "$base_oid" 2>&1); do
+    retry=0
+    if [ "$attempt" -eq 1 ] && [[ "$err" == *index.lock* ]]; then
+      retry=1; sleep 1
+    fi
+    git rebase --abort 2>/dev/null || true
+    if [ -d "$(git rev-parse --git-path rebase-merge)" ]; then
+      printf '%s\n' "$err" >&2
+      echo "adding the trailer failed and the abort did too: run 'git rebase --abort' once nothing holds the index" >&2
+      exit 6
+    fi
+    if [ "$retry" -eq 1 ]; then
+      attempt=2; continue
+    fi
+    printf '%s\n' "$err" >&2
     echo "adding the trailer failed; the branch is as it was" >&2; exit 6
-  fi
+  done
 fi
 
 git push --quiet --force-with-lease="refs/heads/$branch:$remote" origin "HEAD:refs/heads/$branch" ||
