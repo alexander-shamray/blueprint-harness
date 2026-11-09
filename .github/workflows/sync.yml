@@ -114,10 +114,10 @@ jobs:
       # package is found there. The working directory is this repository at
       # main's tip, not the target, which sits in target/ and is never on the
       # path; `-E -s` still ignore PYTHON* variables and user site (R33).
-      # Shorter than the job's: a step past its timeout fails, where a job past
-      # its own reads `cancelled`, which sync-issue does not hear.
       - name: Open the sync pull request
         if: steps.token.outputs.present == 'true'
+        # Shorter than the job's: a step past its timeout fails, where a job past
+        # its own reads `cancelled`, which sync-issue does not hear.
         timeout-minutes: 12
         env:
           GH_TOKEN: ${{ secrets.HARNESS_SYNC_TOKEN }}
