@@ -406,10 +406,17 @@ next `wake` launches. Giving the dispatcher the rerun was the other answer, and
 it would save a night a flake holds; it is rejected because it needs a new write
 grant on a session nobody is watching.
 
-Two residues are accepted. A relaunch reads nothing, since its group already
-holds its worktree and its session's work, and resume's `moved, never launched`
-launches what an earlier `wake` named. And the signal lags as step 6's does: the
-issue opens only once the push run has finished.
+`launch` reads it too, so resume's `moved, never launched` cannot start a group
+an earlier `wake` named before `main` turned red: it refuses, the dispatcher
+puts the group `tasks back`, and its worktree stays. It reads after the group's
+own checks and before anything is written.
+
+Three residues are accepted. A relaunch reads nothing, since its group already
+holds its worktree and its session's work, and a hold would leave a running
+group that no `wake` line relaunches. `--dry-run` reads nothing either, since
+the dispatcher holds no grant on the helper and a read through `dispatch_board.py`
+would only preview what the night may hold. And the signal lags as step 6's
+does: the issue opens only once the push run has finished.
 
 ## Issue text stays off the command line
 
