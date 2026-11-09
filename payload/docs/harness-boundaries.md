@@ -1435,14 +1435,14 @@ read, and refuses (exit 7) an `origin` with more than one push URL or more
 than one `url`, or whose push or fetch URL, after `pushurl`, `pushInsteadOf`
 and `insteadOf`, names another host, port or path than the URL the remote was
 added with. A rewrite between https and ssh at their default ports on one host
-passes, and a URL with no host and path to compare has no key and is refused:
-`git://`, `http://`, `file://`, `ext::`, a one-component hosted path, a dot or
-empty segment, a query or a fragment. That refusal is `git-push-url.sh`'s, which
-all three force helpers source, each at its own exit code. **A rule could have
-bought none of that**: a permission pattern matches the text of a command, and
-every guard in that list is a fact about the checkout. Which is the general form
-— where the safety is a property of the state rather than of the words, the
-grant has to be a helper.
+passes. A URL on any other scheme, `git://`, `http://`, `file://` or `ext::`
+among them, has no key and is refused, and so has one with no host and path to
+compare: a one-component hosted path, a dot or empty segment, a query or a
+fragment. That refusal is `git-push-url.sh`'s, which all three force helpers
+source, each at its own exit code. **A rule could have bought none of that**: a
+permission pattern matches the text of a command, and every guard in that list
+is a fact about the checkout. Which is the general form — where the safety is a
+property of the state rather than of the words, the grant has to be a helper.
 
 **A second helper rewrites published commits, and is a second force push.**
 `git-trailer-pr.sh` adds `PR: #<n>` to the commits of the branch checked out,
