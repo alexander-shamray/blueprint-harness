@@ -10,11 +10,13 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import types
 import unittest
 from pathlib import Path
 from unittest import mock
 
+import dispatch_board
 import sync_pr
 
 NEW_H = "1234567890abcdef1234567890abcdef12345678"
@@ -949,11 +951,16 @@ class RunnerTests(unittest.TestCase):
             except sync_pr.Refusal as error:
                 outcome["error"] = error
 
-        worker = threading.Thread(target=call, daemon=True)
-        worker.start()
-        worker.join(60)
-        self.assertFalse(worker.is_alive(), "the runner's timeout did not arrive within 60 s")
+        # The drain bound sits far above the timeout, so only an ended tree returns well inside it.
+        with mock.patch.object(dispatch_board, "DRAIN_TIMEOUT", 45):
+            started = time.monotonic()
+            worker = threading.Thread(target=call, daemon=True)
+            worker.start()
+            worker.join(90)
+            took = time.monotonic() - started
+        self.assertFalse(worker.is_alive(), "the runner's timeout did not arrive within 90 s")
         self.assertIn("took over 2 s", str(outcome.get("error")))
+        self.assertLess(took, 30, "the call waited out the drain, so the grandchild outlived the timeout")
 
     def test_output_is_utf8_with_line_endings_folded(self):
         argv = self.script("crlf.sh", "printf 'один\\r\\nдва\\n'\n")

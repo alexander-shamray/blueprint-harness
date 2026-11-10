@@ -1164,7 +1164,10 @@ def hung_child(directory):
 
 
 class ChildTimeout(unittest.TestCase):
-    LIMIT = 60
+    LIMIT = 90
+    # Far above the timeout, so only an ended tree returns in time: a kill of the direct child alone leaves the
+    # grandchild's pipe open, and the bounded drain would still refuse the call, only at DRAIN.
+    DRAIN = 45
 
     def call_in_thread(self, call):
         """Run `call` where a hang fails the case at LIMIT rather than holding the suite."""
@@ -1185,11 +1188,11 @@ class ChildTimeout(unittest.TestCase):
 
     def test_a_hung_child_with_a_grandchild_on_its_stdout_is_refused_in_time(self):
         with (tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory,
-              mock.patch.object(db, "CHILD_TIMEOUT", 2)):
+              mock.patch.object(db, "CHILD_TIMEOUT", 2), mock.patch.object(db, "DRAIN_TIMEOUT", self.DRAIN)):
             outcome, took = self.call_in_thread(lambda: db._child([BASH, str(hung_child(directory))], directory))
         self.assertIsInstance(outcome.get("error"), db.Refusal, outcome)
         self.assertIn("took over 2 s", str(outcome["error"]))
-        self.assertLess(took, 2 + db.DRAIN_TIMEOUT + 15)
+        self.assertLess(took, self.DRAIN - 15, "the call waited out the drain, so the grandchild outlived the timeout")
 
     def test_a_child_that_returns_is_read_whole(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
