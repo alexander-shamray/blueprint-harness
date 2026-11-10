@@ -2562,18 +2562,31 @@ def fetch_offence(segment):
     return None
 
 
-# A fetch's or a pull's long options that take the next word as their value,
-# each with the shortest prefix git reads as it: `git fetch --dep` answers that
-# `depth` requires a value, and `--de` that it is ambiguous. One this misses has
-# its value read as an operand, usually a false refusal. `EXECUTING_LONG_FLAGS`
-# refuses every word shorter than `--strategy` on a pull, hence its prefix here.
+# The long options that take the next word as their value, per subcommand, each
+# with the shortest prefix that subcommand reads as it: `git fetch --dep`
+# answers that `depth` requires a value, and `--de` that it is ambiguous. The
+# two lists differ, so a prefix holds only where it was read: a fetch's
+# `--negotiate-only` lengthens its `--negotiati`, which a pull reads as `--ne`,
+# and a pull's `--jobs` takes its value glued. One this misses has its value
+# read as an operand, which can hide the remote a refspec is fetched from.
+# `EXECUTING_LONG_FLAGS` refuses every word shorter than `--strategy` on a pull,
+# hence its prefix here.
 FETCH_VALUE_OPTIONS = {
-    "--deepen": "--dee", "--depth": "--dep", "--filter": "--fi", "--jobs": "--j",
-    "--negotiation-tip": "--negotiati", "--server-option": "--ser",
-    "--shallow-exclude": "--shallow-e", "--shallow-since": "--shallow-s",
-    "--strategy-option": "--strategy",
+    "fetch": {
+        "--deepen": "--dee", "--depth": "--dep", "--filter": "--fi", "--jobs": "--j",
+        "--negotiation-tip": "--negotiati",
+        "--recurse-submodules-default": "--recurse-submodules-",
+        "--server-option": "--ser", "--shallow-exclude": "--shallow-e",
+        "--shallow-since": "--shallow-s", "--submodule-prefix": "--su",
+    },
+    "pull": {
+        "--cleanup": "--cl", "--deepen": "--dee", "--depth": "--dep",
+        "--negotiation-tip": "--ne", "--server-option": "--ser",
+        "--shallow-exclude": "--shallow-e", "--shallow-since": "--shallow-s",
+        "--strategy-option": "--strategy",
+    },
 }
-FETCH_VALUE_LETTERS = frozenset("Xjos")
+FETCH_VALUE_LETTERS = {"fetch": frozenset("jo"), "pull": frozenset("Xos")}
 # What may stand ahead of one in a cluster, by allow-list: `-Sj` ends in a value
 # letter and is `-S` with the key `j`, so reading the next word as its value
 # would hide the refspec after it.
@@ -2592,15 +2605,15 @@ ORIGIN_OWN_REF = re.compile(
     r"|tags/(?P<tag>[^:]+):refs/tags/(?P=tag))$")
 
 
-def takes_next_word(word):
-    """Whether this option word of a fetch or a pull takes the next as its value.
+def takes_next_word(word, kind):
+    """Whether this option word of a `kind`, a fetch or a pull, takes the next.
 
     A short letter does only at the end of its cluster, since in `-j4` the value
     is glued; a `=` is too, so `--depth=1` is no prefix of anything."""
     if word.startswith("--"):
         return any(word.startswith(shortest) and option.startswith(word)
-                   for option, shortest in FETCH_VALUE_OPTIONS.items())
-    return (word.startswith("-") and word[-1] in FETCH_VALUE_LETTERS
+                   for option, shortest in FETCH_VALUE_OPTIONS[kind].items())
+    return (word.startswith("-") and word[-1] in FETCH_VALUE_LETTERS[kind]
             and set(word[1:-1]) <= FETCH_CLUSTER_FLAGS)
 
 
@@ -2618,7 +2631,7 @@ def refspec_offence(segment):
         word = stripped[position]
         name = word.split("=", 1)[0]
         position += 1
-        if takes_next_word(word):
+        if takes_next_word(word, stripped[0]):
             position += 1
         elif not word.startswith("-"):
             operands.append(word)
