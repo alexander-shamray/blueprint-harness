@@ -2745,7 +2745,10 @@ EXPANDABLE_VARIABLES = frozenset({
 VARIABLE_REFERENCE = re.compile(
     r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))")
 
-# A worktree removed or not yet forked has no `.git`, and is still one.
+# A worktree's directory, by its place. A write under it is judged as that
+# worktree's path whether a `.git` is left there or not, since it lands in that
+# directory and not in the main checkout's files. Git is another matter: run in
+# such a directory with no `.git` left, it resolves up to the main checkout.
 WORKTREE_BELOW = re.compile(r"(?i)^\.claude[\\/]worktrees[\\/][^\\/]+[\\/](.*)$")
 
 # Bash on Windows spells `C:\x` as `/c/x`, which `abspath` reads as `C:\c\x`.
@@ -2877,11 +2880,16 @@ def checkout_relative(path):
 
 
 def in_linked_worktree(path):
-    """Whether `path` is in a linked worktree, removed from disk or not."""
+    """Whether git run from `path` acts on a linked worktree.
+
+    One under `.claude/worktrees/` not yet on disk counts, since git enters it
+    only once it is forked; one there with no `.git` left does not, since git
+    run in it acts on the main checkout."""
     root = checkout_of(path)
     return root is not None and (
         os.path.isfile(os.path.join(root, ".git"))
-        or WORKTREE_BELOW.match(os.path.relpath(path, root) + os.sep) is not None)
+        or (not os.path.isdir(path)
+            and WORKTREE_BELOW.match(os.path.relpath(path, root) + os.sep) is not None))
 
 
 def beneath(path, root):
