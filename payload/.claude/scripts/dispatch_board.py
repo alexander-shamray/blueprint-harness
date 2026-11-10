@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -55,6 +56,8 @@ NOT_OWNERS = "not opened by the repository owner"
 PLACED = ("task", "labels", "depends", "model", "conflicts")
 BRANCH_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/()-]*")
 CHILD_TIMEOUT = 120
+# How long a timed-out child's output may take to close once its tree is ended.
+DRAIN_TIMEOUT = 10
 # The checkout this file is in, whose directory names say which backticked slash tokens are paths.
 ROOT = Path(__file__).resolve().parents[2]
 UNWALKED = {".git", "worktrees", "artifacts", "bin", "obj", "node_modules", "testresults", "__pycache__"}
@@ -811,17 +814,49 @@ def git_bash():
     return _no_relay(_bash_beside(path_which("git") or "") if os.name == "nt" else path_which("bash"))
 
 
+def _end_tree(process):
+    """End `process` and every process it started. On Windows `kill` ends the direct child alone, which for Git's
+    `bin/bash.exe` is a launcher, so the bash it started, and any subshell of that, would run on."""
+    if os.name == "nt":
+        taskkill = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "taskkill.exe")
+        with contextlib.suppress(OSError, subprocess.SubprocessError):
+            subprocess.run([taskkill, "/F", "/T", "/PID", str(process.pid)], capture_output=True,
+                           timeout=DRAIN_TIMEOUT, check=False)
+    else:
+        with contextlib.suppress(OSError):
+            os.killpg(process.pid, signal.SIGKILL)
+    with contextlib.suppress(OSError):
+        process.kill()
+
+
+def run_bounded(argv, cwd, timeout, env=None):
+    """(code, stdout, stderr) as bytes, or subprocess.TimeoutExpired once `timeout` has passed and the child's tree is
+    ended. `subprocess.run`'s own timeout kills the direct child and then, on Windows, waits with no limit for pipes a
+    grandchild still holds, so the wait after the kill is bounded here too (docs/harness/pitfalls.md)."""
+    group = {"start_new_session": True} if os.name != "nt" else {}
+    process = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, **group)
+    try:
+        out, err = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _end_tree(process)
+        # Output already read is dropped: the caller refuses the read either way.
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            process.communicate(timeout=DRAIN_TIMEOUT)
+        raise subprocess.TimeoutExpired(argv, timeout) from None
+    return process.returncode, out, err
+
+
 def _child(argv, cwd):
     # A hung gh or git would stall the wake the dispatcher is waiting on; an executor never runs through here.
     try:
-        done = subprocess.run(argv, cwd=cwd, capture_output=True, timeout=CHILD_TIMEOUT)
+        code, out, err = run_bounded(argv, cwd, CHILD_TIMEOUT)
     except subprocess.TimeoutExpired:
         raise Refusal(f"{' '.join(Path(a).name if i == 0 else a for i, a in enumerate(argv))} "
                       f"took over {CHILD_TIMEOUT} s") from None
     except OSError as error:
         raise Refusal(f"could not start {Path(argv[0]).name}: {error}") from None
     # Never text=True: on Windows that is cp1252, which drops an em dash or Cyrillic from the output.
-    return done.returncode, done.stdout.decode("utf-8", errors="replace"), done.stderr.decode("utf-8", errors="replace")
+    return code, out.decode("utf-8", errors="replace"), err.decode("utf-8", errors="replace")
 
 
 def helper(root, script, *args):

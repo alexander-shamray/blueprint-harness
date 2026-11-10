@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import types
 import unittest
 from pathlib import Path
@@ -922,6 +923,41 @@ class TheScriptPrintsWhatAnAnsiStreamCannot(unittest.TestCase):
                                   capture_output=True, env={**os.environ, "PYTHONIOENCODING": "cp1252"}, check=False)
         self.assertEqual(0, done.returncode, done.stderr.decode("utf-8", "replace"))
         self.assertEqual(name, done.stdout.decode("utf-8").strip())
+
+
+class RunnerTests(unittest.TestCase):
+    """The runner itself, not the stand-in SyncCase swaps in: its timeout once waited with no limit on a pipe a
+    grandchild held, so a hung `gh` stalled whatever was waiting on it."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+
+    def script(self, name, body):
+        path = self.root / name
+        path.write_bytes(("#!/usr/bin/env bash\n" + body).encode("utf-8"))
+        return [shutil.which("bash"), str(path)]
+
+    def test_a_hung_child_tree_is_ended_in_time(self):
+        argv = self.script("hang.sh", "sleep 300 &\nsleep 300\n")
+        outcome = {}
+
+        def call():
+            try:
+                outcome["value"] = sync_pr.run(argv, cwd=self.root, timeout=2)
+            except sync_pr.Refusal as error:
+                outcome["error"] = error
+
+        worker = threading.Thread(target=call, daemon=True)
+        worker.start()
+        worker.join(60)
+        self.assertFalse(worker.is_alive(), "the runner's timeout did not arrive within 60 s")
+        self.assertIn("took over 2 s", str(outcome.get("error")))
+
+    def test_output_is_utf8_with_line_endings_folded(self):
+        argv = self.script("crlf.sh", "printf 'один\\r\\nдва\\n'\n")
+        self.assertEqual((0, "один\nдва\n", ""), sync_pr.run(argv, cwd=self.root))
 
 
 if __name__ == "__main__":

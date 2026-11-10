@@ -4,6 +4,8 @@ import io
 import json
 import re
 import tempfile
+import threading
+import time
 import unittest
 from datetime import date
 from pathlib import Path
@@ -11,6 +13,7 @@ from unittest import mock
 
 import dispatch_board as db
 import dispatch_run as dr
+from review_helpers import BASH
 
 TODAY = date(2026, 11, 1)
 RUN = "20261101-220000"
@@ -1149,6 +1152,50 @@ class OnlyTheOwnersIssuesRun(unittest.TestCase):
                 db.owned_issues(".")
         with mock.patch.object(db, "helper", lambda *a: "[7, 9]\n"):
             self.assertEqual(frozenset({7, 9}), db.owned_issues("."))
+
+
+def hung_child(directory):
+    """A bash script that hangs while a background grandchild holds its stdout, the shape that outlived the timeout:
+    `subprocess.run` killed the direct child and then waited on the grandchild's pipe with no limit."""
+    script = Path(directory) / "hang.sh"
+    with open(script, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write("#!/usr/bin/env bash\nsleep 300 &\necho started\nsleep 300\n")
+    return script
+
+
+class ChildTimeout(unittest.TestCase):
+    LIMIT = 60
+
+    def call_in_thread(self, call):
+        """Run `call` where a hang fails the case at LIMIT rather than holding the suite."""
+        outcome = {}
+
+        def target():
+            try:
+                outcome["value"] = call()
+            except Exception as error:  # noqa: BLE001 - the case asserts on what arrived
+                outcome["error"] = error
+
+        worker = threading.Thread(target=target, daemon=True)
+        started = time.monotonic()
+        worker.start()
+        worker.join(self.LIMIT)
+        self.assertFalse(worker.is_alive(), f"the timeout did not arrive within {self.LIMIT} s")
+        return outcome, time.monotonic() - started
+
+    def test_a_hung_child_with_a_grandchild_on_its_stdout_is_refused_in_time(self):
+        with (tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory,
+              mock.patch.object(db, "CHILD_TIMEOUT", 2)):
+            outcome, took = self.call_in_thread(lambda: db._child([BASH, str(hung_child(directory))], directory))
+        self.assertIsInstance(outcome.get("error"), db.Refusal, outcome)
+        self.assertIn("took over 2 s", str(outcome["error"]))
+        self.assertLess(took, 2 + db.DRAIN_TIMEOUT + 15)
+
+    def test_a_child_that_returns_is_read_whole(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            script = Path(directory) / "ok.sh"
+            script.write_bytes("#!/usr/bin/env bash\nprintf 'один\\n'; echo err >&2; exit 3\n".encode("utf-8"))
+            self.assertEqual((3, "один\n", "err\n"), db._child([BASH, str(script)], directory))
 
 
 if __name__ == "__main__":
