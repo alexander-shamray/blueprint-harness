@@ -1,9 +1,10 @@
 name: Sync
 
 # Every four hours, and on dispatch, main's tip opens one sync pull request in
-# each target its payload moved, closing any older one there. Not on every
-# merge, as spec 5.3 first had it: on a busy day almost every sync closed
-# unmerged (README, The sync workflow). Nothing is pushed to a target's main.
+# each target no open sync already carries it to, closing any older one there.
+# Not on every merge, as spec 5.3 first had it: on a busy day almost every sync
+# closed unmerged (README, The sync workflow). Nothing is pushed to a target's
+# main from here.
 on:
   schedule:
     - cron: '17 */4 * * *'
