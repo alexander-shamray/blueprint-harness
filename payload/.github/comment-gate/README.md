@@ -120,7 +120,8 @@ must not judge, each pattern with its innocent neighbour, and runs the whole
 gate over a throwaway git repository, so the diff half is observed rather
 than assumed. It also reads every tracked file in a language the gate reads
 for comments, so a file the lexers cannot parse fails the suite before it
-fails a pull request; `.md` is read in diff mode only.
+fails a pull request; it reads no `.md`, which no lexer parses, the gate
+judging only its prose width.
 
 ## What it reports, and the ratio it refuses
 
