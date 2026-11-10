@@ -1100,10 +1100,20 @@ class DayTests(unittest.TestCase):
         self.assertEqual(FIXTURE, self.read())
         self.assertFalse((self.saved / "1683.md").exists())
 
-    def test_back_of_an_issue_that_had_no_row_leaves_none(self):
+    def test_back_with_no_saved_line_keeps_the_row_in_progress(self):
+        # An open issue goes back to its wave; a --what start or a row written by hand leaves none to go back to.
         self.start(1700, "feat/x", "--what", "Do it")
-        self.assertEqual(0, self.cli("back", "1700")[0])
-        self.assertEqual(FIXTURE, self.read())
+        started = self.read()
+        code, out = self.cli("back", "1700")
+        self.assertEqual((2, started), (code, self.read()))
+        self.assertIn("its wave is unknown", out)
+        by_hand = FIXTURE.replace("| started |\n", "| started |\n| S3 | #1681 | Bind | `fix/b` | started |\n", 1)
+        self.write(by_hand.replace("| 1 | S3 | 1681 | Bind only the switch keys in `src/Gateway/Program.cs` | "
+                                   "security, code | none | Opus | none |\n", ""))
+        written = self.read()
+        code, out = self.cli("back", "1681")
+        self.assertEqual((2, written), (code, self.read()))
+        self.assertIn("its wave is unknown", out)
 
     def test_state_changes_only_the_state_cell(self):
         self.start(1681)

@@ -646,19 +646,21 @@ def finish_issue(text, number):
 
 
 def return_issue(text, number, saved):
-    """The list with `#number` back where `start` took it from: `saved` is that Remaining line, or None when the
-    issue had no row, which then leaves none. None when it is not in progress."""
+    """The list with `#number` back where `start` took it from, `saved` being that Remaining line; None when it is
+    not in progress. With no saved line, a row written by hand or started with --what, it is refused: an open issue
+    goes back to its wave, and nothing here knows the wave or the cells."""
     held = _in_progress_row(parse_tasks(text), f"#{number}")
     if held is None:
         return None
     key = _a_day_row(held).key
+    if saved is None:
+        raise Refusal(f"{key} has no Remaining line saved by tasks start, so its wave is unknown; it stays In progress")
     lines = _lines(text)
     _remove(lines, "In progress", {key})
-    if saved is not None:
-        row = _row("Remaining", saved)
-        if row.key != key:
-            raise Refusal(f"the row saved for {key} is {row.key}'s")
-        _place(lines, _line(row.cells, _cr(lines)))
+    row = _row("Remaining", saved)
+    if row.key != key:
+        raise Refusal(f"the row saved for {key} is {row.key}'s")
+    _place(lines, _line(row.cells, _cr(lines)))
     # A row someone wrote for the issue since its start is a clash `board`'s parser names here.
     return _checked("\n".join(lines))
 

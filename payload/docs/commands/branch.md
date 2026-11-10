@@ -351,7 +351,9 @@ another session wrote in between, since three or four sessions write one list
 at once. It keeps the *Remaining* line it took beside the list, under
 `<list>.started/`, so that `tasks back` puts the whole row back with its
 labels, depends, model and conflicts, which the five *In progress* cells do
-not hold; an issue that had no row gets none back. A row a `/dispatch` run
+not hold. With no saved line, a row started with `--what` or written by hand,
+`back` refuses and the row stays *In progress*: an open issue goes back to its
+wave, and no cell says which wave that is. A row a `/dispatch` run
 moved is that run's to end, so the day actions refuse it. `/pr` changes only
 the *State* cell with `tasks state`, and `/ship` step 6 ends the rows with
 `tasks done` or `tasks back` (`docs/commands/ship.md`, *Step 6: the
