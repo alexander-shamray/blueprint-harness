@@ -15,17 +15,40 @@ from harness_sync.tests.test_main_red_job import HELPER, ROOT, _jobs
 SYNC = ROOT / ".github" / "workflows" / "sync.yml"
 STUB = """#!/usr/bin/env bash
 printf '%s\\n' "$*" >> "$STUB_LOG"
-case "$1 $2" in
-  "issue list") printf '%s' "$STUB_ROWS" ;;
-  "issue create") cat >> "$STUB_LOG" ;;
-  "api "*) printf '%s' "$STUB_JOBS"; exit "${STUB_API_EXIT:-0}" ;;
+case "$*" in
+  "issue list"*) printf '%s' "$STUB_ROWS" ;;
+  "issue create"*) cat >> "$STUB_LOG" ;;
+  api*/check-runs/*)
+    id="$*"
+    id=${id##*/check-runs/}
+    jq -c --arg id "${id%%/*}" '.[$id] // []' <<<"$STUB_NOTES"
+    exit "${STUB_NOTES_EXIT:-0}" ;;
+  api*)
+    # The first STUB_API_FAILS reads of the run's jobs fail, and every one after answers.
+    failed=$(cat "$STUB_LOG.failed" 2>/dev/null || echo 0)
+    if [ "$failed" -lt "${STUB_API_FAILS:-0}" ]; then echo $((failed + 1)) > "$STUB_LOG.failed"; exit 1; fi
+    printf '%s' "$STUB_JOBS" ;;
 esac
+"""
+# The retries' waits are logged and not slept, so a test of three failed reads takes no thirty seconds.
+SLEEP = """#!/usr/bin/env bash
+printf 'sleep %s\\n' "$*" >> "$STUB_LOG"
 """
 # The shapes run 42575459566 of a scratch workflow read from the API: a job past its limit ran steps and a waiting job
 # a newer one superseded ran none, and both conclude `cancelled`.
 RAN = [{"conclusion": "success"}, {"conclusion": "cancelled"}, {"conclusion": "success"}]
 PAST_ITS_LIMIT = {"name": "sync (a/b)", "conclusion": "cancelled", "steps": RAN}
-SUPERSEDED = {"name": "sync (a/c)", "conclusion": "cancelled", "steps": []}
+SUPERSEDED = {"name": "sync (a/c)", "conclusion": "cancelled", "steps": [],
+              "check_run_url": "https://api.github.com/repos/a/h/check-runs/31"}
+# A leg GitHub cancelled from the runner queue ran no steps either, and its check run says nothing of a waiting request.
+QUEUED = {"name": "sync (a/f)", "conclusion": "cancelled", "steps": [],
+          "check_run_url": "https://api.github.com/repos/a/h/check-runs/32"}
+# The annotation run 42575459566's superseded job carried, check run 129023631731, word for word but the group.
+NOTES = {"31": [{"annotation_level": "failure",
+                 "message": "Canceling since a higher priority waiting request for harness-sync-a/c exists"}],
+         "32": [{"annotation_level": "failure", "message": "The operation was canceled."}]}
+# What `toJSON(needs)` gives a run whose only legs not passed were cancelled, which is when the jobs are read.
+CANCELLED = {"targets": {"result": "success"}, "sync": {"result": "cancelled"}}
 FAILED = {"name": "sync (a/d)", "conclusion": "failure", "steps": RAN}
 PASSED = {"name": "sync (a/e)", "conclusion": "success", "steps": RAN}
 
@@ -46,6 +69,9 @@ def _stub_dir(directory: str) -> Path:
     stub = Path(directory) / "gh"
     stub.write_text(STUB, encoding="utf-8", newline="\n")
     stub.chmod(0o755)
+    sleep = Path(directory) / "sleep"
+    sleep.write_text(SLEEP, encoding="utf-8", newline="\n")
+    sleep.chmod(0o755)
     return Path(directory)
 
 
@@ -71,10 +97,7 @@ class TheJobHearsARedRun(unittest.TestCase):
         # A group keeps one waiting job, so a run that found nothing red and entered it could cancel a red run's.
         self.assertRegex(_job(), r"(?m)^      group: sync-issue$")
         self.assertNotIn("concurrency:", _red())
-        self.assertIn(
-            "if: ${{ !cancelled() && (needs.sync-red.result == 'failure' || needs.sync-red.result == 'cancelled'"
-            " || needs.sync-red.outputs.red == 'true') }}",
-            _job())
+        self.assertIn("if: ${{ !cancelled() && needs.sync-red.outputs.red == 'true' }}", _job())
         self.assertRegex(_red(), r"(?m)^      red: \$\{\{ steps\.read\.outputs\.red \}\}$")
         self.assertRegex(_red(), r"(?m)^        id: read$")
 
@@ -99,14 +122,15 @@ class TheJobHearsARedRun(unittest.TestCase):
             self.assertNotIn("environment:", job)
             self.assertNotIn("secrets.", job)
         self.assertRegex(_job(), r"(?m)^    permissions:\n      issues: write\n    steps:$")
-        self.assertRegex(_red(), r"(?m)^    permissions:\n      actions: read\n    outputs:$")
+        self.assertRegex(_red(), r"(?m)^    permissions:\n      actions: read\n      checks: read\n    outputs:$")
 
 
 class _StepCase(unittest.TestCase):
     def run_step(self, job: str, rows: list[dict[str, object]] | None = None, jobs: str = "",
-                 api_exit: int = 0) -> tuple[subprocess.CompletedProcess[str], str, str]:
-        """The job's step's result, each `gh` line it ran and what it wrote for its outputs, its stub given `rows` for
-        the listing and `jobs` for the run."""
+                 api_fails: int = 0, needs: dict[str, object] | None = None, notes: dict[str, object] | None = None,
+                 notes_exit: int = 0) -> tuple[subprocess.CompletedProcess[str], str, str]:
+        """The job's step's result, each `gh` and `sleep` line it ran and what it wrote for its outputs, its stub given
+        `rows` for the listing, `jobs` for the run after `api_fails` failed reads, and `notes` for each check run."""
         bash = shutil.which("bash")
         self.assertIsNotNone(bash, "bash is what the job's step runs under")
         # `_jobs` leaves a job's text with no final newline, so the step's last line may end at the end of the text.
@@ -121,15 +145,17 @@ class _StepCase(unittest.TestCase):
             path.write_text(script, encoding="utf-8", newline="\n")
             env = {**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"],
                    "STUB_LOG": log.as_posix(), "STUB_ROWS": json.dumps(rows or []), "STUB_JOBS": jobs,
-                   "STUB_API_EXIT": str(api_exit), "GH_REPO": "a/h", "GITHUB_RUN_ID": "9",
+                   "STUB_API_FAILS": str(api_fails), "STUB_NOTES": json.dumps(NOTES if notes is None else notes),
+                   "STUB_NOTES_EXIT": str(notes_exit), "NEEDS": json.dumps(CANCELLED if needs is None else needs),
+                   "GH_REPO": "a/h", "GITHUB_RUN_ID": "9",
                    "GITHUB_OUTPUT": output.as_posix(), "GITHUB_SHA": "abc123", "RUN_URL": "https://run"}
             result = subprocess.run([bash, path.as_posix()], capture_output=True, text=True, encoding="utf-8", env=env)
             return result, log.read_text(encoding="utf-8"), output.read_text(encoding="utf-8")
 
 
 class TheRedJobTellsThemApart(_StepCase):
-    def read(self, *pages: dict[str, object], api_exit: int = 0) -> tuple[subprocess.CompletedProcess[str], str, str]:
-        return self.run_step(_red(), jobs="".join(json.dumps(page) for page in pages), api_exit=api_exit)
+    def read(self, *pages: dict[str, object], **stub: object) -> tuple[subprocess.CompletedProcess[str], str, str]:
+        return self.run_step(_red(), jobs="".join(json.dumps(page) for page in pages), **stub)
 
     def test_it_reads_this_run_s_jobs(self) -> None:
         _, log, _ = self.read({"jobs": [FAILED]})
@@ -155,10 +181,50 @@ class TheRedJobTellsThemApart(_StepCase):
         _, _, output = self.read({"jobs": [SUPERSEDED]}, {"jobs": [FAILED]})
         self.assertEqual("red=true\n", output)
 
+    def test_a_failed_job_is_red_with_no_read(self) -> None:
+        # A failure is never a superseded job, so no read stands between it and its issue.
+        result, log, output = self.read(api_fails=99, needs={"targets": {"result": "success"},
+                                                              "sync": {"result": "failure"}})
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("red=true\n", output)
+        self.assertNotIn("api", log)
+
+    def test_a_queue_cancelled_job_is_red(self) -> None:
+        result, log, output = self.read({"jobs": [SUPERSEDED, QUEUED, PASSED]})
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("api --paginate repos/a/h/check-runs/32/annotations", log)
+        self.assertEqual("red=true\n", output)
+
+    def test_a_job_with_no_steps_and_no_annotation_is_red(self) -> None:
+        # Only the superseded message clears a job: one whose check run says nothing is not told superseded.
+        _, _, output = self.read({"jobs": [SUPERSEDED, PASSED]}, notes={})
+        self.assertEqual("red=true\n", output)
+
+    def test_a_definite_red_reads_no_annotations(self) -> None:
+        _, log, output = self.read({"jobs": [SUPERSEDED, FAILED]}, notes_exit=1)
+        self.assertEqual("red=true\n", output)
+        self.assertNotIn("check-runs", log)
+
+    def test_a_read_that_fails_once_is_tried_again(self) -> None:
+        result, log, output = self.read({"jobs": [PAST_ITS_LIMIT]}, api_fails=2)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(3, log.count("api --paginate repos/a/h/actions/runs/9/jobs"))
+        self.assertEqual(["sleep 10", "sleep 20"], [line for line in log.splitlines() if line.startswith("sleep")])
+        self.assertEqual("red=true\n", output)
+
     def test_an_unread_job_list_fails_the_step_and_gives_no_all_clear(self) -> None:
-        # The issue job hears this failure, because no answer is not the all-clear a run of superseded jobs gets.
-        result, _, output = self.read(api_exit=1)
+        # No answer is neither red nor the all-clear: the step fails, which reddens the run, and files nothing.
+        result, log, output = self.read(api_fails=99)
         self.assertNotEqual(0, result.returncode)
+        self.assertEqual(3, log.count("actions/runs/9/jobs"))
+        self.assertIn("::error::", result.stdout)
+        self.assertNotIn("::notice::", result.stdout)
+        self.assertEqual("", output)
+
+    def test_unread_annotations_fail_the_step_and_give_no_all_clear(self) -> None:
+        result, log, output = self.read({"jobs": [SUPERSEDED, PASSED]}, notes_exit=1)
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual(3, log.count("check-runs/31/annotations"))
         self.assertNotIn("::notice::", result.stdout)
         self.assertEqual("", output)
 

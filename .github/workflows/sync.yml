@@ -145,8 +145,8 @@ jobs:
   # Apart from sync-issue, whose group keeps one waiting job, so that a run read
   # as having nothing red cannot take a waiting one's place. At a job's limit
   # `failure()` and `cancelled()` are both false, and `!cancelled()`, unlike
-  # `always()`, is false for a run cancelled whole. A cancelled job that ran steps
-  # is red, and one that ran none was superseded, or no runner took it.
+  # `always()`, is false for a run cancelled whole. A cancelled job that ran no
+  # steps is red unless its check run says a newer run superseded it (README).
   sync-red:
     needs: [targets, sync]
     if: ${{ !cancelled() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
@@ -154,31 +154,63 @@ jobs:
     timeout-minutes: 5
     permissions:
       actions: read
+      checks: read
     outputs:
       red: ${{ steps.read.outputs.red }}
     steps:
       - name: Tell a red job from a superseded one
         id: read
-        timeout-minutes: 3
+        timeout-minutes: 4
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          NEEDS: ${{ toJSON(needs) }}
         run: |
           set -euo pipefail
-          red=$(gh api --paginate "repos/$GH_REPO/actions/runs/$GITHUB_RUN_ID/jobs" |
-            jq -r '.jobs[] | select(.conclusion == "failure" or (.conclusion == "cancelled" and (.steps | length) > 0)) | .name')
+          # A read that fails is tried again: a sync-red that fails files nothing,
+          # so a read lost to one bad answer would leave a red run unfiled.
+          read_api() {
+            local try out
+            for try in 1 2 3; do
+              if out=$(gh api "$@"); then printf '%s' "$out"; return 0; fi
+              [ "$try" = 3 ] || sleep $((try * 10))
+            done
+            return 1
+          }
+          unread() {
+            echo "::error::$1 failed three reads, so this run is told neither red nor superseded"
+            exit 1
+          }
+          if jq -e 'any(.[]; .result == "failure")' <<<"$NEEDS" > /dev/null; then
+            echo 'red=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          jobs=$(read_api --paginate "repos/$GH_REPO/actions/runs/$GITHUB_RUN_ID/jobs") || unread "the run's job list"
+          red=$(jq -r '.jobs[] | select(.conclusion == "failure" or (.conclusion == "cancelled" and (.steps | length) > 0)) | .name' <<<"$jobs")
+          # Run 42575459566 measured it: the superseded job's one annotation names
+          # the higher priority waiting request, and no other cancelled job's does.
+          if [ -z "$red" ]; then
+            while IFS=$'\t' read -r id name; do
+              notes=$(read_api --paginate "repos/$GH_REPO/check-runs/$id/annotations") || unread "$name's annotations"
+              jq -e -s 'add // [] | any(.[]; .message | contains("higher priority waiting request"))' \
+                <<<"$notes" > /dev/null || red="$name"
+            done < <(jq -r '.jobs[] | select(.conclusion == "cancelled" and (.steps | length) == 0)
+                     | [(.check_run_url | split("/") | last), .name] | @tsv' <<<"$jobs")
+          fi
           if [ -n "$red" ]; then
             echo 'red=true' >> "$GITHUB_OUTPUT"
           else
-            echo "::notice::every cancelled job here ran no steps: a newer run superseded it, or no runner took it"
+            echo "::notice::every cancelled job here ran no steps and was superseded by a newer run"
           fi
 
   # A target that failed stays behind the payload with nothing else saying so, and
   # the title is not `main is red`'s, which stops every landing (README, The sync
-  # workflow). A sync-red that did not finish gave no all-clear, so that files too.
+  # workflow). Only a sync-red that read red files: one that did not finish read
+  # nothing, so an issue from it could be for a run with nothing red, and its own
+  # failure is what makes that run red.
   sync-issue:
     needs: [sync-red]
-    if: ${{ !cancelled() && (needs.sync-red.result == 'failure' || needs.sync-red.result == 'cancelled' || needs.sync-red.outputs.red == 'true') }}
+    if: ${{ !cancelled() && needs.sync-red.outputs.red == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     # One at a time, so two red runs never both see no open issue.
