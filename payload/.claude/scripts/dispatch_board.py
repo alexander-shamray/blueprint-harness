@@ -814,10 +814,45 @@ def git_bash():
     return _no_relay(_bash_beside(path_which("git") or "") if os.name == "nt" else path_which("bash"))
 
 
-def _end_tree(process):
-    """End `process` and every process it started. On Windows `kill` ends the direct child alone, which for Git's
-    `bin/bash.exe` is a launcher, so the bash it started, and any subshell of that, would run on."""
-    if os.name == "nt":
+@functools.cache
+def _kernel32():
+    import ctypes
+    from ctypes import wintypes
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateJobObjectW.argtypes = (wintypes.LPVOID, wintypes.LPCWSTR)
+    kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+    kernel32.AssignProcessToJobObject.argtypes = (wintypes.HANDLE, wintypes.HANDLE)
+    kernel32.AssignProcessToJobObject.restype = wintypes.BOOL
+    kernel32.TerminateJobObject.argtypes = (wintypes.HANDLE, wintypes.UINT)
+    kernel32.TerminateJobObject.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    return kernel32
+
+
+def _job(process):
+    """A Windows job holding `process`, so each process it starts joins it whatever its parent; None if none can be
+    made. Parentage cannot do this: msys's `exec` leaves its process under a parent that has exited, and `taskkill /T`
+    cannot walk past that. The child runs briefly before it is assigned, while Git's bash is still starting."""
+    try:
+        kernel32 = _kernel32()
+        job = kernel32.CreateJobObjectW(None, None)
+        if job and kernel32.AssignProcessToJobObject(job, int(process._handle)):
+            return job
+        if job:
+            kernel32.CloseHandle(job)
+    except (OSError, AttributeError):
+        pass
+    return None
+
+
+def _end_tree(process, job):
+    """End `process` and every process it started: its job on Windows, `taskkill /T` where it has none, and its
+    session elsewhere. `kill` alone ends the direct child, which for Git's `bin/bash.exe` is a launcher."""
+    if job:
+        with contextlib.suppress(OSError):
+            _kernel32().TerminateJobObject(job, 1)
+    elif os.name == "nt":
         taskkill = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "taskkill.exe")
         with contextlib.suppress(OSError, subprocess.SubprocessError):
             subprocess.run([taskkill, "/F", "/T", "/PID", str(process.pid)], capture_output=True,
@@ -835,14 +870,18 @@ def run_bounded(argv, cwd, timeout, env=None):
     grandchild still holds, so the wait after the kill is bounded here too (docs/harness/pitfalls.md)."""
     group = {"start_new_session": True} if os.name != "nt" else {}
     process = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, **group)
+    job = _job(process) if os.name == "nt" else None
     try:
         out, err = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
-        _end_tree(process)
+        _end_tree(process, job)
         # Output already read is dropped: the caller refuses the read either way.
         with contextlib.suppress(subprocess.TimeoutExpired):
             process.communicate(timeout=DRAIN_TIMEOUT)
         raise subprocess.TimeoutExpired(argv, timeout) from None
+    finally:
+        if job:
+            _kernel32().CloseHandle(job)
     return process.returncode, out, err
 
 
