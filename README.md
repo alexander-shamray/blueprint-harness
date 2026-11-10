@@ -42,13 +42,13 @@ tool renders them into each target through an ordinary pull request.
   answer a ruleset changed by hand or a failure on a target's side. A live
   ruleset that differs turns every pull request's required `rulesets` check red
   anyway, and its scheduled run files an issue of its own; a red sync leaves the
-  targets behind until a rerun or the next payload merge, which stopping
+  targets behind until a rerun or the next scheduled run, which stopping
   landings would not bring nearer, and it too files one of its own (*The sync
   workflow*). A defect in `harness_sync` that turns either
   red is seen in that run and is reverted as any other. A `ci.yml` GitHub cannot
   start reports no required check, so its pull request cannot land.
-- `.github/workflows/sync.yml` — the sync pull request a merge to `main` opens
-  in each target (*The sync workflow*).
+- `.github/workflows/sync.yml` — the sync pull request `main`'s payload opens
+  in each target, every four hours or on dispatch (*The sync workflow*).
 
 ## The rendered root
 
@@ -147,17 +147,45 @@ Two things the jobs do not cover or cannot promise:
 
 ## The sync workflow
 
-`.github/workflows/sync.yml` runs on every push to `main` that touches
-`payload/**` or `harness_sync/**`, and on dispatch from `main`. For each
-repository in `targets.json`, this one included, it checks the target out and
-runs `python -m harness_sync open-pr`. That applies the payload at `main`'s
-tip as the run starts, not the commit that triggered it, so a queued or rerun
-old run cannot sync an older payload. It opens one pull request,
+`.github/workflows/sync.yml` runs every four hours, at 17 minutes past, and on
+dispatch from `main`; dispatch it by hand for an urgent sync, such as a fix to
+a red target. For each repository in `targets.json`, this one included, it
+checks the target out and runs `python -m harness_sync open-pr`. That applies
+the payload at `main`'s tip as the run starts, so a queued or rerun old run
+cannot sync an older payload. It opens one pull request,
 `chore/harness-sync-<short sha>`, in the house form with a `PR: #<n>` trailer
 on its commit. Any older sync pull request still open there is closed with a
 comment naming the new one, and its branch deleted. A rerun for the same
 commit finds its own pull request and opens no second one. A commit older than
 the target's manifest, or than a sync already open, is refused.
+
+A run opens nothing where it has nothing new. A target the payload leaves
+current gets no pull request, and any open sync there is closed as stale. An
+open sync for an older commit on `main` whose manifest maps every managed file
+to the hash this run renders already carries this run's change, so it stays
+open and nothing else opens. The rendered tree is the test, not the payload's
+commit, so a change to the target's own `.harness/config.json` still opens a
+sync. A payload change merged after the open sync's commit is synced by the
+next scheduled run at the latest, four hours on.
+
+**Why a schedule, not every merge.** Spec 5.3 first had the trigger as the
+builder's call, automatic on merge. On 2026-11-09 that opened 29 syncs in
+blueprint-backend and closed 27 of them unmerged, each after a full CI run in
+its target, and two `/dispatch` executors were paid for syncs superseded
+before they merged (#380). The owner approved changing the trigger on
+2026-11-10, and the spec is left as written; this section is the record. Of
+the three options #380 weighs, the schedule was taken:
+
+- **Taken: a schedule plus dispatch.** At most six syncs a day per target,
+  latency bounded at four hours, and an urgent sync is one dispatch away.
+- **Rejected: a debounce on push.** A run started by a merge always sees that
+  merge as the newest payload commit, so it can only defer, never open, unless
+  it holds a runner through the quiet period. The scheduled run that picks up
+  what it defers is then the trigger, with more parts around it.
+- **Rejected: a draft per merge that the takers wait out.** It still opens a
+  pull request, and starts the target's checks, on every merge, which is the
+  cost #380 is about; and it moves the waiting into `/dispatch` and `/ship`,
+  in every target.
 
 It needs `HARNESS_SYNC_TOKEN`: a fine-grained token with Contents, Pull
 requests and Workflows read-write on every repository in `targets.json`, this
