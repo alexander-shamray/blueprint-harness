@@ -206,17 +206,19 @@ git guard backs them for a redirect and a writing verb, in every turn:**
 `guard-git-argv.py` refuses both under either directory, all but the removal of
 a named memory file (*The edit-target guard*). `curl -o`, `tar -x` and an
 interpreter are not on its list of verbs, so they stay open, the residual *Git
-argv guard hook* states. **A frontmatter deny reaches such a command when it
-names the path, measured in blueprint-harness** (#307): on 2026-11-10, on
+argv guard hook* states. **A frontmatter deny reaches a shell redirect naming
+the path, measured in blueprint-harness** (#307): on 2026-11-10, on
 Windows, in `default` mode with no classifier, in an empty directory outside
 every checkout, so no project hook ran and no user-level deny covered the path,
 a command whose frontmatter held only `disallowed-tools:
 Edit(~/.claude/projects/**)` had `echo x > ~/.claude/projects/probe307.md`
 refused with no prompt and nothing written, where the same command without that
 frontmatter, in the same session, met an ordinary prompt. So the deny in
-these five commands refuses, in their turn, a shell write naming the path, as a
-path deny did where *A boundary an agent must keep across turns* measured it. A
-command that computes its path does not name it, and that half is unmeasured.
+these five commands refuses, in their turn, a redirect naming the path, as a
+path deny did where *A boundary an agent must keep across turns* measured it.
+A redirect is what the git guard already refuses; whether the deny reaches
+`curl -o`, `tar -x` or an interpreter writing to a named path, the writes that
+guard misses, is unmeasured, and so is a command that computes its path.
 
 **The index skill's prefix grants are the same speed bump as `git *--output*`.**
 `Bash(bash .claude/skills/codebase-index/scripts/cbx search:*)` matches the
