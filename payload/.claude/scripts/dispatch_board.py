@@ -724,8 +724,8 @@ def _issue(value):
 
 
 def _day_command(args):
-    # The settings base grants these lines to every session, so they write only the list the config names, never a
-    # path or a checkout the command line chose.
+    # The settings base grants every session these prefixes, so the run-less forms write only the list the config
+    # names. The same `done` and `back` prefixes reach the --run forms, which refuse without the run's state.json.
     if getattr(args, "tasks", None) or args.root != ".":
         raise Refusal(f"tasks {args.action} without --run writes only the list .harness/config.json names; "
                       "it takes no --tasks or --root")
