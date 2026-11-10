@@ -242,7 +242,7 @@ none is red unless its check run's annotations say a higher priority waiting
 request cancelled it, which is how run 42575459566 recorded a superseded job.
 A leg GitHub cancels from the runner queue ran none either, and its check run
 says something else, so it files. Only a `sync-red` that read red files. It
-retries each read three times; one still unread fails `sync-red`, which makes
+tries each read three times; one still unread fails `sync-red`, which makes
 the run red and files nothing, since no answer could be for a run with nothing
 red. It holds no concurrency group, so a run it read as having nothing red
 cannot take a red run's waiting place in `sync-issue`'s, and a run somebody
