@@ -445,7 +445,8 @@ write one. On a command line that text meets a shell, which runs a backtick
 pair or a `$(…)` inside double quotes, on a line a prefix grant has already
 approved. So it reaches the helpers as files under the run, written with the
 `artifacts/dispatch/` grant: `run` reads `<g>.task.txt` and takes no text
-argument, which also keeps a relaunch's task the first launch's, and `tasks
+argument, which also keeps a relaunch's task file the first launch's, with
+only `run`'s own relaunch clause after it (*Waking*), and `tasks
 place` reads `place-<n>.json`. The task is written before `tasks move`, so a
 resumed night finds it wherever the dispatcher stopped. `--refused` carries
 the helper's own line, in single quotes. `guard-helper-argv.py` is the
