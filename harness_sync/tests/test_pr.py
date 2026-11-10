@@ -513,12 +513,16 @@ class HeldSyncTests(SyncTestCase):
         self.assertEqual((outcome.state, outcome.pr, outcome.superseded), ("opened", 43, [42]))
 
     def test_open_sync_off_main_does_not_hold(self) -> None:
-        # Only a released commit holds: the drift gate refuses a manifest naming a commit off harness main.
-        side = self.side_commit("side")
+        # Only a released commit holds: the drift gate refuses a manifest naming a commit off harness main. The open
+        # sync's commit is behind the synced one, so the main clause alone keeps it from holding.
+        git(self.harness, "checkout", "-q", "-b", "side")
+        side = self.harness_commit("harness: side, off main")
+        synced = self.harness_commit("harness: side, its child")
+        git(self.harness, "checkout", "-q", "main")
         git(self.target, "push", "-q", "origin", f"{self.held_tip}:refs/heads/{self.branch(side)}")
         self.gh.open_prs = [{"number": 7, "headRefName": self.branch(side), "isCrossRepository": False}]
         self.gh.number = 43
-        outcome = self.sync(self.gh, self.tip)
+        outcome = self.sync(self.gh, synced)
         self.assertEqual((outcome.state, outcome.pr, outcome.superseded), ("opened", 43, [7]))
 
 
