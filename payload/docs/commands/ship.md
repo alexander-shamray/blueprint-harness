@@ -642,6 +642,11 @@ runs. Leaving a landed branch behind costs a line in `git branch` per run, which
 no one reads and no one clears; the drop is cheap and keeps the list to live
 work.
 
+**A finished branch's task-list rows are ended here too**, with step 6's
+`tasks done` and `back`, because a merge another route made, the owner's after
+a refused one above all, reaches no step 6: left to it, the row would read as
+work still in progress after the PR landed (*Step 6: the teardown*).
+
 **A refused drop is reported and is not a stop.** The helper refuses a branch
 that has not landed, and keeping that branch is exactly right; the merge is
 done and stopping would strand a finished run, so on any non-zero exit the
