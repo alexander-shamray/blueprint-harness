@@ -61,6 +61,10 @@ def _open_pr(args: argparse.Namespace) -> int:
         stale = "".join(f"; closed stale #{n}" for n in outcome.superseded)
         print(f"harness_sync: {args.repo or args.target} is {outcome.reason}{stale}")
         return 0
+    if outcome.state == "held":
+        stale = "".join(f"; superseded #{n}" for n in outcome.superseded)
+        print(f"harness_sync: {args.repo or args.target}: {outcome.reason}{stale}")
+        return 0
     superseded = ", ".join(f"#{n}" for n in outcome.superseded) or "none"
     print(f"harness_sync: sync pull request #{outcome.pr} open for {args.commit[:7]}; superseded {superseded}")
     return 0
