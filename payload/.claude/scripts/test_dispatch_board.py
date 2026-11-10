@@ -1,7 +1,9 @@
 import contextlib
+import ctypes
 import hashlib
 import io
 import json
+import os
 import re
 import tempfile
 import threading
@@ -1193,6 +1195,27 @@ class ChildTimeout(unittest.TestCase):
         self.assertIsInstance(outcome.get("error"), db.Refusal, outcome)
         self.assertIn("took over 2 s", str(outcome["error"]))
         self.assertLess(took, self.DRAIN - 15, "the call waited out the drain, so the grandchild outlived the timeout")
+
+    @unittest.skipUnless(os.name == "nt", "the job is Windows'")
+    def test_the_child_starts_suspended_inside_its_job(self):
+        # Started running and assigned after, the launcher could start its bash outside the job in between.
+        flags, popen = [], db.subprocess.Popen
+
+        def spy(*args, **kwargs):
+            flags.append(kwargs.get("creationflags", 0))
+            return popen(*args, **kwargs)
+
+        with mock.patch.object(db.subprocess, "Popen", spy):
+            process, job = db._start([BASH, "-c", "exit 0"], ".", None)
+        kernel32 = db._kernel32()[0]
+        self.addCleanup(kernel32.CloseHandle, job)
+        self.addCleanup(process.communicate)
+        self.assertTrue(job)
+        self.assertTrue(flags[0] & db.CREATE_SUSPENDED, flags)
+        inside = ctypes.c_int(0)
+        self.assertTrue(ctypes.WinDLL("kernel32").IsProcessInJob(
+            ctypes.c_void_p(int(process._handle)), ctypes.c_void_p(job), ctypes.byref(inside)))
+        self.assertTrue(inside.value)
 
     def test_an_interrupt_ends_the_tree_too(self):
         ended = []

@@ -827,23 +827,44 @@ def _kernel32():
     kernel32.TerminateJobObject.restype = wintypes.BOOL
     kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
     kernel32.CloseHandle.restype = wintypes.BOOL
-    return kernel32
+    ntdll = ctypes.WinDLL("ntdll")
+    ntdll.NtResumeProcess.argtypes = (wintypes.HANDLE,)
+    ntdll.NtResumeProcess.restype = wintypes.LONG
+    return kernel32, ntdll
 
 
-def _job(process):
-    """A Windows job holding `process`, so each process it starts joins it whatever its parent; None if none can be
-    made. Parentage cannot do this: msys's `exec` leaves its process under a parent that has exited, and `taskkill /T`
-    cannot walk past that. The child runs briefly before it is assigned, while Git's bash is still starting."""
+# Popen's creationflags for a child that runs nothing until it is resumed.
+CREATE_SUSPENDED = 0x00000004
+
+
+def _start(argv, cwd, env):
+    """(process, job): the child, and on Windows the job holding it from its first instruction, so each process it
+    starts joins the job whatever its parent. Parentage cannot do this: msys's `exec` leaves its process under a parent
+    that has exited, which `taskkill /T` cannot walk past. The job is None off Windows, or where none can be made."""
+    pipes = {"cwd": cwd, "stdout": subprocess.PIPE, "stderr": subprocess.PIPE, "env": env}
+    if os.name != "nt":
+        return subprocess.Popen(argv, start_new_session=True, **pipes), None
     try:
-        kernel32 = _kernel32()
+        kernel32, ntdll = _kernel32()
         job = kernel32.CreateJobObjectW(None, None)
-        if job and kernel32.AssignProcessToJobObject(job, int(process._handle)):
-            return job
+    except (OSError, AttributeError):
+        job = None
+    if not job:
+        return subprocess.Popen(argv, **pipes), None
+    try:
+        process = subprocess.Popen(argv, creationflags=CREATE_SUSPENDED, **pipes)
+    except BaseException:
+        kernel32.CloseHandle(job)
+        raise
+    if not kernel32.AssignProcessToJobObject(job, int(process._handle)):
+        kernel32.CloseHandle(job)
+        job = None
+    if ntdll.NtResumeProcess(int(process._handle)) != 0:
+        _end_tree(process, job)
         if job:
             kernel32.CloseHandle(job)
-    except (OSError, AttributeError):
-        pass
-    return None
+        raise OSError(f"could not resume {Path(argv[0]).name} after starting it suspended")
+    return process, job
 
 
 def _end_tree(process, job):
@@ -851,7 +872,7 @@ def _end_tree(process, job):
     session elsewhere. `kill` alone ends the direct child, which for Git's `bin/bash.exe` is a launcher."""
     if job:
         with contextlib.suppress(OSError):
-            _kernel32().TerminateJobObject(job, 1)
+            _kernel32()[0].TerminateJobObject(job, 1)
     elif os.name == "nt":
         taskkill = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "taskkill.exe")
         with contextlib.suppress(OSError, subprocess.SubprocessError):
@@ -868,9 +889,7 @@ def run_bounded(argv, cwd, timeout, env=None):
     """(code, stdout, stderr) as bytes, or subprocess.TimeoutExpired once `timeout` has passed and the child's tree is
     ended. `subprocess.run`'s own timeout kills the direct child and then, on Windows, waits with no limit for pipes a
     grandchild still holds, so the wait after the kill is bounded here too (docs/harness/pitfalls.md)."""
-    group = {"start_new_session": True} if os.name != "nt" else {}
-    process = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, **group)
-    job = _job(process) if os.name == "nt" else None
+    process, job = _start(argv, cwd, env)
     try:
         out, err = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -885,7 +904,7 @@ def run_bounded(argv, cwd, timeout, env=None):
         raise
     finally:
         if job:
-            _kernel32().CloseHandle(job)
+            _kernel32()[0].CloseHandle(job)
     return process.returncode, out, err
 
 
