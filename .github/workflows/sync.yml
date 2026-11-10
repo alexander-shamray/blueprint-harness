@@ -1,15 +1,12 @@
 name: Sync
 
-# A merge to main that changes the payload or the tool opens one sync pull
-# request in each target in targets.json, and closes any older one still open
-# there (shared-harness spec 5.3). The pull request is the change; nothing is
-# pushed to a target's main from here.
+# Every four hours, and on dispatch, main's tip opens one sync pull request in
+# each target its payload moved, closing any older one there. Not on every
+# merge, as spec 5.3 first had it: on a busy day almost every sync closed
+# unmerged (README, The sync workflow). Nothing is pushed to a target's main.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'payload/**'
-      - 'harness_sync/**'
+  schedule:
+    - cron: '17 */4 * * *'
   workflow_dispatch:
 
 # The harness repository's contents are only read. Every write to a target goes
@@ -66,8 +63,8 @@ jobs:
       fail-fast: false
       matrix:
         target: ${{ fromJSON(needs.targets.outputs.matrix) }}
-    # One run per target at a time, queued, not cancelled, so no merge cuts in
-    # between another's push and its trailer push. The queue does not order
+    # One run per target at a time, queued, not cancelled, so no dispatch cuts
+    # in between a scheduled run's push and its trailer push. The queue does not order
     # runs (GitHub keeps one waiting job per group, and a rerun reuses its old
     # event), so each run syncs main's tip as the job starts, and open-pr
     # refuses a commit older than the target's manifest or an open sync.
@@ -214,7 +211,7 @@ jobs:
               'medium' \
               '' \
               'A target whose job failed may have no finished sync pull request for this' \
-              'payload; a rerun of the failed jobs or the next payload merge settles it' \
+              'payload; a rerun of the failed jobs or the next scheduled run settles it' \
               '(README.md, *The sync workflow*). This stops no landing. Close this issue' \
               'once a `Sync` run is green.' \
               '' \
