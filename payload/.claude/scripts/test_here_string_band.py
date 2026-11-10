@@ -1,8 +1,7 @@
 """No here-string in the harness's shell scripts: Git Bash 5.2 hangs on one of about 64 KiB (docs/harness/pitfalls.md).
 
-The walk is the case: a script added later with `cmd <<<"$list"` fails it. The two list helpers are also run against a
-`gh` stub printing 65,541 bytes, the size that held `/dispatch` at step 0; a case at one size pins only that band, and
-the walk is what covers the rest.
+The walk is the case, so a script added later with `cmd <<<"$list"` fails it. The list helpers also run on a stub `gh`
+printing 65,541 bytes, the size that hung; one size pins only that band, and the walk covers the rest.
 """
 
 import json
