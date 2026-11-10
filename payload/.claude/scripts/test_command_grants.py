@@ -135,7 +135,7 @@ class AnAgentIsGrantedByExactType(unittest.TestCase):
 
     def test_ship_spawns_its_audits_as_the_check_auditor_and_denies_general_purpose(self):
         # Step 2's passes read the branch under review, so a type holding Edit or Bash is one planted line from
-        # acting; general-purpose is denied rather than left for them (blueprint-backend#1786).
+        # acting; general-purpose is denied rather than left for them.
         ship = (COMMANDS / "ship.md").read_text(encoding="utf-8")
         denied = set(frontmatter_list(ship, "disallowed-tools"))
         text = flat(COMMANDS / "ship.md")
