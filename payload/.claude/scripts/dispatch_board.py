@@ -680,6 +680,13 @@ def set_issue_state(text, number, state):
     return _checked("\n".join(lines))
 
 
+def _read_or_refuse(path):
+    try:
+        return _read(path)
+    except OSError as error:
+        raise Refusal(f"could not read {path}: {error}") from None
+
+
 # How many times a day write starts again from a list another session changed under it.
 SWAP_TRIES = 5
 
@@ -689,14 +696,11 @@ def _swap(path, edit):
     from the fresh copy. That narrows the window another writer's edit is lost in to the moment between the last
     compare and the replace; it does not close it. False: nothing to do."""
     for _ in range(SWAP_TRIES):
-        try:
-            text = _read(path)
-        except OSError as error:
-            raise Refusal(f"could not read {path}: {error}") from None
+        text = _read_or_refuse(path)
         result = edit(text)
         if result is None:
             return False
-        if _read(path) != text:
+        if _read_or_refuse(path) != text:
             continue
         _write(path, result)
         return True
@@ -739,7 +743,10 @@ def _day_command(args):
         def edit(text):
             result, line = start_issue(text, number, args.branch, args.worktree, args.what)
             if line is not None:
-                saved.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    saved.parent.mkdir(parents=True, exist_ok=True)
+                except OSError as error:
+                    raise Refusal(f"could not make {saved.parent}: {error}") from None
                 _write(saved, line)
                 took.append(line)
             return result
@@ -760,7 +767,7 @@ def _day_command(args):
     if args.action == "done":
         wrote = _swap(path, lambda text: finish_issue(text, number))
     else:
-        line = _read(saved).rstrip("\r\n") if saved.is_file() else None
+        line = _read_or_refuse(saved).rstrip("\r\n") if saved.is_file() else None
         wrote = _swap(path, lambda text: return_issue(text, number, line))
     if wrote or args.action == "done":
         with contextlib.suppress(FileNotFoundError):

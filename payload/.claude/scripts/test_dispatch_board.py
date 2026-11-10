@@ -1219,6 +1219,12 @@ class DayTests(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             db.main(["tasks", "start", "1681", "--branch", "b", "--worktree", "w", "--tasks", str(self.path)])
 
+    def test_a_saved_row_that_cannot_be_kept_is_a_refusal_and_writes_nothing(self):
+        self.saved.write_text("not a directory", encoding="utf-8")
+        code, out = self.start(1681)
+        self.assertEqual((2, FIXTURE), (code, self.read()))
+        self.assertIn("could not make", out)
+
     def test_a_crlf_list_stays_crlf(self):
         self.write(FIXTURE.replace("\n", "\r\n"))
         self.start(1683)
