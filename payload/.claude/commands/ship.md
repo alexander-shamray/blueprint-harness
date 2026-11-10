@@ -1,7 +1,7 @@
 ---
 description: Start from a clean main, fork a worktree where one can be forked, branch, commit, push and open a PR, run the local review until a round has nothing open, then merge the PR and tear the workspace down. Decides for itself rather than stopping to ask
 argument-hint: "[what the change does | sync #<n>] [--sleep] [--dispatched <run-dir>] [--berserk] — omit and each step derives its own"
-allowed-tools: Read, Grep, Glob, Write, Skill, Agent(branch-reviewer), EnterWorktree, ExitWorktree, Bash(git status:*), Bash(git diff:*), Bash(git branch --list:*), Bash(git branch --show-current), Bash(git branch -a), Bash(git log:*), Bash(git fetch origin:*), Bash(bash .claude/scripts/git-branch-create.sh:*), Bash(bash .claude/scripts/git-worktree-fork.sh:*), Bash(bash .claude/scripts/git-switch-existing.sh:*), Bash(bash .claude/scripts/git-rebase-onto-main.sh:*), Bash(git rev-parse:*), Bash(git worktree list:*), Bash(ls:*), Bash(git add:*), Bash(git commit:*), Bash(bash .claude/scripts/git-unstage.sh:*), Bash(git push -u origin:*), Bash(git push origin:*), Bash(wc:*), Bash(bash .claude/scripts/gh-pr-create.sh:*), Bash(bash .claude/scripts/pr-state.sh:*), Bash(bash .claude/scripts/pr-for-branch.sh:*), Bash(bash .claude/scripts/git-trailer-pr.sh:*), Bash(gh pr checks:*), Bash(bash .claude/scripts/gh-pr-merge.sh:*), Bash(git pull --ff-only), Bash(git merge-base --is-ancestor:*), Bash(bash .claude/scripts/git-worktree-remove.sh:*), Bash(git worktree prune:*), Bash(bash .claude/scripts/pr-locality.sh:*), Bash(bash .claude/scripts/gh-issue-hand.sh:*), Bash(bash .claude/scripts/system-sleep.sh), Bash(py -3.12 .claude/scripts/sync_pr.py:*), Bash(bash .claude/scripts/git-worktree-sync.sh:*), Bash(bash .claude/scripts/gh-issue-harness.sh:*), Bash(py -3.12 .claude/scripts/shard-harness-suite.py), Bash(bash .claude/scripts/gh-issue-list.sh), Bash(bash .claude/scripts/gh-issue-suppresses.sh:*), Bash(bash .claude/scripts/git-branch-drop.sh:*), Bash(bash .claude/scripts/main-red-open.sh), Bash(git merge-base origin/main HEAD), Bash(bash .claude/skills/codebase-index/scripts/cbx search:*), Bash(bash .claude/skills/codebase-index/scripts/cbx refs:*), Bash(bash .claude/skills/codebase-index/scripts/cbx impact:*), Bash(bash .claude/skills/codebase-index/scripts/cbx diff-impact:*)
+allowed-tools: Read, Grep, Glob, Write, Skill, Agent(branch-reviewer), EnterWorktree, ExitWorktree, Bash(git status:*), Bash(git diff:*), Bash(git branch --list:*), Bash(git branch --show-current), Bash(git branch -a), Bash(git log:*), Bash(git fetch origin:*), Bash(bash .claude/scripts/git-branch-create.sh:*), Bash(bash .claude/scripts/git-worktree-fork.sh:*), Bash(bash .claude/scripts/git-switch-existing.sh:*), Bash(bash .claude/scripts/git-rebase-onto-main.sh:*), Bash(git rev-parse:*), Bash(git worktree list:*), Bash(ls:*), Bash(git add:*), Bash(git commit:*), Bash(bash .claude/scripts/git-unstage.sh:*), Bash(git push -u origin:*), Bash(git push origin:*), Bash(wc:*), Bash(bash .claude/scripts/gh-pr-create.sh:*), Bash(bash .claude/scripts/pr-state.sh:*), Bash(bash .claude/scripts/pr-for-branch.sh:*), Bash(bash .claude/scripts/git-trailer-pr.sh:*), Bash(gh pr checks:*), Bash(bash .claude/scripts/gh-pr-merge.sh:*), Bash(git pull --ff-only), Bash(git merge-base --is-ancestor:*), Bash(bash .claude/scripts/git-worktree-remove.sh:*), Bash(git worktree prune:*), Bash(bash .claude/scripts/pr-locality.sh:*), Bash(bash .claude/scripts/gh-issue-hand.sh:*), Bash(bash .claude/scripts/system-sleep.sh), Bash(py -3.12 .claude/scripts/sync_pr.py:*), Bash(bash .claude/scripts/git-worktree-sync.sh:*), Bash(bash .claude/scripts/gh-issue-harness.sh:*), Bash(py -3.12 .claude/scripts/shard-harness-suite.py), Bash(bash .claude/scripts/gh-issue-list.sh), Bash(bash .claude/scripts/gh-issue-suppresses.sh:*), Bash(bash .claude/scripts/git-branch-drop.sh:*), Bash(bash .claude/scripts/main-red-open.sh), Bash(git merge-base origin/main HEAD), Bash(bash .claude/skills/codebase-index/scripts/cbx search:*), Bash(bash .claude/skills/codebase-index/scripts/cbx refs:*), Bash(bash .claude/skills/codebase-index/scripts/cbx impact:*), Bash(bash .claude/skills/codebase-index/scripts/cbx diff-impact:*), Bash(py -3.12 .claude/scripts/dispatch_board.py tasks start:*), Bash(py -3.12 .claude/scripts/dispatch_board.py tasks state:*), Bash(py -3.12 .claude/scripts/dispatch_board.py tasks done:*), Bash(py -3.12 .claude/scripts/dispatch_board.py tasks back:*)
 disallowed-tools: Agent(claude), Agent(Explore), Agent(Plan), Agent(claude-code-guide), Agent(statusline-setup), Agent(fork), Agent(bug-auditor), Agent(security-auditor), Agent(team-peer), Edit(~/.claude/projects/**), Edit(~/.claude/output-styles/**)
 ---
 
@@ -52,7 +52,8 @@ checkout and removes the worktree, however the review ended.
   never retry it by another spelling or answer it with a branch update, and
   hand over the `! bash .claude/scripts/gh-pr-merge.sh <n> <oid>` line with the
   oid the gates read. The owner's merge leaves the run at the *already merged*
-  row: step 0 tears down, and this change's task list row goes then. Under
+  row: step 0 tears down, and this change's task list rows go then, by step
+  6's `tasks done`. Under
   `--dispatched` it is the `stopped` ending, with the line in `reason`. (why:
   docs/commands/ship.md, *It runs to the end, and the end is a merged PR*)
 - **Under the standalone token `--dispatched <run-dir>`**, three more
@@ -685,9 +686,15 @@ target*)
      its history.
    - **A usage exit after line 5's pull on `main` is not a stop**: rerun from
      the exiting line as the pulled `ship.md` spells it, and report it.
-   - When these lines end, re-derive this change's rows by state in
-     the task list named by `.harness/config.json`
-     `task_list`, in the main checkout's parent directory, by that path (why:
+   - When these lines end, end this change's *In progress* rows: `done`
+     for each issue the PR closes, `back` for each it leaves open:
+
+     ```bash
+     py -3.12 .claude/scripts/dispatch_board.py tasks done <n>
+     py -3.12 .claude/scripts/dispatch_board.py tasks back <n>
+     ```
+
+     Exit 2 is reported, not a stop, and never routed round by hand (why:
      docs/commands/ship.md, *Step 6: the teardown*).
    - Under `--dispatched`, skip this write, and only lines 1 and 8 run: no
      `ExitWorktree`, no `git-worktree-remove.sh`, no switch, pull,

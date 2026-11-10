@@ -56,6 +56,10 @@ BRANCH_GRANTS_BEFORE = (
     "Bash(git rev-parse:*)", "Bash(git worktree list:*)", "Bash(ls:*)",
 )
 
+# The run-less task-list moves: /branch starts a row, /pr marks it, /ship ends it; each skips under the token.
+TASK_GRANTS = tuple(f"Bash(py -3.12 .claude/scripts/dispatch_board.py tasks {action}:*)"
+                    for action in ("start", "state", "done", "back"))
+
 SKIP_WRITE = "Under --dispatched, skip this write"
 WHY = "(why: docs/commands/ship.md, *Dispatched: the one token /dispatch passes*)"
 
@@ -121,7 +125,7 @@ class TheDispatchedTokenChangesOnlyWhatTheSpecLists(unittest.TestCase):
     def test_both_task_list_writes_are_skipped(self):
         # The skip follows the write it names, so it cannot be read as about another line.
         for name, text, write in (
-                ("ship.md step 6", flat(ship_step_6()), "re-derive this change's rows by state"),
+                ("ship.md step 6", flat(ship_step_6()), "end this change's *In progress* rows"),
                 ("branch.md step 5", flat(branch_step_5()), "add the change to *In progress*")):
             with self.subTest(where=name):
                 self.assertIn(SKIP_WRITE, text)
@@ -250,16 +254,31 @@ class TheDispatchedTokenChangesOnlyWhatTheSpecLists(unittest.TestCase):
         self.assertEqual(len(rows), 7)
 
     def test_the_grants_did_not_change(self):
-        self.assertEqual(grants(SHIP), GRANTS_BEFORE + SYNC_GRANTS + DROP_GRANTS + MAIN_RED_GRANTS + INDEX_GRANTS)
-        self.assertEqual(grants(BRANCH), BRANCH_GRANTS_BEFORE)
+        self.assertEqual(grants(SHIP), GRANTS_BEFORE + SYNC_GRANTS + DROP_GRANTS + MAIN_RED_GRANTS + INDEX_GRANTS
+                         + TASK_GRANTS)
+        self.assertEqual(grants(BRANCH), BRANCH_GRANTS_BEFORE + TASK_GRANTS[:1])
         self.assertIn("Write", GRANTS_BEFORE, "the result is written with a tool the command already holds")
 
     def test_the_in_progress_row_carries_its_group(self):
         step = flat(branch_step_5())
-        self.assertIn("the issue's group from *Remaining* or —; #n, or owed (not filed) with no issue; what; "
-                      "branch, then worktree, in one cell, each in backticks; started", step)
+        self.assertIn("py -3.12 .claude/scripts/dispatch_board.py tasks start <n> --branch <name> --worktree "
+                      ".claude/worktrees/<slug>", step)
+        self.assertIn("moves the issue's row out of *Remaining* keeping its group", step)
+        self.assertIn("the list is never edited by hand round it", step)
+        self.assertIn("—; owed (not filed); what; branch, then worktree, in one cell, each in backticks; started",
+                      step)
         self.assertEqual(dispatch_board.HEADERS["In progress"][:2], ("Group", "#"),
                          "the row's description follows the table's column order")
+
+    def test_pr_and_ship_end_the_row_through_the_helper(self):
+        pr = flat((ROOT / ".claude" / "commands" / "pr.md").read_text(encoding="utf-8"))
+        self.assertIn("py -3.12 .claude/scripts/dispatch_board.py tasks state <issue> 'PR #<n> open'", pr)
+        self.assertIn("Under /ship --dispatched, skip this write", pr)
+        self.assertIn(TASK_GRANTS[1], grants(ROOT / ".claude" / "commands" / "pr.md"))
+        step = flat(ship_step_6())
+        for action in ("done", "back"):
+            with self.subTest(action=action):
+                self.assertIn(f"py -3.12 .claude/scripts/dispatch_board.py tasks {action} <n>", step)
 
     def test_the_in_progress_row_is_the_one_the_board_parses(self):
         # A session writes what this step says and /dispatch never rebuilds the section, so a row the board refuses

@@ -1320,11 +1320,15 @@ main checkout — so line 3 is the only thing that makes the pull mean `main`.
 Running line 7 anyway exits non-zero against a worktree that never existed
 and stops the chain on a helper failure with nothing behind it.
 
-**The task-list rows of this change are re-derived when the nine lines end**, at
-line 9 or at a line that stops them after the verified merge, which deletes
-the row `/branch` added unless its issue stays open, by the file's own path,
-which `.harness/agent-rules.md`, *Working in a target*, puts outside every
-checkout so that the isolation refuses it to no workspace. Nothing else removes
+**The task-list rows of this change are ended when the nine lines end**, at
+line 9 or at a line that stops them after the verified merge: `tasks done`
+deletes the row `/branch`'s `tasks start` added for each issue the PR closes,
+and `tasks back` returns the row of one it leaves open, through the helper
+rather than by hand, since a hand edit leaves a list `/dispatch` stops on
+(`docs/commands/branch.md`, *Step 5*). The helper finds the file by the path
+`.harness/agent-rules.md`, *Working in a target*, puts outside every checkout,
+so that the isolation refuses it to no workspace, and a refusal is reported
+rather than stopping a chain whose merge is already done. Nothing else removes
 it: a row left behind reads as work still in progress after the PR has landed,
 which is what *In progress* exists not to say. An issue the merge left open, one
 a later pull request of a set closes, is still open work, so its row goes where
