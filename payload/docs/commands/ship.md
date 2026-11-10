@@ -1334,7 +1334,9 @@ which is what *In progress* exists not to say. An issue the merge left open, one
 a later pull request of a set closes, is still open work, so its row goes where
 `docs/harness/working-rules.md`, *Issues and the task list*, puts it rather than
 off the list. It reads the branch as those lines left it, since read earlier
-the branch still stands and the row stays *In progress* naming one about to go.
+the branch still stands and the row stays *In progress* naming one about to go:
+`back` waits for line 9's drop, and a branch a refused removal kept keeps its
+row *In progress*, which that table allows while a branch remains.
 
 Line 5 runs on both paths, the pull on `main` or the fetch elsewhere,
 because skipping it leaves local `main` a merge behind — precisely the state
