@@ -2583,10 +2583,11 @@ FETCH_VALUE_OPTIONS = {
     },
 }
 FETCH_VALUE_LETTERS = {"fetch": frozenset("jo"), "pull": frozenset("Xos")}
-# What may stand ahead of one in a cluster, by allow-list: `-Sj` ends in a value
-# letter and is `-S` with the key `j`, so reading the next word as its value
-# would hide the refspec after it.
-FETCH_CLUSTER_FLAGS = frozenset("qv")
+# What may stand ahead of one in a cluster: each letter of that subcommand that
+# takes no value. `-Sj` is `-S` with the key `j`, so a letter whose value is
+# optional is not one, and `-ao` is `-a` then `-o`, so leaving one out hides a remote.
+FETCH_CLUSTER_FLAGS = {"fetch": frozenset("46Pafkmnpqtuv"),
+                       "pull": frozenset("46afknpqtv")}
 
 # `/ship`'s fast-forward of a `main` it is not standing on. The source is named
 # in full because `main:main` takes origin's same-named tag first.
@@ -2610,7 +2611,7 @@ def takes_next_word(word, kind):
         return any(word.startswith(shortest) and option.startswith(word)
                    for option, shortest in FETCH_VALUE_OPTIONS[kind].items())
     return (word.startswith("-") and word[-1] in FETCH_VALUE_LETTERS[kind]
-            and set(word[1:-1]) <= FETCH_CLUSTER_FLAGS)
+            and set(word[1:-1]) <= FETCH_CLUSTER_FLAGS[kind])
 
 
 def refspec_offence(segment):
