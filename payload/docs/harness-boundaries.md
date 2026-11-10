@@ -2574,7 +2574,9 @@ hands every executor back.
 
 **The dispatcher writes the task list alone.** It writes only through
 `dispatch_board.py tasks`, with no `Edit` grant on the file. Every `tasks`
-action refuses a run with no `state.json`, `tasks rewrite` refuses any
+action given `--run` refuses a run with no `state.json`; a day session's
+run-less `start`, `state`, `done` and `back`, granted in the settings base,
+touch one issue's row and refuse one a run moved. `tasks rewrite` refuses any
 change to the *In progress* section, and `done` and `back` touch only the
 rows the run's own move recorded, `done` only once `verify` has passed.
 After `verify`, the dispatcher pulls with `--ff-only`, checks
