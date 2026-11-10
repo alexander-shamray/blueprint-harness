@@ -149,13 +149,13 @@ def resolves(cited: str, payload: Path, held: set[str], rel: str = "") -> bool:
 
 
 def unresolved(payload: Path, held: set[str], import_text: str) -> list[str]:
-    dirs, sites = stack_sites(import_text)
+    """The paths and links no target holds. A listed stack directory is exempt from stack names, not from this: the
+    target it is delivered to still has to hold what its files cite."""
+    sites = stack_sites(import_text)[1]
     suffixless = _suffixless_path(suffixless_names(payload))
     found = []
     for path in payload_files(payload):
         rel = path.relative_to(payload).as_posix()
-        if any(rel.startswith(d) for d in dirs):
-            continue
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if at_site(sites, rel, line):
                 continue
@@ -385,6 +385,16 @@ class PlantedCitations(unittest.TestCase):
         stack = "## Stack mentions left verbatim\n\n- `.claude/commands/pr.md#second` and `tools/`, backend's.\n"
         self.assertEqual(unresolved(self.payload, TARGET_HELD, stack),
                          [".claude/commands/pr.md:1: docs/gone.md", "tools/x.md:1: docs/gone.md"])
+
+    def test_stack_directory_still_has_its_citations_resolved(self) -> None:
+        self.plant(".github/output-gate/README.md",
+                   "MSBuild reads [the rule](../../docs/backend-only.md) and `docs/testing.md`.\n")
+        stack = "## Stack mentions left verbatim\n\n- `.github/output-gate/`\n"
+        self.assertEqual(stack_names(self.payload, stack), [])
+        self.assertEqual(unresolved(self.payload, TARGET_HELD, stack), [
+            ".github/output-gate/README.md:1: docs/testing.md",
+            ".github/output-gate/README.md:1: (../../docs/backend-only.md)",
+        ])
 
     def test_stack_site_survives_an_edit_above_it(self) -> None:
         stack = "## Stack mentions left verbatim\n\n- `.claude/commands/pr.md#second`\n"
