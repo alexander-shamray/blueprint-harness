@@ -879,6 +879,10 @@ def run_bounded(argv, cwd, timeout, env=None):
         with contextlib.suppress(subprocess.TimeoutExpired):
             process.communicate(timeout=DRAIN_TIMEOUT)
         raise subprocess.TimeoutExpired(argv, timeout) from None
+    except BaseException:
+        # An interrupt leaves the child running otherwise, and on POSIX its own session keeps Ctrl-C from it.
+        _end_tree(process, job)
+        raise
     finally:
         if job:
             _kernel32().CloseHandle(job)
