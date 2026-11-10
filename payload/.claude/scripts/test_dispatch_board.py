@@ -1042,8 +1042,9 @@ class DayTests(unittest.TestCase):
 
     def cli(self, *args):
         out, err = io.StringIO(), io.StringIO()
-        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = db.main(["tasks", args[0], "--tasks", str(self.path), *args[1:]])
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), \
+                mock.patch.object(db, "task_list", lambda _root: self.path):
+            code = db.main(["tasks", *args])
         return code, out.getvalue() + err.getvalue()
 
     def start(self, number, branch="feat/x", *more):
@@ -1182,17 +1183,31 @@ class DayTests(unittest.TestCase):
         self.assertIsNone(re.search(r"#1681", self.read()))
         self.assertFalse((self.saved / "1681.md").exists())
 
-    def test_the_list_defaults_to_the_one_the_config_names_beside_the_main_checkout(self):
+    def test_the_list_is_the_one_the_config_names_beside_the_main_checkout(self):
         main = self.dir / "main"
         (main / ".harness").mkdir(parents=True)
         (main / ".harness" / "config.json").write_text('{"task_list": "lists/todo.md"}', encoding="utf-8")
         db.git(str(main), "init", "-q")
         (self.dir / "lists").mkdir()
         (self.dir / "lists" / "todo.md").write_text(FIXTURE, encoding="utf-8")
+        self.addCleanup(os.chdir, os.getcwd())
+        os.chdir(main)
         with contextlib.redirect_stdout(io.StringIO()):
-            code = db.main(["tasks", "start", "1681", "--branch", "b", "--worktree", "w", "--root", str(main)])
+            code = db.main(["tasks", "start", "1681", "--branch", "b", "--worktree", "w"])
         self.assertEqual(0, code)
         self.assertIn("| S3 | #1681 |", (self.dir / "lists" / "todo.md").read_text(encoding="utf-8"))
+
+    def test_a_day_action_takes_no_path_and_no_checkout_from_its_command_line(self):
+        # Every session holds these grants, so a line naming its own file would write wherever it pointed.
+        for args in (("done", "1681", "--tasks", str(self.path)), ("back", "1681", "--root", str(self.dir)),
+                     ("start", "1681", "--branch", "b", "--worktree", "w", "--root", str(self.dir)),
+                     ("state", "1681", "x", "--root", str(self.dir))):
+            with self.subTest(args=args):
+                code, out = self.cli(*args)
+                self.assertEqual((2, FIXTURE), (code, self.read()))
+                self.assertIn("takes no --tasks or --root", out)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            db.main(["tasks", "start", "1681", "--branch", "b", "--worktree", "w", "--tasks", str(self.path)])
 
     def test_a_crlf_list_stays_crlf(self):
         self.write(FIXTURE.replace("\n", "\r\n"))

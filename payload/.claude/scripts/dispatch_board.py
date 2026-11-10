@@ -721,7 +721,12 @@ def _issue(value):
 
 
 def _day_command(args):
-    path = Path(args.tasks) if args.tasks else task_list(args.root)
+    # The settings base grants these lines to every session, so they write only the list the config names, never a
+    # path or a checkout the command line chose.
+    if getattr(args, "tasks", None) or args.root != ".":
+        raise Refusal(f"tasks {args.action} without --run writes only the list .harness/config.json names; "
+                      "it takes no --tasks or --root")
+    path = task_list(".")
     number = _issue(args.issue)
     # What `start` took out of Remaining, kept beside the list so `back` puts the whole row back, cells and all.
     saved = path.with_name(f"{path.stem}.started") / f"{number}.md"
@@ -1189,11 +1194,10 @@ def main(argv=None, body_source=None, open_source=None, branch_source=None, week
     b.add_argument("--berserk", action="store_true")
     t = sub.add_parser("tasks")
     actions = t.add_subparsers(dest="action", required=True)
-    # A day session's `done` and `back` name an issue and no run; its list defaults to the one the config names.
+    # A day session's `done` and `back` name an issue and no run; its list is the one the config names.
     day = {"done", "back"}
     for action in ("start", "state"):
         s = actions.add_parser(action)
-        s.add_argument("--tasks")
         s.add_argument("issue")
         if action == "start":
             s.add_argument("--branch", required=True)
