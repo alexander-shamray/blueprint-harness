@@ -52,8 +52,7 @@ checkout and removes the worktree, however the review ended.
   never retry it by another spelling or answer it with a branch update, and
   hand over the `! bash .claude/scripts/gh-pr-merge.sh <n> <oid>` line with the
   oid the gates read. The owner's merge leaves the run at the *already merged*
-  row: step 0 tears down, and this change's task list rows go then, by step
-  6's `tasks done`. Under
+  row: step 0 tears down and ends this change's task list rows. Under
   `--dispatched` it is the `stopped` ending, with the line in `reason`. (why:
   docs/commands/ship.md, *It runs to the end, and the end is a merged PR*)
 - **Under the standalone token `--dispatched <run-dir>`**, three more
@@ -360,7 +359,8 @@ target*)
    A refused removal keeps its branch, and no drop runs; exit 4 is one, the
    directory being still there. Any non-zero exit of
    the drop is reported and is not a stop, and exit 6 (no local branch) is
-   simply reported.
+   simply reported. Then end the finished branch's task list rows as step
+   6's `tasks done` and `back` do.
    (why: docs/commands/ship.md, *Step 0: the teardown*)
 
 1. **`/branch`**, passing $ARGUMENTS. Skip if already off `main` — which
