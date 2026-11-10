@@ -191,6 +191,7 @@ jobs:
           # the higher priority waiting request, and no other cancelled job's does.
           if [ -z "$red" ]; then
             while IFS=$'\t' read -r id name; do
+              [ -z "$red" ] || break
               notes=$(read_api --paginate "repos/$GH_REPO/check-runs/$id/annotations") || unread "$name's annotations"
               jq -e -s 'add // [] | any(.[]; .message | contains("higher priority waiting request"))' \
                 <<<"$notes" > /dev/null || red="$name"
