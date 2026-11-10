@@ -62,13 +62,12 @@ def profiles():
     return found
 
 
-def undenied_agents(text, profiles, exempt=()):
-    """The agent types a command that grants some neither grants, denies nor is excused, or None if it grants none."""
+def undenied_agents(text, profiles):
+    """The agent types a command that grants some neither grants nor denies, or None if it grants none."""
     granted = {m for t in frontmatter_list(text, "allowed-tools")
                for m in re.findall(r"^Agent\((.+)\)$", t)}
     if not granted:
         return None
-    granted |= set(exempt)
     denied = set(frontmatter_list(text, "disallowed-tools"))
     return sorted(n for n in (profiles | BUILT_IN_AGENTS) - granted if f"Agent({n})" not in denied)
 
