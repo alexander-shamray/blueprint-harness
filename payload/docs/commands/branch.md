@@ -348,7 +348,10 @@ nothing that fails, naming the defect; it writes nothing on a second `start`
 from the same branch and refuses one from another; and it compares the file
 with what it read before replacing it, starting again from the fresh copy when
 another session wrote in between, since three or four sessions write one list
-at once. It keeps the *Remaining* line it took beside the list, under
+at once. That narrows the window a concurrent edit is lost in to the instant
+between the compare and the replace rather than closing it: a lock would close
+it only for writers that take it, and `/dispatch`'s run actions and any hand
+edit take none. It keeps the *Remaining* line it took beside the list, under
 `<list>.started/`, so that `tasks back` puts the whole row back with its
 labels, depends, model and conflicts, which the five *In progress* cells do
 not hold. With no saved line, a row started with `--what` or written by hand,

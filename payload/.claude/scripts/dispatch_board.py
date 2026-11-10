@@ -685,8 +685,9 @@ SWAP_TRIES = 5
 
 
 def _swap(path, edit):
-    """Write `edit`'s result over the list, unless the file changed between the read and the replace: then the edit
-    starts again from the fresh copy, so another session's write is kept, never overwritten. False: nothing to do."""
+    """Write `edit`'s result over the list, unless the file changed since it was read: then the edit starts again
+    from the fresh copy. That narrows the window another writer's edit is lost in to the moment between the last
+    compare and the replace; it does not close it. False: nothing to do."""
     for _ in range(SWAP_TRIES):
         try:
             text = _read(path)
