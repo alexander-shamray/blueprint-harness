@@ -359,8 +359,7 @@ target*)
    A refused removal keeps its branch, and no drop runs; exit 4 is one, the
    directory being still there. Any non-zero exit of
    the drop is reported and is not a stop, and exit 6 (no local branch) is
-   simply reported. Then end the finished branch's task list rows as step
-   6's `tasks done` and `back` do.
+   simply reported. Then end its task list rows as step 6 does.
    (why: docs/commands/ship.md, *Step 0: the teardown*)
 
 1. **`/branch`**, passing $ARGUMENTS. Skip if already off `main` — which
@@ -695,7 +694,8 @@ target*)
      py -3.12 .claude/scripts/dispatch_board.py tasks back <n>
      ```
 
-     Exit 2 is reported, not a stop, and never routed round by hand (why:
+     Exit 2 is reported, not a stop, and never routed round by hand: a
+     `back` refused for want of a saved row is the owner's to place (why:
      docs/commands/ship.md, *Step 6: the teardown*).
    - Under `--dispatched`, skip this write, and only lines 1 and 8 run: no
      `ExitWorktree`, no `git-worktree-remove.sh`, no switch, pull,

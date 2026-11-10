@@ -1341,7 +1341,12 @@ a later pull request of a set closes, is still open work, so its row goes where
 off the list. It reads the branch as those lines left it, since read earlier
 the branch still stands and the row stays *In progress* naming one about to go:
 `back` waits for line 9's drop, and a branch a refused removal kept keeps its
-row *In progress*, which that table allows while a branch remains.
+row *In progress*, which that table allows while a branch remains. A row
+`tasks start` saved nothing for, one started with `--what` or written by hand,
+is the exception the helper cannot place: its wave is in no cell, so `back`
+refuses, the row stays *In progress* with no branch behind it, and the report
+hands it to the owner to put in its wave, rather than the session guessing one
+(`docs/commands/branch.md`, *Step 5*).
 
 Line 5 runs on both paths, the pull on `main` or the fetch elsewhere,
 because skipping it leaves local `main` a merge behind — precisely the state
