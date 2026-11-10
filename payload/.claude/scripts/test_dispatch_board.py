@@ -1194,6 +1194,21 @@ class ChildTimeout(unittest.TestCase):
         self.assertIn("took over 2 s", str(outcome["error"]))
         self.assertLess(took, self.DRAIN - 15, "the call waited out the drain, so the grandchild outlived the timeout")
 
+    def test_an_interrupt_ends_the_tree_too(self):
+        ended = []
+        real = db._end_tree
+
+        def spy(process, job):
+            ended.append(process.pid)
+            real(process, job)
+
+        with (tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory,
+              mock.patch.object(db.subprocess.Popen, "communicate", side_effect=KeyboardInterrupt),
+              mock.patch.object(db, "_end_tree", spy)):
+            with self.assertRaises(KeyboardInterrupt):
+                db.run_bounded([BASH, str(hung_child(directory))], directory, self.LIMIT)
+        self.assertEqual(1, len(ended))
+
     def test_a_child_that_returns_is_read_whole(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
             script = Path(directory) / "ok.sh"
