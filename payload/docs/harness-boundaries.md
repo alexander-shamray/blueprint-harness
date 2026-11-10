@@ -206,10 +206,17 @@ git guard backs them for a redirect and a writing verb, in every turn:**
 `guard-git-argv.py` refuses both under either directory, all but the removal of
 a named memory file (*The edit-target guard*). `curl -o`, `tar -x` and an
 interpreter are not on its list of verbs, so they stay open, the residual *Git
-argv guard hook* states. Whether a frontmatter deny reaches such a command has
-not been measured in blueprint-harness; a path deny reaches a `Bash` command
-naming the path where it was (*A boundary an agent must keep across turns*), and
-a command that computes its path would not name it.
+argv guard hook* states. **A frontmatter deny reaches such a command when it
+names the path, measured in blueprint-harness** (#307): on 2026-11-10, on
+Windows, in `default` mode with no classifier, in an empty directory outside
+every checkout, so no project hook ran and no user-level deny covered the path,
+a command whose frontmatter held only `disallowed-tools:
+Edit(~/.claude/projects/**)` had `echo x > ~/.claude/projects/probe307.md`
+refused with no prompt and nothing written, where the same command without that
+frontmatter, in the same session, met an ordinary prompt. So the deny in
+these five commands refuses, in their turn, a shell write naming the path, as a
+path deny did where *A boundary an agent must keep across turns* measured it. A
+command that computes its path does not name it, and that half is unmeasured.
 
 **The index skill's prefix grants are the same speed bump as `git *--output*`.**
 `Bash(bash .claude/skills/codebase-index/scripts/cbx search:*)` matches the
@@ -786,7 +793,7 @@ about it:
 | `Bash(git worktree add:*)` | `-B`, which resets an existing branch rather than creating one |
 | `Bash(git checkout -b:*)` | the trailing flag — `git checkout -b <name> -f origin/main` discards tracked modifications |
 | `Bash(git branch:*)` | `git branch -fd <name>` — force and delete behind a spelling the `-d`/`-D`/`--delete` denies do not match |
-| `Bash(git branch --list:*)` | `--no-list`, abbreviated down to `--no-l`, which turns list mode off, so `git branch --list --no-list -D <name>` deletes and `-f`, `-m`, `-C` and `-u` work too. With list mode on each is git's usage error or a listing, and `--no-merged`, `--no-color` and `--no-column` are reads, so the deny is `Bash(git branch --list *--no-l*)` and the grant stays, `/branch` and `/ship` needing `git branch --list <name>` |
+| `Bash(git branch --list:*)` | `--no-list`, abbreviated down to `--no-l`, which turns list mode off, so `git branch --list --no-list -D <name>` deletes and `-f`, `-m`, `-C` and `-u` work too. With list mode on each is git's usage error or a listing, and `--no-merged`, `--no-color` and `--no-column` are reads, so the deny is `Bash(git branch --list *--no-l*)` and the grant stays, `/branch` and `/ship` needing `git branch --list <name>`. Both halves measured in a live session (#307, 2026-11-10, `default` mode, no classifier): `git branch --list --no-list -D x` refused with no prompt and no hook output, so by the settings deny, and `git branch --list x` ran |
 | `Bash(git reset HEAD:*)` | `git reset HEAD --hard` — the `--hard` deny matches the other word order |
 | `Bash(git log:*)`, `Bash(git diff:*)`, `Bash(git show:*)` | `--output=<path>`, which is an arbitrary file write with `--format=` choosing the bytes. Reproduced: `git log -1 --format=%s --output=<scratch>` wrote the commit subject, silently |
 | `Bash(git fetch:*)`, `Bash(git pull --ff-only:*)` | a URL in the repository position, and `ext::<cmd>` is a git transport that **runs its argument as a command** |
