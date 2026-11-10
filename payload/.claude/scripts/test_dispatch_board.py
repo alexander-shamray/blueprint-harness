@@ -1197,14 +1197,18 @@ class DayTests(unittest.TestCase):
         main = self.dir / "main"
         (main / ".harness").mkdir(parents=True)
         (main / ".harness" / "config.json").write_text('{"task_list": "lists/todo.md"}', encoding="utf-8")
-        db.git(str(main), "init", "-q")
         (self.dir / "lists").mkdir()
         (self.dir / "lists" / "todo.md").write_text(FIXTURE, encoding="utf-8")
-        self.addCleanup(os.chdir, os.getcwd())
-        os.chdir(main)
-        with contextlib.redirect_stdout(io.StringIO()):
+        asked = []
+
+        def git(root, *args):
+            # A linked worktree's answer: the common directory is the main checkout's, wherever the session stands.
+            asked.append((root, args))
+            return f"{main.as_posix()}/.git\n"
+        with contextlib.redirect_stdout(io.StringIO()), mock.patch.object(db, "git", git):
             code = db.main(["tasks", "start", "1681", "--branch", "b", "--worktree", "w"])
         self.assertEqual(0, code)
+        self.assertEqual([(".", ("rev-parse", "--path-format=absolute", "--git-common-dir"))], asked)
         self.assertIn("| S3 | #1681 |", (self.dir / "lists" / "todo.md").read_text(encoding="utf-8"))
 
     def test_a_day_action_takes_no_path_and_no_checkout_from_its_command_line(self):
