@@ -1551,7 +1551,14 @@ missing result reads as a crash, and the relaunch ends the same way. So the
 runbook says the session keeps its turn until the result is written, a
 step's status carries neither, and the next step follows in the same turn;
 a memory file is the owner's and is not the runbook, so the rule cannot
-rest on one. The same absence shapes the shell: a command the grants do not
+rest on one. The rule names `/commit`'s and `/pr`'s closing reports because
+saying only "a step's status" did not hold: on night 20261109-205859 three
+of seventeen executors still ended their turn on one of those two reports
+(blueprint-harness#378), each shaped as a command's final reply, which a
+session running them as `/ship`'s steps took for its own end. So the
+result is named as the turn's one end, and
+`test_ship_dispatched.py` pins both halves of the sentence. The same
+absence shapes the shell: a command the grants do not
 name is the auto classifier's to approve or refuse
 (`docs/harness-boundaries.md`, *Headless dispatched sessions*), and a
 refusal hands the change back, so each read is one command its grants name,
