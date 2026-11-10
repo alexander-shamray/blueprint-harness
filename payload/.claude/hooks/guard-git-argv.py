@@ -2562,15 +2562,11 @@ def fetch_offence(segment):
     return None
 
 
-# The long options that take the next word as their value, per subcommand, each
-# with the shortest prefix that subcommand reads as it: `git fetch --dep`
-# answers that `depth` requires a value, and `--de` that it is ambiguous. The
-# two lists differ, so a prefix holds only where it was read: a fetch's
-# `--negotiate-only` lengthens its `--negotiati`, which a pull reads as `--ne`,
-# and a pull's `--jobs` takes its value glued. One this misses has its value
-# read as an operand, which can hide the remote a refspec is fetched from.
-# `EXECUTING_LONG_FLAGS` refuses every word shorter than `--strategy` on a pull,
-# hence its prefix here.
+# The long options taking the next word as their value, each with the shortest
+# prefix git reads as it on that subcommand: a fetch's `--negotiate-only` makes
+# it `--negotiati`, a pull's `--ne`. One missed has its value read as an operand,
+# which can hide the remote. `EXECUTING_LONG_FLAGS` refuses every word shorter
+# than `--strategy` on a pull, hence its prefix here.
 FETCH_VALUE_OPTIONS = {
     "fetch": {
         "--deepen": "--dee", "--depth": "--dep", "--filter": "--fi", "--jobs": "--j",
