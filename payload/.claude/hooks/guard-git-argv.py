@@ -2876,16 +2876,12 @@ def checkout_relative(path):
 
 
 def in_linked_worktree(path):
-    """Whether git run from `path` acts on a linked worktree.
+    """Whether git run from `path` acts on a linked worktree: its `.git` file is there now.
 
-    One under `.claude/worktrees/` not yet on disk counts, since git enters it
-    only once it is forked; one there with no `.git` left does not, since git
-    run in it acts on the main checkout."""
+    A directory under `.claude/worktrees/` with none acts on the main checkout,
+    and one not yet on disk may be made bare by an earlier `mkdir` in the line."""
     root = checkout_of(path)
-    return root is not None and (
-        os.path.isfile(os.path.join(root, ".git"))
-        or (not os.path.isdir(path)
-            and WORKTREE_BELOW.match(os.path.relpath(path, root) + os.sep) is not None))
+    return root is not None and os.path.isfile(os.path.join(root, ".git"))
 
 
 def beneath(path, root):
