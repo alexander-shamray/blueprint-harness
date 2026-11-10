@@ -99,12 +99,13 @@ when a step behaves unexpectedly.
 ## Git and worktrees
 
 - **`git pull --ff-only` beside a fetch.** One `/ship` step 0 sent a pull in
-  the same message as `git-worktree-fork.sh`, whose fetch can write
-  `FETCH_HEAD` at that moment, and the pull failed with `fatal: Cannot
-  fast-forward to multiple branches` on a `main` with one merge source; run
-  alone it passed at once. The cause is inferred and not reproduced. Safe:
-  never send a pull in the same message as a fetch or a helper that fetches;
-  run it alone, and rerun it alone if it fails so.
+  the same message as `git-worktree-fork.sh`, and the pull failed with
+  `fatal: Cannot fast-forward to multiple branches` on a `main` with one
+  merge source; run alone it passed at once. The helper runs no fetch, so a
+  fetch elsewhere writing `FETCH_HEAD` at that moment is the inferred cause,
+  not a reproduced one. Safe: never send a pull in the same message as a
+  fetch or a helper that fetches; run it alone, and rerun it alone if it
+  fails so.
 - **`EnterWorktree` outside `.claude/worktrees/` prompts**, and no
   permission rule suppresses it, so an unattended chain waits on a human.
   Safe: worktrees live under `.claude/worktrees/<slug>`, which `/branch`
