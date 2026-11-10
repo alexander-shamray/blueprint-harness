@@ -143,8 +143,9 @@ class TheDispatchedTokenChangesOnlyWhatTheSpecLists(unittest.TestCase):
         # A headless session exits when its turn ends, so a step report sent as a reply is the last thing it does.
         rule = between(flat(between(ship(), "## It runs to the end", "## Resume, don't restart")),
                        "Under the standalone token --dispatched <run-dir>", "(why:")
-        self.assertIn("It keeps its turn until the result is written", rule)
-        self.assertIn("a step's status is not a reply, so it carries no status table and no apply line", rule)
+        self.assertIn("It keeps its turn until the result is written, the turn's one end", rule)
+        self.assertIn("a step's status, the report /commit or /pr closes on included, is not a reply, so it carries no "
+                      "status table and no apply line", rule)
         self.assertIn("the next step follows in the same turn", rule)
         self.assertIn("each shell read is one command its grants name", rule)
 
