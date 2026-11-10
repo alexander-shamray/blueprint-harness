@@ -21,8 +21,10 @@ case "$*" in
   api*/check-runs/*)
     id="$*"
     id=${id##*/check-runs/}
-    jq -c --arg id "${id%%/*}" '.[$id] // []' <<<"$STUB_NOTES"
-    exit "${STUB_NOTES_EXIT:-0}" ;;
+    id=${id%%/*}
+    # A check run named in STUB_NOTES_FAIL has its annotations fail every read.
+    case " ${STUB_NOTES_FAIL:-} " in *" $id "*) exit 1 ;; esac
+    jq -c --arg id "$id" '.[$id] // []' <<<"$STUB_NOTES" ;;
   api*)
     # The first STUB_API_FAILS reads of the run's jobs fail, and every one after answers.
     failed=$(cat "$STUB_LOG.failed" 2>/dev/null || echo 0)
@@ -128,7 +130,7 @@ class TheJobHearsARedRun(unittest.TestCase):
 class _StepCase(unittest.TestCase):
     def run_step(self, job: str, rows: list[dict[str, object]] | None = None, jobs: str = "",
                  api_fails: int = 0, needs: dict[str, object] | None = None, notes: dict[str, object] | None = None,
-                 notes_exit: int = 0) -> tuple[subprocess.CompletedProcess[str], str, str]:
+                 notes_fail: str = "") -> tuple[subprocess.CompletedProcess[str], str, str]:
         """The job's step's result, each `gh` and `sleep` line it ran and what it wrote for its outputs, its stub given
         `rows` for the listing, `jobs` for the run after `api_fails` failed reads, and `notes` for each check run."""
         bash = shutil.which("bash")
@@ -146,7 +148,7 @@ class _StepCase(unittest.TestCase):
             env = {**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"],
                    "STUB_LOG": log.as_posix(), "STUB_ROWS": json.dumps(rows or []), "STUB_JOBS": jobs,
                    "STUB_API_FAILS": str(api_fails), "STUB_NOTES": json.dumps(NOTES if notes is None else notes),
-                   "STUB_NOTES_EXIT": str(notes_exit), "NEEDS": json.dumps(CANCELLED if needs is None else needs),
+                   "STUB_NOTES_FAIL": notes_fail, "NEEDS": json.dumps(CANCELLED if needs is None else needs),
                    "GH_REPO": "a/h", "GITHUB_RUN_ID": "9",
                    "GITHUB_OUTPUT": output.as_posix(), "GITHUB_SHA": "abc123", "RUN_URL": "https://run"}
             result = subprocess.run([bash, path.as_posix()], capture_output=True, text=True, encoding="utf-8", env=env)
@@ -200,8 +202,16 @@ class TheRedJobTellsThemApart(_StepCase):
         _, _, output = self.read({"jobs": [SUPERSEDED, PASSED]}, notes={})
         self.assertEqual("red=true\n", output)
 
+    def test_a_queue_cancelled_job_found_first_is_not_lost_to_a_later_unread_one(self) -> None:
+        # Once one leg reads red the run is red, so a later read that fails must not turn that answer into no answer.
+        result, log, output = self.read({"jobs": [QUEUED, SUPERSEDED, PASSED]}, notes={"32": NOTES["32"]},
+                                        notes_fail="31")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("red=true\n", output)
+        self.assertNotIn("check-runs/31", log)
+
     def test_a_definite_red_reads_no_annotations(self) -> None:
-        _, log, output = self.read({"jobs": [SUPERSEDED, FAILED]}, notes_exit=1)
+        _, log, output = self.read({"jobs": [SUPERSEDED, FAILED]}, notes_fail="31")
         self.assertEqual("red=true\n", output)
         self.assertNotIn("check-runs", log)
 
@@ -222,7 +232,7 @@ class TheRedJobTellsThemApart(_StepCase):
         self.assertEqual("", output)
 
     def test_unread_annotations_fail_the_step_and_give_no_all_clear(self) -> None:
-        result, log, output = self.read({"jobs": [SUPERSEDED, PASSED]}, notes_exit=1)
+        result, log, output = self.read({"jobs": [SUPERSEDED, PASSED]}, notes_fail="31")
         self.assertNotEqual(0, result.returncode)
         self.assertEqual(3, log.count("check-runs/31/annotations"))
         self.assertNotIn("::notice::", result.stdout)
