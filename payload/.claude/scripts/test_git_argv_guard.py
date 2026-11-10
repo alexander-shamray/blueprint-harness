@@ -3734,6 +3734,8 @@ class TheGitArgvGuard(unittest.TestCase):
             # A short letter at the end of its cluster.
             "git fetch -qj 2 origin refs/heads/main:main",
             "git fetch origin main -qo a:b",
+            "git fetch -ao a:b origin refs/heads/main:main",
+            "git pull --ff-only -no a:b origin refs/heads/main:main",
         ):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
@@ -3750,6 +3752,10 @@ class TheGitArgvGuard(unittest.TestCase):
             "git pull --ff-only --jobs evil origin refs/heads/main:main",
             "git fetch --su origin evil refs/heads/main:main",
             "git fetch --recurse-submodules-default origin evil refs/heads/main:main",
+            # A letter that takes no value ahead of one that does.
+            "git fetch -ao origin evil refs/heads/main:main",
+            "git fetch -tPj origin evil refs/heads/main:main",
+            "git pull --ff-only -to origin evil refs/heads/main:main",
         ):
             with self.subTest(command=command):
                 self.assertRefused(command)
