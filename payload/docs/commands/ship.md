@@ -705,11 +705,18 @@ frontmatter can deny `Edit` on the trees it reads, and a frontmatter deny
 holds to the end of the turn (`docs/harness-boundaries.md`). `/ship` runs the
 whole chain in one turn, so a run that invoked it could make no code fix in a
 later review round, and would have to stop or route round the deny. The step
-spawns the passes *Ship checks* names, as `general-purpose` agents told to
-edit nothing and handed the scope and method it gives each, and reads their
-JSON as step 5 reads a finding. That is the
-brief's guarantee and not the tool list's; the denies stay on the command for
-a person who invokes it alone.
+spawns the passes *Ship checks* names as `check-auditor` agents, handed the
+scope and method it gives each, and reads their JSON as step 5 reads a
+finding. Read-only is the profile's tool list, `Read`, `Grep` and `Glob`, and
+not the brief's word: the passes read the branch under review, so a pass
+holding `Edit` or `Bash` under a dispatched run's auto mode would be one
+planted paragraph from editing the tree itself, and the audit command's own
+denies never load when it is dispatched (blueprint-backend#1786). `/ship`
+therefore denies `general-purpose` too, which nothing else in its chain
+spawns. What is left is the parent's: it holds the edit the auditor was
+denied, so a finding written to steer one is caught by step 5's verification
+or not at all, as with `branch-reviewer`. The audit command's denies stay on
+it for a person who invokes it alone.
 
 **One check holds whatever the class: a fix to a script under
 `.claude/` carries its case.** `docs/harness/working-rules.md`'s

@@ -143,6 +143,15 @@ is recorded because a reader who learns only that the reviewer is read-only has
 been told the safe half. Restoring an outside reader starts from
 `archive/external-reviewers`.
 
+**`check-auditor` rests on it too.** `/ship` step 2 dispatches the audit
+passes a target's *Ship checks* names under it rather than as
+`general-purpose` agents told to edit nothing, since the command whose
+frontmatter denies the audited trees never loads when it is dispatched
+(blueprint-backend#1786). The passes read the branch under review, and the
+residual is `branch-reviewer`'s: the parent holds the edit, and step 5's
+verification is what catches a finding written to steer it
+([`docs/commands/ship.md`](commands/ship.md), *Step 2: checks*).
+
 **`team-peer` rests on it too, over a wider input.** `/team`'s peers hold
 the same three tools and read a board other peers wrote, so a line planted
 in the code can reach a second peer as a claim. The residual is that
@@ -2039,9 +2048,10 @@ alternative fails open on a wrapper nobody listed.
 command to one subagent type is a **deny list of every other type**, because
 the harness has no "only this type" allow — so `security-sweep.md`,
 `bug-sweep.md`, `team.md` and `ship.md` each deny every registered type but the
-one they grant (`ship.md` also leaves `general-purpose`, which step 2
-dispatches its audits as), and **a newly added agent under `.claude/agents/` is
-admitted by default** until someone adds it to every list;
+ones they grant (`ship.md` grants two, `branch-reviewer` and the
+`check-auditor` its step 2 dispatches its audits as), and **a newly added
+agent under `.claude/agents/` is admitted by default** until someone adds it
+to every list;
 `test_command_grants.py` fails a granting command that does not. That is the
 shape this repository already knows rots; it is taken here because the
 alternative on offer is prose. **It rotted once already on the day a third
@@ -2110,8 +2120,8 @@ propagate to the subagents it spawns, and a path deny reaches a `Bash` command
 naming the path; the harness offers no deny that reaches the parent and not the
 child. The local review holds no writing agent, so none of this binds a
 boundary today, and it binds the first one added: `branch-reviewer`,
-`bug-auditor`, `security-auditor` and `team-peer` hold `Read`, `Grep` and
-`Glob` on their profiles for that reason.
+`check-auditor`, `bug-auditor`, `security-auditor` and `team-peer` hold
+`Read`, `Grep` and `Glob` on their profiles for that reason.
 
 ## The edit-target guard
 
