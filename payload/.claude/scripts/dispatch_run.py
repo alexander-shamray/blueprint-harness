@@ -353,8 +353,8 @@ def _left_behind(root, entry):
         pass
     if not parts:
         return ""
-    return (f" (relaunched: the previous session ended with no result and left {', '.join(parts)}; resume from"
-            " there, and end the turn only on the result)")
+    return (" (relaunched: the previous session ended with no result the dispatcher accepted, and left "
+            f"{', '.join(parts)}; resume from there, and end the turn only on the result)")
 
 
 def _same_path(path):

@@ -536,8 +536,8 @@ class LaunchTests(InRoot):
         with mock.patch.object(dr, "git", fake_git), mock.patch.object(dr, "helper", lambda root, *a: json.dumps(rows)):
             run_fake_claude(stdout=json.dumps(SUCCESS).encode("utf-8"), description="Narrow")
         seen = json.loads(Path("fake/seen.json").read_text(encoding="utf-8"))
-        self.assertEqual("/ship #S1-1682+1683 Narrow (relaunched: the previous session ended with no result and left "
-                         f"{BRANCH} 3 commits ahead of origin/main, uncommitted work in its tree, PR #356 open; "
+        self.assertEqual("/ship #S1-1682+1683 Narrow (relaunched: the previous session ended with no result the "
+                         f"dispatcher accepted, and left {BRANCH} 3 commits ahead of origin/main, uncommitted work in its tree, PR #356 open; "
                          "resume from there, and end the turn only on the result) --dispatched "
                          f"artifacts/dispatch/{RUN}", seen["stdin"])
         self.assertIn(("rev-list", "--count", "origin/main..HEAD"), reads)
@@ -560,8 +560,9 @@ class LaunchTests(InRoot):
 
         opened = json.dumps([{"number": 356, "state": "OPEN"}])
         with mock.patch.object(dr, "git", refuse), mock.patch.object(dr, "helper", lambda root, *a: opened):
-            self.assertEqual(" (relaunched: the previous session ended with no result and left PR #356 open; resume "
-                             "from there, and end the turn only on the result)", dr._left_behind(".", entry))
+            self.assertEqual(" (relaunched: the previous session ended with no result the dispatcher accepted, and "
+                             "left PR #356 open; resume from there, and end the turn only on the result)",
+                             dr._left_behind(".", entry))
         with mock.patch.object(dr, "git", lambda root, *a: "1\n" if a[0] == "rev-list" else ""), \
                 mock.patch.object(dr, "helper", refuse):
             self.assertIn(f"left {BRANCH} 1 commit ahead of origin/main;", dr._left_behind(".", entry))
