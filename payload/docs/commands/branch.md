@@ -360,8 +360,9 @@ filed)` row is still written by hand, and the step spells the five cells of
 `HEADERS` for it, with the branch and worktree sharing `Branch or PR`.
 `row_branch` reads the first name in backticks as the branch, so the branch
 comes first and each name has its own pair: a cell with no backticks, or one
-pair round both names with a comma between them, parses but names no branch, and `/dispatch` then leaves what that branch changed out of the
-row's claim, with nothing refused to say so. A row with no issue takes the
+pair round both names with a comma between them, parses but names no branch,
+and `/dispatch` then leaves what that branch changed out of the row's claim,
+with nothing refused to say so. A row with no issue takes the
 spelling in `docs/harness/working-rules.md`, *Issues and the task list*, and a
 suite case holds the step's wording to `HEADERS` and `OWED`.
 
