@@ -1247,9 +1247,9 @@ place no file. The list of verbs trails the programs that write: `curl -o`,
 `rsync`, `tar -x`, `patch` and an interpreter's own writes are not on it, and
 that is a residual. A write under `.claude/worktrees/<name>/` is judged as that
 worktree's by its place, with a `.git` left there or not, since it lands in that
-directory; git run in one with no `.git` left acts on the main checkout, so a
-`-C` into it is held as one into the main checkout, and only a directory not
-yet on disk, which git enters once it is forked, is a worktree's. A checkout
+directory; git run in one with no `.git` file acts on the main checkout, so a
+`-C` into it is held as one into the main checkout, a directory not yet on
+disk included, since an earlier `mkdir` on the line can make it bare. A checkout
 under the temp root that the
 session is not standing in is not this target's: mutation proofs write there,
 which the replay of backend's transcripts found.
