@@ -687,7 +687,8 @@ target*)
    - **A usage exit after line 5's pull on `main` is not a stop**: rerun from
      the exiting line as the pulled `ship.md` spells it, and report it.
    - When these lines end, end this change's *In progress* rows: `done`
-     for each issue the PR closes, `back` for each it leaves open:
+     for each issue the PR closes, `back` for each it leaves open once line
+     9 dropped the branch:
 
      ```bash
      py -3.12 .claude/scripts/dispatch_board.py tasks done <n>
