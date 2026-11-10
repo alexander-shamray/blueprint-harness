@@ -207,8 +207,8 @@ git guard backs them for a redirect and a writing verb, in every turn:**
 a named memory file (*The edit-target guard*). `curl -o`, `tar -x` and an
 interpreter are not on its list of verbs, so they stay open, the residual *Git
 argv guard hook* states. **A frontmatter deny reaches a shell redirect naming
-the path, measured in blueprint-harness** (#307): on 2026-11-10, on
-Windows, in `default` mode with no classifier, in an empty directory outside
+the path, measured for this repository's #307**, outside it: on 2026-11-10,
+on Windows, in `default` mode with no classifier, in an empty directory outside
 every checkout, so no project hook ran and no user-level deny covered the path,
 a command whose frontmatter held only `disallowed-tools:
 Edit(~/.claude/projects/**)` had `echo x > ~/.claude/projects/probe307.md`
