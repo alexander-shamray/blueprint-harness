@@ -454,11 +454,12 @@ Holding a slot for it would stall the backlog for a change nobody is waiting
 on, so nothing reserves one: the morning's list shows it, and the next
 `/dispatch` that starts with no group active takes it first.
 
-**A wait leaves nothing behind.** A `blueprint-harness` merge touching the
-payload opens a new sync and closes the one before it, and a sync that waits may
-be superseded that way ten times a night, so `sync-ready` asks `sync-launch`'s
-checks that read no tree before `git-worktree-sync.sh` makes a worktree and a
-branch for a launch that was never going to happen. `sync-drop`, before the
+**A wait leaves nothing behind.** A `blueprint-harness` sync run, every four
+hours or on dispatch, opens a new sync where the payload moved and closes the
+one before it, so a sync that waits may be superseded overnight. `sync-ready`
+therefore asks `sync-launch`'s checks that read no tree before
+`git-worktree-sync.sh` makes a worktree and a branch for a launch that was
+never going to happen. `sync-drop`, before the
 report, offers `git-branch-drop.sh` every local branch named as a sync head:
 what merged goes, as does one whose pull request closed with origin's branch
 gone at this tip, which no merge can land and which a worktree does not hold.
