@@ -472,6 +472,23 @@ class HeldSyncTests(SyncTestCase):
         self.assert_clean()
         self.assertEqual(git(self.target, "branch", "--show-current").strip(), "main")
 
+    def test_held_sync_gets_the_trailer_a_failed_run_left_off(self) -> None:
+        # The held sync keeps its name, so only a held run can finish what a run that died past create left.
+        git(self.origin, "update-ref", "-d", f"refs/heads/{self.branch(self.old)}")
+        with self.assertRaises(SyncError):
+            self.sync(FakeGh(self.origin, fail_after_create=True), self.old)
+        bare = self.remote_tip(self.branch(self.old))
+        self.assertFalse(any(line.startswith("PR:") for line in self.trailers(bare)))
+        git(self.target, "checkout", "-q", "main")
+        gh = FakeGh(self.origin, open_prs=[
+            {"number": 42, "headRefName": self.branch(self.old), "isCrossRepository": False},
+        ])
+        outcome = self.sync(gh, self.tip)
+        self.assertEqual((outcome.state, outcome.pr), ("held", 42))
+        self.assertEqual(self.trailers(self.remote_tip(self.branch(self.old)))[-1], "PR: #42")
+        self.assert_clean()
+        self.assertEqual(git(self.target, "branch", "--show-current").strip(), "main")
+
     def test_payload_change_after_the_open_sync_still_opens_one(self) -> None:
         # The bound the schedule keeps: a payload commit newer than the open sync is synced by the next run, not held.
         self.put(self.payload, "docs/a.md", "a, revised after the open sync\n")

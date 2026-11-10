@@ -237,14 +237,14 @@ def _manifest_files(text: str) -> dict | None:
 
 
 def _holding(harness: Path, target: Path, harness_commit: str, open_prs: list[tuple[int, str]],
-             branch: str) -> tuple[int, str] | None:
+             branch: str) -> tuple[int, str, str] | None:
     """The newest open sync for a released commit behind this one whose manifest maps every file as this apply did.
 
     The rendered tree is the test, not the payload's commit, so a change to the target's own config still opens one.
     """
     wanted = _manifest_files((target / MANIFEST).read_text(encoding="utf-8"))
     main = _main(harness) if open_prs else ""
-    held: tuple[int, str] | None = None
+    held: tuple[int, str, str] | None = None
     for number, head in open_prs:
         theirs = _resolve(harness, head[len(PREFIX):]) if head != branch else None
         if not (theirs and _is_ancestor(harness, theirs, harness_commit) and _is_ancestor(harness, theirs, main)):
@@ -257,7 +257,7 @@ def _holding(harness: Path, target: Path, harness_commit: str, open_prs: list[tu
         if shown.returncode != 0 or _manifest_files(shown.stdout) != wanted:
             continue
         if held is None or _is_ancestor(harness, held[1], theirs):
-            held = (number, theirs)
+            held = (number, theirs, head)
     return held
 
 
@@ -338,8 +338,11 @@ def open_sync_pr(
         _restore(target)
         raise
     if held is not None:
-        number, theirs = held
+        number, theirs, head = held
         _restore(target)
+        # A run that died past create left the held sync without its trailer, and no later run renames it.
+        _ensure_trailer(target, head, number)
+        _git(target, "checkout", "-q", base)
         stale = _supersede(gh, [n for n in others if n != number], number, theirs)
         return SyncOutcome("held", number, stale,
                            f"#{number} already carries this payload at {_short(theirs)}; nothing to open")
