@@ -236,20 +236,22 @@ to less than its limit, since a step past its own fails. A hang outside a step,
 in the runner's set-up or post-run work, can still reach the job's limit, and
 the job then reads as cancelled. So does a waiting job: a concurrency group
 keeps one, so a newer run cancels a waiting one and syncs `main`'s tip itself.
-The `sync-red` job tells them apart by reading the run's jobs: a cancelled job
-that ran steps is red, and one that ran none files nothing. It holds no
-concurrency group, so a run it read as having nothing red cannot take a red
-run's waiting place in `sync-issue`'s, and if it fails or is itself cancelled,
-that files too. A leg GitHub cancels from the runner queue ran none either, so
-it is seen only in the run, and a run somebody cancels whole files nothing,
-because the job's `!cancelled()` is false only there.
+The `sync-red` job tells them apart. A failed job is red with no read. Else it
+reads the run's jobs: a cancelled job that ran steps is red, and one that ran
+none is red unless its check run's annotations say a higher priority waiting
+request cancelled it, which is how run 42575459566 recorded a superseded job.
+A leg GitHub cancels from the runner queue ran none either, and its check run
+says something else, so it files. Only a `sync-red` that read red files. It
+retries each read three times; one still unread fails `sync-red`, which makes
+the run red and files nothing, since no answer could be for a run with nothing
+red. It holds no concurrency group, so a run it read as having nothing red
+cannot take a red run's waiting place in `sync-issue`'s, and a run somebody
+cancels whole files nothing, because the job's `!cancelled()` is false only
+there.
 
 None of this has met a real hang yet: the scratch runs echoed in place of
-filing, so the filing rests on the stub in `test_sync_issue_job.py`, and the
-`cancelled` clause of `sync-issue` was read and not run. The first red `Sync`
-run from a job past its limit shows whether an issue was filed. A `sync-red`
-that fails files for a run with nothing red, and a queue-cancelled leg is
-not told from a superseded one, since the job row shows no field that does.
+filing, so the filing rests on the stub in `test_sync_issue_job.py`. The first
+red `Sync` run from a job past its limit shows whether an issue was filed.
 
 A target is **current** when applying the payload writes and deletes no
 managed path: only the manifest's commit would move, so no pull request is
