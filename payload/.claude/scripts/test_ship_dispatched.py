@@ -19,7 +19,7 @@ BRANCH = ROOT / ".claude" / "commands" / "branch.md"
 # The grants as they stood before the token: one that needed a new grant would
 # be a wider change than section 6.2's, so these are literals, not a read. The create grant is the helper's since
 # plan 5 Task 3 withdrew the raw `gh pr create`: a swap in place, not a grant the token added. So is the
-# check-auditor's: step 2's audits ran as an ungranted, undenied `general-purpose` before (blueprint-backend#1786).
+# check-auditor's: step 2's audits ran as an ungranted, undenied `general-purpose` before it.
 GRANTS_BEFORE = (
     "Read", "Grep", "Glob", "Write", "Skill", "Agent(branch-reviewer)", "Agent(check-auditor)", "EnterWorktree",
     "ExitWorktree",
