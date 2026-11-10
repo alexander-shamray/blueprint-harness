@@ -4052,6 +4052,11 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         self.refused(*written, cwd=gone)
         self.admitted("cd .claude/worktrees/linked && git rm .claude/hooks/x")
         self.refused(*written)
+        # A `-C` into it from the main checkout reaches the main checkout too;
+        # one into a directory not yet forked is a worktree once git can enter.
+        self.refused("git -C .claude/worktrees/gone checkout x -- ../../../.claude/settings.json",
+                     "git -C .claude/worktrees/gone rm ../../../.claude/hooks/x")
+        self.admitted("git -C .claude/worktrees/next checkout x -- .claude/settings.json")
 
     def test_a_git_path_write_into_main_from_a_linked_worktree_is_refused(self):
         # The temp root moves off the fixture, as a real main checkout sits off
