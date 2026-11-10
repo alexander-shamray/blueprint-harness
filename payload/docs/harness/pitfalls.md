@@ -62,6 +62,12 @@ when a step behaves unexpectedly.
   the WSL launcher, before `PATH`. Safe: run the path
   `shutil.which("bash")` returns, Git's, as the hygiene test requires
   under `.claude/`.
+- **A Python `timeout=` does not end a hung Git Bash.** On Windows
+  `subprocess.run(…, capture_output=True, timeout=…)` kills only the
+  direct child, which for Git's `bin/bash.exe` is a launcher, and then
+  waits with no limit for pipes a grandchild still holds; a 120-second
+  limit ran for 56 minutes. Safe: `dispatch_board.run_bounded`, which ends
+  the whole tree and bounds the wait for its output.
 - **A `cd` persists.** A `cd` into a subdirectory makes the next relative
   `mkdir` or `git add -A` land there, and a line that both changes
   directory and writes a relative path is refused whole. Safe: run the
