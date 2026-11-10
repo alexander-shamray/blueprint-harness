@@ -1021,6 +1021,187 @@ class WriteTests(unittest.TestCase):
         self.assertEqual(1, len(db.parse_tasks(text).in_progress))
 
 
+class DayTests(unittest.TestCase):
+    """A day session's `tasks start|state|done|back <issue>`: no run, one issue's row, and a list `board` reads."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.dir = Path(self.tmp.name)
+        self.path = self.dir / "todo.md"
+        self.saved = self.dir / "todo.started"
+        self.write(FIXTURE)
+
+    def write(self, text):
+        with open(self.path, "w", encoding="utf-8", newline="") as handle:
+            handle.write(text)
+
+    def read(self):
+        with open(self.path, encoding="utf-8", newline="") as handle:
+            return handle.read()
+
+    def cli(self, *args):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = db.main(["tasks", args[0], "--tasks", str(self.path), *args[1:]])
+        return code, out.getvalue() + err.getvalue()
+
+    def start(self, number, branch="feat/x", *more):
+        return self.cli("start", str(number), "--branch", branch, "--worktree", ".claude/worktrees/x", *more)
+
+    def row(self, number):
+        tasks = db.parse_tasks(self.read())
+        return next((r for r in tasks.in_progress + tasks.remaining if r.number == number), None)
+
+    def test_start_moves_the_row_to_in_progress_keeping_its_group(self):
+        self.assertEqual(0, self.start(1681)[0])
+        row = self.row(1681)
+        self.assertEqual(("In progress", "S3"), (row.section, row.group))
+        self.assertEqual("| S3 | #1681 | Bind only the switch keys in `src/Gateway/Program.cs` | "
+                         "`feat/x`, `.claude/worktrees/x` | started |", row.line)
+        self.assertNotIn("| 1681 |", section(self.read(), "Remaining"))
+        db.groups(db.parse_tasks(self.read()))
+
+    def test_start_of_an_issue_with_no_row_takes_the_dash_group_and_needs_its_text(self):
+        code, out = self.start(1700)
+        self.assertEqual(2, code)
+        self.assertIn("give --what", out)
+        self.assertEqual(FIXTURE, self.read())
+        self.assertEqual(0, self.start(1700, "feat/x", "--what", "Do `x/y.py`")[0])
+        row = self.row(1700)
+        self.assertEqual(("In progress", None, "Do `x/y.py`"), (row.section, row.group, row.cells[2]))
+
+    def test_a_second_start_changes_nothing_and_another_branchs_is_refused(self):
+        self.start(1681)
+        before = self.read()
+        code, out = self.start(1681)
+        self.assertEqual((0, before), (code, self.read()))
+        self.assertIn("nothing written", out)
+        code, out = self.start(1681, "fix/other")
+        self.assertEqual((2, before), (code, self.read()))
+        self.assertIn("already in progress", out)
+
+    def test_done_deletes_the_row_and_a_second_done_writes_nothing(self):
+        self.start(1681)
+        self.assertTrue((self.saved / "1681.md").is_file())
+        self.assertEqual(0, self.cli("done", "1681")[0])
+        self.assertIsNone(self.row(1681))
+        self.assertFalse((self.saved / "1681.md").exists())
+        before = self.read()
+        code, out = self.cli("done", "1681")
+        self.assertEqual((0, before), (code, self.read()))
+        self.assertIn("nothing written", out)
+
+    def test_back_puts_the_whole_row_back_in_its_wave(self):
+        # S1 holds two rows; one leaves and returns, and its labels, depends, model and conflicts come back with it.
+        self.start(1683)
+        self.assertEqual(0, self.cli("back", "1683")[0])
+        self.assertEqual(FIXTURE, self.read())
+        self.assertFalse((self.saved / "1683.md").exists())
+
+    def test_back_of_an_issue_that_had_no_row_leaves_none(self):
+        self.start(1700, "feat/x", "--what", "Do it")
+        self.assertEqual(0, self.cli("back", "1700")[0])
+        self.assertEqual(FIXTURE, self.read())
+
+    def test_state_changes_only_the_state_cell(self):
+        self.start(1681)
+        before = self.read()
+        self.assertEqual(0, self.cli("state", "1681", "PR #1701, under review")[0])
+        mine = "`feat/x`, `.claude/worktrees/x` |"
+        self.assertEqual(before.replace(f"{mine} started |", f"{mine} PR #1701, under review |"), self.read())
+        for args, why in ((("state", "1682", "x"), "no In progress row"), (("state", "1681", "a | b"), "pipe")):
+            with self.subTest(args=args):
+                code, out = self.cli(*args)
+                self.assertEqual(2, code)
+                self.assertIn(why, out)
+
+    def test_a_row_a_dispatch_run_moved_is_left_to_it(self):
+        moved = db.move_to_in_progress(FIXTURE, next(g for g in db.groups(db.parse_tasks(FIXTURE)) if g.id == "S3"),
+                                       "chore/dispatch-s3", "wt", TODAY)
+        self.write(moved)
+        for args in (("done", "1681"), ("back", "1681"), ("state", "1681", "x")):
+            with self.subTest(args=args):
+                code, out = self.cli(*args)
+                self.assertEqual((2, moved), (code, self.read()))
+                self.assertIn("/dispatch run", out)
+
+    def test_each_defect_board_refuses_is_refused_and_named(self):
+        held = "| S3 | #1681 | Bind | `fix/b` | started |\n"
+        defects = {
+            "in both tables": (FIXTURE.replace("| started |\n", "| started |\n" + held, 1),
+                               "#1681 is in In progress and Remaining"),
+            "two issues in one row": (FIXTURE.replace("| started |\n", "| started |\n| — | #1690, #1691 | x | `b` | "
+                                                      "started |\n", 1), "names no issue number"),
+            "no group": (tasks_of(*REMAINING_ROWS.splitlines(), line(gid="")), "with no group"),
+            "a wave that is a word": (tasks_of(*REMAINING_ROWS.splitlines(), line(wave="Blocked")),
+                                      "has wave 'Blocked'"),
+            "six columns": (FIXTURE.replace("| Group | # | What | Branch or PR | State |\n|---|---|---|---|---|",
+                                            "| Group | # | What | Branch or PR | State | Notes |\n"
+                                            "|---|---|---|---|---|---|"), "In progress header"),
+        }
+        for name, (text, why) in defects.items():
+            with self.subTest(defect=name):
+                self.write(text)
+                code, out = self.start(1686)
+                self.assertEqual((2, text), (code, self.read()))
+                self.assertIn(why, out)
+                self.assertFalse((self.saved / "1686.md").exists())
+
+    def test_a_write_between_the_read_and_the_replace_is_kept(self):
+        other = FIXTURE.replace("| 2 | J1 | 1440 |", "| 3 | J1 | 1440 |")
+        real, calls = db._read, []
+
+        def read(path):
+            text = real(path)
+            if Path(path) == self.path:
+                calls.append(text)
+                if len(calls) == 1:
+                    self.write(other)
+            return text
+        with mock.patch.object(db, "_read", read):
+            self.assertEqual(0, self.start(1681)[0])
+        text = self.read()
+        self.assertIn("| 3 | J1 | 1440 |", text)
+        self.assertEqual("In progress", self.row(1681).section)
+        self.assertGreater(len(calls), 2)
+
+    def test_a_list_that_never_holds_still_is_not_written(self):
+        real, count = db._read, [0]
+
+        def read(path):
+            text = real(path)
+            if Path(path) == self.path:
+                count[0] += 1
+                self.write(FIXTURE + "\n" * count[0])
+            return text
+        with mock.patch.object(db, "_read", read):
+            code, out = self.start(1681)
+        self.assertEqual(2, code)
+        self.assertIn("changed under another writer", out)
+        self.assertIsNone(re.search(r"#1681", self.read()))
+        self.assertFalse((self.saved / "1681.md").exists())
+
+    def test_the_list_defaults_to_the_one_the_config_names_beside_the_main_checkout(self):
+        main = self.dir / "main"
+        (main / ".harness").mkdir(parents=True)
+        (main / ".harness" / "config.json").write_text('{"task_list": "lists/todo.md"}', encoding="utf-8")
+        db.git(str(main), "init", "-q")
+        (self.dir / "lists").mkdir()
+        (self.dir / "lists" / "todo.md").write_text(FIXTURE, encoding="utf-8")
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = db.main(["tasks", "start", "1681", "--branch", "b", "--worktree", "w", "--root", str(main)])
+        self.assertEqual(0, code)
+        self.assertIn("| S3 | #1681 |", (self.dir / "lists" / "todo.md").read_text(encoding="utf-8"))
+
+    def test_a_crlf_list_stays_crlf(self):
+        self.write(FIXTURE.replace("\n", "\r\n"))
+        self.start(1683)
+        self.cli("state", "1683", "PR open")
+        self.cli("back", "1683")
+        self.assertEqual(FIXTURE.replace("\n", "\r\n"), self.read())
+
+
 class BoardTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

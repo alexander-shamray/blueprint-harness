@@ -1,7 +1,7 @@
 """The task list as /dispatch reads and writes it, and the one command line of /dispatch's helpers.
 
-`board` and `tasks move|done|back|place`, each write re-reading the list as it writes, are here; the run's commands
-are dispatch_run.py's, reached from here so one grant covers them all. Exit 2 is a refusal: nothing was written.
+`board`, `tasks move|done|back|place` and a day session's run-less `tasks start|state|done|back <issue>` are here;
+the run's commands are dispatch_run.py's, reached from here so one grant covers them all. Exit 2: nothing written.
 """
 
 import argparse
@@ -578,6 +578,188 @@ def place(text, wave, group, issue, task=None, labels=None, depends=None, model=
     return result
 
 
+# A day session's moves: one issue's row, keyed by its number, with no run
+
+def _checked(text):
+    """The list a day write would leave, refused unless `board`'s parser reads it, so the night never stops on it."""
+    try:
+        groups(parse_tasks(text))
+    except Refusal as refusal:
+        raise Refusal(f"the list this write leaves is one board refuses: {refusal}") from None
+    return text
+
+
+def _in_progress_row(tasks, key):
+    return next((r for r in tasks.in_progress if r.key == key), None)
+
+
+def _a_day_row(row):
+    # A row a /dispatch run moved is that run's to end: its state.json records it, and a day write would orphan that.
+    if row.cells[HEADERS["In progress"].index("State")].startswith("dispatched"):
+        raise Refusal(f"{row.key} was moved by a /dispatch run, which ends it; a day session changes nothing there")
+    return row
+
+
+def _one_line(value, what):
+    if not value.strip() or "|" in value or "\n" in value or "\r" in value:
+        raise Refusal(f"{what} {value!r} is not one line of text without a pipe")
+    return value.strip()
+
+
+def start_issue(text, number, branch, worktree, what=None):
+    """(the list with `#number` in progress, the Remaining line it left), or (None, None) when this branch holds it.
+
+    The row keeps the group it had in Remaining; an issue with no row starts under `—` with `what` as its text."""
+    if not BRANCH_NAME.fullmatch(branch):
+        raise Refusal(f"branch {branch!r} is not a branch name")
+    if "`" in _one_line(worktree, "worktree"):
+        raise Refusal(f"worktree {worktree!r} holds a backtick")
+    tasks, key = parse_tasks(text), f"#{number}"
+    held = _in_progress_row(tasks, key)
+    if held is not None:
+        if row_branch(held) == branch:
+            return None, None
+        raise Refusal(f"{key} is already in progress as {held.cells[3]}; a second branch starts nothing")
+    for name, bucket in (("Tracking", tasks.tracking), ("Paused", tasks.paused)):
+        if any(r.key == key for r in bucket):
+            raise Refusal(f"{key} is in {name}; a row moves to In progress only from Remaining")
+    source = next((r for r in tasks.remaining if r.key == key), None)
+    lines = _lines(text)
+    if source is None:
+        if what is None:
+            raise Refusal(f"{key} has no row in Remaining; give --what for its In progress row")
+        group, task = "—", _one_line(what, "--what")
+    else:
+        group, task = source.group if re.fullmatch(ROW_GROUP.pattern, source.group) else "—", source.cells[TASK]
+        _remove(lines, "Remaining", {key})
+    _append(lines, "In progress", [_line((group, key, task, f"`{branch}`, `{worktree.strip()}`", "started"),
+                                         _cr(lines))])
+    return _checked("\n".join(lines)), source.line if source else None
+
+
+def finish_issue(text, number):
+    """The list without `#number`'s In progress row, or None when it has none: a merge leaves nothing to undo."""
+    held = _in_progress_row(parse_tasks(text), f"#{number}")
+    if held is None:
+        return None
+    return _checked(delete_in_progress(text, {_a_day_row(held).key}))
+
+
+def return_issue(text, number, saved):
+    """The list with `#number` back where `start` took it from: `saved` is that Remaining line, or None when the
+    issue had no row, which then leaves none. None when it is not in progress."""
+    held = _in_progress_row(parse_tasks(text), f"#{number}")
+    if held is None:
+        return None
+    key = _a_day_row(held).key
+    lines = _lines(text)
+    _remove(lines, "In progress", {key})
+    if saved is not None:
+        row = _row("Remaining", saved)
+        if row.key != key:
+            raise Refusal(f"the row saved for {key} is {row.key}'s")
+        _place(lines, _line(row.cells, _cr(lines)))
+    # A row someone wrote for the issue since its start is a clash `board`'s parser names here.
+    return _checked("\n".join(lines))
+
+
+def set_issue_state(text, number, state):
+    """The list with only `#number`'s State cell changed, or None when it already reads `state`."""
+    key, state = f"#{number}", _one_line(state, "state")
+    held = _in_progress_row(parse_tasks(text), key)
+    if held is None:
+        raise Refusal(f"{key} has no In progress row; tasks start writes one")
+    at = HEADERS["In progress"].index("State")
+    if _a_day_row(held).cells[at] == state:
+        return None
+    lines = _lines(text)
+    index = next(i for i in _table(lines, _scan(lines), "In progress")[2] if _row("In progress", lines[i]).key == key)
+    lines[index] = _line(held.cells[:at] + (state,) + held.cells[at + 1:], _cr(lines))
+    return _checked("\n".join(lines))
+
+
+# How many times a day write starts again from a list another session changed under it.
+SWAP_TRIES = 5
+
+
+def _swap(path, edit):
+    """Write `edit`'s result over the list, unless the file changed between the read and the replace: then the edit
+    starts again from the fresh copy, so another session's write is kept, never overwritten. False: nothing to do."""
+    for _ in range(SWAP_TRIES):
+        try:
+            text = _read(path)
+        except OSError as error:
+            raise Refusal(f"could not read {path}: {error}") from None
+        result = edit(text)
+        if result is None:
+            return False
+        if _read(path) != text:
+            continue
+        _write(path, result)
+        return True
+    raise Refusal(f"{path} changed under another writer {SWAP_TRIES} times running; nothing was written")
+
+
+def task_list(root):
+    """The path `.harness/config.json` names under `task_list`, in the main checkout's parent, from any worktree."""
+    main = Path(git(root, "rev-parse", "--path-format=absolute", "--git-common-dir").strip()).parent
+    config = main / ".harness" / "config.json"
+    try:
+        name = json.loads(_read(config)).get("task_list")
+    except (OSError, ValueError, AttributeError) as error:
+        raise Refusal(f"could not read task_list from {config}: {error}") from None
+    if not isinstance(name, str) or not name.strip():
+        raise Refusal(f"{config} names no task_list")
+    return main.parent / name
+
+
+def _issue(value):
+    found = re.fullmatch(r"#?([1-9]\d{0,6})", value)
+    if not found:
+        raise Refusal(f"{value!r} is not an issue number")
+    return int(found.group(1))
+
+
+def _day_command(args):
+    path = Path(args.tasks) if args.tasks else task_list(args.root)
+    number = _issue(args.issue)
+    # What `start` took out of Remaining, kept beside the list so `back` puts the whole row back, cells and all.
+    saved = path.with_name(f"{path.stem}.started") / f"{number}.md"
+    if args.action == "start":
+        took = []
+
+        def edit(text):
+            result, line = start_issue(text, number, args.branch, args.worktree, args.what)
+            if line is not None:
+                saved.parent.mkdir(parents=True, exist_ok=True)
+                _write(saved, line)
+                took.append(line)
+            return result
+        try:
+            wrote = _swap(path, edit)
+        except Refusal:
+            # The list was not written, so a row saved on the way would name a start that never happened.
+            if took:
+                with contextlib.suppress(OSError):
+                    saved.unlink()
+            raise
+        print(f"started #{number}" if wrote else f"#{number} is already in progress on {args.branch}; nothing written")
+        return
+    if args.action == "state":
+        wrote = _swap(path, lambda text: set_issue_state(text, number, args.text))
+        print(f"#{number} reads {args.text.strip()!r}" if wrote else f"#{number} already reads that; nothing written")
+        return
+    if args.action == "done":
+        wrote = _swap(path, lambda text: finish_issue(text, number))
+    else:
+        line = _read(saved).rstrip("\r\n") if saved.is_file() else None
+        wrote = _swap(path, lambda text: return_issue(text, number, line))
+    if wrote or args.action == "done":
+        with contextlib.suppress(FileNotFoundError):
+            saved.unlink()
+    print(f"{args.action} #{number}" if wrote else f"#{number} has no In progress row; nothing written")
+
+
 # Command line
 
 def _read(path):
@@ -1007,10 +1189,22 @@ def main(argv=None, body_source=None, open_source=None, branch_source=None, week
     b.add_argument("--berserk", action="store_true")
     t = sub.add_parser("tasks")
     actions = t.add_subparsers(dest="action", required=True)
+    # A day session's `done` and `back` name an issue and no run; its list defaults to the one the config names.
+    day = {"done", "back"}
+    for action in ("start", "state"):
+        s = actions.add_parser(action)
+        s.add_argument("--tasks")
+        s.add_argument("issue")
+        if action == "start":
+            s.add_argument("--branch", required=True)
+            s.add_argument("--worktree", required=True)
+            s.add_argument("--what")
+        else:
+            s.add_argument("text")
     for action in ("move", "done", "back", "place", "rewrite"):
         s = actions.add_parser(action)
-        s.add_argument("--tasks", required=True)
-        s.add_argument("--run", required=True)
+        s.add_argument("--tasks", required=action not in day)
+        s.add_argument("--run", required=action not in day)
         s.add_argument("--today")
         if action == "rewrite":
             s.add_argument("--from", dest="source", required=True)
@@ -1028,6 +1222,8 @@ def main(argv=None, body_source=None, open_source=None, branch_source=None, week
     for command in [c for name, c in sub.choices.items() if name != "tasks"] + list(actions.choices.values()):
         command.add_argument("--root", default=".")
     args = parser.parse_args(argv)
+    if args.command == "tasks" and args.action in day and args.run is None:
+        args.issue, args.group = args.group, None
     root = args.root
     bodies_from = body_source or (lambda number: issue_body(root, number))
     open_from = open_source or (lambda: open_issues(root))
@@ -1058,7 +1254,11 @@ def main(argv=None, body_source=None, open_source=None, branch_source=None, week
                 _write(directory / READ_COPY, text)
             bodies = _bodies(parse_tasks(text), directory, bodies_from)
             print("\n".join(board(text, today, bodies, set(open_from()), branch_from, *flag, owned=owned_from())))
+        elif args.command == "tasks" and getattr(args, "run", None) is None:
+            _day_command(args)
         elif args.command == "tasks":
+            if not args.tasks:
+                raise Refusal(f"tasks {args.action} --run takes --tasks")
             _tasks_command(args, today)
         else:
             return dispatch_run.command(args, today, bodies_from, open_from, branch_from, weekly_source, owned_from,
