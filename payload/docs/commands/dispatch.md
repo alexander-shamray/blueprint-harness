@@ -329,6 +329,22 @@ does now (*What an executor returns*), and four had ended the turn on
 ended there ends a `claude -p` session, which is
 why `/ship --dispatched` says a step's status is not a reply.
 
+A relaunch is told what its earlier session left. Night 20261109-205859 lost
+three executors that way again, two of them after a commit and one after
+opening its PR (blueprint-harness#378). `/ship`'s resume rows read that
+state already, but the relaunch's prompt was the first launch's word for
+word, and nothing in it said a session had run and stopped short. So `run`,
+on a group whose
+status is a relaunch's, reads the worktree — commits ahead of
+`origin/main`, an uncommitted tree, and an `OPEN` row from
+`pr-for-branch.sh` — and adds what it found to the task as one clause
+saying to resume from there and to end the turn only on the result. Each
+read is best effort: one that fails drops its part, and `/ship`'s own state
+read still decides what is owed, so a missing clause costs only the hint.
+A sync's relaunch carries none, since its tree is held to its proved head
+and never committed to, and the clause is built from the branch name, a
+commit count and a PR number, never issue text.
+
 A `Model` cell `launch` would refuse holds its group at `board` and `wake`,
 since `launch` comes after the fork and `tasks move`, and a refusal there
 leaves an empty worktree behind.
