@@ -37,8 +37,8 @@ tool renders them into each target through an ordinary pull request.
   test steps and still reports the check; `harness_sync/legs.py` owns what
   reaches them. On a push to `main` that does not pass, its `main-red` job
   files `main is red: ci`, the issue `/ship` step 6 stops on.
-  A red push run of `rulesets.yml` or `sync.yml` files none, on purpose: that
-  issue stops every landing and opens by asking for a revert, which does not
+  A red push run of `rulesets.yml`, or a red `sync.yml` run, files none, on
+  purpose: that issue stops every landing and opens by asking for a revert, which does not
   answer a ruleset changed by hand or a failure on a target's side. A live
   ruleset that differs turns every pull request's required `rulesets` check red
   anyway, and its scheduled run files an issue of its own; a red sync leaves the
