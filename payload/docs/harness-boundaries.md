@@ -2682,8 +2682,9 @@ renders nothing.
 is changed there.** A sync from that
 repository wrote the file, and the manifest records the harness commit and
 the file's hash. A change is made in that repository's `payload/` and reaches
-each target as the sync pull request opened on the next merge to its `main`;
-an edit to a target's copy is red until the next sync reverts it.
+each target as the sync pull request its next sync run opens, every four hours
+or on dispatch; an edit to a target's copy is red until the next sync reverts
+it.
 `.claude/settings.json` is among them: it is rendered from
 `.harness/settings.base.json` plus the `settings` in `.harness/config.json`,
 so a rule only one repository needs goes in that config, which is the
