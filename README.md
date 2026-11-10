@@ -166,7 +166,9 @@ to the hash this run renders already carries this run's change, so it stays
 open and nothing else opens. The rendered tree is the test, not the payload's
 commit, so a change to the target's own `.harness/config.json` still opens a
 sync. A payload change merged after the open sync's commit is synced by the
-next scheduled run at the latest, four hours on.
+next scheduled run, normally no more than four hours on: GitHub may delay or
+drop a scheduled run under load, and a red run syncs nothing until it is
+rerun.
 
 **Why a schedule, not every merge.** Spec 5.3 first had the trigger as the
 builder's call, automatic on merge. On 2026-11-09 that opened 29 syncs in
@@ -176,8 +178,9 @@ before they merged (#380). The owner approved changing the trigger on
 2026-11-10, and the spec is left as written; this section is the record. Of
 the three options #380 weighs, the schedule was taken:
 
-- **Taken: a schedule plus dispatch.** At most six syncs a day per target,
-  latency bounded at four hours, and an urgent sync is one dispatch away.
+- **Taken: a schedule plus dispatch.** At most six scheduled syncs a day per
+  target, plus any dispatched; a payload change normally reaches a sync within
+  four hours, and an urgent sync is one dispatch away.
 - **Rejected: a debounce on push.** A run started by a merge always sees that
   merge as the newest payload commit, so it can only defer, never open, unless
   it holds a runner through the quiet period. The scheduled run that picks up
