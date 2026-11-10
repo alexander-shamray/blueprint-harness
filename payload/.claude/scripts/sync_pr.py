@@ -63,7 +63,7 @@ def run(argv, cwd=None, timeout=GH_TIMEOUT):
 
 
 def _text(data):
-    """Bytes as the text mode this runner used to read them in: UTF-8, with line endings folded to `\\n`."""
+    """Bytes as text mode reads them: UTF-8, with line endings folded to `\\n`, which the readers here expect."""
     return data.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
 
 
