@@ -375,7 +375,7 @@ class OpenedTests(SyncTestCase):
         self.assertEqual(self.remote_tip(self.branch()), tip)
 
     def test_older_commit_never_closes_a_newer_sync(self) -> None:
-        # R30, belt and braces: handed the older commit outright, the run refuses rather than superseding #42.
+        # R30, belt and braces: handed the older commit outright, the run refuses rather than superseding the newer.
         gh = FakeGh(self.origin)
         self.sync(gh, self.new)
         calls = len(gh.calls)
@@ -447,6 +447,62 @@ class OpenedTests(SyncTestCase):
         outcome = self.sync(FakeGh(self.origin))
         self.assertEqual(outcome.pr, 42)
         self.assertEqual(self.trailers(self.remote_tip(self.branch()))[-1], "PR: #42")
+
+
+class HeldSyncTests(SyncTestCase):
+    """A scheduled run whose rendered tree an open sync already carries opens nothing and keeps that sync."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.seed()
+        self.change_payload()
+        self.gh = FakeGh(self.origin)
+        self.sync(self.gh, self.old)
+        self.held_tip = self.remote_tip(self.branch(self.old))
+        self.tip = self.harness_commit("harness: docs only, no payload change")
+
+    def test_open_sync_carrying_the_same_tree_holds(self) -> None:
+        calls = len(self.gh.calls)
+        outcome = self.sync(self.gh, self.tip)
+        self.assertEqual((outcome.state, outcome.pr, outcome.superseded), ("held", 42, []))
+        self.assertIn("#42 already carries this payload", outcome.reason)
+        self.assertEqual([call[:2] for call in self.gh.calls[calls:]], [["pr", "list"]])
+        self.assertEqual(self.remote_branches(), [self.branch(self.old), "main"])
+        self.assertEqual(self.remote_tip(self.branch(self.old)), self.held_tip)
+        self.assert_clean()
+        self.assertEqual(git(self.target, "branch", "--show-current").strip(), "main")
+
+    def test_payload_change_after_the_open_sync_still_opens_one(self) -> None:
+        # The bound the schedule keeps: a payload commit newer than the open sync is synced by the next run, not held.
+        self.put(self.payload, "docs/a.md", "a, revised after the open sync\n")
+        self.gh.number = 43
+        outcome = self.sync(self.gh, self.tip)
+        self.assertEqual((outcome.state, outcome.pr, outcome.superseded), ("opened", 43, [42]))
+        self.assertIn("Superseded by #43", self.gh.closes()[0][self.gh.closes()[0].index("--comment") + 1])
+        self.assert_clean()
+
+    def test_held_sync_supersedes_the_older_ones(self) -> None:
+        self.gh.open_prs.insert(0, {"number": 3, "headRefName": "chore/harness-sync-0000000",
+                                    "isCrossRepository": False})
+        outcome = self.sync(self.gh, self.tip)
+        self.assertEqual((outcome.state, outcome.pr, outcome.superseded), ("held", 42, [3]))
+        comment = self.gh.closes()[0][self.gh.closes()[0].index("--comment") + 1]
+        self.assertIn(f"Superseded by #42, the sync to blueprint-harness {self.old}", comment)
+
+    def test_open_sync_whose_branch_is_gone_does_not_hold(self) -> None:
+        git(self.origin, "update-ref", "-d", f"refs/heads/{self.branch(self.old)}")
+        self.gh.number = 43
+        outcome = self.sync(self.gh, self.tip)
+        self.assertEqual((outcome.state, outcome.pr, outcome.superseded), ("opened", 43, [42]))
+
+    def test_open_sync_off_main_does_not_hold(self) -> None:
+        # Only a released commit holds: the drift gate refuses a manifest naming a commit off harness main.
+        side = self.side_commit("side")
+        git(self.target, "push", "-q", "origin", f"{self.held_tip}:refs/heads/{self.branch(side)}")
+        self.gh.open_prs = [{"number": 7, "headRefName": self.branch(side), "isCrossRepository": False}]
+        self.gh.number = 43
+        outcome = self.sync(self.gh, self.tip)
+        self.assertEqual((outcome.state, outcome.pr, outcome.superseded), ("opened", 43, [7]))
 
 
 class GateAcceptanceTests(SyncTestCase):
@@ -539,6 +595,17 @@ class CliTests(SyncTestCase):
         self.assertEqual(code, 0)
         self.assertEqual(len(out.splitlines()), 1)
         self.assertIn("closed stale #5", out)
+
+    def test_held_prints_one_line_and_exits_0(self) -> None:
+        self.seed()
+        self.change_payload()
+        code, _, _ = self.run_main(*self.argv(self.old))
+        self.assertEqual(code, 0)
+        tip = self.harness_commit("harness: no payload change")
+        code, out, _ = self.run_main(*self.argv(tip), gh=self.gh)
+        self.assertEqual(code, 0)
+        self.assertEqual(len(out.splitlines()), 1)
+        self.assertIn("#42 already carries this payload", out)
 
     def test_downgrade_exits_non_zero(self) -> None:
         self.seed(at=self.new)

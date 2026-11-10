@@ -40,7 +40,7 @@ class GhRunner(Protocol):
 
 @dataclass(frozen=True)
 class SyncOutcome:
-    state: str  # "current" or "opened"
+    state: str  # "current", "held" or "opened"
     pr: int | None
     superseded: list[int] = field(default_factory=list)
     reason: str = ""
@@ -228,6 +228,39 @@ def _check_no_newer(harness: Path, harness_commit: str, open_prs: list[tuple[int
             )
 
 
+def _manifest_files(text: str) -> dict | None:
+    try:
+        files = json.loads(text).get("files")
+    except (ValueError, AttributeError):
+        return None
+    return files if isinstance(files, dict) else None
+
+
+def _holding(harness: Path, target: Path, harness_commit: str, open_prs: list[tuple[int, str]],
+             branch: str) -> tuple[int, str] | None:
+    """The newest open sync for a released commit behind this one whose manifest maps every file as this apply did.
+
+    The rendered tree is the test, not the payload's commit, so a change to the target's own config still opens one.
+    """
+    wanted = _manifest_files((target / MANIFEST).read_text(encoding="utf-8"))
+    main = _main(harness) if open_prs else ""
+    held: tuple[int, str] | None = None
+    for number, head in open_prs:
+        theirs = _resolve(harness, head[len(PREFIX):]) if head != branch else None
+        if not (theirs and _is_ancestor(harness, theirs, harness_commit) and _is_ancestor(harness, theirs, main)):
+            continue
+        if _remote_tip(target, head) is None:
+            continue
+        _git(target, "fetch", "-q", "origin", f"+refs/heads/{head}:refs/remotes/origin/{head}")
+        shown = subprocess.run(["git", "show", f"refs/remotes/origin/{head}:{MANIFEST}"], cwd=target,
+                               capture_output=True, encoding="utf-8", check=False)
+        if shown.returncode != 0 or _manifest_files(shown.stdout) != wanted:
+            continue
+        if held is None or _is_ancestor(harness, held[1], theirs):
+            held = (number, theirs)
+    return held
+
+
 def _ensure_trailer(target: Path, branch: str, number: int) -> None:
     """A rerun after a failure between `gh pr create` and the trailer push finishes that push."""
     remote = _remote_tip(target, branch)
@@ -298,6 +331,18 @@ def open_sync_pr(
         _ensure_trailer(target, branch, mine[0])
         _git(target, "checkout", "-q", base)
         return SyncOutcome("opened", mine[0], _supersede(gh, others, mine[0], harness_commit))
+
+    try:
+        held = _holding(harness, target, harness_commit, open_prs, branch)
+    except BaseException:
+        _restore(target)
+        raise
+    if held is not None:
+        number, theirs = held
+        _restore(target)
+        stale = _supersede(gh, [n for n in others if n != number], number, theirs)
+        return SyncOutcome("held", number, stale,
+                           f"#{number} already carries this payload at {_short(theirs)}; nothing to open")
 
     # 3-5. Branch from the checkout's HEAD, commit exactly what apply changed, publish.
     _git(target, "checkout", "-q", "-B", branch)
