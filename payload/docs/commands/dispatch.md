@@ -99,7 +99,11 @@ progress* row too: the issue it closed may be one a day session is working.
 **A list `board` refuses is still rebuilt from.** `board --run` keeps its
 copy as soon as it has read the list, before it cuts a group, so a group
 spanning two waves or two models, which it refuses, is re-cut by the same
-rebuild rather than by a hand edit. A list that does not parse at all, a
+rebuild rather than by a hand edit. That re-cut is written before `tasks
+reconcile` runs, not after: each change `reconcile` makes is checked against
+`board`'s parser, so on a list whose groups span it refuses at the first one,
+and a later rewrite cannot bring its changes back, since `rewrite` refuses to
+add, drop or move an issue's row (#399). A list that does not parse at all, a
 malformed header or an *In progress* row naming two issues, still needs a
 human: `tasks rewrite` parses the live list too, and *In progress* is never
 rebuilt.
