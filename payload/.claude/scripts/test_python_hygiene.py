@@ -100,7 +100,9 @@ def _git_argv(tree: ast.AST) -> bool:
     """Whether an argv list, tuple or call holds `init` or `clone` beside git, by literal or by a name holding `git`.
     A bare `init` elsewhere is no repository: `tasks init` and the index's refused `init` build nothing."""
     for node in ast.walk(tree):
-        items = node.elts if isinstance(node, (ast.List, ast.Tuple)) else node.args if isinstance(node, ast.Call) else []
+        # A call's callee counts as one of its items, so a `git(root, "init")` helper is an argv too.
+        items = (node.elts if isinstance(node, (ast.List, ast.Tuple))
+                 else [node.func, *node.args] if isinstance(node, ast.Call) else [])
         git = any((isinstance(i, ast.Constant) and i.value == "git") or "git" in (_name(i) or "").lower() for i in items)
         if git and any(isinstance(i, ast.Constant) and i.value in ("init", "clone") for i in items):
             return True
@@ -220,7 +222,8 @@ class PythonHygiene(unittest.TestCase):
         self.assertEqual(swallowed_cleanup(cleanups + 'patch(db, "git", g)\nmain(["tasks", "init"])\n'), [])
         for build in ('sh("git init -q")', "sh('git -C \"$R\" clone x')", 'sh("git worktree add x")',
                       'run(["git", "-C", root, "init", "-q"])', 'run([GIT, "clone", url])',
-                      'run((git_exe, "init"))'):
+                      'run((git_exe, "init"))', 'git(root, "init", "-q")', 'self._git(tree.root, "init")',
+                      'git_in(".", "clone", url)'):
             with self.subTest(build=build):
                 self.assertEqual(swallowed_cleanup(cleanups + build + "\n"), [1, 2, 3, 4])
 
