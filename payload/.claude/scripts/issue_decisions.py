@@ -1,8 +1,8 @@
 """The owner's answers to /dispatch's interview, written into an issue and acted on.
 
 `record` appends a dated answer under `## Owner decisions`, `unblock` drops `question` or `paused`, `close` comments and
-closes as not planned, `comment` only comments. Exit 2 refuses with nothing written, 3 is a failed `gh` call, 4 a row
-`tasks sync` did not move. Only the untrusted body's heading line is searched; a retried `close` comments twice."""
+closes as not planned, `comment` only comments. Exit 2: refused, nothing written; 3: `gh` failed; 4: `tasks sync` left a
+row. The untrusted body is matched by heading line alone, so one in a fence counts; a retried `close` comments twice."""
 
 import argparse
 import json
