@@ -824,8 +824,9 @@ def settle(text, issue, cells=None, new=False, owned=frozenset()):
     """(the list with `issue`'s row where its live state puts it, what was done), or (None, why nothing was).
 
     A closed issue's row is deleted; an open one's is added, or moved between Remaining, Tracking and Paused by its
-    labels. An In progress row is the working session's: a closed issue ends it unless a /dispatch run moved it, and
-    a label leaves it where it is. `new` is a filing: a row already there is refused rather than moved."""
+    labels. An In progress row is the working session's, which ends it with `done` or `back`, so neither a label nor
+    a close moves it: another session's row is never this helper's to drop (spec section 4). `new` is a filing: a row
+    already there is refused rather than moved."""
     cells = _caller_cells(cells)
     tasks, key = parse_tasks(text), f"#{issue.number}"
     row = next((r for r in _rows(tasks) if r.key == key), None)
@@ -836,10 +837,7 @@ def settle(text, issue, cells=None, new=False, owned=frozenset()):
         raise Refusal(f"{key} is closed, so it has no row")
     lines = _lines(text)
     if row is not None and row.section == "In progress":
-        if target is not None:
-            return None, f"{key} is in progress; its row stays until the work ends"
-        _remove(lines, "In progress", {_a_day_row(row).key})
-        return _checked("\n".join(lines)), f"deleted {key}: the issue is closed"
+        return None, f"{key} is in progress; its row stays until the work ends with tasks done or back"
     if target is None:
         if row is None:
             return None, f"{key} is closed and has no row"
@@ -862,19 +860,19 @@ def reconcile(text, issues, merged=lambda _branch: False, owned=frozenset()):
     the issues the repository owner opened, whose titles alone a new row may carry."""
     notes, kept = [], []
     tasks = parse_tasks(text)
+    # In progress is never rebuilt: each row is its session's or its run's to end, so a stale one is only named.
     for row in tasks.in_progress:
         if row.cells[HEADERS["In progress"].index("State")].startswith("dispatched"):
             continue
         branch = row_branch(row)
         if row.number is None:
             if branch and merged(branch):
-                text = _checked(delete_in_progress(text, {row.key}))
-                notes.append(f"deleted the owed row on {branch}: its pull request merged")
+                kept.append(f"kept the owed row on {branch} in In progress: its pull request merged; "
+                            f"tasks done owed --branch {branch} ends it")
         elif row.number not in issues:
             kept.append(f"kept {row.key} in In progress: no such issue here")
         elif not issues[row.number].open:
-            text = _checked(delete_in_progress(text, {row.key}))
-            notes.append(f"deleted {row.key} from In progress: the issue is closed")
+            kept.append(f"kept {row.key} in In progress: the issue is closed; tasks done {row.number} ends it")
         elif branch and merged(branch):
             kept.append(f"kept {row.key} in In progress: its pull request merged and the issue is open; "
                         "tasks back or close the issue")
@@ -1053,9 +1051,6 @@ def _day_command(args, issues_source, merged_source, owned_source):
             said[:] = [done]
             return result
         wrote = _swap(path, settled)
-        if wrote and not issue.open:
-            with contextlib.suppress(FileNotFoundError):
-                (path.with_name(f"{path.stem}.started") / f"{number}.md").unlink()
         print(said[0] if wrote else f"{said[0]}; nothing written")
         return
     number = _work(args.issue)

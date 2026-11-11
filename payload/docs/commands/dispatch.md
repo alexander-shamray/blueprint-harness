@@ -58,9 +58,9 @@ read is kept, not overwritten.
 moving and adding rows by hand as well as re-cutting groups, and day
 sessions wrote rows the same way: on 2026-11-11 a hand-written sync row with
 a dash in its `#` cell stopped `board` on a target's list (#395). So `tasks
-reconcile` now applies every rule GitHub's state decides — a closed issue's
-row deleted, a row moved by its labels, an open issue with no row added
-unplaced — and `docs/harness/task-list.md` holds the rules the note held.
+reconcile` now applies every rule GitHub's state decides outside *In
+progress* — a closed issue's row deleted, a row moved by its labels, an open
+issue with no row added unplaced — and `docs/harness/task-list.md` holds the rules the note held.
 What is left, waves and groups, is written as a file: the session writes the
 whole regrouped list under the run, and `tasks rewrite` replaces the live list
 with it only when the run was opened by `start`, the live list is still byte
@@ -90,8 +90,10 @@ or edit another session's, which the spec's §4 leaves alone. So the whole
 section has to come through unchanged, whatever the run's state says: this
 run's own rows change only through `move`, `done` and `back`, and a stale
 row of another session's is named to the owner rather than deleted. The
-rebuild's cleanup of closed and merged rows is therefore *Remaining*,
-*Tracking* and *Paused* only.
+cleanup of closed and merged rows, `tasks reconcile`'s, is therefore
+*Remaining*, *Tracking* and *Paused* only, and `tasks sync`, which
+`issue_decisions.py` runs after an interview's close, leaves an *In
+progress* row too: the issue it closed may be one a day session is working.
 
 **A list `board` refuses is still rebuilt from.** `board --run` keeps its
 copy as soon as it has read the list, before it cuts a group, so a group
@@ -113,9 +115,9 @@ once `verify` has passed.
 `tasks place` adds a filed issue's row, its missing cells set to the
 cautious value, `OWNER` among them, and records the issue in the run's
 state for the report's *Filed overnight*. What the interview files or
-closes reaches no `tasks place`, since its row comes from step 0.5's
-rebuild or leaves with the closed issue, so `filed` records it in the
-same list: a close comment is a comment on an issue, which the spec's
+closes reaches no `tasks place --run`, since the filing helper places a
+filed issue's row and `issue_decisions.py` syncs a closed one's, so `filed`
+records it in the same list: a close comment is a comment on an issue, which the spec's
 *Filed overnight* counts.
 
 `--dry-run` is the builder's flag the spec's §3 allows: it runs step 0's
