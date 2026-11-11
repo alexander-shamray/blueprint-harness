@@ -78,8 +78,8 @@ class IssueHelperHasNoFreeParameter(unittest.TestCase):
         env["PATH"] = self.dir + os.pathsep + env["PATH"]
         # A dispatched executor runs this suite too; only the case about one sets the marker.
         env.pop("HARNESS_DISPATCHED", None)
-        if dispatched:
-            env["HARNESS_DISPATCHED"] = "1"
+        if dispatched is not False:
+            env["HARNESS_DISPATCHED"] = "1" if dispatched is True else dispatched
         return subprocess.run(
             [BASH, str(self.HELPER), *args],
             capture_output=True, text=True, encoding="utf-8", input=body, env=env,
@@ -203,9 +203,12 @@ class IssueHelperHasNoFreeParameter(unittest.TestCase):
 
     def test_a_dispatched_executor_files_but_places_nothing(self):
         placed = self.placer()
-        result = self.run_helper("bug", "low", "code", "sweep", body=self.STDIN, dispatched=True)
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertFalse(placed.exists())
+        # An empty value is still the dispatcher's mark.
+        for value in (True, ""):
+            with self.subTest(value=value):
+                result = self.run_helper("bug", "low", "code", "sweep", body=self.STDIN, dispatched=value)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertFalse(placed.exists())
 
     def test_a_body_without_the_blank_separator_is_refused(self):
         # A body piped without its title line would otherwise file under its

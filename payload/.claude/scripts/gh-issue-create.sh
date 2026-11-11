@@ -117,7 +117,7 @@ printf '%s\n' "$url"
 # what its result's `filed` names.
 number="${url##*/}"
 number="${number%$'\r'}"
-if [ -n "${HARNESS_DISPATCHED:-}" ]; then
+if [ -n "${HARNESS_DISPATCHED+set}" ]; then
   :
 elif [[ "$number" =~ ^[1-9][0-9]*$ ]]; then
   python=python3

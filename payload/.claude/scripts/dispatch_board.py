@@ -784,11 +784,13 @@ def _fresh_group(tasks):
     return f"{UNPLACED_LETTER}{k}"
 
 
-def _cells_for(section, issue, tasks, cells, old=None):
+def _cells_for(section, issue, tasks, cells, old=None, owned=frozenset()):
     """The cells of `issue`'s row in `section`: the caller's first, then what the row had in Remaining or Tracking,
-    then what the issue says. A row nobody placed waits as unplaced, and a `question` as OWNER."""
+    then what the issue says. A row nobody placed waits as unplaced, and a `question` as OWNER. A title the owner did
+    not write never reaches the list, which the dispatcher reads: the cell says whose it is instead."""
     labels = ", ".join(issue.labels) or "none"
-    task = cells.get("task") or (old.cells[TASK_AT[old.section]] if old else _title_cell(issue.title))
+    title = _title_cell(issue.title) if issue.number in owned else f"Issue #{issue.number}, {NOT_OWNERS}"
+    task = cells.get("task") or (old.cells[TASK_AT[old.section]] if old else title)
     if section == "Paused":
         return str(issue.number), task, labels, cells.get("why", PAUSED_WHY), cells.get("resume", PAUSED_RESUME)
     kept = old if old is not None and old.section in ("Remaining", "Tracking") else None
@@ -818,7 +820,7 @@ def _insert(lines, section, cells):
         _place(lines, line, section)
 
 
-def settle(text, issue, cells=None, new=False):
+def settle(text, issue, cells=None, new=False, owned=frozenset()):
     """(the list with `issue`'s row where its live state puts it, what was done), or (None, why nothing was).
 
     A closed issue's row is deleted; an open one's is added, or moved between Remaining, Tracking and Paused by its
@@ -848,15 +850,16 @@ def settle(text, issue, cells=None, new=False):
     if row is not None:
         _remove(lines, row.section, {key})
         tasks = parse_tasks("\n".join(lines))
-    _insert(lines, target, _cells_for(target, issue, tasks, cells, row))
+    _insert(lines, target, _cells_for(target, issue, tasks, cells, row, owned))
     done = f"moved {key} from {row.section} to {target}" if row else f"added {key} to {target}"
     return _checked("\n".join(lines)), done
 
 
-def reconcile(text, issues, merged=lambda _branch: False):
+def reconcile(text, issues, merged=lambda _branch: False, owned=frozenset()):
     """(the list with every deterministic rule applied, one line per change, one per row left for a person).
 
-    `issues` is every issue, open and closed; `merged(branch)` says whether a branch's pull request merged."""
+    `issues` is every issue, open and closed; `merged(branch)` says whether a branch's pull request merged; `owned`
+    the issues the repository owner opened, whose titles alone a new row may carry."""
     notes, kept = [], []
     tasks = parse_tasks(text)
     for row in tasks.in_progress:
@@ -882,13 +885,13 @@ def reconcile(text, issues, merged=lambda _branch: False):
             if row.number not in issues:
                 kept.append(f"kept {row.key} in {section}: no such issue here")
                 continue
-            result, done = settle(text, issues[row.number])
+            result, done = settle(text, issues[row.number], owned=owned)
             if result is not None:
                 text = result
                 notes.append(done)
     present = {r.number for r in _rows(parse_tasks(text))}
     for number in sorted(n for n, issue in issues.items() if issue.open and n not in present):
-        text, done = settle(text, issues[number], new=True)
+        text, done = settle(text, issues[number], new=True, owned=owned)
         notes.append(f"{done}{', unplaced' if where(issues[number]) == 'Remaining' else ''}")
     return text, notes, kept
 
@@ -990,7 +993,7 @@ def _work(value):
     return None if value == "owed" else _issue(value)
 
 
-def _whole_list(args, path, issues_source, merged_source):
+def _whole_list(args, path, issues_source, merged_source, owned_source):
     """init, reconcile and rewrite: the commands that read or rebuild the whole list rather than one issue's row."""
     if args.action == "init":
         if not path.exists():
@@ -1012,29 +1015,30 @@ def _whole_list(args, path, issues_source, merged_source):
         wrote = _swap(path, lambda text: rewrite_day(text, source))
         print("rewrote the list" if wrote else "the rewrite matches the list; nothing written")
         return
-    issues, notes = issues_source(), []
+    issues, owned, notes = issues_source(), owned_source(), []
 
     def edit(text):
-        result, done, kept = reconcile(text, issues, merged_source)
+        result, done, kept = reconcile(text, issues, merged_source, owned)
         notes[:] = done + kept
         return result if result != text else None
     _swap(path, edit)
     print("\n".join(notes) or "the list already matches GitHub; nothing written")
 
 
-def _day_command(args, issues_source, merged_source):
+def _day_command(args, issues_source, merged_source, owned_source):
     # The settings base grants every session these prefixes, so the run-less forms write only the list the config
     # names. The same `done`, `back`, `place` and `rewrite` prefixes reach the --run forms, which refuse without the
     # run's state.json.
     if getattr(args, "tasks", None) or args.root != ".":
         raise Refusal(f"tasks {args.action} without --run writes only the list .harness/config.json names; "
                       "it takes no --tasks or --root")
-    if os.environ.get(DISPATCHED):
+    # Present at all is set: an empty value is still the dispatcher's mark, never a way past it.
+    if DISPATCHED in os.environ:
         raise Refusal("a /dispatch executor writes no task list: the dispatcher is its one writer, and places what "
                       "the result's filed names")
     path = task_list(".")
     if args.action in ("init", "reconcile", "rewrite"):
-        _whole_list(args, path, issues_source, merged_source)
+        _whole_list(args, path, issues_source, merged_source, owned_source)
         return
     if args.action in ("place", "sync"):
         number = _issue(args.issue)
@@ -1042,10 +1046,10 @@ def _day_command(args, issues_source, merged_source):
         if issue is None:
             raise Refusal(f"#{number} is not an issue in this repository")
         cells = {name: getattr(args, name, None) for name in CALLER_CELLS}
-        said = []
+        owned, said = owned_source(), []
 
         def settled(text):
-            result, done = settle(text, issue, cells, new=args.action == "place")
+            result, done = settle(text, issue, cells, new=args.action == "place", owned=owned)
             said[:] = [done]
             return result
         wrote = _swap(path, settled)
@@ -1656,7 +1660,7 @@ def main(argv=None, body_source=None, open_source=None, branch_source=None, week
             bodies = _bodies(parse_tasks(text), directory, bodies_from)
             print("\n".join(board(text, today, bodies, set(open_from()), branch_from, *flag, owned=owned_from())))
         elif args.command == "tasks" and getattr(args, "run", None) is None:
-            _day_command(args, issues_from_, merged_from)
+            _day_command(args, issues_from_, merged_from, owned_from)
         elif args.command == "tasks":
             if not args.tasks:
                 raise Refusal(f"tasks {args.action} --run takes --tasks")
