@@ -39,17 +39,18 @@ GitHub rather than from the caller:
 
 | State | Section |
 |---|---|
-| Open, labelled `paused` | *Paused*, whatever else is true of it |
+| Open, labelled `paused` | *Paused*, unless a session has it *In progress* |
 | Open, labelled `tracking` and not `paused` | *Tracking* |
 | Open, neither | *Remaining* |
 | Taken up by a session, its own branch or worktree named | *In progress*, until the work ends |
 | Implemented by an open pull request | *In progress*: a row for each open, unpaused issue it closes, or one owed row when it closes none |
-| Closed | No row |
+| Closed | No row, once *In progress* has ended its own |
 
-An *In progress* row is the working session's: a label leaves it where it
-is, and a close deletes it unless a `/dispatch` run moved it, which ends it
-itself. Work that ends with its issue open goes back to its wave through
-`tasks back`.
+An *In progress* row is the working session's, or a `/dispatch` run's: no
+label and no close moves it, since another session's row is never the
+helper's to drop, and it ends only through `tasks done`, or `tasks back` for
+work that ends with its issue open, which `/ship` step 6 runs.
+`tasks reconcile` names a stale one with the call that ends it.
 
 ## Placing a row in Remaining
 
@@ -77,8 +78,10 @@ itself. Work that ends with its issue open goes back to its wave through
   chose goes to the last wave under a fresh `U<k>` group with *Depends on*
   `unplaced: no session has chosen its wave and group`, which the board
   holds until a regrouping replaces it. Grouping is a judgement, so the
-  helper never makes it; it only refuses a regrouping that breaks a rule
-  above.
+  helper never makes it, and of the rules above it refuses only a group
+  spanning a wave or a model. The order is the regrouping's to keep: the
+  helper puts a row it adds after its group or wave, and a *Paused* row
+  last.
 
 A row the helper adds takes the issue's title as its task only when the
 repository owner opened the issue; any other reads `Issue #<n>, not opened
@@ -111,11 +114,12 @@ another session changed it in between.
 
 - **`tasks reconcile`** reads every issue through `gh-issue-list.sh` and
   each owed row's branch through `pr-for-branch.sh`, and applies every
-  rule above at once: rows of closed issues deleted, rows moved by label,
-  open issues with no row added unplaced, and an owed row whose pull
-  request merged deleted. It names each change, and each row it leaves for
-  a person: one naming no issue here, and an open issue whose pull request
-  merged without closing it.
+  rule above at once outside *In progress*: rows of closed issues deleted,
+  rows moved by label, and open issues with no row added unplaced. It names
+  each change, and each row it leaves for a person: one naming no issue
+  here; an *In progress* row whose issue closed or whose owed work merged,
+  with the `done` that ends it; and an open issue whose pull request merged
+  without closing it.
 - **`tasks rewrite`** takes a whole list a session wrote and replaces the
   live one with it, refused unless *In progress* is unchanged and every
   issue's row is still in its section: a rewrite re-cuts waves, groups and

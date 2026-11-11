@@ -1376,17 +1376,20 @@ class EventTests(unittest.TestCase):
                          (paused.section, paused.cells[1], paused.cells[2]))
         self.readable()
 
-    def test_an_in_progress_row_stays_on_a_label_and_goes_on_a_close(self):
+    def test_an_in_progress_row_stays_on_a_label_and_on_a_close_until_done_ends_it(self):
+        # Another session's row is never the helper's to drop (spec section 4): /dispatch's interview closes issues
+        # through issue_decisions.py, which runs this sync, while a day session may be working one of them.
         self.start(1681)
-        self.issues = every_fixture_issue(n1681=issue(1681, "x", "OPEN", "paused"))
-        code, out = self.cli("sync", "1681")
-        self.assertEqual(0, code)
-        self.assertIn("in progress; its row stays", out)
-        self.assertEqual("In progress", self.find(1681).section)
-        self.issues[1681] = issue(1681, state="CLOSED")
-        self.assertEqual(0, self.cli("sync", "1681")[0])
+        before = self.read()
+        for state, labels in (("OPEN", ("paused",)), ("CLOSED", ())):
+            with self.subTest(state=state):
+                self.issues = every_fixture_issue(n1681=issue(1681, "x", state, *labels))
+                code, out = self.cli("sync", "1681")
+                self.assertEqual((0, before), (code, self.read()))
+                self.assertIn("in progress; its row stays", out)
+        self.assertTrue((self.saved / "1681.md").exists())
+        self.assertEqual(0, self.cli("done", "1681")[0])
         self.assertIsNone(self.find(1681))
-        self.assertFalse((self.saved / "1681.md").exists())
 
     def test_a_dispatched_row_is_the_runs_to_end(self):
         self.write(FIXTURE.replace("| `chore/dispatch-command` | started |", "| `chore/dispatch-command` | started |\n"
@@ -1394,9 +1397,10 @@ class EventTests(unittest.TestCase):
                                    "dispatched 2026-11-01 |"))
         before = self.read()
         self.issues = {1690: issue(1690, state="CLOSED")}
-        code, out = self.cli("sync", "1690")
-        self.assertEqual((2, before), (code, self.read()))
-        self.assertIn("moved by a /dispatch run", out)
+        for args in (("sync", "1690"), ("reconcile",)):
+            with self.subTest(args=args):
+                code, out = self.cli(*args)
+                self.assertEqual((0, before), (code, self.read()))
 
     def test_reconcile_applies_every_deterministic_rule_at_once(self):
         self.write(FIXTURE.replace("| `chore/dispatch-command` | started |", "| `chore/dispatch-command` | started |\n"
@@ -1409,17 +1413,20 @@ class EventTests(unittest.TestCase):
                                           n1802=issue(1802, "Shut long ago", "CLOSED"))
         del self.issues[1440]
         self.merged = {"chore/dispatch-command", "fix/half"}
+        before = section(self.read(), "In progress")
         code, out = self.cli("reconcile")
         self.assertEqual(0, code, out)
-        for number in (1681, 1500, 1802):
+        for number in (1681, 1802):
             self.assertIsNone(self.find(number), number)
-        self.assertNotIn("owed (not filed) | `/dispatch` implementation", self.read())
+        # In progress is never rebuilt: a stale row there is named with the call that ends it, and nothing more.
+        self.assertEqual(before, section(self.read(), "In progress"))
         self.assertEqual("Remaining", self.find(1677).section)
         self.assertEqual(("Remaining", db.UNPLACED), (self.find(1800).section, self.find(1800).cells[5]))
         self.assertEqual("Paused", self.find(1801).section)
-        self.assertEqual("In progress", self.find(1501).section)
         self.assertEqual("Remaining", self.find(1440).section)
-        for said in ("deleted #1681", "deleted #1500 from In progress", "deleted the owed row on chore/dispatch-command",
+        for said in ("deleted #1681", "kept #1500 in In progress: the issue is closed; tasks done 1500 ends it",
+                     "kept the owed row on chore/dispatch-command in In progress: its pull request merged; "
+                     "tasks done owed --branch chore/dispatch-command ends it",
                      "kept #1501 in In progress: its pull request merged", "kept #1440 in Remaining: no such issue",
                      "added #1800 to Remaining, unplaced", "added #1801 to Paused", "moved #1677 from Paused"):
             self.assertIn(said, out)
