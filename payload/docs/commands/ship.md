@@ -1352,11 +1352,11 @@ rather than stopping a chain whose merge is already done. Nothing else removes
 it: a row left behind reads as work still in progress after the PR has landed,
 which is what *In progress* exists not to say. An issue the merge left open, one
 a later pull request of a set closes, is still open work, so its row goes where
-`docs/harness/working-rules.md`, *Issues and the task list*, puts it rather than
-off the list. It reads the branch as those lines left it, since read earlier
+`docs/harness/task-list.md`, *Where a row sits*, puts it rather than off the
+list. It reads the branch as those lines left it, since read earlier
 the branch still stands and the row stays *In progress* naming one about to go:
 `back` waits for line 9's drop, and a branch a refused removal kept keeps its
-row *In progress*, which that table allows while a branch remains. A row
+row *In progress*, which that section allows while a branch remains. A row
 `tasks start` saved nothing for, one started with `--what` or by a hand edit
 from before the helper owned the list, is the exception it cannot place: its wave is in no cell, so `back`
 refuses, the row stays *In progress* with no branch behind it, and the report
