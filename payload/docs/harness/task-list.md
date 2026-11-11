@@ -80,6 +80,11 @@ itself. Work that ends with its issue open goes back to its wave through
   helper never makes it; it only refuses a regrouping that breaks a rule
   above.
 
+A row the helper adds takes the issue's title as its task only when the
+repository owner opened the issue; any other reads `Issue #<n>, not opened
+by the repository owner`, since the dispatcher reads the list and a
+stranger's title is text it would read as the owner's.
+
 *Paused* rows take *Why paused* and *Resume when* from the caller, or say
 the label and its removal. A row leaving *Paused* returns unplaced: its old
 wave and group were not kept.
