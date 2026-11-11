@@ -2598,7 +2598,9 @@ hands every executor back.
 action given `--run` refuses a run with no `state.json`; a day session's
 run-less `start`, `state`, `done`, `back`, `place`, `sync`, `reconcile`,
 `rewrite` and `init`, granted in the settings base, write only the list the
-config names and refuse a row a run moved, and `place`, `sync` and
+config names and write nothing to a row a run moved, `start`, `state`,
+`done` and `back` refusing it and `sync` and `reconcile` leaving it, and
+`place`, `sync` and
 `reconcile` take a row's section from GitHub rather than the caller
 (`docs/harness/task-list.md`); the `done`, `back`,
 `place` and `rewrite` grants are prefixes, so they reach the `--run` forms

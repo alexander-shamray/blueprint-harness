@@ -245,7 +245,10 @@ keeping the guide's *Comments* rules be reworded, completed or expanded.
   closes, an issue is filed, closed, reopened, paused or unpaused, labelled
   or unlabelled `tracking`, work is abandoned. A filing helper places the
   row it files and `issue_decisions.py` moves the row it closes or
-  unblocks, so their callers add nothing. A sync pull request has no row.
+  unblocks, so their callers add nothing; an *In progress* row is left to
+  the `tasks done` or `back` of the session holding it
+  (`docs/harness/task-list.md`, *Where a row sits*). A sync pull request
+  has no row.
   When in doubt, `tasks reconcile` re-derives the list from GitHub.
   `/dispatch` is the list's one writer from its step 0 to its report, and
   sends a hand-back or a stop back to its wave marked `OWNER`
