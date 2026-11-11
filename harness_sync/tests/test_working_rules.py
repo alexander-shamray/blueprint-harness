@@ -1,4 +1,5 @@
-"""`docs/harness/working-rules.md`'s rules held against the code, settings and sibling rules they depend on.
+"""`docs/harness/working-rules.md`'s rules, and `docs/harness/task-list.md`'s, held against the code, settings and
+sibling rules they depend on.
 
 No gate reads prose for meaning, so the board, base-deny and gate-trigger cases tie a rule to what makes it true; the
 others pin that a rule stays stated.
@@ -14,8 +15,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 PAYLOAD = ROOT / "payload"
 RULES = PAYLOAD / "docs" / "harness" / "working-rules.md"
+TASK_LIST = PAYLOAD / "docs" / "harness" / "task-list.md"
 BOARD = PAYLOAD / ".claude" / "scripts" / "dispatch_board.py"
 BASE = PAYLOAD / ".harness" / "settings.base.json"
+LISTER = PAYLOAD / ".claude" / "scripts" / "gh-issue-list.sh"
 
 
 def _board():
@@ -38,24 +41,35 @@ def _bullet(rules: str, lead: str) -> str:
 class WorkingRulesTests(unittest.TestCase):
     def setUp(self):
         self.rules = RULES.read_text(encoding="utf-8").replace("\r\n", "\n")
+        self.list_rules = TASK_LIST.read_text(encoding="utf-8").replace("\r\n", "\n")
+
+    def placement(self):
+        """The table under task-list.md's *Where a row sits*, as (state, section) rows."""
+        body = self.list_rules.split("\n## Where a row sits\n", 1)[1].split("\n## ", 1)[0]
+        return re.findall(r"^\| (.+?) \| (.+?) \|$", body, re.MULTILINE)
 
     def test_the_state_table_places_rows_only_in_the_sections_the_board_parses(self):
-        rows = re.findall(r"^  \| (.+?) \| (.+?) \|$", self.rules, re.MULTILINE)
-        self.assertEqual(rows[0], ("State", "Where"), "the table under *The task list* should lead the indented rows")
+        rows = self.placement()
+        self.assertEqual(rows[0], ("State", "Section"), "*Where a row sits* should open on its table")
         placed = {name for _, where in rows for name in re.findall(r"\*([A-Z][a-z]+(?: [a-z]+)?)\*", where)}
         self.assertEqual(placed, set(_board().SECTIONS))
 
-    def test_a_pull_request_row_names_one_issue_as_the_board_refuses_two(self):
+    def test_the_task_list_rule_says_no_session_edits_it_by_hand_and_names_its_owner(self):
         task_list = _bullet(self.rules, "The task list")
-        self.assertIn("a row for each open, unpaused issue it closes", task_list)
+        self.assertIn("**No session edits it by hand**", task_list)
+        self.assertIn("`docs/harness/task-list.md`", task_list)
+
+    def test_a_pull_request_row_names_one_issue_as_the_board_refuses_two(self):
+        rows = " ".join(" | ".join(row) for row in self.placement())
+        self.assertIn("a row for each open, unpaused issue it closes", rows)
         board = _board()
         self.assertEqual(1690, board._row("In progress", "| — | #1690 | x | `b` | open |").number)
         with self.assertRaisesRegex(board.Refusal, "names no issue number"):
             board._row("In progress", "| — | #1690, #1691 | x | `b` | open |")
 
     def test_the_row_with_no_issue_is_spelt_as_the_board_parses_it(self):
-        task_list = _bullet(self.rules, "The task list")
-        spelling = re.search(r"A row with no issue reads `([^`]+)` in its `#` cell", task_list).group(1)
+        shape = re.sub(r"\s+", " ", self.list_rules)
+        spelling = re.search(r"is an issue number, or `([^`]+)` for work with no issue", shape).group(1)
         board = _board()
         row = board._row("In progress", f"| — | {spelling} | x | `b` | started |")
         self.assertIsNone(row.number)
@@ -68,10 +82,14 @@ class WorkingRulesTests(unittest.TestCase):
         self.assertIn("Work that ends with its issue still open", task_list)
         self.assertIn("`/dispatch` is the list's one writer", task_list)
 
-    def test_a_rebuild_asks_past_the_default_cut_of_both_lists(self):
-        task_list = _bullet(self.rules, "The task list")
-        self.assertIn("`gh pr list --limit 1000`", task_list)
-        self.assertIn("`gh issue list --limit 1000`", task_list)
+    def test_a_reconcile_reads_a_list_that_refuses_its_own_cut(self):
+        # The rebuild once named `--limit 1000` because gh's default of 30 cuts silently; the helper now reads
+        # through the lister, which refuses a list as long as its limit rather than reading it as whole.
+        reconcile = _bullet(self.list_rules, "`tasks reconcile`")
+        self.assertIn("`gh-issue-list.sh`", reconcile)
+        lister = LISTER.read_text(encoding="utf-8")
+        self.assertIn("--state all --limit", lister)
+        self.assertIn("so the list may be cut", lister)
 
     def test_auto_merge_is_turned_off_by_the_owner_because_the_base_denies_the_raw_merge(self):
         rule = _bullet(self.rules, "Auto-merge waits on")
