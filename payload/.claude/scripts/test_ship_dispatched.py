@@ -292,7 +292,7 @@ class TheDispatchedTokenChangesOnlyWhatTheSpecLists(unittest.TestCase):
         self.assertEqual((None, "fix/x"), (row.number, dispatch_board.row_branch(row)))
         self.assertEqual(dispatch_board.OWED, row.cells[1])
         # These two parse and name no branch, so the claim loses the branch's paths with nothing refused: hence
-        # the step's "each in backticks".
+        # `start_issue` writing each name in its own backticks.
         for cell in ("fix/x, .claude/worktrees/x", "`fix/x, .claude/worktrees/x`"):
             with self.subTest(cell=cell):
                 self.assertIsNone(dispatch_board.row_branch(
