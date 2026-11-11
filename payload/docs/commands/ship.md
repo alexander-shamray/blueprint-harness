@@ -1358,10 +1358,10 @@ the branch still stands and the row stays *In progress* naming one about to go:
 `back` waits for line 9's drop, and a branch a refused removal kept keeps its
 row *In progress*, which that section allows while a branch remains. A row
 `tasks start` saved nothing for, one started with `--what` or by a hand edit
-from before the helper owned the list, is the exception it cannot place: its wave is in no cell, so `back`
-refuses, the row stays *In progress* with no branch behind it, and the report
-hands it to the owner to put in its wave, rather than the session guessing one
-(`docs/commands/branch.md`, *Step 5*).
+from before the helper owned the list, is the exception it cannot place: its
+wave is in no cell, so `back` refuses, the row stays *In progress* with no
+branch behind it, and the report hands it to the owner to put in its wave,
+rather than the session guessing one (`docs/commands/branch.md`, *Step 5*).
 
 Line 5 runs on both paths, the pull on `main` or the fetch elsewhere,
 because skipping it leaves local `main` a merge behind — precisely the state

@@ -1,5 +1,4 @@
-"""`docs/harness/working-rules.md`'s rules, and `docs/harness/task-list.md`'s, held against the code, settings and
-sibling rules they depend on.
+"""working-rules.md's and task-list.md's rules held against the code, settings and sibling rules they depend on.
 
 No gate reads prose for meaning, so the board, base-deny and gate-trigger cases tie a rule to what makes it true; the
 others pin that a rule stays stated.

@@ -109,12 +109,11 @@ url=$(printf '%s' "$body" | MSYS2_ARG_CONV_EXCL='*' gh issue create \
   --body-file -)
 printf '%s\n' "$url"
 
-# The filing places its own row through the helper that owns the task list
-# (docs/harness/task-list.md), so no caller writes one by hand. The issue is
-# filed whatever happens here, so a row not written is said on stderr with its
-# repair and the exit stays 0: a non-zero exit would read as a failed filing
-# and file it twice. A /dispatch executor writes no list; the dispatcher places
-# what its result's `filed` names.
+# The filing places its own row (docs/harness/task-list.md). The issue is filed
+# whatever happens here, so a row not written is said on stderr with its repair
+# and the exit stays 0: a non-zero exit would read as a failed filing and file
+# it twice. A /dispatch executor writes no list; the dispatcher places what its
+# result's `filed` names.
 number="${url##*/}"
 number="${number%$'\r'}"
 if [ -n "${HARNESS_DISPATCHED+set}" ]; then

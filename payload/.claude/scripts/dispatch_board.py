@@ -823,10 +823,8 @@ def _insert(lines, section, cells):
 def settle(text, issue, cells=None, new=False, owned=frozenset()):
     """(the list with `issue`'s row where its live state puts it, what was done), or (None, why nothing was).
 
-    A closed issue's row is deleted; an open one's is added, or moved between Remaining, Tracking and Paused by its
-    labels. An In progress row is the working session's, which ends it with `done` or `back`, so neither a label nor
-    a close moves it: another session's row is never this helper's to drop (spec section 4). `new` is a filing: a row
-    already there is refused rather than moved."""
+    A closed issue's row is deleted; an open one's added, or moved by its labels. An In progress row is its session's
+    to end with `done` or `back`, so nothing here moves it (spec section 4). `new` is a filing: a row there is refused."""
     cells = _caller_cells(cells)
     tasks, key = parse_tasks(text), f"#{issue.number}"
     row = next((r for r in _rows(tasks) if r.key == key), None)

@@ -60,8 +60,9 @@ sessions wrote rows the same way: on 2026-11-11 a hand-written sync row with
 a dash in its `#` cell stopped `board` on a target's list (#395). So `tasks
 reconcile` now applies every rule GitHub's state decides outside *In
 progress* — a closed issue's row deleted, a row moved by its labels, an open
-issue with no row added unplaced — and `docs/harness/task-list.md` holds the rules the note held.
-What is left, waves and groups, is written as a file: the session writes the
+issue with no row added unplaced — and `docs/harness/task-list.md` holds the
+rules the note held. What is left, waves and groups, is written as a file:
+the session writes the
 whole regrouped list under the run, and `tasks rewrite` replaces the live list
 with it only when the run was opened by `start`, the live list is still byte
 for byte the copy `board --run` read, the text above the sections is
@@ -117,8 +118,8 @@ cautious value, `OWNER` among them, and records the issue in the run's
 state for the report's *Filed overnight*. What the interview files or
 closes reaches no `tasks place --run`, since the filing helper places a
 filed issue's row and `issue_decisions.py` syncs a closed one's, so `filed`
-records it in the same list: a close comment is a comment on an issue, which the spec's
-*Filed overnight* counts.
+records it in the same list: a close comment is a comment on an issue,
+which the spec's *Filed overnight* counts.
 
 `--dry-run` is the builder's flag the spec's §3 allows: it runs step 0's
 checks and `board`, says what the rebuild would change and what would
