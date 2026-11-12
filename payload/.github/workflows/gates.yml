@@ -491,10 +491,16 @@ jobs:
             [ "$conclusion" = success ] || failed=1
           }
           # The outcomes unquoted on purpose: the decision, then each outcome, as words.
+          # A shellcheck directive covers the one command after it, so each call has its own.
+          # shellcheck disable=SC2086
           verdict closure-gate "$CLOSURE_GATE_ID" $CLOSURE_GATE
+          # shellcheck disable=SC2086
           verdict commit-gate "$COMMIT_GATE_ID" $COMMIT_GATE
+          # shellcheck disable=SC2086
           verdict harness-drift "$HARNESS_DRIFT_ID" $HARNESS_DRIFT
+          # shellcheck disable=SC2086
           verdict comment-gate "$COMMENT_GATE_ID" $COMMENT_GATE
+          # shellcheck disable=SC2086
           verdict locality-gate "$LOCALITY_GATE_ID" $LOCALITY_GATE
           exit "$failed"
 
