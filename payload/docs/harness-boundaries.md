@@ -2720,9 +2720,8 @@ suite that names its file, or names a code file that does, one step out; a
 suite `TREE_READERS` lists for a tree the path is in, since a suite that lists a
 directory names nothing in it; and the suite itself when the path is a suite. A
 path outside what `harness-legs.py`'s reach names is read by no suite for what
-it says, so it selects only the suites whose listing takes it, those listing
-every tracked path among them, and any suite that names it, and is never
-unplaced. Everything else falls back to the
+it says, so it is placed as any path is, the suites listing every tracked path
+among what it selects, and is never unplaced. Everything else falls back to the
 whole suite: a
 path in the reach that nothing places, a change to `review_helpers.py`,
 `local_commands.py`, the runner or the selector, a change that cannot be read,
