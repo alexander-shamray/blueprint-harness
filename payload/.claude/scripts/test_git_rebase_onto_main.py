@@ -2,8 +2,7 @@
 
 A permission rule cannot pin a fact about the checkout, so the guards are the
 script's, and its header lists them. The first class reads the flags, the
-argument guards' class runs it with no repository, and the rest run it against
-real repositories."""
+argument guards' runs it bare, and the rest against real repositories."""
 
 import re
 import unittest

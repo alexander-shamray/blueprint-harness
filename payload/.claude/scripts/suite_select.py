@@ -146,9 +146,8 @@ def callers(paths, texts):
 def select(paths, modules, root=ROOT, reach=None, code=None):
     """`(selectors, why)`: the modules and classes `paths` reach, or None and the reason the whole suite runs.
 
-    `modules` maps each discovered test module to its source. A path outside the reach no suite reads for what it
-    says, so it selects only the suites listing every path; one inside it that nothing names and no narrower listing
-    reads cannot be placed, and selects everything.
+    `modules` maps each test module to its source. A path outside the reach selects only the suites listing every
+    path; one inside it that nothing names and no narrower listing reads is unplaced, and selects everything.
     """
     if paths is None:
         return None, f"the change against {BASE} could not be read"
