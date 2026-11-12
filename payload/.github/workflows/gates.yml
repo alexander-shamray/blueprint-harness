@@ -65,10 +65,10 @@ jobs:
           set -euo pipefail
           runs_on() { if [[ " $1 " == *" $ACTION "* ]]; then echo true; else echo false; fi; }
           # The locality gate is a target's own, beside its change contract: a
-          # base with no gate directory has no class map to judge by, so the
-          # gate neither runs nor posts there.
+          # base with no gate script has no gate to run, though it may keep the
+          # class map a local check reads, so the gate neither runs nor posts.
           locality=$(runs_on 'opened synchronize reopened edited')
-          if ! git cat-file -e "$BASE_SHA:.github/locality-gate" 2>/dev/null; then
+          if ! git cat-file -e "$BASE_SHA:.github/locality-gate/locality_gate.py" 2>/dev/null; then
             locality=false
           fi
           {
