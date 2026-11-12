@@ -373,11 +373,10 @@ jobs:
           fi
           python "$judge" --base "$BASE_SHA" --head "$HEAD_SHA"
 
-      # The locality gate, the own gate of a target with a change contract,
-      # whose README beside it owns its rules: every changed path inside the
-      # class and touch set the description declares. The gate and its map come from the base together,
-      # so a pull request that widens a class is judged by the map it widens;
-      # the event step has already found the base's directory.
+      # The locality gate, a target's own beside its change contract, which
+      # owns its rules: every changed path inside the class and touch set the
+      # description declares. Gate and map come from the base together, so a
+      # pull request widening a class is judged by the map it widens.
       - name: Take the enforcing locality gate and map from the base commit
         id: locality_take
         if: >-
@@ -411,8 +410,8 @@ jobs:
       # The files endpoint, paginated: `gh pr view --json files` is one page,
       # and `changedFiles` lets the gate refuse a short list. One object a
       # line, so a newline in a path is never a second path; `status` lets a
-      # gate that reads it leave a removal unjudged. It runs at the root,
-      # whose ignore rules it reads as data.
+      # gate that reads it leave a removal unjudged. It runs at the root, so a
+      # gate that reads ignore rules reads the checkout's, as data.
       - name: Every changed path is inside the declared class and touch set
         id: locality
         if: ${{ !cancelled() && steps.locality_take.outcome == 'success' }}
