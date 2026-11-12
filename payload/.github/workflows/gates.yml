@@ -520,11 +520,11 @@ jobs:
         working-directory: .github/comment-gate
         run: python -m unittest
 
-      # Only where the head still carries a suite: a pull request removing the
-      # gate leaves nothing to test.
+      # Only where the head still carries the gate: a pull request removing it
+      # leaves nothing to test, and one deleting only the suite goes red.
       - name: Test the proposed locality gate
         if: >-
           ${{ !cancelled() && steps.setup.outcome == 'success' && steps.event.outputs.locality == 'true'
-          && steps.dependabot.outputs.own != 'true' && hashFiles('.github/locality-gate/test_*.py') != '' }}
+          && steps.dependabot.outputs.own != 'true' && hashFiles('.github/locality-gate/locality_gate.py') != '' }}
         working-directory: .github/locality-gate
         run: python -m unittest
