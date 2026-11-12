@@ -2689,9 +2689,9 @@ cleanups run between two classes of one worker, so a fixture a module caches
 has to be built again after one. `review_helpers.fixture_template` is that
 cache: a class's repositories are built once and `copy_template` copies them
 for each test, re-pointing the remotes their configs name, which on Windows
-costs about a tenth of building them again. Class sharding cannot split a class, so the
-run never takes less than its slowest one, which is why the worker count is
-capped rather than tuned.
+costs about a tenth of building them again. Class sharding cannot split a
+class, so the run never takes less than its slowest one, which is why the
+worker count is capped rather than tuned.
 
 **Two of its three tables are not about speed.** `SERIAL` holds the classes
 whose subject is elapsed time, `TOGETHER` the ones sharing the `secsweep-*`

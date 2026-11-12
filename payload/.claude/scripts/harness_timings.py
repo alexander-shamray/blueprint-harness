@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """How long each harness run took: one JSON line a run, in a file outside every checkout, and the reader of it.
 
-`docs/harness-boundaries.md`, *The suite's shard runner*, holds the argument. `record` is for a check script to call
-when it finishes; `report` prints p50, p90 and the maximum per script and mode, and the slowest classes.
-"""
+`docs/harness-boundaries.md`, *The suite's shard runner*, holds the argument. `record` is a check script's to call;
+`report` prints p50, p90 and the maximum per script and mode, and the slowest classes."""
 
 import argparse
 import datetime
