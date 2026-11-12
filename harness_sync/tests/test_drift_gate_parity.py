@@ -148,7 +148,7 @@ class DriftGateParity(unittest.TestCase):
         """A file added to the gate's directory is protected only once GATE_FILES names it."""
         payload = REPO / "payload"
         shipped = {rel for rel in apply_mod._walk(payload) if rel.startswith(".github/harness-drift/")}
-        shipped |= {".github/workflows/harness-drift.yml", ".harness/settings.base.json", ".harness/render.py"}
+        shipped |= {".github/workflows/gates.yml", ".harness/settings.base.json", ".harness/render.py"}
         self.assertEqual(set(apply_mod.GATE_FILES), shipped)
         self.assertTrue(all((payload / rel).is_file() for rel in shipped))
 
@@ -162,7 +162,7 @@ class DriftGateParity(unittest.TestCase):
     def test_a_protected_glob_is_refused_by_both(self) -> None:
         from harness_sync.apply import ApplyError, apply
 
-        globs = (".github/harness-drift/**", ".github/workflows/harness-drift.yml", ".claude/hooks/guard-git-argv.py")
+        globs = (".github/harness-drift/**", ".github/workflows/gates.yml", ".claude/hooks/guard-git-argv.py")
         for key in ("local", "exclude"):
             for glob in globs:
                 with self.subTest(key=key, glob=glob), tempfile.TemporaryDirectory() as tmp:

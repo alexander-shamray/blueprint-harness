@@ -26,7 +26,7 @@ GATE_FILES = (
     ".github/harness-drift/README.md",
     ".github/harness-drift/drift_gate.py",
     ".github/harness-drift/test_drift_gate.py",
-    ".github/workflows/harness-drift.yml",
+    ".github/workflows/gates.yml",
 )
 # A relative path in a hook's command, never starting inside a variable's name: `$D/.claude/x.py` and
 # `${CLAUDE_PROJECT_DIR}/.claude/x.py` both yield `.claude/x.py`.
