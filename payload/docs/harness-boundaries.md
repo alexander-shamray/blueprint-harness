@@ -2795,8 +2795,13 @@ list written beside it: every `test_*.py` beside it, and every file the suites
 and `review_helpers.py` spell off the root or `.claude/`, through a name or
 their own `__file__`, must be reached in the checkout the suite runs in, and a
 product path must not be. A suite that starts reading a
-file the reach misses fails there, rather than passing on a pull request whose
-legs skipped. `blueprint-harness` decides its own legs with
+file the reach misses, in a spelling the scanner knows, fails there, rather
+than passing on a pull request whose legs skipped. It reads fixed base names
+joined by `/ "part"` and no more: a file reached through a `parents` walk
+from another path, a name held in a variable and joined to the root, or a
+path handed to a subprocess as a string is not seen, and a target lists each
+such file under `local` by hand (blueprint-harness#418).
+`blueprint-harness` decides its own legs with
 `harness_sync/legs.py`, whose reach is the payload rather than a rendered tree.
 
 ## Managed files
