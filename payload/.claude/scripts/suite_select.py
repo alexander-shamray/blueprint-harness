@@ -66,9 +66,8 @@ PAYLOAD_TREE_READERS = (
 def local_tree_readers(name=LOCAL_MODULE):
     """The target's own rows, `TREE_READERS` in its module, in the payload's shape; none where it keeps neither.
 
-    A managed row cannot name a suite only one target has, since a selector that does not resolve fails in every other
-    target. A misshapen declaration is refused, and a module whose own import fails is raised, since a row that silently
-    stopped applying reads exactly like one that is working.
+    A managed row naming a suite only one target has fails in every other. A misshapen declaration is refused, and a
+    module whose own import fails is raised, since a row that silently stopped applying reads like one that works.
     """
     try:
         module = importlib.import_module(name)

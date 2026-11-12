@@ -2722,7 +2722,8 @@ directory names nothing in it; and the suite itself when the path is a suite.
 A suite only a target has is listed in `TREE_READERS` in that target's
 `local_commands.py`, which the selector reads after its own rows, for the
 reason the runner reads its pins there: a managed row naming it would not
-resolve in any other target. A path outside what `harness-legs.py`'s reach names is read by no suite for what
+resolve in any other target. A path outside what `harness-legs.py`'s reach
+names is read by no suite for what
 it says, so it is placed as any path is, the suites listing every tracked path
 among what it selects, and is never unplaced. Everything else falls back to the
 whole suite: a
