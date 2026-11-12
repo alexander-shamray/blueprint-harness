@@ -2740,10 +2740,10 @@ a reached tree still reaches.
 **The reach is read from the target, never listed for it.** It is `.claude/`
 and `.harness/` whole, `docs/harness-local.md`, a `.gitignore` or
 `.gitattributes` at any depth, every path `.harness/manifest.json` lists, every
-`local` glob in `.harness/config.json`, and `.github/workflows/` and
-`.github/actions/` whole. Every workflow, not the caller alone: the legs'
-steps may sit in a reusable workflow or a local action, and the run's own
-`GITHUB_WORKFLOW_REF` names only the workflow GitHub started. Paths compare
+`local` glob in `.harness/config.json`, and every workflow. Every workflow, not
+the caller alone: the legs' steps may sit in a reusable workflow, and the run's
+own `GITHUB_WORKFLOW_REF` names only the workflow GitHub started. A target that
+moves them into a local action lists its file under `local`. Paths compare
 case folded, as `apply` folds a `local` path. A sync that adds a managed file
 adds it to the reach in the same commit, and a local suite reading a file
 outside these trees is reached once the config lists that file under `local`.
