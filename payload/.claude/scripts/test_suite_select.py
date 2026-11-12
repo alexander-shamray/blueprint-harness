@@ -6,9 +6,11 @@ The tables are held against the suites they name: every selector resolves, and a
 
 import ast
 import importlib
+import importlib.util
 import re
 import sys
 import tempfile
+import types
 import unittest
 import uuid
 from pathlib import Path
@@ -289,7 +291,14 @@ class ATargetNamesItsOwnListings(unittest.TestCase):
         return name
 
     def test_the_table_is_the_payloads_rows_then_the_targets(self):
-        self.assertEqual(select_mod.PAYLOAD_TREE_READERS + select_mod.local_tree_readers(), select_mod.TREE_READERS)
+        # Most targets declare no rows, so comparing the loaded table would pass with the join gone: the selector is
+        # loaded afresh over a declaration module and its table read.
+        fixture = types.SimpleNamespace(TREE_READERS=(("**", ("test_x.Y",)),))
+        spec = importlib.util.spec_from_file_location("suite_select_fresh", SCRIPTS / "suite_select.py")
+        fresh = importlib.util.module_from_spec(spec)
+        with mock.patch("importlib.import_module", return_value=fixture):
+            spec.loader.exec_module(fresh)
+        self.assertEqual(select_mod.PAYLOAD_TREE_READERS + (("**", ("test_x.Y",)),), fresh.TREE_READERS)
 
     def test_a_target_that_declares_nothing_adds_no_row(self):
         self.assertEqual((), select_mod.local_tree_readers(f"local_commands_{uuid.uuid4().hex}"))
