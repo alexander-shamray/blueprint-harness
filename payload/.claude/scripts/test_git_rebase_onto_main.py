@@ -1,8 +1,9 @@
 """git-rebase-onto-main.sh: a leased force push, and what bounds it.
 
 A permission rule cannot pin a fact about the checkout, so the guards are the
-script's, and its header lists them. The first class reads the flags, and the
-rest run it against real repositories."""
+script's, and its header lists them. The first class reads the flags, the
+argument guards' class runs it with no repository, and the rest run it against
+real repositories."""
 
 import re
 import unittest
