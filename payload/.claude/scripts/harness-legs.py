@@ -26,9 +26,10 @@ NAMES = (".gitignore", ".gitattributes")
 
 
 def _git(root, *args):
+    # A name git holds is bytes, so one that is not UTF-8 is carried through rather than raised.
     try:
         done = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, encoding="utf-8",
-                              check=False)
+                              errors="surrogateescape", check=False)
     except OSError:
         return None
     return done.stdout if done.returncode == 0 else None
