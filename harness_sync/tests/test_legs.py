@@ -22,8 +22,11 @@ HELPERS = "payload/.claude/scripts"
 # On a leg for its fixture, so what it reads is not why it runs there: `TheShippedTree` reads the whole tree off its
 # `ROOT`, which `REACH` deliberately does not hold: Linux runs it on every pull request.
 FIXTURE_SUITES = {"payload/.github/comment-gate/test_comment_gate.py"}
-# A path spelt off the rendered root, or off `.claude/` by `SCRIPTS.parent`, each `/ "part"` after it.
-SPELT = re.compile(r'\b(SCRIPTS\.parent\.parent|SCRIPTS\.parents\[1\]|SCRIPTS\.parent|ROOT|REPO|COMMANDS\.parent\.parent)'
+# A path spelt off the rendered root, or off `.claude/`, each `/ "part"` after it. A module's own `__file__` reaches
+# either, resolved or not: `parents[2]` is the root, and `parents[1]` or `parent.parent` is `.claude/`.
+FILE = r'Path\((?:\w+\.)?__file__\)(?:\.resolve\(\))?'
+SPELT = re.compile(rf'\b(?:(?P<root>SCRIPTS\.parent\.parent|SCRIPTS\.parents\[1\]|ROOT|REPO|COMMANDS\.parent\.parent'
+                   rf'|{FILE}\.parents\[2\])|(?P<claude>SCRIPTS\.parent|{FILE}\.(?:parents\[1\]|parent\.parent)))'
                    r'((?:\s*/\s*"[^"]+")+)')
 IDENTITY = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
 
@@ -43,9 +46,9 @@ def _leg_suites() -> list[str]:
 def _spelt(text: str) -> list[str]:
     """The rendered-tree paths a suite's source spells, `.claude/`-relative ones made root-relative."""
     found = []
-    for base, chain in SPELT.findall(text):
+    for _, claude, chain in SPELT.findall(text):
         rel = "/".join(re.findall(r'"([^"]+)"', chain))
-        found.append(f".claude/{rel}" if base == "SCRIPTS.parent" else rel)
+        found.append(f".claude/{rel}" if claude else rel)
     return found
 
 
@@ -157,9 +160,12 @@ class WhatTheFilterLooksAtTests(unittest.TestCase):
         # The positive control for the case above: each spelling of the rendered root, and `.claude/` off SCRIPTS.
         text = "\n".join(['SCRIPTS.parent / "settings.json"', 'ROOT / "docs" / "x.md"',
                           'self.ROOT / ".harness" / "c.json"', 'SCRIPTS.parent.parent / ".github" / "w.yml"',
-                          'SCRIPTS.parents[1] / "a"', 'REPO / "b"'])
-        self.assertEqual([".claude/settings.json", "docs/x.md", ".harness/c.json", ".github/w.yml", "a", "b"],
-                         _spelt(text))
+                          'SCRIPTS.parents[1] / "a"', 'REPO / "b"',
+                          '(Path(__file__).resolve().parents[2] / ".harness" / "r.py"',
+                          'Path(__file__).resolve().parent.parent / "skills"', 'Path(dr.__file__).parent.parent / "c"',
+                          'Path(__file__).parents[1] / "hooks"'])
+        self.assertEqual([".claude/settings.json", "docs/x.md", ".harness/c.json", ".github/w.yml", "a", "b",
+                          ".harness/r.py", ".claude/skills", ".claude/c", ".claude/hooks"], _spelt(text))
 
     def test_every_leg_step_obeys_the_decision(self) -> None:
         conditions = [line.strip() for line in _code_lines(CI)
