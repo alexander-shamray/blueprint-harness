@@ -366,11 +366,9 @@ target*)
 
 1. **`/branch`**, passing $ARGUMENTS. Skip if already off `main` — which
    includes the unused-workspace row above, so `git-worktree-fork.sh` is
-   never handed a name that exists. From a clean `main`, `/branch` forks a
-   worktree under `.claude/worktrees/` and **every step below then runs in
-   the PR's own directory**; on a dirty `main` or a `.claude/worktrees/` that
-   is not writable it branches in place. Never restate `/branch`'s rules;
-   report which outcome happened. Where `/branch` stops because it is already
+   never handed a name that exists. Where `/branch` forks a worktree,
+   **every step below runs in the PR's own directory**. Never restate
+   `/branch`'s rules; report which outcome happened. Where `/branch` stops because it is already
    on a branch — the normal state of a resumed `/ship` — take the current
    branch as this change's branch, carry on, **say that you assumed it** and
    name the branch, and name the worktree, or say it is the main checkout.
