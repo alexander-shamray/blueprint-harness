@@ -1,9 +1,10 @@
 """`suite_select.py`: a change selects what names it, what lists its tree, or, unplaced, everything.
 
 The tables are held against the suites they name: every selector resolves, and a suite listing a tree in a spelling
-`LISTING` knows is named in `TREE_READERS`, by module, found by reading the suites rather than a list kept here.
+`LISTING` knows is named in `TREE_READERS`, by module or by the class that lists it, found by reading the suites rather than a list kept here.
 """
 
+import ast
 import re
 import tempfile
 import unittest
@@ -29,6 +30,39 @@ def suites():
 
 def selectors():
     return {selector for _, readers in select_mod.TREE_READERS for selector in readers}
+
+
+# Scripts that list the checkout for the suite that runs them: a class naming one in a string runs it, so it lists a
+# tree though its text spells no listing and `LISTING` cannot see it. A comment or a module constant is not a run.
+SCRIPT_LISTERS = re.compile(r"[\"']sweep-slices\.sh[\"']")
+
+
+def listing_units(text):
+    """`(class name or None, source)` for each top-level class of a suite and for the module code between them."""
+    lines = text.splitlines()
+    classes = [node for node in ast.parse(text).body if isinstance(node, ast.ClassDef)]
+    units = [(node.name, "\n".join(lines[node.lineno - 1:node.end_lineno])) for node in classes]
+    inside = {number for node in classes for number in range(node.lineno, node.end_lineno + 1)}
+    units.append((None, "\n".join(line for number, line in enumerate(lines, 1) if number not in inside)))
+    return units
+
+
+def unplaced_listings(held, readers):
+    """`module.Class` (or `module` for module-level code) of each listing that no row of `TREE_READERS` names.
+
+    Module-level code is a helper its classes call, so it is placed by the module or by any class of it that is a reader.
+    """
+    found = []
+    for module, text in held.items():
+        if module == "test_suite_select" or module in readers:
+            continue
+        for cls, source in listing_units(text):
+            if cls is None:
+                if LISTING.search(source) and not any(name.startswith(f"{module}.") for name in readers):
+                    found.append(module)
+            elif (LISTING.search(source) or SCRIPT_LISTERS.search(source)) and f"{module}.{cls}" not in readers:
+                found.append(f"{module}.{cls}")
+    return sorted(found)
 
 
 # What every path selects: the suites that read the whole tracked tree.
@@ -167,8 +201,25 @@ class TheTablesNameWhatTheSuitesHold(unittest.TestCase):
         listing = sorted(name for name, text in suites().items()
                          if name != "test_suite_select" and LISTING.search(text))
         self.assertGreater(len(listing), 10, "the pattern stopped finding listings")
-        readers = {selector.partition(".")[0] for selector in selectors()}
-        self.assertEqual([], [name for name in listing if name not in readers])
+        self.assertEqual([], unplaced_listings(suites(), selectors()))
+
+    def test_a_listing_is_placed_by_its_class_not_only_its_module(self):
+        listing = 'class Reader:\n    x = sorted(COMMANDS.glob("*.md"))\n\nclass Other:\n    pass\n'
+        held = {"test_a": listing}
+        self.assertEqual(["test_a.Reader"], unplaced_listings(held, set()))
+        self.assertEqual([], unplaced_listings(held, {"test_a.Reader"}))
+        self.assertEqual([], unplaced_listings(held, {"test_a"}))
+        # Another class of a module that is a reader by class is not a reader for it.
+        self.assertEqual(["test_a.Reader"], unplaced_listings(held, {"test_a.Other"}))
+        helper = {"test_a": 'FILES = sorted(ROOT.rglob("*"))\n\nclass Uses:\n    pass\n'}
+        self.assertEqual(["test_a"], unplaced_listings(helper, set()))
+        self.assertEqual([], unplaced_listings(helper, {"test_a.Uses"}))
+
+    def test_a_class_running_a_script_that_lists_the_tree_is_a_listing(self):
+        held = {"test_b": 'class Runs:\n    def test_x(self):\n        run(SCRIPTS / "sweep-slices.sh")\n'}
+        self.assertEqual(["test_b.Runs"], unplaced_listings(held, set()))
+        named = {"test_c": 'SLICES = SCRIPTS / "sweep-slices.sh"\nclass Reads:\n    # `sweep-slices.sh` narrows\n    pass\n'}
+        self.assertEqual([], unplaced_listings(named, set()))
 
     def test_the_pattern_finds_each_listing_spelling_and_no_fixture_read(self):
         found = ['sorted(COMMANDS.glob("*.md"))', "(root / tree).rglob(", 'SKILL_DIR.rglob("*.md")',
