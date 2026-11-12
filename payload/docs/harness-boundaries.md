@@ -2712,8 +2712,8 @@ is nothing stale to clear.
 **`python .claude/scripts/harness-legs.py` prints `test=true` or
 `test=false`**, for a target's workflow to append to `$GITHUB_OUTPUT` and gate
 the test steps of its Windows and macOS legs on. It takes no arguments: it
-reads `GITHUB_EVENT_NAME` and `GITHUB_WORKFLOW_REF` from the run, and the merge
-commit's two parents from the checkout, so the checkout takes `fetch-depth: 2`.
+reads `GITHUB_EVENT_NAME` from the run, and the merge commit's two parents
+from the checkout, so the checkout takes `fetch-depth: 2`.
 The Linux leg runs every pull request whatever it prints, so a check over the
 whole tracked tree, the tracked-link and root-name cases among them, is judged
 on every one; the decision only spares the two legs whose hosts differ.
@@ -2730,17 +2730,19 @@ on every one; the decision only spares the two legs whose hosts differ.
 
 **Only a pull request whose merge commit reads cleanly and reaches nothing the
 suite reads may skip.** A push, any other event, a `HEAD` that is not a merge,
-an empty diff, a git read that fails, a manifest or config that does not read
-as its shape, and a workflow reference that names no file under
-`.github/workflows/` all print `test=true`: a wrong skip loses a run, and a
+an empty diff, a git read that fails, and a manifest or config that does not
+read as its shape all print `test=true`: a wrong skip loses a run, and a
 wrong test costs minutes. Moves are read as both sides, so a file moved out of
 a reached tree still reaches.
 
 **The reach is read from the target, never listed for it.** It is `.claude/`
 and `.harness/` whole, `docs/harness-local.md`, a `.gitignore` or
 `.gitattributes` at any depth, every path `.harness/manifest.json` lists, every
-`local` glob in `.harness/config.json`, and the workflow that called the
-helper. Paths compare case folded, as `apply` folds a `local` path. A sync that
+`local` glob in `.harness/config.json`, and `.github/workflows/` and
+`.github/actions/` whole. Every workflow, not the caller alone: the legs'
+steps may sit in a reusable workflow or a local action, and the run's own
+`GITHUB_WORKFLOW_REF` names only the workflow GitHub started. Paths compare
+case folded, as `apply` folds a `local` path. A sync that
 adds a managed file adds it to the reach in the same commit, and a local suite
 reading a file outside these trees is reached once the config lists that file
 under `local`.

@@ -20,8 +20,6 @@ ROOT = SCRIPTS.parent.parent
 HELPER = SCRIPTS / "harness-legs.py"
 # What the helper imports, which a fixture target needs beside it to run it as a workflow does.
 SHIPPED_WITH = ("harness-legs.py", "sync_pr.py", "dispatch_board.py")
-WORKFLOW = ".github/workflows/ci.yml"
-WORKFLOW_REF = f"octo/target/{WORKFLOW}@refs/pull/7/merge"
 IDENTITY = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
 MANIFEST = '{"harness_commit": "0", "files": {"docs/harness/working-rules.md": "0", ".github/x-gate/gate.py": "0"}}\n'
 CONFIG = '{"local": ["docs/commands/review-branch.md", ".github/x-gate/test_*_target.py"]}\n'
@@ -76,8 +74,8 @@ class PullRequestTests(unittest.TestCase):
         self.commit("base moved")
         self.git("merge", "-q", "--no-ff", "-m", "merge", "work")
 
-    def decides(self, event: str = "pull_request", ref: str | None = WORKFLOW_REF) -> bool:
-        return LEGS.should_test(event, self.root, ref)
+    def decides(self, event: str | None = "pull_request") -> bool:
+        return LEGS.should_test(event, self.root)
 
     def test_a_product_pull_request_skips(self) -> None:
         self.merge_branch_holding(lambda: self.write("src/app.ts", "product\n"))
@@ -87,8 +85,8 @@ class PullRequestTests(unittest.TestCase):
     def test_each_path_the_suite_reads_tests(self) -> None:
         for rel in (".claude/hooks/guard.py", ".claude/scripts/test_x_target.py", ".harness/config.json",
                     "docs/harness-local.md", "docs/harness/working-rules.md", ".github/x-gate/gate.py",
-                    "docs/commands/review-branch.md", ".github/x-gate/test_y_target.py", WORKFLOW,
-                    ".gitignore", "src/scratch/.gitignore", "src/.gitattributes"):
+                    "docs/commands/review-branch.md", ".github/x-gate/test_y_target.py", ".github/workflows/ci.yml",
+                    ".github/workflows/reusable-legs.yml", ".github/actions/legs/action.yml", ".gitignore", "src/scratch/.gitignore", "src/.gitattributes"):
             with self.subTest(rel=rel):
                 self.git("switch", "-q", "main")
                 self.git("reset", "-q", "--hard", self.base)
@@ -96,14 +94,14 @@ class PullRequestTests(unittest.TestCase):
                 self.assertTrue(self.decides())
 
     def test_the_reach_folds_case_as_a_checkout_may(self) -> None:
-        read = LEGS.reach(self.root, WORKFLOW)
+        read = LEGS.reach(self.root)
         for rel in ("Docs/Harness-Local.md", ".CLAUDE/x.py", "DOCS/HARNESS/WORKING-RULES.MD",
-                    "Docs/Commands/Review-Branch.md", ".github/workflows/CI.yml", "src/.GitIgnore"):
+                    "Docs/Commands/Review-Branch.md", ".github/Workflows/CI.yml", "src/.GitIgnore"):
             with self.subTest(rel=rel):
                 self.assertTrue(LEGS.reaches(rel, *read))
 
-    def test_another_workflow_skips(self) -> None:
-        self.merge_branch_holding(lambda: self.write(".github/workflows/e2e.yml", "on: push\n"))
+    def test_another_github_file_skips(self) -> None:
+        self.merge_branch_holding(lambda: self.write(".github/dependabot.yml", "version: 2\n"))
         self.assertFalse(self.decides())
 
     def test_a_move_out_of_a_reached_tree_tests(self) -> None:
@@ -134,12 +132,6 @@ class PullRequestTests(unittest.TestCase):
         self.assertEqual(LEGS.changed_paths(self.root), [])
         self.assertTrue(self.decides())
 
-    def test_a_workflow_it_cannot_name_tests(self) -> None:
-        self.merge_branch_holding(lambda: self.write("src/app.ts", "product\n"))
-        for ref in (None, "", "octo/target/ci.yml@refs/pull/7/merge", f"{WORKFLOW}@refs/pull/7/merge"):
-            with self.subTest(ref=ref):
-                self.assertTrue(self.decides(ref=ref))
-
     def test_a_manifest_or_config_it_cannot_read_tests(self) -> None:
         self.merge_branch_holding(lambda: self.write("src/app.ts", "product\n"))
         for rel, text in ((".harness/manifest.json", "not json"), (".harness/manifest.json", '{"files": []}'),
@@ -162,7 +154,7 @@ class PullRequestTests(unittest.TestCase):
         helper = self.root / ".claude" / "scripts" / "harness-legs.py"
         for event, expected in (("pull_request", "test=false\n"), ("push", "test=true\n")):
             with self.subTest(event=event):
-                env = {**os.environ, "GITHUB_EVENT_NAME": event, "GITHUB_WORKFLOW_REF": WORKFLOW_REF}
+                env = {**os.environ, "GITHUB_EVENT_NAME": event}
                 done = subprocess.run([sys.executable, str(helper)], cwd=self.root, capture_output=True, text=True,
                                       encoding="utf-8", env=env, check=False)
                 self.assertEqual((0, expected), (done.returncode, done.stdout), done.stderr)
@@ -170,17 +162,6 @@ class PullRequestTests(unittest.TestCase):
                               encoding="utf-8", check=False)
         self.assertEqual(2, done.returncode)
         self.assertEqual("", done.stdout)
-
-
-class WorkflowRefTests(unittest.TestCase):
-    def test_the_path_is_read_out_of_the_ref(self) -> None:
-        for ref, path in ((WORKFLOW_REF, WORKFLOW),
-                          ("o/r/.github/workflows/harness.yaml@refs/heads/main", ".github/workflows/harness.yaml"),
-                          ("o/r/.github/workflows/sub/ci.yml@refs/pull/1/merge", ".github/workflows/sub/ci.yml"),
-                          ("o/r/.github/workflows/ci.yml", None), ("o/r/ci.yml@refs/pull/1/merge", None),
-                          ("o/r/docs/ci.yml@refs/pull/1/merge", None), (None, None)):
-            with self.subTest(ref=ref):
-                self.assertEqual(path, LEGS.workflow_path(ref))
 
 
 def _spelt(text: str) -> list[str]:
@@ -203,7 +184,7 @@ def _files(rel: str) -> list[str]:
 
 class WhatTheDecisionLooksAtTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.reach = LEGS.reach(ROOT, WORKFLOW)
+        self.reach = LEGS.reach(ROOT)
         self.assertIsNotNone(self.reach, "this root's manifest or config does not read, so nothing here is judged")
 
     def test_every_suite_beside_it_is_reached(self) -> None:
@@ -237,7 +218,7 @@ class WhatTheDecisionLooksAtTests(unittest.TestCase):
 
     def test_a_product_path_is_not_reached(self) -> None:
         # The negative control: a reach that took everything would pass both cases above and skip nothing.
-        for rel in ("src/app.ts", "package.json", ".github/workflows/e2e-never-a-harness-leg.yml"):
+        for rel in ("src/app.ts", "package.json", ".github/dependabot.yml"):
             with self.subTest(rel=rel):
                 self.assertFalse(LEGS.reaches(rel, *self.reach))
 
