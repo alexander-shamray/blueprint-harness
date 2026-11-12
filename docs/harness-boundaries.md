@@ -2718,8 +2718,12 @@ change is what the checkout holds that `origin/main` does not: its commits, its
 edits and its untracked files. `suite_select.py` places each changed path: a
 suite that names its file, or names a code file that does, one step out; a
 suite `TREE_READERS` lists for a tree the path is in, since a suite that lists a
-directory names nothing in it; and the suite itself when the path is a suite. A
-path outside what `harness-legs.py`'s reach names is read by no suite for what
+directory names nothing in it; and the suite itself when the path is a suite.
+A suite only a target has is listed in `TREE_READERS` in that target's
+`local_commands.py`, which the selector reads after its own rows, for the
+reason the runner reads its pins there: a managed row naming it would not
+resolve in any other target. A path outside what `harness-legs.py`'s reach
+names is read by no suite for what
 it says, so it is placed as any path is, the suites listing every tracked path
 among what it selects, and is never unplaced. Everything else falls back to the
 whole suite: a
@@ -2795,8 +2799,14 @@ list written beside it: every `test_*.py` beside it, and every file the suites
 and `review_helpers.py` spell off the root or `.claude/`, through a name or
 their own `__file__`, must be reached in the checkout the suite runs in, and a
 product path must not be. A suite that starts reading a
-file the reach misses fails there, rather than passing on a pull request whose
-legs skipped. `blueprint-harness` decides its own legs with
+file the reach misses, in a spelling the scanner knows, fails there, rather
+than passing on a pull request whose legs skipped. It reads fixed base names
+joined by `/ "part"` and no more: a file reached through a `parents` walk
+from another path, a name held in a variable and joined to the root, or a
+path handed to a subprocess as a string is not seen, and a target lists each
+such file outside the trees above under `local` by hand
+(blueprint-harness#418).
+`blueprint-harness` decides its own legs with
 `harness_sync/legs.py`, whose reach is the payload rather than a rendered tree.
 
 ## Managed files
