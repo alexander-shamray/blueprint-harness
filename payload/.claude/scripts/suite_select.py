@@ -28,11 +28,13 @@ WHOLE = frozenset({
 
 # The tests that read a tree by listing it rather than by naming its files, so no name in them selects them. Each
 # pattern is a repository path, `*` within one segment and `**` across any; each selector a module or `module.Class`.
-# `test_suite_select.py` finds every listing a suite makes and fails on one this table does not hold.
+# `test_suite_select.py` fails on a module whose listing, in a spelling its pattern knows, no row names.
 TREE_READERS = (
     ("*", ("test_git_argv_guard.TheListsTheGuardReads",)),
     ("**", ("test_harness_denies.HarnessControlSurfaceIsDenied", "test_harness_denies.TheRepositoryTracksNoSymbolicLink",
-            "test_harness_legs.WhatTheDecisionLooksAtTests")),
+            "test_harness_legs.WhatTheDecisionLooksAtTests", "test_sweep_slices.TheCheckout",
+            "test_sweep_slices.TheCheckoutReadsEachFileOnce")),
+    (".claude/scripts/test_*.py", ("test_suite_select.TheTablesNameWhatTheSuitesHold",)),
     ("**/.gitignore", ("test_root_ignore_covers_nested",)),
     ("**/*.py", ("test_python_hygiene", "test_ship_sync.TheSyncRow")),
     (".claude/commands/*.md", (
@@ -144,8 +146,9 @@ def callers(paths, texts):
 def select(paths, modules, root=ROOT, reach=None, code=None):
     """`(selectors, why)`: the modules and classes `paths` reach, or None and the reason the whole suite runs.
 
-    `modules` maps each discovered test module to its source. A path outside the reach no suite reads, so it selects
-    nothing; one inside it that nothing names and no listing reads cannot be placed, and selects everything.
+    `modules` maps each discovered test module to its source. A path outside the reach no suite reads for what it
+    says, so it selects only the suites listing every path; one inside it that nothing names and no narrower listing
+    reads cannot be placed, and selects everything.
     """
     if paths is None:
         return None, f"the change against {BASE} could not be read"
@@ -175,8 +178,8 @@ def select(paths, modules, root=ROOT, reach=None, code=None):
         if path.startswith(".claude/scripts/test_") and own.endswith(".py") and own[:-3] in modules:
             selectors |= listed | {own[:-3]}
             continue
-        named = {module for module, text in modules.items()
-                 if any(_names(text, target) for target in callers([path], texts))}
+        reached = callers([path], texts)
+        named = {module for module, text in modules.items() if any(_names(text, target) for target in reached)}
         # A suite listing every path, or every root path, reads each one's name and not what it says, so its
         # selection places nothing.
         placing = {selector for pattern, readers in TREE_READERS

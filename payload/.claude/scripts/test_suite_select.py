@@ -33,7 +33,8 @@ def selectors():
 
 # What every path selects: the suites that read the whole tracked tree.
 ANYWHERE = {"test_harness_denies.HarnessControlSurfaceIsDenied", "test_harness_denies.TheRepositoryTracksNoSymbolicLink",
-            "test_harness_legs.WhatTheDecisionLooksAtTests"}
+            "test_harness_legs.WhatTheDecisionLooksAtTests", "test_sweep_slices.TheCheckout",
+            "test_sweep_slices.TheCheckoutReadsEachFileOnce"}
 
 
 def everywhere(_path):
@@ -100,11 +101,13 @@ class WhatAChangeSelects(unittest.TestCase):
         self.assertIn("test_user", chosen)
         self.assertNotIn("test_leaf", chosen)
 
-    def test_a_changed_suite_selects_itself_and_the_readers_of_its_tree(self):
+    def test_a_changed_suite_selects_itself_the_readers_of_its_tree_and_the_table_check(self):
+        # The table check among them, since a listing added to a suite is what it exists to catch.
         chosen, why = self.select([".claude/scripts/test_other.py"])
         self.assertIsNone(why)
         self.assertEqual({"test_other", "test_python_hygiene", "test_ship_sync.TheSyncRow",
-                          "test_pr_helpers.NoHelperNeedsBash4"} | ANYWHERE, chosen)
+                          "test_pr_helpers.NoHelperNeedsBash4", "test_suite_select.TheTablesNameWhatTheSuitesHold"}
+                         | ANYWHERE, chosen)
 
     def test_a_path_outside_the_reach_selects_only_what_reads_every_path(self):
         self.assertEqual((ANYWHERE, None), self.select(["src/Product/Thing.cs"], reach=nowhere))
