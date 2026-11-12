@@ -34,6 +34,8 @@ EXAMPLES = {
 # closed records matches nothing in a target without them.
 CODE_NAMES = {
     ".claude/scripts/sweep-slices.sh": {"docs/pr-decision-log.md", "docs/lessons.md"},
+    # The locality gate's suite, run only where the head carries one: the gate is a target's own, beside its contract.
+    ".github/workflows/gates.yml": {".github/locality-gate/test_*.py"},
 }
 # A path a target creates as it runs, never one it holds in its tree.
 RUNTIME = (".claude/worktrees/", ".claude/projects/", ".claude/cache/")
