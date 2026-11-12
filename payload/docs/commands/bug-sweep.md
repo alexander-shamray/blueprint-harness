@@ -50,7 +50,8 @@ than review, the licence gate runs beside the build, never downstream of it,
 the scaffold's suite fails on a template it has never seen. Each is trusted
 only once it has been seen failing against a deliberately broken input. A gate
 that passes vacuously therefore withdraws a guarantee the rest of the design is
-spending, and it does it silently — which is the same shape as silent wrong data, one level up.
+spending, and it does it silently — which is the same shape as silent wrong
+data, one level up.
 
 **Reachability is the difference between high and low, so it is evidence rather
 than an adjective.** A finding files with the caller, entry point or
