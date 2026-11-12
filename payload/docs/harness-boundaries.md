@@ -2797,7 +2797,7 @@ inside a managed directory: a sync neither writes nor deletes it.
 
 **The drift gate holds it**, delivered by the first sync with the manifest:
 `.github/harness-drift/`, run on every pull request by
-`.github/workflows/harness-drift.yml`. Its README owns what the
+`.github/workflows/gates.yml`. Its README owns what the
 gate refuses, how a config change re-renders the settings, and what to do
 when it is red.
 

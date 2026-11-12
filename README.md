@@ -264,7 +264,7 @@ git would see as untracked. This repository carries the line; a sibling adds
 it before its first sync.
 
 A sibling also lands its closure gate before its first sync. The payload's
-`closure-gate.yml` takes the enforcing gate from the pull request's *base*
+`gates.yml` takes the enforcing closure gate from the pull request's *base*
 commit and refuses a fallback to the head copy, so the pull request that first
 brings `.github/closure-gate/closure_gate.py` into a repository whose `main`
 lacks it is red. Confirm the sibling's `main` already has that file, or land it
