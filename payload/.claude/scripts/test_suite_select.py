@@ -33,16 +33,22 @@ def selectors():
     return {selector for _, readers in select_mod.TREE_READERS for selector in readers}
 
 
-# Scripts that list the checkout for the suite that runs them: a class naming one in a string runs it, so it lists a
-# tree though its text spells no listing and `LISTING` cannot see it. A comment or a module constant is not a run.
-SCRIPT_LISTERS = re.compile(r"[\"']sweep-slices\.sh[\"']")
+# How a class runs a script that lists the checkout for it, which `LISTING` cannot see since the text spells no
+# listing: `test_sweep_slices` runs `sweep-slices.sh` over the checkout as `Sweep(self, REPO)`. A comment, a module
+# constant and a `Sweep` over a fixture repository are not a run over the checkout.
+SCRIPT_LISTERS = re.compile(r"\bSweep\(self, REPO\b")
 
 
 def listing_units(text):
-    """`(class name or None, source)` for each top-level class of a suite and for the module code between them."""
+    """`(class name or None, source)` for each top-level class of a suite and for the module code between them.
+
+    A class holding no test is a helper or a mixin its test classes call, so it is placed as module-level code is.
+    """
     lines = text.splitlines()
     classes = [node for node in ast.parse(text).body if isinstance(node, ast.ClassDef)]
-    units = [(node.name, "\n".join(lines[node.lineno - 1:node.end_lineno])) for node in classes]
+    units = [(node.name if any(isinstance(item, ast.FunctionDef) and item.name.startswith("test")
+                               for item in node.body) else None,
+              "\n".join(lines[node.lineno - 1:node.end_lineno])) for node in classes]
     inside = {number for node in classes for number in range(node.lineno, node.end_lineno + 1)}
     units.append((None, "\n".join(line for number, line in enumerate(lines, 1) if number not in inside)))
     return units
@@ -63,7 +69,7 @@ def unplaced_listings(held, readers):
                     found.append(module)
             elif (LISTING.search(source) or SCRIPT_LISTERS.search(source)) and f"{module}.{cls}" not in readers:
                 found.append(f"{module}.{cls}")
-    return sorted(found)
+    return sorted(set(found))
 
 
 # What every path selects: the suites that read the whole tracked tree.
@@ -205,7 +211,8 @@ class TheTablesNameWhatTheSuitesHold(unittest.TestCase):
         self.assertEqual([], unplaced_listings(suites(), selectors()))
 
     def test_a_listing_is_placed_by_its_class_not_only_its_module(self):
-        listing = 'class Reader:\n    x = sorted(COMMANDS.glob("*.md"))\n\nclass Other:\n    pass\n'
+        listing = ('class Reader:\n    def test_x(self):\n        sorted(COMMANDS.glob("*.md"))\n\n'
+                   "class Other:\n    def test_y(self):\n        pass\n")
         held = {"test_a": listing}
         self.assertEqual(["test_a.Reader"], unplaced_listings(held, set()))
         self.assertEqual([], unplaced_listings(held, {"test_a.Reader"}))
@@ -217,11 +224,23 @@ class TheTablesNameWhatTheSuitesHold(unittest.TestCase):
         self.assertEqual([], unplaced_listings(helper, {"test_a.Uses"}))
 
     def test_a_class_running_a_script_that_lists_the_tree_is_a_listing(self):
-        held = {"test_b": 'class Runs:\n    def test_x(self):\n        run(SCRIPTS / "sweep-slices.sh")\n'}
+        held = {"test_b": "class Runs:\n    def test_x(self):\n        Sweep(self, REPO).slices()\n"}
         self.assertEqual(["test_b.Runs"], unplaced_listings(held, set()))
-        named = {"test_c": 'SLICES = SCRIPTS / "sweep-slices.sh"\nclass Reads:\n    # `sweep-slices.sh` narrows\n'
-                           "    pass\n"}
+        named = {"test_c": 'SLICES = SCRIPTS / "sweep-slices.sh"\nclass Reads:\n    def test_x(self):\n'
+                           "        Sweep(self, self.repo).slices()  # `sweep-slices.sh` narrows\n"}
         self.assertEqual([], unplaced_listings(named, set()))
+
+    def test_the_script_lister_has_a_subject_in_the_real_suites(self):
+        # The positive control: the pin would otherwise pass for want of anything to look at.
+        found = {f"test_sweep_slices.{cls}" for cls, source in listing_units(suites()["test_sweep_slices"])
+                 if cls and SCRIPT_LISTERS.search(source)}
+        self.assertEqual({"test_sweep_slices.TheCheckout", "test_sweep_slices.TheCheckoutReadsEachFileOnce"}, found)
+
+    def test_a_class_holding_no_test_is_placed_as_a_helper(self):
+        held = {"test_d": 'class Shim:\n    files = sorted(ROOT.rglob("*"))\n\n'
+                          "class Reads(Shim):\n    def test_x(self):\n        pass\n"}
+        self.assertEqual(["test_d"], unplaced_listings(held, set()))
+        self.assertEqual([], unplaced_listings(held, {"test_d.Reads"}))
 
     def test_the_pattern_finds_each_listing_spelling_and_no_fixture_read(self):
         found = ['sorted(COMMANDS.glob("*.md"))', "(root / tree).rglob(", 'SKILL_DIR.rglob("*.md")',
