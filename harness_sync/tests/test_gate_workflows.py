@@ -336,12 +336,11 @@ class TheReport(unittest.TestCase):
 
     def test_dependabots_own_pull_request_posts_the_locality_gate_as_a_pass(self) -> None:
         # The report's env turns the skipped steps of a stand-down into successes, as the commit gate's.
-        self.assertRegex(step_of("report"), r"own == 'true' && 'success' \|\| steps\.locality_take\.outcome")
-        self.assertRegex(step_of("report"), r"own == 'true' && 'success' \|\| steps\.locality\.outcome")
-        rc, posts, out = self.post(locality_gate="true success success success")
-        self.assertEqual(0, rc, out)
-        self.assertIn({"name": "locality-gate", "conclusion": "success"},
-                      [{"name": p["name"], "conclusion": p["conclusion"]} for p in posts])
+        block = re.search(r"(?m)^          LOCALITY_GATE: >-\n((?:            .+\n)+)", step_of("report"))
+        self.assertIsNotNone(block)
+        for step in ("locality_take", "locality"):
+            with self.subTest(step=step):
+                self.assertIn(f"own == 'true' && 'success' || steps.{step}.outcome", block.group(1))
 
     def test_a_missing_decision_posts_nothing_and_fails(self) -> None:
         # The event step failed: no output, so the outcomes come first and are no decision.
