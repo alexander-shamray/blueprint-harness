@@ -83,7 +83,8 @@ class PullRequestTests(unittest.TestCase):
         self.assertFalse(self.decides())
 
     def test_each_path_the_suite_reads_tests(self) -> None:
-        for rel in (".claude/hooks/guard.py", ".claude/scripts/test_x_target.py", ".harness/config.json",
+        # `.harness/settings.base.json`, not the config: writing over the config would test by the unread-config rule.
+        for rel in (".claude/hooks/guard.py", ".claude/scripts/test_x_target.py", ".harness/settings.base.json",
                     "docs/harness-local.md", "docs/harness/working-rules.md", ".github/x-gate/gate.py",
                     "docs/commands/review-branch.md", ".github/x-gate/test_y_target.py", ".github/workflows/ci.yml",
                     ".github/workflows/reusable-legs.yml", ".github/actions/legs/action.yml", ".gitignore", "src/scratch/.gitignore", "src/.gitattributes"):
