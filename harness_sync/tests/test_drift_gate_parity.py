@@ -77,9 +77,13 @@ class DriftGateParity(unittest.TestCase):
             target = Path(tmp)
             (target / ".harness").mkdir()
             config = json.loads((repo / "targets/blueprint-backend.config.json").read_text(encoding="utf-8"))
-            config["exclude"] = [".github/workflows/c*.yml"]
+            # A payload file outside GATE_FILES, so the exclusion is one apply honours rather than refuses.
+            excluded = ".github/commit-gate/README.md"
+            self.assertTrue((repo / "payload" / excluded).is_file())
+            config["exclude"] = [excluded]
             (target / ".harness/config.json").write_text(json.dumps(config), encoding="utf-8")
             apply(repo / "payload", target, "a" * 40)
+            self.assertFalse((target / excluded).exists())
             self.assertEqual(self.gate.check(target, repo / "payload"), [])
 
     def test_an_excluded_file_that_exists_is_refused_by_both(self) -> None:
