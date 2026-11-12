@@ -1,13 +1,20 @@
 """`suite_select.py`: a change selects what names it, what lists its tree, or, unplaced, everything.
 
-The tables are held against the suites they name: every selector resolves, and a suite listing a tree in a spelling
-`LISTING` knows is named in `TREE_READERS`, by module, found by reading the suites rather than a list kept here.
+The tables are held against the suites they name: every selector resolves, and a class listing a tree in a spelling
+`LISTING` knows is named in `TREE_READERS`, by itself or its module, and a helper's by its module or any class of it.
 """
 
+import ast
+import importlib
+import importlib.util
 import re
+import sys
 import tempfile
+import types
 import unittest
+import uuid
 from pathlib import Path
+from unittest import mock
 
 import suite_select as select_mod
 from review_helpers import copy_template, fixture_template, run_bash, setUpModule  # noqa: F401
@@ -29,6 +36,45 @@ def suites():
 
 def selectors():
     return {selector for _, readers in select_mod.TREE_READERS for selector in readers}
+
+
+# How a class runs a script that lists the checkout for it, which `LISTING` cannot see since the text spells no
+# listing: `test_sweep_slices` runs `sweep-slices.sh` over the checkout as `Sweep(self, REPO)`. A comment, a module
+# constant and a `Sweep` over a fixture repository are not a run over the checkout.
+SCRIPT_LISTERS = re.compile(r"\bSweep\(self, REPO\b")
+
+
+def listing_units(text):
+    """`(class name or None, source)` for each top-level class of a suite and for the module code between them.
+
+    A class holding no test is a helper or a mixin its test classes call, so it is placed as module-level code is.
+    """
+    lines = text.splitlines()
+    classes = [node for node in ast.parse(text).body if isinstance(node, ast.ClassDef)]
+    units = [(node.name if any(isinstance(item, ast.FunctionDef) and item.name.startswith("test")
+                               for item in node.body) else None,
+              "\n".join(lines[node.lineno - 1:node.end_lineno])) for node in classes]
+    inside = {number for node in classes for number in range(node.lineno, node.end_lineno + 1)}
+    units.append((None, "\n".join(line for number, line in enumerate(lines, 1) if number not in inside)))
+    return units
+
+
+def unplaced_listings(held, readers):
+    """`module.Class` (or `module` for module-level code) of each listing that no row of `TREE_READERS` names.
+
+    Module-level code is a helper its classes call, so it is placed by the module or by any class of it that is a reader.
+    """
+    found = []
+    for module, text in held.items():
+        if module == "test_suite_select" or module in readers:
+            continue
+        for cls, source in listing_units(text):
+            if cls is None:
+                if (LISTING.search(source) or SCRIPT_LISTERS.search(source)) and not any(name.startswith(f"{module}.") for name in readers):
+                    found.append(module)
+            elif (LISTING.search(source) or SCRIPT_LISTERS.search(source)) and f"{module}.{cls}" not in readers:
+                found.append(f"{module}.{cls}")
+    return sorted(set(found))
 
 
 # What every path selects: the suites that read the whole tracked tree.
@@ -62,9 +108,13 @@ class PatternsMatchSegmentBySegment(unittest.TestCase):
 
 
 class WhatAChangeSelects(unittest.TestCase):
-    """`select` over a tree of its own, with the reach and the code list handed in."""
+    """`select` over a tree of its own, with the reach and the code list handed in, and the payload's rows alone, so
+    the expectations below hold in a target whose module adds rows of its own."""
 
     def setUp(self):
+        patcher = mock.patch.object(select_mod, "TREE_READERS", select_mod.PAYLOAD_TREE_READERS)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         holder = tempfile.TemporaryDirectory()
         self.addCleanup(holder.cleanup)
         self.root = Path(holder.name)
@@ -167,8 +217,42 @@ class TheTablesNameWhatTheSuitesHold(unittest.TestCase):
         listing = sorted(name for name, text in suites().items()
                          if name != "test_suite_select" and LISTING.search(text))
         self.assertGreater(len(listing), 10, "the pattern stopped finding listings")
-        readers = {selector.partition(".")[0] for selector in selectors()}
-        self.assertEqual([], [name for name in listing if name not in readers])
+        self.assertEqual([], unplaced_listings(suites(), selectors()))
+
+    def test_a_listing_is_placed_by_its_class_not_only_its_module(self):
+        listing = ('class Reader:\n    def test_x(self):\n        sorted(COMMANDS.glob("*.md"))\n\n'
+                   "class Other:\n    def test_y(self):\n        pass\n")
+        held = {"test_a": listing}
+        self.assertEqual(["test_a.Reader"], unplaced_listings(held, set()))
+        self.assertEqual([], unplaced_listings(held, {"test_a.Reader"}))
+        self.assertEqual([], unplaced_listings(held, {"test_a"}))
+        # Another class of a module that is a reader by class is not a reader for it.
+        self.assertEqual(["test_a.Reader"], unplaced_listings(held, {"test_a.Other"}))
+        helper = {"test_a": 'FILES = sorted(ROOT.rglob("*"))\n\nclass Uses:\n    pass\n'}
+        self.assertEqual(["test_a"], unplaced_listings(helper, set()))
+        self.assertEqual([], unplaced_listings(helper, {"test_a.Uses"}))
+
+    def test_a_class_running_a_script_that_lists_the_tree_is_a_listing(self):
+        held = {"test_b": "class Runs:\n    def test_x(self):\n        Sweep(self, REPO).slices()\n"}
+        self.assertEqual(["test_b.Runs"], unplaced_listings(held, set()))
+        named = {"test_c": 'SLICES = SCRIPTS / "sweep-slices.sh"\nclass Reads:\n    def test_x(self):\n'
+                           "        Sweep(self, self.repo).slices()  # `sweep-slices.sh` narrows\n"}
+        self.assertEqual([], unplaced_listings(named, set()))
+
+    def test_the_script_lister_has_a_subject_in_the_real_suites(self):
+        # The positive control: the pin would otherwise pass for want of anything to look at.
+        found = {f"test_sweep_slices.{cls}" for cls, source in listing_units(suites()["test_sweep_slices"])
+                 if cls and SCRIPT_LISTERS.search(source)}
+        self.assertEqual({"test_sweep_slices.TheCheckout", "test_sweep_slices.TheCheckoutReadsEachFileOnce"}, found)
+
+    def test_a_class_holding_no_test_is_placed_as_a_helper(self):
+        held = {"test_d": 'class Shim:\n    files = sorted(ROOT.rglob("*"))\n\n'
+                          "class Reads(Shim):\n    def test_x(self):\n        pass\n"}
+        self.assertEqual(["test_d"], unplaced_listings(held, set()))
+        self.assertEqual([], unplaced_listings(held, {"test_d.Reads"}))
+        mixin = {"test_e": "class Shim:\n    def run(self):\n        Sweep(self, REPO).slices()\n\n"
+                           "class Reads(Shim):\n    def test_x(self):\n        pass\n"}
+        self.assertEqual(["test_e"], unplaced_listings(mixin, set()))
 
     def test_the_pattern_finds_each_listing_spelling_and_no_fixture_read(self):
         found = ['sorted(COMMANDS.glob("*.md"))', "(root / tree).rglob(", 'SKILL_DIR.rglob("*.md")',
@@ -188,6 +272,64 @@ class TheTablesNameWhatTheSuitesHold(unittest.TestCase):
         for path in sorted(select_mod.WHOLE - {f".claude/scripts/{select_mod.LOCAL_MODULE}.py"}):
             with self.subTest(path=path):
                 self.assertTrue((root / path).is_file(), path)
+
+
+class ATargetNamesItsOwnListings(unittest.TestCase):
+    """A suite only a target has is named in `TREE_READERS` in its `local_commands.py`: a managed row naming it would
+    not resolve in any other target. The pins above read the joined table, so they hold the target's rows too."""
+
+    def module(self, source):
+        # A uniquely named module in a directory of its own, so no case sees another's or the target's.
+        name = f"local_commands_{uuid.uuid4().hex}"
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        Path(directory.name, f"{name}.py").write_text(source, encoding="utf-8")
+        sys.path.insert(0, directory.name)
+        self.addCleanup(sys.path.remove, directory.name)
+        self.addCleanup(sys.modules.pop, name, None)
+        importlib.invalidate_caches()
+        return name
+
+    def test_the_table_is_the_payloads_rows_then_the_targets(self):
+        # Most targets declare no rows, so comparing the loaded table would pass with the join gone: the selector is
+        # loaded afresh over a declaration module and its table read.
+        fixture = types.SimpleNamespace(TREE_READERS=(("**", ("test_x.Y",)),))
+        spec = importlib.util.spec_from_file_location("suite_select_fresh", SCRIPTS / "suite_select.py")
+        fresh = importlib.util.module_from_spec(spec)
+        with mock.patch("importlib.import_module", return_value=fixture):
+            spec.loader.exec_module(fresh)
+        self.assertEqual(select_mod.PAYLOAD_TREE_READERS + (("**", ("test_x.Y",)),), fresh.TREE_READERS)
+
+    def test_a_target_that_declares_nothing_adds_no_row(self):
+        self.assertEqual((), select_mod.local_tree_readers(f"local_commands_{uuid.uuid4().hex}"))
+        self.assertEqual((), select_mod.local_tree_readers(self.module('CEILINGS = {"own.md": 1}\n')))
+
+    def test_what_a_target_declares_is_read_and_selects(self):
+        rows = select_mod.local_tree_readers(self.module(
+            'TREE_READERS = (("**", ("test_own.Lists",)), (".claude/commands/*.md", ("test_own_module",)))\n'))
+        self.assertEqual((("**", ("test_own.Lists",)), (".claude/commands/*.md", ("test_own_module",))), rows)
+        with mock.patch.object(select_mod, "TREE_READERS", select_mod.PAYLOAD_TREE_READERS + rows):
+            chosen, why = select_mod.select([".claude/commands/brand-new.md"], {}, Path("."), everywhere, [])
+        self.assertIsNone(why)
+        self.assertLessEqual({"test_own.Lists", "test_own_module"}, chosen)
+
+    def test_a_declaration_whose_own_import_fails_is_not_an_absent_one(self):
+        # Reading it as absent would drop every local row from the selection and pass in silence.
+        with self.assertRaises(ModuleNotFoundError):
+            select_mod.local_tree_readers(self.module("import a_module_no_target_has\n"))
+
+    def test_a_misshapen_declaration_is_refused_rather_than_read(self):
+        # A bare string selector would iterate as its characters and select nothing a reader could see.
+        for source in ('TREE_READERS = (("**", "test_own"),)\n',
+                       'TREE_READERS = [("**", ("test_own",))]\n',
+                       'TREE_READERS = (("**", ()),)\n',
+                       'TREE_READERS = (("", ("test_own",)),)\n',
+                       'TREE_READERS = (("**", ("own",)),)\n',
+                       'TREE_READERS = (("**", ("test_own",), "extra"),)\n',
+                       'TREE_READERS = {"**": ("test_own",)}\n'):
+            with self.subTest(source=source):
+                with self.assertRaises(TypeError):
+                    select_mod.local_tree_readers(self.module(source))
 
 
 # A base branch and a feature branch one commit ahead of it, which `changed` reads against the base.

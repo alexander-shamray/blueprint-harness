@@ -60,12 +60,23 @@ jobs:
         shell: bash
         env:
           ACTION: ${{ github.event.action }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
           runs_on() { if [[ " $1 " == *" $ACTION "* ]]; then echo true; else echo false; fi; }
+          # The locality gate is a target's own, beside its change contract: a
+          # base with no gate script has no gate to run, though it may keep the
+          # class map a local check reads, so the gate neither runs nor posts.
+          locality=$(runs_on 'opened synchronize reopened edited')
+          if ! git cat-file -e "$BASE_SHA:.github/locality-gate/locality_gate.py" 2>/dev/null; then
+            locality=false
+          fi
           {
             # `edited`: a description can withdraw a closure with no push.
             echo "closure=$(runs_on 'opened synchronize reopened edited')"
+            # `edited` as the closure gate's: the class and touch set are rows
+            # of the description.
+            echo "locality=$locality"
             # The labels: the comment gate is the one check that reads one.
             # No `edited`: a title change counts from the next push.
             echo "comment=$(runs_on 'opened synchronize reopened labeled unlabeled')"
@@ -91,6 +102,7 @@ jobs:
           COMMIT: ${{ steps.event.outputs.commit }}
           DRIFT: ${{ steps.event.outputs.drift }}
           COMMENT: ${{ steps.event.outputs.comment }}
+          LOCALITY: ${{ steps.event.outputs.locality }}
         run: |
           set -euo pipefail
           open() {
@@ -107,6 +119,7 @@ jobs:
           open commit commit-gate "$COMMIT"
           open drift harness-drift "$DRIFT"
           open comment comment-gate "$COMMENT"
+          open locality locality-gate "$LOCALITY"
 
       # The closure gate: .github/closure-gate/README.md. A base that carries
       # no gate fails rather than falling back to the head copy, the silent
@@ -160,10 +173,13 @@ jobs:
       # The commit gate: .github/commit-gate/README.md. The opener alone is
       # not enough to stand down: every commit's author and committer must be
       # Dependabot's too. No job condition: the report posts the stand-down as
-      # a pass, so a human push is never left unjudged.
+      # a pass, so a human push is never left unjudged. The locality gate
+      # stands down on the same decision.
       - name: Decide whether this is Dependabot's own pull request
         id: dependabot
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' && steps.event.outputs.commit == 'true' }}
+        if: >-
+          ${{ !cancelled() && steps.setup.outcome == 'success'
+          && (steps.event.outputs.commit == 'true' || steps.event.outputs.locality == 'true') }}
         shell: bash
         env:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
@@ -181,7 +197,7 @@ jobs:
           fi
           echo "own=$own" >> "$GITHUB_OUTPUT"
           if [ "$own" = true ]; then
-            echo "::notice::every commit in this pull request is Dependabot's; the commit gate stands down"
+            echo "::notice::every commit in this pull request is Dependabot's; the commit and locality gates stand down"
           fi
 
       # The pull request that introduces the gate has a base carrying none, so
@@ -189,7 +205,9 @@ jobs:
       # gate while the head also lacks it still fails.
       - name: Take the enforcing commit gate from the base commit
         id: commit_take
-        if: ${{ !cancelled() && steps.dependabot.outcome == 'success' && steps.dependabot.outputs.own != 'true' }}
+        if: >-
+          ${{ !cancelled() && steps.event.outputs.commit == 'true'
+          && steps.dependabot.outcome == 'success' && steps.dependabot.outputs.own != 'true' }}
         shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -356,9 +374,63 @@ jobs:
           fi
           python "$judge" --base "$BASE_SHA" --head "$HEAD_SHA"
 
+      # The locality gate, a target's own beside its change contract, which
+      # owns its rules: every changed path inside the class and touch set the
+      # description declares. Gate and map come from the base together, so a
+      # pull request widening a class is judged by the map it widens.
+      - name: Take the enforcing locality gate and map from the base commit
+        id: locality_take
+        if: >-
+          ${{ !cancelled() && steps.event.outputs.locality == 'true'
+          && steps.dependabot.outcome == 'success' && steps.dependabot.outputs.own != 'true' }}
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GATE_DIR: .github/locality-gate
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/locality-gate"
+          mkdir -p "$dest"
+          for file in locality_gate.py classes.yml; do
+            if ! git cat-file -e "$BASE_SHA:$GATE_DIR/$file" 2>/dev/null; then
+              echo "::error::base commit $BASE_SHA carries $GATE_DIR but no $file; rebase onto a base that has both"
+              exit 1
+            fi
+            git show "$BASE_SHA:$GATE_DIR/$file" > "$dest/$file"
+            # An empty judge or map would read nothing and pass.
+            if [ ! -s "$dest/$file" ]; then
+              echo "::error::$GATE_DIR/$file at $BASE_SHA is empty"
+              exit 1
+            fi
+          done
+          if ! git diff --quiet "$BASE_SHA" -- "$GATE_DIR/" .github/workflows/gates.yml; then
+            echo "::notice::this pull request modifies the locality gate, its map or its workflow; the gate below is the copy at $BASE_SHA"
+          fi
+          echo "enforcing with the gate and map as of $BASE_SHA"
+
+      # The files endpoint, paginated: `gh pr view --json files` is one page,
+      # and `changedFiles` lets the gate refuse a short list. One object a
+      # line, so a newline in a path is never a second path; `status` lets a
+      # gate that reads it leave a removal unjudged. It runs at the root, so a
+      # gate that reads ignore rules reads the checkout's, as data.
+      - name: Every changed path is inside the declared class and touch set
+        id: locality
+        if: ${{ !cancelled() && steps.locality_take.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          pr_json=$(gh pr view "$PR" --repo "$REPO" --json number,body,changedFiles)
+          gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[] | {filename, previous_filename, status}' |
+            jq -s --argjson pr "$pr_json" '$pr + {files: .}' |
+            python "$RUNNER_TEMP/locality-gate/locality_gate.py" --map "$RUNNER_TEMP/locality-gate/classes.yml"
+
       # Each gate this event ran, posted under its own check name: success
-      # only when every step of that gate succeeded, and the commit gate's
-      # stand-down a success. A post that fails leaves the check in progress,
+      # only when every step of that gate succeeded, and the commit and
+      # locality gates' stand-down a success. A post that fails leaves the check in progress,
       # which the ruleset refuses; this step then fails too, as it does when
       # any gate failed.
       - name: Post each gate's verdict under the gate's check name
@@ -376,6 +448,7 @@ jobs:
           COMMIT_GATE_ID: ${{ steps.open.outputs.commit }}
           HARNESS_DRIFT_ID: ${{ steps.open.outputs.drift }}
           COMMENT_GATE_ID: ${{ steps.open.outputs.comment }}
+          LOCALITY_GATE_ID: ${{ steps.open.outputs.locality }}
           CLOSURE_GATE: ${{ steps.event.outputs.closure }} ${{ steps.closure_take.outcome }} ${{ steps.closure.outcome }}
           COMMIT_GATE: >-
             ${{ steps.event.outputs.commit }} ${{ steps.dependabot.outcome }}
@@ -383,6 +456,10 @@ jobs:
             ${{ steps.dependabot.outputs.own == 'true' && 'success' || steps.commit.outcome }}
           HARNESS_DRIFT: ${{ steps.event.outputs.drift }} ${{ steps.drift_take.outcome }} ${{ steps.drift_fetch.outcome }} ${{ steps.drift.outcome }}
           COMMENT_GATE: ${{ steps.event.outputs.comment }} ${{ steps.comment.outcome }}
+          LOCALITY_GATE: >-
+            ${{ steps.event.outputs.locality }} ${{ steps.dependabot.outcome }}
+            ${{ steps.dependabot.outputs.own == 'true' && 'success' || steps.locality_take.outcome }}
+            ${{ steps.dependabot.outputs.own == 'true' && 'success' || steps.locality.outcome }}
         run: |
           set -uo pipefail
           failed=0
@@ -414,10 +491,17 @@ jobs:
             [ "$conclusion" = success ] || failed=1
           }
           # The outcomes unquoted on purpose: the decision, then each outcome, as words.
+          # A shellcheck directive covers the one command after it, so each call has its own.
+          # shellcheck disable=SC2086
           verdict closure-gate "$CLOSURE_GATE_ID" $CLOSURE_GATE
+          # shellcheck disable=SC2086
           verdict commit-gate "$COMMIT_GATE_ID" $COMMIT_GATE
+          # shellcheck disable=SC2086
           verdict harness-drift "$HARNESS_DRIFT_ID" $HARNESS_DRIFT
+          # shellcheck disable=SC2086
           verdict comment-gate "$COMMENT_GATE_ID" $COMMENT_GATE
+          # shellcheck disable=SC2086
+          verdict locality-gate "$LOCALITY_GATE_ID" $LOCALITY_GATE
           exit "$failed"
 
       # The head copies, deliberately: a proposal that fails its own suite
@@ -440,4 +524,14 @@ jobs:
       - name: Test the proposed comment gate
         if: ${{ !cancelled() && steps.setup.outcome == 'success' && steps.event.outputs.comment == 'true' }}
         working-directory: .github/comment-gate
+        run: python -m unittest
+
+      # Wherever the head carries the gate, on the closure gate's events: one
+      # that introduces it, to a base whose locality decision stood down, is
+      # tested too. One removing it leaves nothing; one deleting the suite is red.
+      - name: Test the proposed locality gate
+        if: >-
+          ${{ !cancelled() && steps.setup.outcome == 'success' && steps.event.outputs.closure == 'true'
+          && steps.dependabot.outputs.own != 'true' && hashFiles('.github/locality-gate/locality_gate.py') != '' }}
+        working-directory: .github/locality-gate
         run: python -m unittest
