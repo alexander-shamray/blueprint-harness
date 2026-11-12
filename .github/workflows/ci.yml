@@ -99,19 +99,17 @@ jobs:
           cp targets/blueprint-backend.config.json "$rendered/.harness/config.json"
           python -m harness_sync apply --payload payload --target "$rendered" --commit "$(git rev-parse HEAD)"
 
-      # `-v` and the version line for what the modules print: which link primitive was reached, which lock branch
-      # was chosen, and which bash read the helpers, since macOS's is 3.2. Ubuntu runs the suite through the shard
-      # runner every target is handed, so a class it stops placing or running is red here first.
+      # Every leg runs the suite through the shard runner every target is handed, so a class it stops placing or
+      # running is red here first, on each host. Its workers run verbose, which with the version line shows what the
+      # modules print: which link primitive was reached, which lock branch was chosen, and which bash read the
+      # helpers, since macOS's is 3.2. Run serially, this step took 20.9 min at p50 on Windows and 7.9 on macOS,
+      # against 1.8 on Ubuntu's runner, over the 40 green runs before 2026-11-12 (#402).
       - name: Test the review helpers
         if: matrix.os == 'ubuntu-latest' || steps.reach.outputs.test != 'false'
         working-directory: ${{ runner.temp }}/rendered
         run: |
           bash --version | head -n 1
-          if [ "$RUNNER_OS" = Linux ]; then
-            python .claude/scripts/shard-harness-suite.py
-          else
-            python -m unittest discover -s .claude/scripts -v
-          fi
+          python .claude/scripts/shard-harness-suite.py
 
       # Every gate directory the payload ships a suite for, read from the
       # rendered tree rather than listed, so a gate added to the payload is
