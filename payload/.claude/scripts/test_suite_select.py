@@ -65,7 +65,7 @@ def unplaced_listings(held, readers):
             continue
         for cls, source in listing_units(text):
             if cls is None:
-                if LISTING.search(source) and not any(name.startswith(f"{module}.") for name in readers):
+                if (LISTING.search(source) or SCRIPT_LISTERS.search(source)) and not any(name.startswith(f"{module}.") for name in readers):
                     found.append(module)
             elif (LISTING.search(source) or SCRIPT_LISTERS.search(source)) and f"{module}.{cls}" not in readers:
                 found.append(f"{module}.{cls}")
@@ -241,6 +241,9 @@ class TheTablesNameWhatTheSuitesHold(unittest.TestCase):
                           "class Reads(Shim):\n    def test_x(self):\n        pass\n"}
         self.assertEqual(["test_d"], unplaced_listings(held, set()))
         self.assertEqual([], unplaced_listings(held, {"test_d.Reads"}))
+        mixin = {"test_e": "class Shim:\n    def run(self):\n        Sweep(self, REPO).slices()\n\n"
+                           "class Reads(Shim):\n    def test_x(self):\n        pass\n"}
+        self.assertEqual(["test_e"], unplaced_listings(mixin, set()))
 
     def test_the_pattern_finds_each_listing_spelling_and_no_fixture_read(self):
         found = ['sorted(COMMANDS.glob("*.md"))', "(root / tree).rglob(", 'SKILL_DIR.rglob("*.md")',
