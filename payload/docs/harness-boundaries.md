@@ -2719,14 +2719,19 @@ edits and its untracked files. `suite_select.py` places each changed path: a
 suite that names its file, or names a code file that does, one step out; a
 suite `TREE_READERS` lists for a tree the path is in, since a suite that lists a
 directory names nothing in it; and the suite itself when the path is a suite. A
-path outside what `harness-legs.py`'s reach names is read by no suite and
-selects nothing of its own. Everything else falls back to the whole suite: a
+path outside what `harness-legs.py`'s reach names is read by no suite for what
+it says, so it selects only the suites that list every tracked path, the sweep
+slices' run over the checkout among them. Everything else falls back to the
+whole suite: a
 path in the reach that nothing places, a change to `review_helpers.py`,
 `local_commands.py`, the runner or the selector, a change that cannot be read,
 and no change at all. The fallback is the never-stop-placing rule again, and
 `test_suite_select.py` holds the table to the suites by reading them: each
-suite that lists a tree must be in `TREE_READERS`, and every selector must
-name a class that exists. What one step misses, a caller's caller, a red that
+suite that lists a tree, in a spelling its pattern knows, must be named in
+`TREE_READERS`, and every selector must name a class that exists. The check is
+by module, so a listing added to a class beside one the table names, or spelt
+off a root the pattern does not know, passes it; any change to a suite
+selects the check. What one step misses, a caller's caller, a red that
 only the whole suite shows, is the price of the local run, and CI, which runs
 every class on three hosts, is what pays it. A selection still goes through
 the plan's check against what it kept, and a module that fails to import runs
