@@ -1,9 +1,9 @@
 name: Gates
 
 # The pull-request gates as steps of one job: each takes seconds, and a job
-# each held a runner slot and a queue wait apiece. A ruleset requires each gate
-# by name and a job carries one, so the report step posts a check run per gate
-# under its name, as GitHub Actions, the app the rulesets pin. Each gate's
+# each held a runner slot and a queue wait apiece. A ruleset requires gates by
+# check name and a job carries one, so the job posts a check run per gate under
+# the gate's name, as GitHub Actions, the app the rulesets pin. Each gate's
 # README owns its rules and trust model; this file only runs them.
 on:
   pull_request:
@@ -14,17 +14,19 @@ permissions:
   # The closure gate reads the pull request's body, its commits and GitHub's
   # own `closingIssuesReferences`.
   pull-requests: read
-  # The one write: a check run per gate, under the name a ruleset requires.
+  # The one write: a check run per gate. A fork's pull request gets a
+  # read-only token whatever this asks, so its gates post nothing and it
+  # cannot land until its commits are pushed to a branch here.
   checks: write
 
 # No concurrency group: a rerun of an older head's run would cancel the newest
 # head's, which then leaves its gates unposted and the merge refused.
 
-# Every judge is the base commit's copy and every head suite runs after the
-# report, so head test code reaches neither a judge nor the posting token; a
-# red suite fails this job, which no ruleset requires. Residuals: a bootstrap
-# judge (a base with no copy) is head code ahead of the report, and
-# `pull_request` runs the head's workflow, which only required checks close.
+# Every judge is the base commit's copy and the head suites run after the
+# report, so head test code cannot steer a judge or a post by accident. Not
+# against intent: a suite on this runner can reach the job's checks token, as
+# a pull request can edit this file; a bootstrap judge (a base with no copy)
+# is head code ahead of the report. A red suite fails this unrequired job.
 jobs:
   gates:
     runs-on: ubuntu-latest
@@ -359,7 +361,7 @@ jobs:
       # stand-down a success. A post that fails leaves the check in progress,
       # which the ruleset refuses; this step then fails too, as it does when
       # any gate failed.
-      - name: Post each gate's verdict under the name a ruleset requires
+      - name: Post each gate's verdict under the gate's check name
         id: report
         if: ${{ !cancelled() }}
         shell: bash
