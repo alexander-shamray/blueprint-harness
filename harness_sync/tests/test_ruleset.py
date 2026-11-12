@@ -92,9 +92,10 @@ class RulesetTests(unittest.TestCase):
         self.assertEqual(missing, [], "harness-drift is not required")
 
     def test_harness_checks_are_its_job_ids(self) -> None:
-        """A required check is a job id; a renamed job leaves every pull
-        request waiting for a check that never reports. Read from the
-        workflows, so the data and the job ids cannot drift apart."""
+        """A required check is a job id, a matrix leg or a gate the gates
+        job posts by name; a renamed one leaves every pull request waiting for
+        a check that never reports. Read from the workflows, so the data and
+        the names cannot drift apart."""
         legs: set[str] = set()
         for path in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
             lines = path.read_text(encoding="utf-8").splitlines()
@@ -106,6 +107,11 @@ class RulesetTests(unittest.TestCase):
                 if found:
                     job = found.group(1)
                     legs.add(job)
+                    continue
+                # gates.yml's report completes a check run under each gate's name.
+                posted = re.match(r"\s+verdict ([A-Za-z0-9_-]+) ", line)
+                if posted:
+                    legs.add(posted.group(1))
                     continue
                 matrix = re.fullmatch(r"\s+os:\s*\[(.*)\]\s*", line)
                 if matrix and job:
