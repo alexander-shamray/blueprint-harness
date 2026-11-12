@@ -113,6 +113,27 @@ class PullRequestTests(unittest.TestCase):
         self.assertEqual(LEGS.changed_paths(self.root), [".claude/scripts/тест.py"])
         self.assertTrue(self.decides())
 
+    def test_a_name_that_is_not_utf8_is_read_not_raised(self) -> None:
+        # Built from git's own trees, since no Windows file system holds such a name: HEAD becomes a merge whose
+        # second parent adds `.claude/\xff.py`, and the work tree is never checked out.
+        def out(*args: str, data: bytes = b"") -> bytes:
+            return subprocess.run([GIT, *args], cwd=self.root, input=data, check=True, capture_output=True,
+                                  env={**os.environ, **IDENTITY}).stdout
+
+        blob = out("hash-object", "-w", "--stdin", data=b"x\n").strip()
+        claude = out("ls-tree", "-z", f"{self.base}:.claude")
+        sub = out("mktree", "-z", data=claude + b"100644 blob " + blob + b"\t\xff.py\0").strip()
+        top = [entry for entry in out("ls-tree", "-z", self.base).split(b"\0") if entry]
+        top = [b"040000 tree " + sub + b"\t.claude" if entry.endswith(b"\t.claude") else entry for entry in top]
+        tree = out("mktree", "-z", data=b"\0".join(top) + b"\0").strip().decode()
+        work = out("commit-tree", tree, "-p", self.base, "-m", "work").strip().decode()
+        merge = out("commit-tree", tree, "-p", self.base, "-p", work, "-m", "merge").strip().decode()
+        self.git("update-ref", "HEAD", merge)
+        paths = LEGS.changed_paths(self.root)
+        self.assertEqual(1, len(paths or []), paths)
+        self.assertTrue(paths[0].startswith(".claude/"))
+        self.assertTrue(self.decides())
+
     def test_a_push_tests_whatever_it_touches(self) -> None:
         self.merge_branch_holding(lambda: self.write("src/app.ts", "product\n"))
         self.assertTrue(self.decides("push"))
