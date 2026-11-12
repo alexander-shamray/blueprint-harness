@@ -120,49 +120,108 @@ class TheOrder(unittest.TestCase):
     def test_the_report_posts_every_check_a_ruleset_requires(self) -> None:
         report = steps_of(GATES_YML.read_text(encoding="utf-8"))
         report = report[report_at(report)]
-        self.assertEqual(sorted(CHECKS), sorted(re.findall(r"(?m)^          verdict ([\w-]+) \$", report)))
+        self.assertEqual(sorted(CHECKS), sorted(re.findall(r'(?m)^          verdict ([\w-]+) "\$', report)))
+
+    def test_the_report_completes_the_runs_opened_at_the_start_and_opens_none(self) -> None:
+        # A run that posted only at its end could finish after a later run and stand over its verdict.
+        steps = steps_of(GATES_YML.read_text(encoding="utf-8"))
+        opened = next(i for i, step in enumerate(steps) if re.search(r"(?m)^        id: open$", step))
+        self.assertLess(opened, min(i for i, step in enumerate(steps) if JUDGE.search(step)))
+        self.assertNotIn("--method POST", steps[report_at(steps)])
+        self.assertIn("--method PATCH", steps[report_at(steps)])
+
+
+ENV_OF = {"closure-gate": "CLOSURE_GATE", "commit-gate": "COMMIT_GATE", "harness-drift": "HARNESS_DRIFT",
+          "comment-gate": "COMMENT_GATE"}
+ID_OF = {"closure-gate": "11", "commit-gate": "12", "harness-drift": "13", "comment-gate": "14"}
+# Each call a line per argument it was handed, then a line of its own ending the call; it answers with $STUB_ID.
+GH_STUB = """#!/usr/bin/env bash
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    api) ;;
+    --method) echo "method=$2" >> "$CALLS"; shift ;;
+    -f) echo "$2" >> "$CALLS"; shift ;;
+    --jq) shift ;;
+    *) echo "path=$1" >> "$CALLS" ;;
+  esac
+  shift
+done
+echo -- >> "$CALLS"
+echo "$STUB_ID"
+exit "$STUB_RC"
+"""
+
+
+def run_with_gh(script: str, env: dict[str, str], *, gh_rc: int = 0, gh_id: str = "42") -> tuple[int, list[dict], str, str]:
+    """A step's script under bash with `gh` stubbed: its exit, each call's fields, its output and $GITHUB_OUTPUT."""
+    bash = shutil.which("bash")
+    if bash is None:
+        raise RuntimeError("bash is what the steps run under")  # not a skip: a skip passes unrun
+    with tempfile.TemporaryDirectory() as directory:
+        log, output, stub = Path(directory) / "calls", Path(directory) / "output", Path(directory) / "gh"
+        output.write_text("", encoding="utf-8")
+        stub.write_text(GH_STUB, encoding="utf-8", newline="\n")
+        stub.chmod(0o755)
+        env = {**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"], "CALLS": str(log),
+               "STUB_RC": str(gh_rc), "STUB_ID": gh_id, "GITHUB_OUTPUT": output.as_posix(), "GH_TOKEN": "t",
+               "REPO": "o/r", "HEAD_SHA": "f" * 40, "RUN_URL": "u", **env}
+        done = subprocess.run([bash, "-c", script], capture_output=True, text=True, encoding="utf-8", env=env)
+        text = log.read_text(encoding="utf-8") if log.exists() else ""
+        calls = [dict(line.split("=", 1) for line in call.splitlines() if line) for call in text.split("--\n")[:-1]]
+        return done.returncode, calls, done.stdout + done.stderr, output.read_text(encoding="utf-8")
+
+
+def step_script(step_id: str) -> str:
+    steps = steps_of(GATES_YML.read_text(encoding="utf-8"))
+    return run_block(next(step for step in steps if re.search(rf"(?m)^        id: {step_id}$", step)))
+
+
+class TheOpening(unittest.TestCase):
+    """The step opening a check run per gate, run as written with `gh` stubbed."""
+
+    def test_each_gate_the_event_runs_is_opened_in_progress_and_its_id_kept(self) -> None:
+        env = {"CLOSURE": "true", "COMMIT": "false", "DRIFT": "false", "COMMENT": "true"}
+        rc, calls, out, output = run_with_gh(step_script("open"), env)
+        self.assertEqual(0, rc, out)
+        self.assertEqual(["closure-gate", "comment-gate"], [call["name"] for call in calls])
+        for call in calls:
+            self.assertEqual(("POST", "repos/o/r/check-runs", "in_progress", "f" * 40),
+                             (call["method"], call["path"], call["status"], call["head_sha"]))
+        self.assertEqual("closure=42\ncomment=42\n", output)
+
+    def test_an_answer_with_no_id_fails_the_step(self) -> None:
+        env = {"CLOSURE": "true", "COMMIT": "false", "DRIFT": "false", "COMMENT": "false"}
+        rc, _, out, _ = run_with_gh(step_script("open"), env, gh_id="null")
+        self.assertEqual(1, rc, out)
 
 
 class TheReport(unittest.TestCase):
     """The report step's script, run as written with `gh` stubbed, for the verdicts it posts."""
 
-    @classmethod
-    def setUpClass(cls) -> None:
-        steps = steps_of(GATES_YML.read_text(encoding="utf-8"))
-        cls.script = run_block(steps[report_at(steps)])
-        cls.bash = shutil.which("bash")
-        if cls.bash is None:
-            raise RuntimeError("bash is what the report step runs under")  # not a skip: a skip passes unrun
-
-    def post(self, *, gh_rc: int = 0, **gates: str) -> tuple[int, list[dict[str, str]], str]:
-        env_of = {"closure-gate": "CLOSURE_GATE", "commit-gate": "COMMIT_GATE",
-                  "harness-drift": "HARNESS_DRIFT", "comment-gate": "COMMENT_GATE"}
-        values = {name: "true success" for name in env_of}
+    def post(self, *, gh_rc: int = 0, ids: dict[str, str] | None = None, **gates: str) -> tuple[int, list[dict], str]:
+        values = {name: "true success" for name in ENV_OF}
         values.update({name.replace("_", "-"): value for name, value in gates.items()})
-        with tempfile.TemporaryDirectory() as directory:
-            log = Path(directory) / "posts"
-            stub = Path(directory) / "gh"
-            # Each post's -f fields a line each, then a line of its own ending the post.
-            stub.write_text(
-                '#!/usr/bin/env bash\nwhile [ "$#" -gt 0 ]; do\n'
-                '  if [ "$1" = -f ]; then printf "%s\\n" "$2" >> "$POSTS"; shift; fi; shift\ndone\n'
-                'echo -- >> "$POSTS"\nexit "$STUB_RC"\n', encoding="utf-8", newline="\n")
-            stub.chmod(0o755)
-            env = {**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"], "POSTS": str(log),
-                   "STUB_RC": str(gh_rc), "GH_TOKEN": "t", "REPO": "o/r", "HEAD_SHA": "f" * 40, "RUN_URL": "u",
-                   **{env_of[name]: value for name, value in values.items()}}
-            done = subprocess.run([self.bash, "-c", self.script], capture_output=True, text=True, encoding="utf-8",
-                                  env=env)
-            text = log.read_text(encoding="utf-8") if log.exists() else ""
-            posts = [dict(line.split("=", 1) for line in post.splitlines() if line) for post in text.split("--\n")[:-1]]
-        return done.returncode, posts, done.stdout + done.stderr
+        env = {ENV_OF[name]: value for name, value in values.items()}
+        env.update({f"{ENV_OF[name]}_ID": value for name, value in {**ID_OF, **(ids or {})}.items()})
+        rc, calls, out, _ = run_with_gh(step_script("report"), env, gh_rc=gh_rc)
+        name_of_id = {f"repos/o/r/check-runs/{value}": name for name, value in ID_OF.items()}
+        for call in calls:
+            self.assertEqual("PATCH", call["method"])
+            call["name"] = name_of_id[call["path"]]
+        return rc, calls, out
 
-    def test_every_gate_that_passed_is_posted_as_a_success(self) -> None:
+    def test_every_gate_that_passed_is_completed_as_a_success(self) -> None:
         rc, posts, out = self.post()
         self.assertEqual(0, rc, out)
         self.assertEqual(sorted(CHECKS), sorted(post["name"] for post in posts))
         for post in posts:
-            self.assertEqual(("completed", "success", "f" * 40), (post["status"], post["conclusion"], post["head_sha"]))
+            self.assertEqual(("completed", "success"), (post["status"], post["conclusion"]))
+
+    def test_a_gate_whose_run_was_not_opened_fails(self) -> None:
+        rc, posts, out = self.post(ids={"commit-gate": ""})
+        self.assertEqual(1, rc, out)
+        self.assertNotIn("commit-gate", [post["name"] for post in posts])
+        self.assertIn("no check run was opened for commit-gate", out)
 
     def test_one_failed_step_posts_its_gate_as_a_failure_and_fails_the_step(self) -> None:
         rc, posts, out = self.post(harness_drift="true success failure skipped")
