@@ -2800,7 +2800,8 @@ than passing on a pull request whose legs skipped. It reads fixed base names
 joined by `/ "part"` and no more: a file reached through a `parents` walk
 from another path, a name held in a variable and joined to the root, or a
 path handed to a subprocess as a string is not seen, and a target lists each
-such file under `local` by hand (blueprint-harness#418).
+such file outside the trees above under `local` by hand
+(blueprint-harness#418).
 `blueprint-harness` decides its own legs with
 `harness_sync/legs.py`, whose reach is the payload rather than a rendered tree.
 
