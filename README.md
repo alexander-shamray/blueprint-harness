@@ -118,9 +118,8 @@ py -3.12 -m harness_sync apply --payload payload --target "$rendered" --commit "
 rm -rf "$rendered"
 ```
 
-The job's ubuntu leg runs that suite through
-`.claude/scripts/shard-harness-suite.py` instead, which a local run can too; its
-windows and macos legs run it serially, as here.
+The job's three legs run that suite through
+`.claude/scripts/shard-harness-suite.py` instead, which a local run can too.
 
 Two things the jobs do not cover or cannot promise:
 

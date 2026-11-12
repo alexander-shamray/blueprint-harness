@@ -126,8 +126,8 @@ class WhatTheFilterLooksAtTests(unittest.TestCase):
         # The legs once ran four named modules, and frontend's first whole run off Linux failed 142 cases. A step
         # that narrowed the run again with `-p` would pass every case below on the modules it kept.
         code = "\n".join(_code_lines(CI))
-        self.assertEqual(1, code.count("python -m unittest discover -s .claude/scripts -v"), code)
-        self.assertEqual([], re.findall(r"-s \.claude/scripts -p", code))
+        self.assertEqual(1, code.count("python .claude/scripts/shard-harness-suite.py"), code)
+        self.assertEqual([], re.findall(r"-s \.claude/scripts", code))
         step = code.split("- name: Test the review helpers", 1)[1].split("- name:", 1)[0]
         self.assertIn("if: matrix.os == 'ubuntu-latest' || steps.reach.outputs.test != 'false'", step)
 
@@ -168,10 +168,13 @@ class WhatTheFilterLooksAtTests(unittest.TestCase):
         self.assertEqual(len(gated), len(re.findall(r'-p "test_', "\n".join(_code_lines(CI)))))
         self.assertEqual(len(conditions), len(gated) + 1, "only the decision itself is ungated")
 
-    def test_the_ubuntu_leg_runs_the_suite_through_the_shard_runner(self) -> None:
+    def test_every_leg_runs_the_suite_through_the_shard_runner(self) -> None:
+        # The windows and macos legs once ran it serially, which made them the slowest job in the workflow (#402).
+        # The step's whole script is read, so a branch on the host that sent one leg elsewhere fails here.
         code = "\n".join(_code_lines(CI))
-        branch = code.split('if [ "$RUNNER_OS" = Linux ]; then', 1)[1].split("else", 1)[0]
-        self.assertEqual("python .claude/scripts/shard-harness-suite.py", branch.strip())
+        step = code.split("- name: Test the review helpers", 1)[1].split("- name:", 1)[0]
+        script = [line.strip() for line in step.split("run: |", 1)[1].splitlines() if line.strip()]
+        self.assertEqual(["bash --version | head -n 1", "python .claude/scripts/shard-harness-suite.py"], script)
 
     def test_the_decision_runs_with_the_parent_it_reads(self) -> None:
         code = "\n".join(_code_lines(CI))
