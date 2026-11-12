@@ -1,7 +1,8 @@
 """`suite_select.py`: a change selects what names it, what lists its tree, or, unplaced, everything.
 
 The tables are held against the suites they name: every selector resolves, and a suite listing a tree in a spelling
-`LISTING` knows is named in `TREE_READERS`, by module or by the class that lists it, found by reading the suites rather than a list kept here.
+`LISTING` knows is named in `TREE_READERS`, by module or by the class that lists it, found by reading the suites
+rather than a list kept here.
 """
 
 import ast
@@ -218,7 +219,8 @@ class TheTablesNameWhatTheSuitesHold(unittest.TestCase):
     def test_a_class_running_a_script_that_lists_the_tree_is_a_listing(self):
         held = {"test_b": 'class Runs:\n    def test_x(self):\n        run(SCRIPTS / "sweep-slices.sh")\n'}
         self.assertEqual(["test_b.Runs"], unplaced_listings(held, set()))
-        named = {"test_c": 'SLICES = SCRIPTS / "sweep-slices.sh"\nclass Reads:\n    # `sweep-slices.sh` narrows\n    pass\n'}
+        named = {"test_c": 'SLICES = SCRIPTS / "sweep-slices.sh"\nclass Reads:\n    # `sweep-slices.sh` narrows\n'
+                           "    pass\n"}
         self.assertEqual([], unplaced_listings(named, set()))
 
     def test_the_pattern_finds_each_listing_spelling_and_no_fixture_read(self):
