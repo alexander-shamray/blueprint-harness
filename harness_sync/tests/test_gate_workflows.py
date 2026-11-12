@@ -13,8 +13,26 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / "payload" / ".github" / "workflows"
 GATES_YML = WORKFLOWS / "gates.yml"
-# The check names the rulesets require, each its gate's directory under .github/.
+# The check name each gate posts, its directory under .github/; rulesets/main.json requires all but comment-gate.
 CHECKS = {"closure-gate", "comment-gate", "commit-gate", "harness-drift"}
+# What `pull_request` with no `types` starts on, GitHub's default.
+DEFAULT_TYPES = ("opened", "synchronize", "reopened")
+
+
+def pull_request_types(text: str) -> tuple[str, ...]:
+    """The pull-request events a workflow starts on, or none; a spelling this reader cannot parse is refused."""
+    found = re.search(r"(?ms)^on:(.*?)(?=^\S)", text + "\nend")
+    triggers = found.group(1) if found else ""
+    if "pull_request" not in triggers:
+        return ()
+    if "pull_request_target" in triggers:
+        raise ValueError("pull_request_target is not read here")
+    types = re.search(r"(?m)^  pull_request:\n    types: \[([^\]]+)\]$", triggers)
+    if types:
+        return tuple(t.strip() for t in types.group(1).split(","))
+    if "types" in triggers:
+        raise ValueError("a pull_request types list this reader cannot parse")
+    return DEFAULT_TYPES
 # A judge sits outside the checkout; the comment gate holds its path in `$judge`.
 JUDGE = re.compile(r'(?<![-\w])python(?: -I)? "\$(?:RUNNER_TEMP/[\w./-]+\.py|judge)"')
 # Reads no module from the checkout: how the drift gate reads its manifest ahead of the judge.
@@ -81,16 +99,26 @@ class TheJobs(unittest.TestCase):
         started: dict[str, list[str]] = {}
         for path in sorted(WORKFLOWS.glob("*.yml")):
             text = path.read_text(encoding="utf-8")
-            types = re.search(r"(?m)^  pull_request:\n    types: \[([^\]]+)\]$", text)
-            if types is None:
-                continue
             jobs = re.findall(r"(?m)^  ([\w-]+):$", text.split("\njobs:\n", 1)[1])
-            for event in (t.strip() for t in types.group(1).split(",")):
+            for event in pull_request_types(text):
                 started.setdefault(event, []).extend(f"{path.name}:{job}" for job in jobs)
         self.assertEqual({"opened", "synchronize", "reopened", "edited", "labeled", "unlabeled"}, set(started))
         for event, jobs in started.items():
             with self.subTest(event=event):
                 self.assertEqual(["gates.yml:gates"], jobs)
+
+    def test_the_reader_takes_every_spelling_of_the_trigger(self) -> None:
+        listed = "on:\n  pull_request:\n    types: [opened, edited]\njobs:\n"
+        self.assertEqual(("opened", "edited"), pull_request_types(listed))
+        for bare in ("on: [push, pull_request]\njobs:\n", "on: pull_request\njobs:\n",
+                     "on:\n  pull_request:\n    branches: [main]\njobs:\n", "on:\n  pull_request:\njobs:\n"):
+            with self.subTest(bare=bare):
+                self.assertEqual(DEFAULT_TYPES, pull_request_types(bare))
+        for unread in ("on:\n  pull_request:\n    types:\n      - opened\njobs:\n",
+                       "on:\n  pull_request_target:\njobs:\n"):
+            with self.subTest(unread=unread), self.assertRaises(ValueError):
+                pull_request_types(unread)
+        self.assertEqual((), pull_request_types("on:\n  push:\njobs:\n"))
 
     def test_one_gate_failing_does_not_skip_the_next(self) -> None:
         # A step's default condition is success(), so one red gate would leave every later verdict unposted.
@@ -118,7 +146,7 @@ class TheOrder(unittest.TestCase):
         self.assertNotIn(None, found)
         self.assertEqual(sorted(CHECKS), sorted(match.group(1) for match in found))
 
-    def test_the_report_posts_every_check_a_ruleset_requires(self) -> None:
+    def test_the_report_posts_each_gates_check_name(self) -> None:
         report = steps_of(GATES_YML.read_text(encoding="utf-8"))
         report = report[report_at(report)]
         self.assertEqual(sorted(CHECKS), sorted(re.findall(r'(?m)^          verdict ([\w-]+) "\$', report)))
