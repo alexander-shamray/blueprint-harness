@@ -17,8 +17,8 @@ MANIFEST = ".harness/manifest.json"
 CONFIG = ".harness/config.json"
 
 # Trees every target's suite reads or runs from whatever its manifest lists: the harness's own, which hold the
-# target's `local` helpers and the settings, and the workflows and local actions any of which may hold the legs' steps.
-TREES = (".claude/", ".harness/", ".github/workflows/", ".github/actions/")
+# target's `local` helpers and the settings, and the workflows, any of which may hold the legs' steps.
+TREES = (".claude/", ".harness/", ".github/workflows/")
 FILES = ("docs/harness-local.md",)
 # At any depth: a nested ignore file is what `test_root_ignore_covers_nested.py` reads, and an attributes file sets
 # the line endings a Windows checkout gets.
