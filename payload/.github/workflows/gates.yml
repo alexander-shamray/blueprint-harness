@@ -72,6 +72,40 @@ jobs:
             echo "drift=$(runs_on 'opened synchronize reopened')"
           } >> "$GITHUB_OUTPUT"
 
+      # Opened now and completed by the report, so the newest run's check is
+      # the newest one GitHub reads, as a job's own check was: a run with no
+      # concurrency group can finish after a later one, and posting only at
+      # its end would let an older event's verdict stand over a newer one's.
+      - name: Open a check run for each gate this event runs
+        id: open
+        if: ${{ !cancelled() && steps.event.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CLOSURE: ${{ steps.event.outputs.closure }}
+          COMMIT: ${{ steps.event.outputs.commit }}
+          DRIFT: ${{ steps.event.outputs.drift }}
+          COMMENT: ${{ steps.event.outputs.comment }}
+        run: |
+          set -euo pipefail
+          open() {
+            [ "$3" = true ] || return 0
+            local id
+            id=$(gh api --method POST "repos/$REPO/check-runs" \
+              -f name="$2" -f head_sha="$HEAD_SHA" -f status=in_progress \
+              -f "output[title]=$2: judging" \
+              -f "output[summary]=Judged in the gates job: $RUN_URL" --jq .id)
+            [[ $id =~ ^[0-9]+$ ]] || { echo "::error::no check run id for $2: $id"; exit 1; }
+            echo "$1=$id" >> "$GITHUB_OUTPUT"
+          }
+          open closure closure-gate "$CLOSURE"
+          open commit commit-gate "$COMMIT"
+          open drift harness-drift "$DRIFT"
+          open comment comment-gate "$COMMENT"
+
       # The closure gate: .github/closure-gate/README.md. A base that carries
       # no gate fails rather than falling back to the head copy, the silent
       # pass this gate exists to refuse; `main` carries it, so only a base
@@ -322,7 +356,7 @@ jobs:
 
       # Each gate this event ran, posted under its own check name: success
       # only when every step of that gate succeeded, and the commit gate's
-      # stand-down a success. A post that fails leaves the check unreported,
+      # stand-down a success. A post that fails leaves the check in progress,
       # which the ruleset refuses; this step then fails too, as it does when
       # any gate failed.
       - name: Post each gate's verdict under the name a ruleset requires
@@ -334,7 +368,12 @@ jobs:
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          # Whether the event runs the gate, then the outcome of each of its steps.
+          # Each gate's check run, opened above; then whether the event runs
+          # the gate, and the outcome of each of its steps.
+          CLOSURE_GATE_ID: ${{ steps.open.outputs.closure }}
+          COMMIT_GATE_ID: ${{ steps.open.outputs.commit }}
+          HARNESS_DRIFT_ID: ${{ steps.open.outputs.drift }}
+          COMMENT_GATE_ID: ${{ steps.open.outputs.comment }}
           CLOSURE_GATE: ${{ steps.event.outputs.closure }} ${{ steps.closure_take.outcome }} ${{ steps.closure.outcome }}
           COMMIT_GATE: >-
             ${{ steps.event.outputs.commit }} ${{ steps.dependabot.outcome }}
@@ -346,18 +385,22 @@ jobs:
           set -uo pipefail
           failed=0
           verdict() {
-            local name=$1 runs=${2-}
-            shift; [ "$#" -gt 0 ] && shift
+            local name=$1 id=$2 runs=${3-}
+            shift 2; [ "$#" -gt 0 ] && shift
             case "$runs" in
               true) ;;
               false) return 0 ;;
               *) echo "::error::no event decision for $name"; failed=1; return 0 ;;
             esac
+            if [[ ! $id =~ ^[0-9]+$ ]]; then
+              echo "::error::no check run was opened for $name"
+              failed=1
+              return 0
+            fi
             local conclusion=success outcome
             [ "$#" -gt 0 ] || conclusion=failure
             for outcome in "$@"; do [ "$outcome" = success ] || conclusion=failure; done
-            if ! gh api --method POST "repos/$REPO/check-runs" \
-                -f name="$name" -f head_sha="$HEAD_SHA" \
+            if ! gh api --method PATCH "repos/$REPO/check-runs/$id" \
                 -f status=completed -f conclusion="$conclusion" \
                 -f "output[title]=$name: $conclusion" \
                 -f "output[summary]=Judged in the gates job: $RUN_URL" > /dev/null; then
@@ -368,11 +411,11 @@ jobs:
             echo "$name: $conclusion"
             [ "$conclusion" = success ] || failed=1
           }
-          # Unquoted on purpose: each value is words, the decision then the outcomes.
-          verdict closure-gate $CLOSURE_GATE
-          verdict commit-gate $COMMIT_GATE
-          verdict harness-drift $HARNESS_DRIFT
-          verdict comment-gate $COMMENT_GATE
+          # The outcomes unquoted on purpose: the decision, then each outcome, as words.
+          verdict closure-gate "$CLOSURE_GATE_ID" $CLOSURE_GATE
+          verdict commit-gate "$COMMIT_GATE_ID" $COMMIT_GATE
+          verdict harness-drift "$HARNESS_DRIFT_ID" $HARNESS_DRIFT
+          verdict comment-gate "$COMMENT_GATE_ID" $COMMENT_GATE
           exit "$failed"
 
       # The head copies, deliberately: a proposal that fails its own suite
