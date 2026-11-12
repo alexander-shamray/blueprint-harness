@@ -309,14 +309,17 @@ class WorkflowShape(unittest.TestCase):
         self.assertEqual(3, len(own))
         for step in own:
             self.assertGreater(steps.index(step), at)
-            condition = re.search(r"(?m)^        if: (.+)$", step)
+            # On the `if:` line, or on the lines a folded `>-` condition continues on.
+            condition = re.search(r"(?m)^        if: (?:>-\n((?:          .+\n?)+)|(.+)$)", step)
             self.assertIsNotNone(condition)
-            self.assertIn(STANDS_DOWN, condition.group(1))
+            self.assertIn(STANDS_DOWN, condition.group(1) or condition.group(2))
 
     def test_the_stand_down_is_posted_as_a_pass(self) -> None:
         # The steps skip, so the check a ruleset requires has to be posted as passing or it never reports.
         report = next(step for step in workflow_steps() if "id: report" in step)
-        self.assertEqual(2, report.count("steps.dependabot.outputs.own == 'true' && 'success' ||"))
+        commit_gate = re.search(r"(?m)^          COMMIT_GATE: >-\n((?:            .+\n)+)", report)
+        self.assertIsNotNone(commit_gate)
+        self.assertEqual(2, commit_gate.group(1).count("steps.dependabot.outputs.own == 'true' && 'success' ||"))
 
 
 if __name__ == "__main__":

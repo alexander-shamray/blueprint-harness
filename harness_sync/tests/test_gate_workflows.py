@@ -13,8 +13,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / "payload" / ".github" / "workflows"
 GATES_YML = WORKFLOWS / "gates.yml"
-# The check name each gate posts, its directory under .github/; rulesets/main.json requires all but comment-gate.
-CHECKS = {"closure-gate", "comment-gate", "commit-gate", "harness-drift"}
+# The check name each gate posts, its directory under .github/; rulesets/main.json requires all but comment-gate,
+# and locality-gate only of the targets with a change contract, whose own the gate directory is.
+CHECKS = {"closure-gate", "comment-gate", "commit-gate", "harness-drift", "locality-gate"}
 # What `pull_request` with no `types` starts on, GitHub's default.
 DEFAULT_TYPES = ("opened", "synchronize", "reopened")
 
@@ -135,7 +136,7 @@ class TheJobs(unittest.TestCase):
         event = next(i for i, step in enumerate(steps) if "id: event" in step)
         for step in steps[event + 1:]:
             with self.subTest(step=name_of(step)):
-                self.assertRegex(step, r"(?m)^        if: \$\{\{ !cancelled\(\) ")
+                self.assertRegex(step, r"(?m)^        if: (?:>-\n          )?\$\{\{ !cancelled\(\) ")
 
     def test_the_checkout_leaves_no_token_for_head_code(self) -> None:
         first = steps_of(GATES_YML.read_text(encoding="utf-8"))[0]
@@ -170,8 +171,8 @@ class TheOrder(unittest.TestCase):
 
 
 ENV_OF = {"closure-gate": "CLOSURE_GATE", "commit-gate": "COMMIT_GATE", "harness-drift": "HARNESS_DRIFT",
-          "comment-gate": "COMMENT_GATE"}
-ID_OF = {"closure-gate": "11", "commit-gate": "12", "harness-drift": "13", "comment-gate": "14"}
+          "comment-gate": "COMMENT_GATE", "locality-gate": "LOCALITY_GATE"}
+ID_OF = {"closure-gate": "11", "commit-gate": "12", "harness-drift": "13", "comment-gate": "14", "locality-gate": "15"}
 # Each call a line per argument it was handed, then a line of its own ending the call; it answers with $STUB_ID.
 GH_STUB = """#!/usr/bin/env bash
 while [ "$#" -gt 0 ]; do
@@ -219,26 +220,74 @@ def run_with_gh(script: str, env: dict[str, str], *, gh_rc: int = 0, gh_id: str 
         return done.returncode, calls, done.stdout + done.stderr, output.read_text(encoding="utf-8")
 
 
-def step_script(step_id: str) -> str:
+def step_of(step_id: str) -> str:
     steps = steps_of(GATES_YML.read_text(encoding="utf-8"))
-    return run_block(next(step for step in steps if re.search(rf"(?m)^        id: {step_id}$", step)))
+    return next(step for step in steps if re.search(rf"(?m)^        id: {step_id}$", step))
+
+
+def step_script(step_id: str) -> str:
+    return run_block(step_of(step_id))
+
+
+def git(directory: str, *args: str) -> str:
+    done = subprocess.run(["git", "-C", directory, *args], capture_output=True, text=True, encoding="utf-8",
+                          check=True)
+    return done.stdout.strip()
+
+
+class TheEvent(unittest.TestCase):
+    """The decision step, run as written in a repository whose base commit does or does not carry the locality gate."""
+
+    def decide(self, action: str, *, base_has_gate: bool) -> dict[str, str]:
+        with tempfile.TemporaryDirectory() as directory:
+            git(directory, "init", "-q")
+            gate = Path(directory) / (".github/locality-gate/classes.yml" if base_has_gate else "README.md")
+            gate.parent.mkdir(parents=True, exist_ok=True)
+            gate.write_text("x\n", encoding="utf-8")
+            git(directory, "add", "-A")
+            git(directory, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "base")
+            base = git(directory, "rev-parse", "HEAD")
+            script = f"cd '{Path(directory).as_posix()}'\n" + step_script("event")
+            rc, _, out, output = run_with_gh(script, {"ACTION": action, "BASE_SHA": base})
+        self.assertEqual(0, rc, out)
+        return dict(line.split("=", 1) for line in output.splitlines())
+
+    def test_the_locality_gate_runs_on_the_closure_gates_events_where_the_base_carries_it(self) -> None:
+        for action in ("opened", "synchronize", "reopened", "edited", "labeled", "unlabeled"):
+            with self.subTest(action=action):
+                decided = self.decide(action, base_has_gate=True)
+                self.assertEqual(decided["closure"], decided["locality"])
+
+    def test_a_base_with_no_locality_gate_runs_and_posts_none(self) -> None:
+        # A target with no change contract, this repository among them, has no class map to judge by.
+        for action in ("opened", "edited"):
+            with self.subTest(action=action):
+                decided = self.decide(action, base_has_gate=False)
+                self.assertEqual(("true", "false"), (decided["closure"], decided["locality"]))
+
+    def test_each_gate_judges_only_on_its_own_events(self) -> None:
+        # The Dependabot decision runs for either gate, so a gate behind it has to name its own event too: an
+        # `edited` run would otherwise post a commit gate the event never opened.
+        for take, event in (("commit_take", "commit"), ("locality_take", "locality")):
+            with self.subTest(step=take):
+                self.assertIn(f"steps.event.outputs.{event} == 'true'", step_of(take))
 
 
 class TheOpening(unittest.TestCase):
     """The step opening a check run per gate, run as written with `gh` stubbed."""
 
     def test_each_gate_the_event_runs_is_opened_in_progress_and_its_id_kept(self) -> None:
-        env = {"CLOSURE": "true", "COMMIT": "false", "DRIFT": "false", "COMMENT": "true"}
+        env = {"CLOSURE": "true", "COMMIT": "false", "DRIFT": "false", "COMMENT": "true", "LOCALITY": "true"}
         rc, calls, out, output = run_with_gh(step_script("open"), env)
         self.assertEqual(0, rc, out)
-        self.assertEqual(["closure-gate", "comment-gate"], [call["name"] for call in calls])
+        self.assertEqual(["closure-gate", "comment-gate", "locality-gate"], [call["name"] for call in calls])
         for call in calls:
             self.assertEqual(("POST", "repos/o/r/check-runs", "in_progress", "f" * 40),
                              (call["method"], call["path"], call["status"], call["head_sha"]))
-        self.assertEqual("closure=42\ncomment=42\n", output)
+        self.assertEqual("closure=42\ncomment=42\nlocality=42\n", output)
 
     def test_an_answer_with_no_id_fails_the_step(self) -> None:
-        env = {"CLOSURE": "true", "COMMIT": "false", "DRIFT": "false", "COMMENT": "false"}
+        env = {"CLOSURE": "true", "COMMIT": "false", "DRIFT": "false", "COMMENT": "false", "LOCALITY": "false"}
         rc, _, out, _ = run_with_gh(step_script("open"), env, gh_id="null")
         self.assertEqual(1, rc, out)
 
@@ -281,9 +330,18 @@ class TheReport(unittest.TestCase):
     def test_a_gate_this_event_does_not_run_posts_nothing(self) -> None:
         # An `edited` run must not overwrite the commit gate's verdict from the push.
         rc, posts, out = self.post(commit_gate="false skipped skipped skipped", harness_drift="false skipped",
-                                   comment_gate="false skipped")
+                                   comment_gate="false skipped", locality_gate="false skipped skipped skipped")
         self.assertEqual(0, rc, out)
         self.assertEqual(["closure-gate"], [post["name"] for post in posts])
+
+    def test_dependabots_own_pull_request_posts_the_locality_gate_as_a_pass(self) -> None:
+        # The report's env turns the skipped steps of a stand-down into successes, as the commit gate's.
+        self.assertRegex(step_of("report"), r"own == 'true' && 'success' \|\| steps\.locality_take\.outcome")
+        self.assertRegex(step_of("report"), r"own == 'true' && 'success' \|\| steps\.locality\.outcome")
+        rc, posts, out = self.post(locality_gate="true success success success")
+        self.assertEqual(0, rc, out)
+        self.assertIn({"name": "locality-gate", "conclusion": "success"},
+                      [{"name": p["name"], "conclusion": p["conclusion"]} for p in posts])
 
     def test_a_missing_decision_posts_nothing_and_fails(self) -> None:
         # The event step failed: no output, so the outcomes come first and are no decision.
