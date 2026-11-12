@@ -238,12 +238,16 @@ def git(directory: str, *args: str) -> str:
 class TheEvent(unittest.TestCase):
     """The decision step, run as written in a repository whose base commit does or does not carry the locality gate."""
 
-    def decide(self, action: str, *, base_has_gate: bool) -> dict[str, str]:
+    def decide(self, action: str, *, base_has_gate: bool, base_has_map: bool = True) -> dict[str, str]:
         with tempfile.TemporaryDirectory() as directory:
             git(directory, "init", "-q")
-            gate = Path(directory) / (".github/locality-gate/classes.yml" if base_has_gate else "README.md")
-            gate.parent.mkdir(parents=True, exist_ok=True)
-            gate.write_text("x\n", encoding="utf-8")
+            held = ["README.md"]
+            held += [".github/locality-gate/classes.yml"] if base_has_map else []
+            held += [".github/locality-gate/locality_gate.py"] if base_has_gate else []
+            for name in held:
+                path = Path(directory) / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("x\n", encoding="utf-8")
             git(directory, "add", "-A")
             git(directory, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "base")
             base = git(directory, "rev-parse", "HEAD")
@@ -262,7 +266,15 @@ class TheEvent(unittest.TestCase):
         # A target with no change contract, this repository among them, has no class map to judge by.
         for action in ("opened", "edited"):
             with self.subTest(action=action):
-                decided = self.decide(action, base_has_gate=False)
+                decided = self.decide(action, base_has_gate=False, base_has_map=False)
+                self.assertEqual(("true", "false"), (decided["closure"], decided["locality"]))
+
+    def test_a_base_keeping_only_the_class_map_runs_and_posts_none(self) -> None:
+        # blueprint-frontend keeps `classes.yml` for its local `pr-locality.sh` and no gate script; deciding on the
+        # directory ran a gate the take step could only fail.
+        for action in ("opened", "edited"):
+            with self.subTest(action=action):
+                decided = self.decide(action, base_has_gate=False, base_has_map=True)
                 self.assertEqual(("true", "false"), (decided["closure"], decided["locality"]))
 
     def test_each_gate_judges_only_on_its_own_events(self) -> None:
