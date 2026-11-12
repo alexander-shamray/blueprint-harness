@@ -103,7 +103,7 @@ jobs:
       # running is red here first, on each host. Its workers run verbose, which with the version line shows what the
       # modules print: which link primitive was reached, which lock branch was chosen, and which bash read the
       # helpers, since macOS's is 3.2. Run serially, this step took 20.9 min at p50 on Windows and 7.9 on macOS,
-      # against 1.8 on Ubuntu's runner, over the 40 green runs before 2026-11-12 (#402).
+      # against 1.8 on Ubuntu's runner, over the 40 green runs before 2026-11-12.
       - name: Test the review helpers
         if: matrix.os == 'ubuntu-latest' || steps.reach.outputs.test != 'false'
         working-directory: ${{ runner.temp }}/rendered

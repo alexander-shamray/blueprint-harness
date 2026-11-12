@@ -169,7 +169,7 @@ class WhatTheFilterLooksAtTests(unittest.TestCase):
         self.assertEqual(len(conditions), len(gated) + 1, "only the decision itself is ungated")
 
     def test_every_leg_runs_the_suite_through_the_shard_runner(self) -> None:
-        # The windows and macos legs once ran it serially, which made them the slowest job in the workflow (#402).
+        # The windows and macos legs once ran it serially, which made them the slowest job in the workflow.
         # The step's whole script is read, so a branch on the host that sent one leg elsewhere fails here.
         code = "\n".join(_code_lines(CI))
         step = code.split("- name: Test the review helpers", 1)[1].split("- name:", 1)[0]
