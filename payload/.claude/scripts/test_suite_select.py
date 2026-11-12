@@ -1,7 +1,7 @@
 """`suite_select.py`: a change selects what names it, what lists its tree, or, unplaced, everything.
 
 The tables are held against the suites they name: every selector resolves, and a class listing a tree in a spelling
-`LISTING` knows is named in `TREE_READERS`, by itself or its module, found by reading the suites.
+`LISTING` knows is named in `TREE_READERS`, by itself or its module, and a helper's by its module or any class of it.
 """
 
 import ast
