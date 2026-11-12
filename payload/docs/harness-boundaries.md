@@ -2718,8 +2718,11 @@ change is what the checkout holds that `origin/main` does not: its commits, its
 edits and its untracked files. `suite_select.py` places each changed path: a
 suite that names its file, or names a code file that does, one step out; a
 suite `TREE_READERS` lists for a tree the path is in, since a suite that lists a
-directory names nothing in it; and the suite itself when the path is a suite. A
-path outside what `harness-legs.py`'s reach names is read by no suite for what
+directory names nothing in it; and the suite itself when the path is a suite.
+A suite only a target has is listed in `TREE_READERS` in that target's
+`local_commands.py`, which the selector reads after its own rows, for the
+reason the runner reads its pins there: a managed row naming it would not
+resolve in any other target. A path outside what `harness-legs.py`'s reach names is read by no suite for what
 it says, so it is placed as any path is, the suites listing every tracked path
 among what it selects, and is never unplaced. Everything else falls back to the
 whole suite: a

@@ -5,10 +5,14 @@ The tables are held against the suites they name: every selector resolves, and a
 """
 
 import ast
+import importlib
 import re
+import sys
 import tempfile
 import unittest
+import uuid
 from pathlib import Path
+from unittest import mock
 
 import suite_select as select_mod
 from review_helpers import copy_template, fixture_template, run_bash, setUpModule  # noqa: F401
@@ -102,9 +106,13 @@ class PatternsMatchSegmentBySegment(unittest.TestCase):
 
 
 class WhatAChangeSelects(unittest.TestCase):
-    """`select` over a tree of its own, with the reach and the code list handed in."""
+    """`select` over a tree of its own, with the reach and the code list handed in, and the payload's rows alone, so
+    the expectations below hold in a target whose module adds rows of its own."""
 
     def setUp(self):
+        patcher = mock.patch.object(select_mod, "TREE_READERS", select_mod.PAYLOAD_TREE_READERS)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         holder = tempfile.TemporaryDirectory()
         self.addCleanup(holder.cleanup)
         self.root = Path(holder.name)
@@ -262,6 +270,57 @@ class TheTablesNameWhatTheSuitesHold(unittest.TestCase):
         for path in sorted(select_mod.WHOLE - {f".claude/scripts/{select_mod.LOCAL_MODULE}.py"}):
             with self.subTest(path=path):
                 self.assertTrue((root / path).is_file(), path)
+
+
+class ATargetNamesItsOwnListings(unittest.TestCase):
+    """A suite only a target has is named in `TREE_READERS` in its `local_commands.py`: a managed row naming it would
+    not resolve in any other target. The pins above read the joined table, so they hold the target's rows too."""
+
+    def module(self, source):
+        # A uniquely named module in a directory of its own, so no case sees another's or the target's.
+        name = f"local_commands_{uuid.uuid4().hex}"
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        Path(directory.name, f"{name}.py").write_text(source, encoding="utf-8")
+        sys.path.insert(0, directory.name)
+        self.addCleanup(sys.path.remove, directory.name)
+        self.addCleanup(sys.modules.pop, name, None)
+        importlib.invalidate_caches()
+        return name
+
+    def test_the_table_is_the_payloads_rows_then_the_targets(self):
+        self.assertEqual(select_mod.PAYLOAD_TREE_READERS + select_mod.local_tree_readers(), select_mod.TREE_READERS)
+
+    def test_a_target_that_declares_nothing_adds_no_row(self):
+        self.assertEqual((), select_mod.local_tree_readers(f"local_commands_{uuid.uuid4().hex}"))
+        self.assertEqual((), select_mod.local_tree_readers(self.module('CEILINGS = {"own.md": 1}\n')))
+
+    def test_what_a_target_declares_is_read_and_selects(self):
+        rows = select_mod.local_tree_readers(self.module(
+            'TREE_READERS = (("**", ("test_own.Lists",)), (".claude/commands/*.md", ("test_own_module",)))\n'))
+        self.assertEqual((("**", ("test_own.Lists",)), (".claude/commands/*.md", ("test_own_module",))), rows)
+        with mock.patch.object(select_mod, "TREE_READERS", select_mod.PAYLOAD_TREE_READERS + rows):
+            chosen, why = select_mod.select([".claude/commands/brand-new.md"], {}, Path("."), everywhere, [])
+        self.assertIsNone(why)
+        self.assertLessEqual({"test_own.Lists", "test_own_module"}, chosen)
+
+    def test_a_declaration_whose_own_import_fails_is_not_an_absent_one(self):
+        # Reading it as absent would drop every local row from the selection and pass in silence.
+        with self.assertRaises(ModuleNotFoundError):
+            select_mod.local_tree_readers(self.module("import a_module_no_target_has\n"))
+
+    def test_a_misshapen_declaration_is_refused_rather_than_read(self):
+        # A bare string selector would iterate as its characters and select nothing a reader could see.
+        for source in ('TREE_READERS = (("**", "test_own"),)\n',
+                       'TREE_READERS = [("**", ("test_own",))]\n',
+                       'TREE_READERS = (("**", ()),)\n',
+                       'TREE_READERS = (("", ("test_own",)),)\n',
+                       'TREE_READERS = (("**", ("own",)),)\n',
+                       'TREE_READERS = (("**", ("test_own",), "extra"),)\n',
+                       'TREE_READERS = {"**": ("test_own",)}\n'):
+            with self.subTest(source=source):
+                with self.assertRaises(TypeError):
+                    select_mod.local_tree_readers(self.module(source))
 
 
 # A base branch and a feature branch one commit ahead of it, which `changed` reads against the base.
