@@ -1,5 +1,5 @@
 """The payload's gate workflow: one job per pull-request event, nothing the pull request wrote running before every
-verdict is posted, and each verdict posted under the check name a ruleset requires."""
+verdict is posted, and each verdict posted under its gate's check name."""
 
 import os
 import re
@@ -21,8 +21,14 @@ DEFAULT_TYPES = ("opened", "synchronize", "reopened")
 
 def pull_request_types(text: str) -> tuple[str, ...]:
     """The pull-request events a workflow starts on, or none; a spelling this reader cannot parse is refused."""
-    found = re.search(r"(?ms)^on:(.*?)(?=^\S)", text + "\nend")
-    triggers = found.group(1) if found else ""
+    # A comment at column 0 would end the block early, and the key may be quoted, as yamllint's truthy rule asks.
+    code = "\n".join(line for line in text.splitlines() if not line.startswith("#"))
+    found = re.search(r"(?ms)^([\"']?)on\1:(.*?)(?=^\S)", code + "\nend")
+    if found is None:
+        if "pull_request" in code:
+            raise ValueError("a workflow naming pull_request with no `on:` block this reader finds")
+        return ()
+    triggers = found.group(2)
     if "pull_request" not in triggers:
         return ()
     if "pull_request_target" in triggers:
@@ -33,6 +39,8 @@ def pull_request_types(text: str) -> tuple[str, ...]:
     if "types" in triggers:
         raise ValueError("a pull_request types list this reader cannot parse")
     return DEFAULT_TYPES
+
+
 # A judge sits outside the checkout; the comment gate holds its path in `$judge`.
 JUDGE = re.compile(r'(?<![-\w])python(?: -I)? "\$(?:RUNNER_TEMP/[\w./-]+\.py|judge)"')
 # Reads no module from the checkout: how the drift gate reads its manifest ahead of the judge.
@@ -111,11 +119,12 @@ class TheJobs(unittest.TestCase):
         listed = "on:\n  pull_request:\n    types: [opened, edited]\njobs:\n"
         self.assertEqual(("opened", "edited"), pull_request_types(listed))
         for bare in ("on: [push, pull_request]\njobs:\n", "on: pull_request\njobs:\n",
-                     "on:\n  pull_request:\n    branches: [main]\njobs:\n", "on:\n  pull_request:\njobs:\n"):
+                     "on:\n  pull_request:\n    branches: [main]\njobs:\n", "on:\n  pull_request:\njobs:\n",
+                     '"on":\n  pull_request:\njobs:\n', "on:\n# a note\n  pull_request:\njobs:\n"):
             with self.subTest(bare=bare):
                 self.assertEqual(DEFAULT_TYPES, pull_request_types(bare))
         for unread in ("on:\n  pull_request:\n    types:\n      - opened\njobs:\n",
-                       "on:\n  pull_request_target:\njobs:\n"):
+                       "on:\n  pull_request_target:\njobs:\n", "true:\n  pull_request:\njobs:\n"):
             with self.subTest(unread=unread), self.assertRaises(ValueError):
                 pull_request_types(unread)
         self.assertEqual((), pull_request_types("on:\n  push:\njobs:\n"))
