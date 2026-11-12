@@ -71,6 +71,22 @@
           {
             "context": "harness-drift",
             "integration_id": 15368
+          },
+          {
+            "context": "licence-gate",
+            "integration_id": 15368
+          },
+          {
+            "context": "pipeline-gate",
+            "integration_id": 15368
+          },
+          {
+            "context": "format",
+            "integration_id": 15368
+          },
+          {
+            "context": "workflow-lint",
+            "integration_id": 15368
           }
         ]
       }
