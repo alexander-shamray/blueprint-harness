@@ -64,7 +64,8 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    # Windows takes about sixteen minutes over the whole helpers suite, which twenty left no room above.
+    # Set when Windows ran the helpers suite serially, at 22.7 min p90. The shard runner's first run took Windows
+    # under ten minutes whole; the bound stays until more sharded runs say how much of it is headroom.
     timeout-minutes: 45
     defaults:
       run:
