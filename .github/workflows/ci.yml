@@ -108,9 +108,22 @@ jobs:
       - name: Test the review helpers
         if: matrix.os == 'ubuntu-latest' || steps.reach.outputs.test != 'false'
         working-directory: ${{ runner.temp }}/rendered
+        # The runner's line of how long each class took, outside the rendered tree, for the step below to keep.
+        env:
+          HARNESS_TIMINGS: ${{ runner.temp }}/harness-timings.jsonl
         run: |
           bash --version | head -n 1
           python .claude/scripts/shard-harness-suite.py
+
+      # Red runs too, since a slow class is most worth reading where it timed out or failed; `harness_timings.py
+      # report` reads the downloaded file.
+      - name: Keep the run's timings
+        if: always() && (matrix.os == 'ubuntu-latest' || steps.reach.outputs.test != 'false')
+        uses: actions/upload-artifact@v7
+        with:
+          name: harness-timings-${{ matrix.os }}
+          path: ${{ runner.temp }}/harness-timings.jsonl
+          if-no-files-found: ignore
 
       # Every gate directory the payload ships a suite for, read from the
       # rendered tree rather than listed, so a gate added to the payload is

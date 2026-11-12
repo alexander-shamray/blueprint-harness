@@ -119,7 +119,11 @@ rm -rf "$rendered"
 ```
 
 The job's three legs run that suite through
-`.claude/scripts/shard-harness-suite.py` instead, which a local run can too.
+`.claude/scripts/shard-harness-suite.py` instead, which a local run can too;
+its `--selective` runs only the classes the branch reaches, and each leg uploads
+the times its run recorded as the `harness-timings-<os>` artefact, which
+`harness_timings.py report` reads (`docs/harness-boundaries.md`, *The suite's
+shard runner*).
 
 Two things the jobs do not cover or cannot promise:
 
