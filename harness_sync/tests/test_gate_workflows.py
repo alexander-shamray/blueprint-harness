@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -152,9 +153,19 @@ exit "$STUB_RC"
 """
 
 
+def find_bash() -> str | None:
+    # Git for Windows' bash first: a bare `bash` on a Windows PATH can be WSL's, which reads none of these paths.
+    if sys.platform == "win32" and shutil.which("git"):
+        top = Path(shutil.which("git")).resolve().parent.parent
+        for candidate in (top / "bin" / "bash.exe", top.parent / "bin" / "bash.exe"):
+            if candidate.is_file():
+                return str(candidate)
+    return shutil.which("bash")
+
+
 def run_with_gh(script: str, env: dict[str, str], *, gh_rc: int = 0, gh_id: str = "42") -> tuple[int, list[dict], str, str]:
     """A step's script under bash with `gh` stubbed: its exit, each call's fields, its output and $GITHUB_OUTPUT."""
-    bash = shutil.which("bash")
+    bash = find_bash()
     if bash is None:
         raise RuntimeError("bash is what the steps run under")  # not a skip: a skip passes unrun
     with tempfile.TemporaryDirectory() as directory:
