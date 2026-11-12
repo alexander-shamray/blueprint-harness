@@ -134,12 +134,9 @@ def repository_configs(root):
 
 
 def fixture_template(build, root_var="R", key=None, **env):
-    """The directory `build` made once for this module: a bash script `run_bash` runs with `root_var` naming it and
-    `env` beside, or a function handed it as a `Path`, which then takes a `key` saying what it builds.
-
-    Every repository `build` leaves under the root is a template: `copy_template` copies it whole and re-points the
-    paths its configs spell, so a build spells them with forward slashes. A script runs with `set -eu`, and a build
-    that fails raises, since a test reading a half-built template reads nothing the test names.
+    """The directory `build` made once a module: a bash script run with `root_var` naming it and `env` beside, or a
+    function handed it as a `Path`, with a `key` saying what it builds. `copy_template` re-points the paths its configs
+    spell, so a build spells them with forward slashes; a build that fails raises, never handing over half a fixture.
     """
     if callable(build) and key is None:
         raise TypeError("a function's template takes a key, since the function alone does not say what it builds")
