@@ -368,8 +368,9 @@ target*)
    includes the unused-workspace row above, so `git-worktree-fork.sh` is
    never handed a name that exists. Where `/branch` forks a worktree,
    **every step below runs in the PR's own directory**. Never restate
-   `/branch`'s rules; report which outcome happened. Where `/branch` stops because it is already
-   on a branch — the normal state of a resumed `/ship` — take the current
+   `/branch`'s rules; report which outcome happened. Where `/branch` stops
+   because it is already on a branch — the normal state of a resumed
+   `/ship` — take the current
    branch as this change's branch, carry on, **say that you assumed it** and
    name the branch, and name the worktree, or say it is the main checkout.
    (why: docs/commands/ship.md, *Step 1: /branch*) Under `--dispatched`,
