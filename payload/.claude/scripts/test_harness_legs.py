@@ -1,7 +1,7 @@
-"""The skip on a target's off-Linux harness legs: real merge commits, and what the suite beside it reads.
+"""The skip on a target's off-Linux harness legs: real merge commits, and what the suite beside it spells.
 
 The decision's subject is what the `.claude/scripts` suite reads, so the last class holds the reach to the paths the
-suites spell off this root rather than to a list written here.
+suites spell off this root rather than to a list written here; their whole-tree reads are Linux's to judge.
 """
 
 import importlib.util

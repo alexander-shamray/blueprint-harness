@@ -2714,9 +2714,11 @@ is nothing stale to clear.
 the test steps of its Windows and macOS legs on. It takes no arguments: it
 reads `GITHUB_EVENT_NAME` from the run, and the merge commit's two parents
 from the checkout, so the checkout takes `fetch-depth: 2`.
-The Linux leg runs every pull request whatever it prints, so a check over the
-whole tracked tree, the tracked-link and root-name cases among them, is judged
-on every one; the decision only spares the two legs whose hosts differ.
+The Linux leg runs every pull request whatever it prints. A product pull
+request still reaches the cases that read the whole tracked tree (the
+tracked-link and root-name cases, and the sweep slices' run over every tracked
+path), and a skip loses their Git Bash and bash 3.2 runs: that is the cost the
+decision accepts, and Linux still judges them on every pull request.
 
 ```yaml
 - name: Decide whether this leg tests
@@ -2729,7 +2731,7 @@ on every one; the decision only spares the two legs whose hosts differ.
 ```
 
 **Only a pull request whose merge commit reads cleanly and reaches nothing the
-suite reads may skip.** A push, any other event, a `HEAD` that is not a merge,
+reach names may skip.** A push, any other event, a `HEAD` that is not a merge,
 an empty diff, a git read that fails, and a manifest or config that does not
 read as its shape all print `test=true`: a wrong skip loses a run, and a
 wrong test costs minutes. Moves are read as both sides, so a file moved out of
@@ -2742,15 +2744,15 @@ and `.harness/` whole, `docs/harness-local.md`, a `.gitignore` or
 `.github/actions/` whole. Every workflow, not the caller alone: the legs'
 steps may sit in a reusable workflow or a local action, and the run's own
 `GITHUB_WORKFLOW_REF` names only the workflow GitHub started. Paths compare
-case folded, as `apply` folds a `local` path. A sync that
-adds a managed file adds it to the reach in the same commit, and a local suite
-reading a file outside these trees is reached once the config lists that file
-under `local`.
+case folded, as `apply` folds a `local` path. A sync that adds a managed file
+adds it to the reach in the same commit, and a local suite reading a file
+outside these trees is reached once the config lists that file under `local`.
 
-**`test_harness_legs.py` holds the reach to what the suites read**, not to a
+**`test_harness_legs.py` holds the reach to what the suites spell**, not to a
 list written beside it: every `test_*.py` beside it, and every file the suites
-and `review_helpers.py` spell off the root, must be reached in the checkout the
-suite runs in, and a product path must not be. A suite that starts reading a
+and `review_helpers.py` spell off the root or `.claude/`, through a name or
+their own `__file__`, must be reached in the checkout the suite runs in, and a
+product path must not be. A suite that starts reading a
 file the reach misses fails there, rather than passing on a pull request whose
 legs skipped. `blueprint-harness` decides its own legs with
 `harness_sync/legs.py`, whose reach is the payload rather than a rendered tree.
