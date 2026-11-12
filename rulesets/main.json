@@ -40,7 +40,11 @@
       "closure-gate",
       "locality-gate",
       "commit-gate",
-      "harness-drift"
+      "harness-drift",
+      "licence-gate",
+      "pipeline-gate",
+      "format",
+      "workflow-lint"
     ],
     "alexander-shamray/blueprint-harness": [
       "sync-tool",
