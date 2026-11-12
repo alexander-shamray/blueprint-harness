@@ -18,7 +18,7 @@ BASE = "origin/main"
 LOCAL_MODULE = "local_commands"
 
 # A change to one of these selects the whole suite: every suite imports the first, a target's module pins classes for
-# the runner and declares its commands to the suites, and the last two decide what runs at all.
+# the runner, declares its commands to the suites and names its suites' listings, and the last two decide what runs.
 WHOLE = frozenset({
     ".claude/scripts/review_helpers.py",
     f".claude/scripts/{LOCAL_MODULE}.py",
@@ -28,8 +28,9 @@ WHOLE = frozenset({
 
 # The tests that read a tree by listing it rather than by naming its files, so no name in them selects them. Each
 # pattern is a repository path, `*` within one segment and `**` across any; each selector a module or `module.Class`.
-# `test_suite_select.py` fails on a module whose listing, in a spelling its pattern knows, no row names.
-TREE_READERS = (
+# `test_suite_select.py` fails on a module whose listing, in a spelling its pattern knows, no row names. These rows are
+# the payload's; a suite only a target has is named in that target's module, below.
+PAYLOAD_TREE_READERS = (
     ("*", ("test_git_argv_guard.TheListsTheGuardReads",)),
     ("**", ("test_harness_denies.HarnessControlSurfaceIsDenied", "test_harness_denies.TheRepositoryTracksNoSymbolicLink",
             "test_harness_legs.WhatTheDecisionLooksAtTests", "test_sweep_slices.TheCheckout",
@@ -60,6 +61,32 @@ TREE_READERS = (
     (".claude/skills/codebase-index/**/*.md", ("test_cbx.CbxWrapper", "test_index_query_hint.TheSkillAgrees",
                                                "test_index_skill_examples")),
 )
+
+
+def local_tree_readers(name=LOCAL_MODULE):
+    """The target's own rows, `TREE_READERS` in its module, in the payload's shape; none where it keeps neither.
+
+    A managed row cannot name a suite only one target has, since a selector that does not resolve fails in every other
+    target. A misshapen declaration is refused, and a module whose own import fails is raised, since a row that silently
+    stopped applying reads exactly like one that is working.
+    """
+    try:
+        module = importlib.import_module(name)
+    except ModuleNotFoundError as error:
+        if error.name != name:
+            raise
+        return ()
+    rows = getattr(module, "TREE_READERS", ())
+    if not isinstance(rows, tuple) or not all(
+            isinstance(row, tuple) and len(row) == 2 and isinstance(row[0], str) and row[0]
+            and isinstance(row[1], tuple) and row[1]
+            and all(isinstance(selector, str) and selector.startswith("test_") for selector in row[1])
+            for row in rows):
+        raise TypeError(f"TREE_READERS must be a tuple of (pattern, (selector, ...)) rows, not {rows!r}")
+    return rows
+
+
+TREE_READERS = PAYLOAD_TREE_READERS + local_tree_readers()
 
 CODE_SUFFIXES = (".py", ".sh", ".ps1")
 
