@@ -2,10 +2,9 @@ name: Gates
 
 # The pull-request gates as steps of one job: each takes seconds, and a job
 # each held a runner slot and a queue wait apiece. A ruleset requires gates by
-# check name and a job carries one, so the `open` job opens a check run per
-# gate under the gate's name, as GitHub Actions, the app the rulesets pin, and
-# the `report` job completes each. Each gate's README owns its rules and trust
-# model; this file only runs them.
+# check name, so the `open` job opens a check run per gate under its name, as
+# GitHub Actions, the app the rulesets pin, and `report` completes each. Each
+# gate's README owns its rules and trust model; this file only runs them.
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited, labeled, unlabeled]
@@ -21,6 +20,7 @@ permissions: {}
 # verdicts are fixed, so head test code cannot steer a judge or a verdict by
 # accident. Not against intent: a pull request can edit this file, and a
 # bootstrap judge (a base with no copy) is head code ahead of the verdicts.
+
 # The judging job holds read grants alone and the jobs posting check runs
 # check nothing out, so nothing the branch carries but this file runs beside
 # the checks token. A red suite fails the unrequired `gates` job.
