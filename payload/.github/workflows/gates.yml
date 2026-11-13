@@ -95,7 +95,7 @@ jobs:
           fi
           echo "locality=$locality" >> "$GITHUB_OUTPUT"
 
-      # The closure gate:.github/closure-gate/README.md. A base that carries
+      # The closure gate: .github/closure-gate/README.md. A base that carries
       # no gate fails rather than falling back to the head copy, the silent
       # pass this gate exists to refuse; `main` carries it, so only a base
       # older than it, a rebase somebody performs knowingly, reaches that.
