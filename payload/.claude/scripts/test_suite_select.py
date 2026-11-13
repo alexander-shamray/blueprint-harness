@@ -261,7 +261,8 @@ class TheTablesNameWhatTheSuitesHold(unittest.TestCase):
                  'self.LAUNCHER.parent.glob("x")', '["git", "ls-files"]', '[GIT, "ls-files", "-s"]',
                  'sorted(PAYLOAD.rglob("*.md"))', "(CLAUDE / \"hooks\").iterdir()", 'REPO_TREE.glob("*")']
         missed = ['(self.root / "system-temp").iterdir()', "self.dir.iterdir()", '"git ls-files -s"',
-                  "os.listdir(directory)", "(worktree / CACHE).iterdir()", "self.cache.iterdir()", "box.cache.iterdir()", "run_path.iterdir()"]
+                  "os.listdir(directory)", "(worktree / CACHE).iterdir()", "self.cache.iterdir()",
+                  "box.cache.iterdir()", "run_path.iterdir()"]
         for text in found:
             with self.subTest(text=text):
                 self.assertRegex(text, LISTING)
