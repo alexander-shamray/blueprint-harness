@@ -386,6 +386,15 @@ class PathTests(unittest.TestCase):
             # A checkout whose directories cannot be listed over-claims, the safe direction.
             self.assertEqual({"and/or"}, db.extract_paths("`and/or`"))
 
+    def test_a_code_fence_does_not_shift_the_backtick_pairing_of_later_lines(self):
+        self.in_checkout()
+        # A fence's three backticks pair across lines with an inline span's opening one, so a directory named after it
+        # would be read outside a span and dropped: spans are matched within a line, as Markdown draws them.
+        body = "Repro:\n\n```bash\nmake check\n```\n\nTouches `deploy/rabbitmq/` and `docs/x.md` too."
+        self.assertEqual({"deploy/rabbitmq", "docs/x.md"}, db.extract_paths(body))
+        # A path quoted inside the fence still claims: dropping it would narrow the claim, the unsafe direction.
+        self.assertEqual({"tools/quality-sets"}, db.extract_paths("```\nsee `tools/quality-sets/`\n```"))
+
     def test_a_dotless_token_under_a_nested_directory_still_claims(self):
         self.in_checkout()
         # src/Services/Ordering is in the checkout, so a body naming the subtree from below src still claims it.
