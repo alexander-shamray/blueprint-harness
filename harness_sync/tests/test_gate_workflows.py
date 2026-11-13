@@ -331,12 +331,6 @@ def step_script(step_id: str, job: str = "gates") -> str:
     return run_block(step_of(step_id, job))
 
 
-def git(directory: str, *args: str) -> str:
-    done = subprocess.run(["git", "-C", directory, *args], capture_output=True, text=True, encoding="utf-8",
-                          check=True)
-    return done.stdout.strip()
-
-
 BASE = "b" * 40
 GATE_AT_BASE = f"repos/o/r/contents/.github/locality-gate/locality_gate.py?ref={BASE}"
 
