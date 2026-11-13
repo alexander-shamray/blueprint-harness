@@ -1582,8 +1582,8 @@ worktree isolation check refused whenever a variable held the path or a loop
 walked the patches (`docs/harness/pitfalls.md`, *A worktree session refuses
 git it cannot follow*). The helper takes the path literally, refuses one
 starting `-`, a directory, an untracked, binary, added, deleted, retyped or
-unmerged file and a number past the last, and spells out every diff and apply
-option a config could change. Its
+unmerged file and a number past the last, and spells out each option a config
+could set to make the patch unreadable to `git apply` or refused by it. Its
 exit codes: 0 listed or staged; 2 usage; 3 a path it refuses; 4 a hunk number
 past the last; 5 `git apply` refused, with nothing staged.
 
