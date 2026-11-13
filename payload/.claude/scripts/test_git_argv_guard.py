@@ -102,8 +102,8 @@ class TheGitArgvGuard(unittest.TestCase):
         self.assertEqual("deny", decision["permissionDecision"])
         return decision["permissionDecisionReason"]
 
-    def assertRefused(self, command):
-        reason = self.judge(command)
+    def assertRefused(self, command, tool="Bash"):
+        reason = self.judge(command, tool=tool)
         self.assertIsNotNone(reason, f"admitted: {command}")
         # `main` answers any exception with a deny, so a refusal alone cannot
         # tell a judged command from a parser that raised on it.
@@ -3174,7 +3174,7 @@ class TheGitArgvGuard(unittest.TestCase):
         # is refused whatever its arguments, a backtick-split name included.
         for command in ("git push origin +HEAD:main", "git status", "g`it log", "& 'git' push"):
             with self.subTest(command=command):
-                self.assertIsNotNone(self.judge(command, tool="PowerShell"))
+                self.assertRefused(command, tool="PowerShell")
         for command in ("Get-ChildItem", "Get-Content .gitignore"):
             with self.subTest(command=command):
                 self.assertIsNone(self.judge(command, tool="PowerShell"))
@@ -3187,7 +3187,7 @@ class TheGitArgvGuard(unittest.TestCase):
                         "iex $command", "Start-Process git", "Write-Output done; Get-ChildItem",
                         "pwsh -EncodedCommand ZwBpAHQAIABzAHQAYQB0AHUAcwA=", "cmd /c run.bat"):
             with self.subTest(command=command):
-                self.assertIsNotNone(self.judge(command, tool="PowerShell"))
+                self.assertRefused(command, tool="PowerShell")
         for command in ("Write-Output done", "Get-ChildItem -Path docs/backend-architecture"):
             with self.subTest(command=command):
                 self.assertIsNone(self.judge(command, tool="PowerShell"))
@@ -3227,7 +3227,9 @@ class TheGitArgvGuard(unittest.TestCase):
     def test_a_character_cp1252_cannot_decode_does_not_skip_the_judgement(self):
         # U+23F3 is E2 8F B3 in UTF-8, and 0x8F is undefined in cp1252.
         hourglass = "\u23f3"
-        self.assertIsNotNone(self.judge_raw(self.raw_event(f"git push origin +HEAD:main # {hourglass}")))
+        reason = self.judge_raw(self.raw_event(f"git push origin +HEAD:main # {hourglass}"))
+        self.assertIsNotNone(reason)
+        self.assertNotIn("crashed the guard", reason)
         self.assertIsNone(self.judge_raw(self.raw_event(f"git status # {hourglass}")))
 
     def test_an_event_that_is_not_utf8_is_refused(self):
