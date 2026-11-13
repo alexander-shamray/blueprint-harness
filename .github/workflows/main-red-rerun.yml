@@ -17,7 +17,7 @@ permissions: {}
 
 jobs:
   rerun:
-    # The first attempt alone: a second one is `ci.yml`'s `main-red` job's to file, and rerunning it again would
+    # The first attempt alone: a later one is `ci.yml`'s `main-red` job's to file, and rerunning it again would
     # only hide a red `main` for longer.
     if: >-
       github.event.workflow_run.event == 'push' &&
@@ -25,15 +25,17 @@ jobs:
       contains(fromJSON('["failure", "cancelled", "timed_out", "startup_failure"]'), github.event.workflow_run.conclusion)
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # The group `ci.yml`'s `main-red` job files under, so a filing here and one there never both see no open issue.
-    concurrency:
-      group: main-red
-      cancel-in-progress: false
+    # No concurrency group: GitHub cancels a group's pending job when a newer one queues, and a rerun cancelled so
+    # would leave its first attempt neither rerun nor filed, since `main-red` files from a later attempt alone.
     permissions:
       actions: write
       issues: write
+    outputs:
+      started: ${{ steps.rerun.outputs.started }}
+      failed: ${{ steps.rerun.outputs.failed }}
     steps:
-      - name: Rerun the failed jobs once, and write the flake down
+      - id: rerun
+        name: Rerun the failed jobs once, and write the flake down
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -49,36 +51,11 @@ jobs:
             | "- `\(.name)` (\(.conclusion)): \([.steps[]? | select(.conclusion == "failure" or .conclusion == "cancelled"
             or .conclusion == "timed_out") | "`\(.name)`"] | if length == 0 then "no step failed" else join(", ") end)"' ||
             echo '- its jobs could not be read')
-          if ! gh run rerun "$RUN_ID" --failed; then
-            # Unrerun, the first attempt is the only one there will be, so it is filed here as the second would be.
-            title='main is red: ci'
-            # A list as long as its limit may be cut, and a listing that cannot see
-            # the open issue files a second one, so it is refused.
-            list=$(gh issue list --state open --label bug --limit 1000 --json number,title)
-            [ "$(jq length <<<"$list")" -lt 1000 ] || { echo "::error::the issue list reached its limit and may be cut"; exit 1; }
-            open=$(jq -r --arg t "$title" 'map(select(.title == $t)) | .[0].number // empty' <<<"$list")
-            if [ -n "$open" ]; then
-              gh issue comment "$open" --body "Red again at $HEAD_SHA, and its failed jobs could not be rerun: $RUN_URL"
-            else
-              printf '%s\n' \
-                "The \`CI\` run on a push to \`main\` did not pass at $HEAD_SHA ($CONCLUSION), and its failed jobs" \
-                "could not be rerun: $RUN_URL" \
-                '' \
-                "$failed" \
-                '' \
-                '## Severity' \
-                '' \
-                'high' \
-                '' \
-                'Revert the pull request that turned it red first, then fix forward' \
-                '(docs/harness/working-rules.md, *CI*). While this is open, `/ship` step 6' \
-                'lands only a run started for this issue. Close it once main is green.' \
-                '' \
-                'Filed by main-red-rerun.yml, not by hand or by a sweep.' |
-                gh issue create --title "$title" --label bug --label harness --label high --body-file -
-            fi
-            exit 1
-          fi
+          delim="EOF_$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+          printf 'failed<<%s\n%s\n%s\n' "$delim" "$failed" "$delim" >> "$GITHUB_OUTPUT"
+          # Unrerun, the first attempt is the only one there will be, so `file` files it as `main-red` would.
+          gh run rerun "$RUN_ID" --failed || { echo "::error::the failed jobs could not be rerun"; exit 0; }
+          echo 'started=true' >> "$GITHUB_OUTPUT"
           # A flake that reruns green is still written down, or the tracker goes blind. A missing tracker is a
           # warning, not a red run: the rerun, which is what unblocks `main`, has already started.
           tracker=$(gh issue list --state open --label flaky --limit 100 --json number,title |
@@ -97,3 +74,54 @@ jobs:
             '' \
             'Commented by main-red-rerun.yml.' |
             gh issue comment "$tracker" --body-file -
+
+  # A first attempt the rerun never started, refused or not reached, is filed here as a later attempt would be.
+  file:
+    needs: rerun
+    if: always() && needs.rerun.result != 'skipped' && needs.rerun.outputs.started != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # The group `ci.yml`'s `main-red` job files under, so a filing here and one there never both see no open issue.
+    # A pending job displaced from it is displaced by one that files or comments, so the red is still heard.
+    concurrency:
+      group: main-red
+      cancel-in-progress: false
+    permissions:
+      issues: write
+    steps:
+      - name: A red main that was not rerun is an issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          FAILED: ${{ needs.rerun.outputs.failed }}
+        run: |
+          set -euo pipefail
+          title='main is red: ci'
+          # A list as long as its limit may be cut, and a listing that cannot see
+          # the open issue files a second one, so it is refused.
+          list=$(gh issue list --state open --label bug --limit 1000 --json number,title)
+          [ "$(jq length <<<"$list")" -lt 1000 ] || { echo "::error::the issue list reached its limit and may be cut"; exit 1; }
+          open=$(jq -r --arg t "$title" 'map(select(.title == $t)) | .[0].number // empty' <<<"$list")
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "Red again at $HEAD_SHA, and its failed jobs were not rerun: $RUN_URL"
+          else
+            printf '%s\n' \
+              "The \`CI\` run on a push to \`main\` did not pass at $HEAD_SHA ($CONCLUSION), and its failed jobs" \
+              "were not rerun: $RUN_URL" \
+              '' \
+              "${FAILED:-- its jobs could not be read}" \
+              '' \
+              '## Severity' \
+              '' \
+              'high' \
+              '' \
+              'Revert the pull request that turned it red first, then fix forward' \
+              '(docs/harness/working-rules.md, *CI*). While this is open, `/ship` step 6' \
+              'lands only a run started for this issue. Close it once main is green.' \
+              '' \
+              'Filed by main-red-rerun.yml, not by hand or by a sweep.' |
+              gh issue create --title "$title" --label bug --label harness --label high --body-file -
+          fi
