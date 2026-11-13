@@ -34,6 +34,10 @@ MODELS = {"Opus": "opus", "Sonnet": "sonnet"}
 EXTENSIONS = "cs|csproj|py|sh|md|json|ya?ml|sql|ps1|props|slnx|toml"
 BARE_PATH = re.compile(rf"(?<![\w./\\-])([\w.\\/-]+\.(?:{EXTENSIONS}))(?!\w)", re.IGNORECASE)
 KNOWN_FILE = re.compile(rf"\.(?:{EXTENSIONS})$", re.IGNORECASE)
+# A code span may cross a line break but not a fence's delimiter line or a blank line, so its backticks are paired
+# within what lies between them.
+FENCE_LINE = re.compile(r"^[ \t]*(?:`{3,}|~{3,}).*$", re.MULTILINE)
+PARAGRAPH_BREAK = re.compile(r"\n[^\S\n]*\n")
 CLAUDE_TREE = re.compile(r"(^|[^\w])\.claude([/\\]|\b)", re.IGNORECASE)
 # What the Task cell and the body name beneath .claude/: a bare `.claude/` in prose names no file to change.
 CLAUDE_PATH = re.compile(r"(^|[^\w])\.claude/[\w.-]", re.IGNORECASE)
@@ -281,9 +285,10 @@ def _slash_path(path):
 
 def extract_paths(text):
     found = set()
-    # A span closes on its own line, as Markdown draws it: paired across lines, a fence's backticks would shift every
-    # later span and drop the directory it names.
-    for quoted in re.findall(r"`([^`\n]+)`", text):
+    # Paired across the whole body, a fence's backticks would shift every later span and drop the directory it names;
+    # a fence's content stays, so a path quoted inside it still claims.
+    blocks = PARAGRAPH_BREAK.split(FENCE_LINE.sub("", text))
+    for quoted in (span for block in blocks for span in re.findall(r"`([^`]+)`", block)):
         for piece in quoted.split():
             path = _normalise(piece)
             # A slash command or a dotted identifier is not a file: it would make an empty claim look known.
