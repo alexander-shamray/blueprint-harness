@@ -473,12 +473,22 @@ class TheReport(unittest.TestCase):
         self.assertEqual(1, rc, out)
         self.assertNotIn("closure-gate", [post["name"] for post in posts])
 
-    def test_a_judging_job_that_published_nothing_posts_nothing_and_fails(self) -> None:
-        # The gates job died before its verdicts step: every output is empty.
-        rc, posts, out = self.post(**{name.replace("-", "_"): "" for name in ENV_OF})
+    def test_a_judging_job_that_published_nothing_completes_each_opened_run_as_a_failure(self) -> None:
+        # The gates job was skipped or died before its verdicts step: each line is the open job's decision alone, and
+        # a run left in progress would stand until somebody reran the workflow.
+        rc, posts, out = self.post(**{name.replace("-", "_"): "true" for name in ENV_OF})
         self.assertEqual(1, rc, out)
-        self.assertEqual([], posts)
-        self.assertEqual(5, out.count("no event decision"))
+        self.assertEqual(sorted(CHECKS), sorted(post["name"] for post in posts))
+        self.assertEqual({"failure"}, {post["conclusion"] for post in posts})
+
+    def test_each_gates_decision_comes_from_the_open_job_ahead_of_its_outcomes(self) -> None:
+        report = step_of("report", "report")
+        for key, env in (("closure", "CLOSURE_GATE"), ("commit", "COMMIT_GATE"), ("drift", "HARNESS_DRIFT"),
+                         ("comment", "COMMENT_GATE"), ("locality", "LOCALITY_GATE")):
+            with self.subTest(gate=key):
+                self.assertIn(f"          {env}: ${{{{ needs.open.outputs.{key} }}}} "
+                              f"${{{{ needs.gates.outputs.{key} }}}}\n", report)
+                self.assertNotIn("needs.open.outputs.", step_of("verdicts").split(f"{env}:", 1)[1].split(":", 1)[0])
 
     def test_a_gate_with_no_outcomes_is_a_failure(self) -> None:
         rc, posts, out = self.post(comment_gate="true")

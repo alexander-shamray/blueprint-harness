@@ -132,8 +132,8 @@ jobs:
       # The closure gate reads the pull request's body, its commits and
       # GitHub's own `closingIssuesReferences`; the locality gate its files.
       pull-requests: read
-    # Each gate's line from the verdicts step: whether the event runs it, then
-    # the outcome of each of its steps, as words.
+    # Each gate's line from the verdicts step: the outcome of each of its
+    # steps, as words.
     outputs:
       closure: ${{ steps.verdicts.outputs.closure }}
       commit: ${{ steps.verdicts.outputs.commit }}
@@ -469,23 +469,23 @@ jobs:
             jq -s --argjson pr "$pr_json" '$pr + {files: .}' |
             python "$RUNNER_TEMP/locality-gate/locality_gate.py" --map "$RUNNER_TEMP/locality-gate/classes.yml"
 
-      # Each gate's decision and step outcomes, fixed as this job's outputs
-      # before the head suites run: the commit and locality gates' stand-down
-      # reads as successes. The report job turns each line into a verdict.
-      - name: Publish each gate's decision and outcomes
+      # Each gate's step outcomes, fixed as this job's outputs before the head
+      # suites run: the commit and locality gates' stand-down reads as
+      # successes. The report job puts the open job's decision ahead of each.
+      - name: Publish each gate's step outcomes
         id: verdicts
         if: ${{ !cancelled() }}
         shell: bash
         env:
-          CLOSURE_GATE: ${{ needs.open.outputs.closure }} ${{ steps.closure_take.outcome }} ${{ steps.closure.outcome }}
+          CLOSURE_GATE: ${{ steps.closure_take.outcome }} ${{ steps.closure.outcome }}
           COMMIT_GATE: >-
-            ${{ needs.open.outputs.commit }} ${{ steps.dependabot.outcome }}
+            ${{ steps.dependabot.outcome }}
             ${{ steps.dependabot.outputs.own == 'true' && 'success' || steps.commit_take.outcome }}
             ${{ steps.dependabot.outputs.own == 'true' && 'success' || steps.commit.outcome }}
-          HARNESS_DRIFT: ${{ needs.open.outputs.drift }} ${{ steps.drift_take.outcome }} ${{ steps.drift_fetch.outcome }} ${{ steps.drift.outcome }}
-          COMMENT_GATE: ${{ needs.open.outputs.comment }} ${{ steps.comment.outcome }}
+          HARNESS_DRIFT: ${{ steps.drift_take.outcome }} ${{ steps.drift_fetch.outcome }} ${{ steps.drift.outcome }}
+          COMMENT_GATE: ${{ steps.comment.outcome }}
           LOCALITY_GATE: >-
-            ${{ needs.open.outputs.locality }} ${{ steps.dependabot.outcome }}
+            ${{ steps.dependabot.outcome }}
             ${{ steps.dependabot.outputs.own == 'true' && 'success' || steps.locality_take.outcome }}
             ${{ steps.dependabot.outputs.own == 'true' && 'success' || steps.locality.outcome }}
         run: |
@@ -554,18 +554,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          # Each gate's check run, opened by the open job; then whether the
-          # event runs the gate, and the outcome of each of its steps.
+          # Each gate's check run and the event's decision, from the open job,
+          # then the outcome of each of its steps, from the gates job: a gates
+          # job that published nothing leaves a decision with no outcomes,
+          # which completes an opened run as a failure.
           CLOSURE_GATE_ID: ${{ needs.open.outputs.closure_id }}
           COMMIT_GATE_ID: ${{ needs.open.outputs.commit_id }}
           HARNESS_DRIFT_ID: ${{ needs.open.outputs.drift_id }}
           COMMENT_GATE_ID: ${{ needs.open.outputs.comment_id }}
           LOCALITY_GATE_ID: ${{ needs.open.outputs.locality_id }}
-          CLOSURE_GATE: ${{ needs.gates.outputs.closure }}
-          COMMIT_GATE: ${{ needs.gates.outputs.commit }}
-          HARNESS_DRIFT: ${{ needs.gates.outputs.drift }}
-          COMMENT_GATE: ${{ needs.gates.outputs.comment }}
-          LOCALITY_GATE: ${{ needs.gates.outputs.locality }}
+          CLOSURE_GATE: ${{ needs.open.outputs.closure }} ${{ needs.gates.outputs.closure }}
+          COMMIT_GATE: ${{ needs.open.outputs.commit }} ${{ needs.gates.outputs.commit }}
+          HARNESS_DRIFT: ${{ needs.open.outputs.drift }} ${{ needs.gates.outputs.drift }}
+          COMMENT_GATE: ${{ needs.open.outputs.comment }} ${{ needs.gates.outputs.comment }}
+          LOCALITY_GATE: ${{ needs.open.outputs.locality }} ${{ needs.gates.outputs.locality }}
         run: |
           set -uo pipefail
           failed=0
