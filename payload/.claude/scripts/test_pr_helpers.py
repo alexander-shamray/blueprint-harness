@@ -753,7 +753,7 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
 
     def test_no_check_rests_on_a_tool_answering_by_status(self):
         # Git Bash on a loaded Windows runner reported a `grep -Eq` fed by a process substitution as `Child exited`,
-        # and the helper refused a valid class map item (#451). A `grep` that fails every status-only call stands in
+        # and the helper refused a valid class map item. A `grep` that fails every status-only call stands in
         # for it: the class, each touch-set token and each map item are judged by bash, so the verdicts come back.
         failing = ('grep() { case "$1" in -*q*) printf "Child exited\\n" >&2; return 1 ;; esac; '
                    'printf "grep\\n" >> "$LOCALITY_SPAWN_LOG"; command grep "$@"; }\n')
