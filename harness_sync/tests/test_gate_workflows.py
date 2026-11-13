@@ -1,5 +1,6 @@
-"""The payload's gate workflow: one job per pull-request event, nothing the pull request wrote running before every
-verdict is posted, and each verdict posted under its gate's check name."""
+"""The payload's gate workflow: one job judging each pull-request event and one posting, nothing the pull request
+wrote running before every verdict is fixed, each verdict posted under its gate's check name, and the write grant held
+only by the job with no checkout."""
 
 import os
 import re
@@ -52,24 +53,33 @@ HEAD_CODE = re.compile(
     r"(?<![-\w])python3?(?:\.\d+)?(?=\s)|\bpytest\b|\bunittest\b"
     r"|(?<![-\w])(?:bash|sh|source)[ \t]+\S|^\s*(?:- )?(?:run: )?[\w./-]*/[\w./-]+"
     r"|^\s*(?:- )?uses: \./|^\s*working-directory:", re.M)
-REPORT = re.compile(r"(?m)^ +(?:- )?id: report$")
+VERDICTS = re.compile(r"(?m)^ +(?:- )?id: verdicts$")
 
 
-def steps_of(text: str) -> list[str]:
-    """The one job's steps, comments dropped; a second job has to be argued here rather than read past."""
-    code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
-    jobs = code.split("\n    steps:\n")
-    if len(jobs) != 2:
-        raise ValueError(f"expected one job's steps, found {len(jobs) - 1}")
-    return re.split(r"\n(?=      - )", jobs[1])
+def job_of(text: str, job: str) -> str:
+    """One job's lines under `jobs:`, from its key to the next job's."""
+    found = re.search(rf"(?ms)^  {re.escape(job)}:\n(.*?)(?=^  [\w-]+:\n|^\S|\Z)", text.split("\njobs:\n", 1)[-1])
+    if found is None:
+        raise ValueError(f"no job {job}")
+    return found.group(1)
+
+
+def steps_of(text: str, job: str = "gates") -> list[str]:
+    """One job's steps, comments dropped."""
+    code = "\n".join(line for line in job_of(text, job).splitlines() if not line.lstrip().startswith("#"))
+    parts = code.split("\n    steps:\n") if not code.startswith("    steps:\n") else ["", code[len("    steps:\n"):]]
+    if len(parts) != 2:
+        raise ValueError(f"expected one steps list in {job}, found {len(parts) - 1}")
+    return re.split(r"\n(?=      - )", parts[1])
 
 
 def report_at(steps: list[str]) -> int:
-    at = [i for i, step in enumerate(steps) if REPORT.search(step)]
+    """Where the judging job fixes its verdicts; nothing the head wrote may run at or before it."""
+    at = [i for i, step in enumerate(steps) if VERDICTS.search(step)]
     if len(at) != 1:
-        raise ValueError(f"expected one step posting the verdicts, found {len(at)}")
+        raise ValueError(f"expected one step fixing the verdicts, found {len(at)}")
     if not any(JUDGE.search(step) for step in steps[:at[0]]):
-        raise ValueError("expected a judge ahead of the report")
+        raise ValueError("expected a judge ahead of the verdicts")
     return at[0]
 
 
@@ -82,14 +92,14 @@ def name_of(step: str) -> str:
     return found.group(1) if found else step.splitlines()[0].strip()
 
 
-def head_code_before_the_report(text: str) -> list[str]:
-    steps = steps_of(text)
+def head_code_before_the_report(text: str, job: str = "gates") -> list[str]:
+    steps = steps_of(text, job)
     return [name_of(step) for step in steps[:report_at(steps) + 1] if runs_head_code(step)]
 
 
 def workflow(*steps: str) -> str:
     body = "\n".join(f"      - name: step {i}\n{step}" for i, step in enumerate(steps))
-    return f"name: Gate\njobs:\n  gate:\n    runs-on: ubuntu-latest\n    steps:\n{body}\n"
+    return f"name: Gate\njobs:\n  gates:\n    runs-on: ubuntu-latest\n    steps:\n{body}\n"
 
 
 def run_block(step: str) -> str:
@@ -99,12 +109,13 @@ def run_block(step: str) -> str:
 
 
 JUDGES = '        run: python "$RUNNER_TEMP/gate/gate.py"'
-REPORTS = "        id: report\n        run: true"
+REPORTS = "        id: verdicts\n        run: true"
 
 
 class TheJobs(unittest.TestCase):
-    def test_each_pull_request_event_starts_one_job(self) -> None:
-        # The account's concurrency cap is the queue: a gate a job each was a runner slot and a queue wait each.
+    def test_each_pull_request_event_starts_one_judging_job_and_one_posting_job(self) -> None:
+        # The account's concurrency cap is the queue: a gate a job each was a runner slot and a queue wait each. The
+        # second job is the write grant's, which may not sit beside the checkout (ADR-197 in blueprint-backend).
         started: dict[str, list[str]] = {}
         for path in sorted(WORKFLOWS.glob("*.yml")):
             text = path.read_text(encoding="utf-8")
@@ -114,7 +125,7 @@ class TheJobs(unittest.TestCase):
         self.assertEqual({"opened", "synchronize", "reopened", "edited", "labeled", "unlabeled"}, set(started))
         for event, jobs in started.items():
             with self.subTest(event=event):
-                self.assertEqual(["gates.yml:gates"], jobs)
+                self.assertEqual(["gates.yml:gates", "gates.yml:report"], jobs)
 
     def test_the_reader_takes_every_spelling_of_the_trigger(self) -> None:
         listed = "on:\n  pull_request:\n    types: [opened, edited]\njobs:\n"
@@ -138,10 +149,80 @@ class TheJobs(unittest.TestCase):
             with self.subTest(step=name_of(step)):
                 self.assertRegex(step, r"(?m)^        if: (?:>-\n          )?\$\{\{ !cancelled\(\) ")
 
+    def test_the_report_runs_after_the_gates_and_whatever_they_concluded(self) -> None:
+        # Its default condition is success(), which would leave a failed gate's check unreported.
+        report = job_of(GATES_YML.read_text(encoding="utf-8"), "report")
+        self.assertRegex(report, r"(?m)^    needs: gates$")
+        self.assertRegex(report, r"(?m)^    if: \$\{\{ !cancelled\(\) \}\}$")
+
+    def test_each_output_the_report_reads_is_one_the_verdicts_step_writes(self) -> None:
+        text = GATES_YML.read_text(encoding="utf-8")
+        outputs = dict(re.findall(r"(?m)^      (\w+): \$\{\{ steps\.verdicts\.outputs\.(\w+) \}\}$",
+                                  job_of(text, "gates")))
+        self.assertEqual({key: key for key in outputs}, outputs)
+        written = set(re.findall(r'(?m)^ +echo "(\w+)=\$', step_of("verdicts")))
+        read = re.findall(r"needs\.gates\.outputs\.(\w+)", step_of("report", "report"))
+        self.assertEqual(set(outputs), written)
+        self.assertEqual(sorted(outputs), sorted(read))
+
     def test_the_checkout_leaves_no_token_for_head_code(self) -> None:
         first = steps_of(GATES_YML.read_text(encoding="utf-8"))[0]
         self.assertIn("actions/checkout", first)
         self.assertIn("persist-credentials: false", first)
+
+
+WRITE = re.compile(r"([a-z-]+):\s*['\"]?write\b|\bwrite-all\b")
+
+
+def permissions_of(lines: str, indent: int) -> str | None:
+    """The `permissions:` block at one indentation, inline value and nested lines, comments dropped; None for none."""
+    pad = " " * indent
+    found = re.search(rf"(?m)^{pad}permissions:(.*)\n((?:{pad}  .*\n|\s*\n)*)", lines + "\n")
+    if found is None:
+        return None
+    return "\n".join(line for line in (found.group(1) + "\n" + found.group(2)).splitlines()
+                     if not line.lstrip().startswith("#"))
+
+
+class TheGrants(unittest.TestCase):
+    """No job a pull request reaches holds a write grant beside a checkout of its branch."""
+
+    def test_no_shipped_workflow_holds_a_write_grant_beside_a_checkout(self) -> None:
+        held = 0
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            text = path.read_text(encoding="utf-8")
+            inherited = permissions_of(text, 0) or ""
+            for job in re.findall(r"(?m)^  ([\w-]+):$", text.split("\njobs:\n", 1)[1]):
+                lines = job_of(text, job)
+                own = permissions_of(lines, 4)
+                grants = WRITE.findall(inherited if own is None else own)
+                held += bool(grants)
+                with self.subTest(job=f"{path.name}:{job}"):
+                    if grants:
+                        self.assertNotRegex(lines, r"(?m)^\s*(?:- )?uses:\s*['\"]?actions/checkout@")
+        # A reader that found no grant at all would pass the case above vacuously.
+        self.assertEqual(1, held)
+
+    def test_the_workflow_grants_nothing_a_job_could_inherit(self) -> None:
+        self.assertEqual("{}", (permissions_of(GATES_YML.read_text(encoding="utf-8"), 0) or "").strip())
+
+    def test_the_judging_job_reads_and_the_posting_job_writes_checks_alone(self) -> None:
+        text = GATES_YML.read_text(encoding="utf-8")
+        gates = re.findall(r"(?m)^\s+([a-z-]+): (\w+)$", permissions_of(job_of(text, "gates"), 4) or "")
+        self.assertEqual([("contents", "read"), ("pull-requests", "read")], gates)
+        report = re.findall(r"(?m)^\s+([a-z-]+): (\w+)$", permissions_of(job_of(text, "report"), 4) or "")
+        self.assertEqual([("checks", "write")], report)
+
+    def test_the_posting_job_runs_no_action_at_all(self) -> None:
+        # Not only no checkout: an action is code this file does not hold, run beside the checks token.
+        self.assertNotRegex(job_of(GATES_YML.read_text(encoding="utf-8"), "report"), r"(?m)^\s*(?:- )?uses:")
+
+    def test_the_reader_finds_a_grant_beside_a_checkout(self) -> None:
+        inherited = "permissions:\n  checks: write\njobs:\n  gate:\n    steps:\n      - uses: actions/checkout@v7\n"
+        self.assertEqual(["checks"], WRITE.findall(permissions_of(inherited, 0) or ""))
+        own = "    permissions:\n      # checks: write\n      contents: read\n    steps:\n"
+        self.assertEqual([], WRITE.findall(permissions_of(own, 4) or ""))
+        self.assertEqual(["checks"], WRITE.findall(permissions_of("    permissions: { checks: write }\n", 4) or ""))
 
 
 class TheOrder(unittest.TestCase):
@@ -157,28 +238,21 @@ class TheOrder(unittest.TestCase):
         self.assertEqual(sorted(CHECKS), sorted(match.group(1) for match in found))
 
     def test_the_report_posts_each_gates_check_name(self) -> None:
-        report = steps_of(GATES_YML.read_text(encoding="utf-8"))
-        report = report[report_at(report)]
-        self.assertEqual(sorted(CHECKS), sorted(re.findall(r'(?m)^          verdict ([\w-]+) "\$', report)))
-
-    def test_the_report_completes_the_runs_opened_at_the_start_and_opens_none(self) -> None:
-        # A run that posted only at its end could finish after a later run and stand over its verdict.
-        steps = steps_of(GATES_YML.read_text(encoding="utf-8"))
-        opened = next(i for i, step in enumerate(steps) if re.search(r"(?m)^        id: open$", step))
-        self.assertLess(opened, min(i for i, step in enumerate(steps) if JUDGE.search(step)))
-        self.assertNotIn("--method POST", steps[report_at(steps)])
-        self.assertIn("--method PATCH", steps[report_at(steps)])
+        report = step_of("report", "report")
+        self.assertEqual(sorted(CHECKS), sorted(re.findall(r"(?m)^          verdict ([\w-]+) \$", report)))
 
 
 ENV_OF = {"closure-gate": "CLOSURE_GATE", "commit-gate": "COMMIT_GATE", "harness-drift": "HARNESS_DRIFT",
           "comment-gate": "COMMENT_GATE", "locality-gate": "LOCALITY_GATE"}
-ID_OF = {"closure-gate": "11", "commit-gate": "12", "harness-drift": "13", "comment-gate": "14", "locality-gate": "15"}
-# Each call a line per argument it was handed, then a line of its own ending the call; it answers with $STUB_ID.
+RUN_ID = "500"
+# Each call a line per argument it was handed, then a line of its own ending the call. A read answers with
+# $STUB_POSTED, the external ids of the check runs already posted, and exits $STUB_RC; a write exits $STUB_POST_RC.
 GH_STUB = """#!/usr/bin/env bash
+method=GET
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    api) ;;
-    --method) echo "method=$2" >> "$CALLS"; shift ;;
+    api|--paginate) ;;
+    --method) method=$2; echo "method=$2" >> "$CALLS"; shift ;;
     -f) echo "$2" >> "$CALLS"; shift ;;
     --jq) shift ;;
     *) echo "path=$1" >> "$CALLS" ;;
@@ -186,8 +260,8 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 echo -- >> "$CALLS"
-echo "$STUB_ID"
-exit "$STUB_RC"
+if [ "$method" = GET ]; then printf '%s\\n' "$STUB_POSTED"; exit "$STUB_RC"; fi
+exit "$STUB_POST_RC"
 """
 
 
@@ -201,7 +275,8 @@ def find_bash() -> str | None:
     return shutil.which("bash")
 
 
-def run_with_gh(script: str, env: dict[str, str], *, gh_rc: int = 0, gh_id: str = "42") -> tuple[int, list[dict], str, str]:
+def run_with_gh(script: str, env: dict[str, str], *, gh_rc: int = 0, post_rc: int = 0,
+                posted: str = "") -> tuple[int, list[dict], str, str]:
     """A step's script under bash with `gh` stubbed: its exit, each call's fields, its output and $GITHUB_OUTPUT."""
     bash = find_bash()
     if bash is None:
@@ -212,21 +287,22 @@ def run_with_gh(script: str, env: dict[str, str], *, gh_rc: int = 0, gh_id: str 
         stub.write_text(GH_STUB, encoding="utf-8", newline="\n")
         stub.chmod(0o755)
         env = {**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"], "CALLS": str(log),
-               "STUB_RC": str(gh_rc), "STUB_ID": gh_id, "GITHUB_OUTPUT": output.as_posix(), "GH_TOKEN": "t",
-               "REPO": "o/r", "HEAD_SHA": "f" * 40, "RUN_URL": "u", **env}
+               "STUB_RC": str(gh_rc), "STUB_POST_RC": str(post_rc), "STUB_POSTED": posted,
+               "GITHUB_OUTPUT": output.as_posix(), "GH_TOKEN": "t", "REPO": "o/r", "HEAD_SHA": "f" * 40,
+               "RUN_ID": RUN_ID, "RUN_URL": "u", **env}
         done = subprocess.run([bash, "-c", script], capture_output=True, text=True, encoding="utf-8", env=env)
         text = log.read_text(encoding="utf-8") if log.exists() else ""
         calls = [dict(line.split("=", 1) for line in call.splitlines() if line) for call in text.split("--\n")[:-1]]
         return done.returncode, calls, done.stdout + done.stderr, output.read_text(encoding="utf-8")
 
 
-def step_of(step_id: str) -> str:
-    steps = steps_of(GATES_YML.read_text(encoding="utf-8"))
+def step_of(step_id: str, job: str = "gates") -> str:
+    steps = steps_of(GATES_YML.read_text(encoding="utf-8"), job)
     return next(step for step in steps if re.search(rf"(?m)^        id: {step_id}$", step))
 
 
-def step_script(step_id: str) -> str:
-    return run_block(step_of(step_id))
+def step_script(step_id: str, job: str = "gates") -> str:
+    return run_block(step_of(step_id, job))
 
 
 def git(directory: str, *args: str) -> str:
@@ -285,52 +361,72 @@ class TheEvent(unittest.TestCase):
                 self.assertIn(f"steps.event.outputs.{event} == 'true'", step_of(take))
 
 
-class TheOpening(unittest.TestCase):
-    """The step opening a check run per gate, run as written with `gh` stubbed."""
+class TheVerdicts(unittest.TestCase):
+    """The step fixing each gate's line as the judging job's outputs, run as written."""
 
-    def test_each_gate_the_event_runs_is_opened_in_progress_and_its_id_kept(self) -> None:
-        env = {"CLOSURE": "true", "COMMIT": "false", "DRIFT": "false", "COMMENT": "true", "LOCALITY": "true"}
-        rc, calls, out, output = run_with_gh(step_script("open"), env)
+    def test_each_gates_line_is_written_as_it_was_handed(self) -> None:
+        env = {name: f"true {name.lower()}" for name in ENV_OF.values()}
+        rc, calls, out, output = run_with_gh(step_script("verdicts"), env)
         self.assertEqual(0, rc, out)
-        self.assertEqual(["closure-gate", "comment-gate", "locality-gate"], [call["name"] for call in calls])
-        for call in calls:
-            self.assertEqual(("POST", "repos/o/r/check-runs", "in_progress", "f" * 40),
-                             (call["method"], call["path"], call["status"], call["head_sha"]))
-        self.assertEqual("closure=42\ncomment=42\nlocality=42\n", output)
+        self.assertEqual([], calls)
+        self.assertEqual({"closure": "true closure_gate", "commit": "true commit_gate", "drift": "true harness_drift",
+                          "comment": "true comment_gate", "locality": "true locality_gate"},
+                         dict(line.split("=", 1) for line in output.splitlines()))
 
-    def test_an_answer_with_no_id_fails_the_step(self) -> None:
-        env = {"CLOSURE": "true", "COMMIT": "false", "DRIFT": "false", "COMMENT": "false", "LOCALITY": "false"}
-        rc, _, out, _ = run_with_gh(step_script("open"), env, gh_id="null")
-        self.assertEqual(1, rc, out)
+    def test_dependabots_own_pull_request_fixes_the_locality_gate_as_a_pass(self) -> None:
+        # The env turns the skipped steps of a stand-down into successes, as the commit gate's.
+        block = re.search(r"(?m)^          LOCALITY_GATE: >-\n((?:            .+\n)+)", step_of("verdicts"))
+        self.assertIsNotNone(block)
+        for step in ("locality_take", "locality"):
+            with self.subTest(step=step):
+                self.assertIn(f"own == 'true' && 'success' || steps.{step}.outcome", block.group(1))
 
 
 class TheReport(unittest.TestCase):
-    """The report step's script, run as written with `gh` stubbed, for the verdicts it posts."""
+    """The report job's script, run as written with `gh` stubbed, for the verdicts it posts."""
 
-    def post(self, *, gh_rc: int = 0, ids: dict[str, str] | None = None, **gates: str) -> tuple[int, list[dict], str]:
+    def post(self, *, gh_rc: int = 0, post_rc: int = 0, posted: str = "", **gates: str) -> tuple[int, list[dict], str]:
         values = {name: "true success" for name in ENV_OF}
         values.update({name.replace("_", "-"): value for name, value in gates.items()})
         env = {ENV_OF[name]: value for name, value in values.items()}
-        env.update({f"{ENV_OF[name]}_ID": value for name, value in {**ID_OF, **(ids or {})}.items()})
-        rc, calls, out, _ = run_with_gh(step_script("report"), env, gh_rc=gh_rc)
-        name_of_id = {f"repos/o/r/check-runs/{value}": name for name, value in ID_OF.items()}
+        rc, calls, out, _ = run_with_gh(step_script("report", "report"), env, gh_rc=gh_rc, post_rc=post_rc,
+                                        posted=posted)
+        posts = []
         for call in calls:
-            self.assertEqual("PATCH", call["method"])
-            call["name"] = name_of_id[call["path"]]
-        return rc, calls, out
+            if "method" not in call:
+                # The read of what is already posted, by the check name it asks for.
+                self.assertRegex(call["path"], r"^repos/o/r/commits/f{40}/check-runs\?check_name=[\w-]+&filter=all")
+                continue
+            self.assertEqual(("POST", "repos/o/r/check-runs"), (call["method"], call["path"]))
+            posts.append(call)
+        return rc, posts, out
 
-    def test_every_gate_that_passed_is_completed_as_a_success(self) -> None:
+    def test_every_gate_that_passed_is_posted_completed_as_a_success_under_this_run(self) -> None:
         rc, posts, out = self.post()
         self.assertEqual(0, rc, out)
         self.assertEqual(sorted(CHECKS), sorted(post["name"] for post in posts))
         for post in posts:
-            self.assertEqual(("completed", "success"), (post["status"], post["conclusion"]))
+            self.assertEqual(("completed", "success", "f" * 40, RUN_ID),
+                             (post["status"], post["conclusion"], post["head_sha"], post["external_id"]))
 
-    def test_a_gate_whose_run_was_not_opened_fails(self) -> None:
-        rc, posts, out = self.post(ids={"commit-gate": ""})
+    def test_a_head_a_later_run_already_posted_keeps_that_verdict(self) -> None:
+        # A run with no concurrency group can finish after a later one; GitHub reads the newest check run of a name.
+        rc, posts, out = self.post(posted="17\n\n501\nlegacy", comment_gate="true failure")
         self.assertEqual(1, rc, out)
-        self.assertNotIn("commit-gate", [post["name"] for post in posts])
-        self.assertIn("no check run was opened for commit-gate", out)
+        self.assertEqual([], posts)
+        self.assertIn("comment-gate: failure, not posted: run 501 judged this head later", out)
+
+    def test_runs_no_later_than_this_one_are_posted_over(self) -> None:
+        # This run's own id is a rerun of it; an id that is not a number predates the id and is older.
+        rc, posts, out = self.post(posted=f"499\n{RUN_ID}\nabc")
+        self.assertEqual(0, rc, out)
+        self.assertEqual(sorted(CHECKS), sorted(post["name"] for post in posts))
+
+    def test_a_failed_read_posts_nothing_and_fails_the_step(self) -> None:
+        rc, posts, out = self.post(gh_rc=1)
+        self.assertEqual(1, rc, out)
+        self.assertEqual([], posts)
+        self.assertIn("could not read the closure-gate check runs", out)
 
     def test_one_failed_step_posts_its_gate_as_a_failure_and_fails_the_step(self) -> None:
         rc, posts, out = self.post(harness_drift="true success failure skipped")
@@ -346,19 +442,18 @@ class TheReport(unittest.TestCase):
         self.assertEqual(0, rc, out)
         self.assertEqual(["closure-gate"], [post["name"] for post in posts])
 
-    def test_dependabots_own_pull_request_posts_the_locality_gate_as_a_pass(self) -> None:
-        # The report's env turns the skipped steps of a stand-down into successes, as the commit gate's.
-        block = re.search(r"(?m)^          LOCALITY_GATE: >-\n((?:            .+\n)+)", step_of("report"))
-        self.assertIsNotNone(block)
-        for step in ("locality_take", "locality"):
-            with self.subTest(step=step):
-                self.assertIn(f"own == 'true' && 'success' || steps.{step}.outcome", block.group(1))
-
     def test_a_missing_decision_posts_nothing_and_fails(self) -> None:
         # The event step failed: no output, so the outcomes come first and are no decision.
         rc, posts, out = self.post(closure_gate=" skipped skipped")
         self.assertEqual(1, rc, out)
         self.assertNotIn("closure-gate", [post["name"] for post in posts])
+
+    def test_a_judging_job_that_published_nothing_posts_nothing_and_fails(self) -> None:
+        # The gates job died before its verdicts step: every output is empty.
+        rc, posts, out = self.post(**{name.replace("-", "_"): "" for name in ENV_OF})
+        self.assertEqual(1, rc, out)
+        self.assertEqual([], posts)
+        self.assertEqual(5, out.count("no event decision"))
 
     def test_a_gate_with_no_outcomes_is_a_failure(self) -> None:
         rc, posts, out = self.post(comment_gate="true")
@@ -367,7 +462,7 @@ class TheReport(unittest.TestCase):
                       [{"name": p["name"], "conclusion": p["conclusion"]} for p in posts])
 
     def test_a_post_that_fails_fails_the_step(self) -> None:
-        rc, _, out = self.post(gh_rc=1)
+        rc, _, out = self.post(post_rc=1)
         self.assertEqual(1, rc, out)
         self.assertIn("could not post", out)
 
@@ -392,9 +487,9 @@ class TheReader(unittest.TestCase):
                 self.assertEqual(["step 1"], head_code_before_the_report(workflow(JUDGES, spelling, REPORTS)))
 
     def test_a_path_run_by_a_nameless_step_is_named(self) -> None:
-        text = ("jobs:\n  gate:\n    steps:\n"
+        text = ("jobs:\n  gates:\n    steps:\n"
                 '      - run: python "$RUNNER_TEMP/gate/gate.py"\n      - run: ./.github/gate/suite.sh\n'
-                "      - id: report\n        run: true\n")
+                "      - id: verdicts\n        run: true\n")
         self.assertEqual(["- run: ./.github/gate/suite.sh"], head_code_before_the_report(text))
 
     def test_the_same_code_after_the_report_is_not_named(self) -> None:
@@ -421,10 +516,15 @@ class TheReader(unittest.TestCase):
             with self.subTest(steps=steps), self.assertRaises(ValueError):
                 head_code_before_the_report(workflow(*steps))
 
-    def test_a_second_job_is_refused(self) -> None:
-        second = "  other:\n    runs-on: ubuntu-latest\n    steps:\n      - run: true\n"
+    def test_a_second_jobs_steps_are_not_read_as_the_first_jobs(self) -> None:
+        second = "  other:\n    runs-on: ubuntu-latest\n    steps:\n      - run: python -m unittest\n"
+        self.assertEqual([], head_code_before_the_report(workflow(JUDGES, REPORTS) + second))
+        self.assertEqual(["- run: python -m unittest"], [name_of(step) for step in steps_of(
+            workflow(JUDGES, REPORTS) + second, "other") if runs_head_code(step)])
+
+    def test_a_job_that_is_not_there_is_refused(self) -> None:
         with self.assertRaises(ValueError):
-            head_code_before_the_report(workflow(JUDGES, REPORTS) + second)
+            head_code_before_the_report(workflow(JUDGES, REPORTS), "other")
 
 
 if __name__ == "__main__":

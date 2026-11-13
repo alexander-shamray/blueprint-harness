@@ -34,9 +34,9 @@ against a throwaway repository. The testing document `docs/harness-local.md`
 
 ## How it runs
 
-The `gates` job in [`gates.yml`](../workflows/gates.yml), which posts this
-gate's verdict as the `commit-gate` check, on every pull request with no path
-filter; a stand-down is posted as a pass. Dependabot's commits carry no
+The `gates` job in [`gates.yml`](../workflows/gates.yml), whose verdict for
+this gate the `report` job posts as the `commit-gate` check, on every pull
+request with no path filter; a stand-down is posted as a pass. Dependabot's commits carry no
 trailer, so the gate stands down only where Dependabot opened the pull
 request and every commit's author and committer are Dependabot's. The
 opener alone is not enough, and the gate judges by the identities a commit

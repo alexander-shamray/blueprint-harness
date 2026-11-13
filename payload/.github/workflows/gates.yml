@@ -2,34 +2,43 @@ name: Gates
 
 # The pull-request gates as steps of one job: each takes seconds, and a job
 # each held a runner slot and a queue wait apiece. A ruleset requires gates by
-# check name and a job carries one, so the job posts a check run per gate under
-# the gate's name, as GitHub Actions, the app the rulesets pin. Each gate's
-# README owns its rules and trust model; this file only runs them.
+# check name and a job carries one, so a second job posts a check run per gate
+# under the gate's name, as GitHub Actions, the app the rulesets pin. Each
+# gate's README owns its rules and trust model; this file only runs them.
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 
-permissions:
-  contents: read
-  # The closure gate reads the pull request's body, its commits and GitHub's
-  # own `closingIssuesReferences`.
-  pull-requests: read
-  # The one write: a check run per gate. A fork's pull request gets a
-  # read-only token whatever this asks, so its gates post nothing and it
-  # cannot land until its commits are pushed to a branch here.
-  checks: write
+# None here: each job names its own, so the write grant sits only on the job
+# with no checkout of the branch, and a job added later inherits nothing.
+permissions: {}
 
 # No concurrency group: a rerun of an older head's run would cancel the newest
 # head's, which then leaves its gates unposted and the merge refused.
 
 # Every judge is the base commit's copy and the head suites run after the
-# report, so head test code cannot steer a judge or a post by accident. Not
-# against intent: a suite on this runner can reach the job's checks token, as
-# a pull request can edit this file; a bootstrap judge (a base with no copy)
-# is head code ahead of the report. A red suite fails this unrequired job.
+# verdicts are fixed, so head test code cannot steer a judge or a verdict by
+# accident. Not against intent: a pull request can edit this file, and a
+# bootstrap judge (a base with no copy) is head code ahead of the verdicts.
+# The judging job holds read grants alone and the posting job checks nothing
+# out, so no code the branch carries runs beside the checks token. A red
+# suite fails the unrequired `gates` job.
 jobs:
   gates:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # The closure gate reads the pull request's body, its commits and
+      # GitHub's own `closingIssuesReferences`; the locality gate its files.
+      pull-requests: read
+    # Each gate's line from the verdicts step: whether the event runs it, then
+    # the outcome of each of its steps, as words.
+    outputs:
+      closure: ${{ steps.verdicts.outputs.closure }}
+      commit: ${{ steps.verdicts.outputs.commit }}
+      drift: ${{ steps.verdicts.outputs.drift }}
+      comment: ${{ steps.verdicts.outputs.comment }}
+      locality: ${{ steps.verdicts.outputs.locality }}
     env:
       # The one place the harness repository is named. The manifest and config
       # live in the tree a pull request controls, so the drift gate compares
@@ -52,9 +61,10 @@ jobs:
         with:
           python-version: '3.12'
 
-      # The one decision every step below and the report read, so a gate the
-      # report posts is a gate whose steps ran. A gate the event does not run
-      # posts nothing, so `edited` or a label leaves the push's verdict standing.
+      # The one decision every step below and the report job read, so a gate
+      # the report posts is a gate whose steps ran. A gate the event does not
+      # run posts nothing, so `edited` or a label leaves the push's verdict
+      # standing.
       - name: Choose the gates this event runs
         id: event
         shell: bash
@@ -84,42 +94,6 @@ jobs:
             echo "commit=$(runs_on 'opened synchronize reopened')"
             echo "drift=$(runs_on 'opened synchronize reopened')"
           } >> "$GITHUB_OUTPUT"
-
-      # Opened now and completed by the report, so the newest run's check is
-      # the newest one GitHub reads, as a job's own check was: a run with no
-      # concurrency group can finish after a later one, and posting only at
-      # its end would let an older event's verdict stand over a newer one's.
-      - name: Open a check run for each gate this event runs
-        id: open
-        if: ${{ !cancelled() && steps.event.outcome == 'success' }}
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          CLOSURE: ${{ steps.event.outputs.closure }}
-          COMMIT: ${{ steps.event.outputs.commit }}
-          DRIFT: ${{ steps.event.outputs.drift }}
-          COMMENT: ${{ steps.event.outputs.comment }}
-          LOCALITY: ${{ steps.event.outputs.locality }}
-        run: |
-          set -euo pipefail
-          open() {
-            [ "$3" = true ] || return 0
-            local id
-            id=$(gh api --method POST "repos/$REPO/check-runs" \
-              -f name="$2" -f head_sha="$HEAD_SHA" -f status=in_progress \
-              -f "output[title]=$2: judging" \
-              -f "output[summary]=Judged in the gates job: $RUN_URL" --jq .id)
-            [[ $id =~ ^[0-9]+$ ]] || { echo "::error::no check run id for $2: $id"; exit 1; }
-            echo "$1=$id" >> "$GITHUB_OUTPUT"
-          }
-          open closure closure-gate "$CLOSURE"
-          open commit commit-gate "$COMMIT"
-          open drift harness-drift "$DRIFT"
-          open comment comment-gate "$COMMENT"
-          open locality locality-gate "$LOCALITY"
 
       # The closure gate: .github/closure-gate/README.md. A base that carries
       # no gate fails rather than falling back to the head copy, the silent
@@ -428,27 +402,14 @@ jobs:
             jq -s --argjson pr "$pr_json" '$pr + {files: .}' |
             python "$RUNNER_TEMP/locality-gate/locality_gate.py" --map "$RUNNER_TEMP/locality-gate/classes.yml"
 
-      # Each gate this event ran, posted under its own check name: success
-      # only when every step of that gate succeeded, and the commit and
-      # locality gates' stand-down a success. A post that fails leaves the check in progress,
-      # which the ruleset refuses; this step then fails too, as it does when
-      # any gate failed.
-      - name: Post each gate's verdict under the gate's check name
-        id: report
+      # Each gate's decision and step outcomes, fixed as this job's outputs
+      # before any head code runs: the commit and locality gates' stand-down
+      # reads as successes. The report job turns each line into a verdict.
+      - name: Publish each gate's decision and outcomes
+        id: verdicts
         if: ${{ !cancelled() }}
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          # Each gate's check run, opened above; then whether the event runs
-          # the gate, and the outcome of each of its steps.
-          CLOSURE_GATE_ID: ${{ steps.open.outputs.closure }}
-          COMMIT_GATE_ID: ${{ steps.open.outputs.commit }}
-          HARNESS_DRIFT_ID: ${{ steps.open.outputs.drift }}
-          COMMENT_GATE_ID: ${{ steps.open.outputs.comment }}
-          LOCALITY_GATE_ID: ${{ steps.open.outputs.locality }}
           CLOSURE_GATE: ${{ steps.event.outputs.closure }} ${{ steps.closure_take.outcome }} ${{ steps.closure.outcome }}
           COMMIT_GATE: >-
             ${{ steps.event.outputs.commit }} ${{ steps.dependabot.outcome }}
@@ -461,51 +422,17 @@ jobs:
             ${{ steps.dependabot.outputs.own == 'true' && 'success' || steps.locality_take.outcome }}
             ${{ steps.dependabot.outputs.own == 'true' && 'success' || steps.locality.outcome }}
         run: |
-          set -uo pipefail
-          failed=0
-          verdict() {
-            local name=$1 id=$2 runs=${3-}
-            shift 2; [ "$#" -gt 0 ] && shift
-            case "$runs" in
-              true) ;;
-              false) return 0 ;;
-              *) echo "::error::no event decision for $name"; failed=1; return 0 ;;
-            esac
-            if [[ ! $id =~ ^[0-9]+$ ]]; then
-              echo "::error::no check run was opened for $name"
-              failed=1
-              return 0
-            fi
-            local conclusion=success outcome
-            [ "$#" -gt 0 ] || conclusion=failure
-            for outcome in "$@"; do [ "$outcome" = success ] || conclusion=failure; done
-            if ! gh api --method PATCH "repos/$REPO/check-runs/$id" \
-                -f status=completed -f conclusion="$conclusion" \
-                -f "output[title]=$name: $conclusion" \
-                -f "output[summary]=Judged in the gates job: $RUN_URL" > /dev/null; then
-              echo "::error::could not post the $name check run"
-              failed=1
-              return 0
-            fi
-            echo "$name: $conclusion"
-            [ "$conclusion" = success ] || failed=1
-          }
-          # The outcomes unquoted on purpose: the decision, then each outcome, as words.
-          # A shellcheck directive covers the one command after it, so each call has its own.
-          # shellcheck disable=SC2086
-          verdict closure-gate "$CLOSURE_GATE_ID" $CLOSURE_GATE
-          # shellcheck disable=SC2086
-          verdict commit-gate "$COMMIT_GATE_ID" $COMMIT_GATE
-          # shellcheck disable=SC2086
-          verdict harness-drift "$HARNESS_DRIFT_ID" $HARNESS_DRIFT
-          # shellcheck disable=SC2086
-          verdict comment-gate "$COMMENT_GATE_ID" $COMMENT_GATE
-          # shellcheck disable=SC2086
-          verdict locality-gate "$LOCALITY_GATE_ID" $LOCALITY_GATE
-          exit "$failed"
+          set -euo pipefail
+          {
+            echo "closure=$CLOSURE_GATE"
+            echo "commit=$COMMIT_GATE"
+            echo "drift=$HARNESS_DRIFT"
+            echo "comment=$COMMENT_GATE"
+            echo "locality=$LOCALITY_GATE"
+          } >> "$GITHUB_OUTPUT"
 
       # The head copies, deliberately: a proposal that fails its own suite
-      # belongs red. Last, after the report, for the reason at the top.
+      # belongs red. Last, after the verdicts, for the reason at the top.
       - name: Test the proposed closure gate
         if: ${{ !cancelled() && steps.setup.outcome == 'success' && steps.event.outputs.closure == 'true' }}
         working-directory: .github/closure-gate
@@ -535,3 +462,93 @@ jobs:
           && steps.dependabot.outputs.own != 'true' && hashFiles('.github/locality-gate/locality_gate.py') != '' }}
         working-directory: .github/locality-gate
         run: python -m unittest
+
+  # The one job holding a write grant, and it checks nothing out: it runs this
+  # file's own text over the lines the gates job published, so nothing the
+  # branch carries runs beside the checks token. `!cancelled()`, so a red gate
+  # is posted red rather than leaving its check unreported.
+  report:
+    needs: gates
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      # A fork's pull request gets a read-only token whatever this asks, so its
+      # gates post nothing and it cannot land until its commits are pushed to a
+      # branch here.
+      checks: write
+    steps:
+      # Each gate the event ran, posted under its own check name: success only
+      # when every step of that gate succeeded. Posted at the end of the run,
+      # so a run with no concurrency group can finish after a later run of the
+      # same head; GitHub reads the newest check run of a name, so a run whose
+      # head already carries one from a later run posts nothing over it. A
+      # failed read or post fails this job, as any failed gate does.
+      - name: Post each gate's verdict under the gate's check name
+        id: report
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CLOSURE_GATE: ${{ needs.gates.outputs.closure }}
+          COMMIT_GATE: ${{ needs.gates.outputs.commit }}
+          HARNESS_DRIFT: ${{ needs.gates.outputs.drift }}
+          COMMENT_GATE: ${{ needs.gates.outputs.comment }}
+          LOCALITY_GATE: ${{ needs.gates.outputs.locality }}
+        run: |
+          set -uo pipefail
+          failed=0
+          verdict() {
+            local name=$1 runs=${2-}
+            shift; [ "$#" -gt 0 ] && shift
+            case "$runs" in
+              true) ;;
+              false) return 0 ;;
+              *) echo "::error::no event decision for $name"; failed=1; return 0 ;;
+            esac
+            local conclusion=success outcome
+            [ "$#" -gt 0 ] || conclusion=failure
+            for outcome in "$@"; do [ "$outcome" = success ] || conclusion=failure; done
+            [ "$conclusion" = success ] || failed=1
+            # The run that posted each check run of this name, kept as its
+            # external id; one without a number predates the id and is older.
+            local posted newest=0 run
+            if ! posted=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=$name&filter=all&per_page=100" \
+                --paginate --jq '.check_runs[].external_id'); then
+              echo "::error::could not read the $name check runs"
+              failed=1
+              return 0
+            fi
+            while read -r run; do
+              if [[ $run =~ ^[0-9]+$ ]] && [ "$run" -gt "$newest" ]; then newest=$run; fi
+            done <<<"$posted"
+            if [ "$newest" -gt "$RUN_ID" ]; then
+              echo "$name: $conclusion, not posted: run $newest judged this head later"
+              return 0
+            fi
+            if ! gh api --method POST "repos/$REPO/check-runs" \
+                -f name="$name" -f head_sha="$HEAD_SHA" -f external_id="$RUN_ID" \
+                -f status=completed -f conclusion="$conclusion" \
+                -f "output[title]=$name: $conclusion" \
+                -f "output[summary]=Judged in the gates job: $RUN_URL" > /dev/null; then
+              echo "::error::could not post the $name check run"
+              failed=1
+              return 0
+            fi
+            echo "$name: $conclusion"
+          }
+          # The lines unquoted on purpose: the decision, then each outcome, as words.
+          # A shellcheck directive covers the one command after it, so each call has its own.
+          # shellcheck disable=SC2086
+          verdict closure-gate $CLOSURE_GATE
+          # shellcheck disable=SC2086
+          verdict commit-gate $COMMIT_GATE
+          # shellcheck disable=SC2086
+          verdict harness-drift $HARNESS_DRIFT
+          # shellcheck disable=SC2086
+          verdict comment-gate $COMMENT_GATE
+          # shellcheck disable=SC2086
+          verdict locality-gate $LOCALITY_GATE
+          exit "$failed"
