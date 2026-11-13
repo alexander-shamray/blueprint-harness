@@ -170,7 +170,8 @@ class Refusals(Fixture):
         self.assertEqual(0, self.helper("two.txt", "1,2").returncode)
 
     def test_a_number_that_is_not_one_counted_from_one(self):
-        for numbers in ("0", "1,", "a", "1 2", "-1", ""):
+        # Twenty digits overflowed `-gt`, which read the error as in range and staged hunk 1 alone.
+        for numbers in ("0", "1,", "a", "1 2", "-1", "", "1,99999999999999999999", "1234567890"):
             with self.subTest(numbers=numbers):
                 self.refused(2, "two.txt", numbers, says="counted from 1")
 
