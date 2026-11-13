@@ -2168,10 +2168,9 @@ and its gate stays green.
 **That guard holds no copy of any deny list, and refusing to write one is
 the whole of why it is safe to run on every write this repository makes.**
 A path deny is *correct* when the spelling is true of the file, so inside a
-checkout below the home that the session stands in the hook judges only the
-disagreement and leaves every list — `.claude/settings.json`'s and both
-commands' frontmatter —
-to say what may be edited; where no rule reaches it reads that list rather
+checkout the session stands in, one holding the home aside, the hook judges
+only the disagreement and leaves every list — `.claude/settings.json`'s and
+both commands' frontmatter — to say what may be edited; where no rule reaches it reads that list rather
 than copying it, as the next paragraph says. Nothing here goes
 stale as those change, and the PR that lifts a deny to edit a helper is not
 refused by the guard on its way past. A test pins that control: a denied tree
@@ -2194,9 +2193,10 @@ one only if git's backlink agrees, so a `.git` file alone makes none, and a
 checkout of another repository is not one, because this target's denies say
 nothing about what it protects.
 
-**Outside every checkout below the home the guard refuses by name and admits
-the rest.** A checkout holding the home, a dotfiles one at `~` or a project
-directory set there or above, judges a link but excuses none of these names.
+**Outside every checkout, and inside one holding the home, the guard refuses
+by name and admits the rest.** A checkout holding the home, a dotfiles one at
+`~` or a project directory set there or above, still refuses a link that
+disagrees, as any checkout does, but excuses none of these names.
 `~/.ssh`, the shell profiles and `~/.gitconfig` run at login under every
 session, and `~/.claude`'s credentials, settings, hooks, commands, agents,
 plugins, scripts, skills and sandbox apply to every project, judged on the
