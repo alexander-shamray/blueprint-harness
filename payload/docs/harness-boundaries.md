@@ -2769,7 +2769,8 @@ it to `%LOCALAPPDATA%/blueprint-harness/timings.jsonl`, or
 clean, sync or teardown loses it, and `HARNESS_TIMINGS` points it elsewhere,
 as `blueprint-harness`'s CI does to upload it, a target's setting it or not:
 the script and mode, the repository, branch and commit, the host, the workers,
-the lock wait, the wall time, the exit, and each class's seconds. A line that cannot be written is said and swallowed,
+the lock wait, the wall time, the exit, and each class's seconds. A line that
+cannot be written is said and swallowed,
 since a run's exit is its tests', never its record's. `harness_timings.py
 report` prints p50, p90 and the maximum per script and mode and the slowest
 classes; a check script records itself with `harness_timings.py record
