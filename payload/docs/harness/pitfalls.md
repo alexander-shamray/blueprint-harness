@@ -80,7 +80,8 @@ when a step behaves unexpectedly.
   judge a short string in bash itself, by `case` or `[[ =~ ]]` with the
   characters spelled out, and hand a tool that reads its input whole a
   pipe; `while read … done < <(…)`, whose substitution the shell starts,
-  is not that form.
+  is not that form. Sixteen sites in eight other payload scripts, such as
+  `gh-issue-list.sh`'s `jq length`, still take it, and are #457.
 - **A Python `timeout=` does not end a hung Git Bash.** On Windows
   `subprocess.run(…, capture_output=True, timeout=…)` kills only the
   direct child, which for Git's `bin/bash.exe` is a launcher, and then
