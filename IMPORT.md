@@ -86,10 +86,11 @@ payload is kept aligned with it.
 The payload commit is the `harness_commit` each target's
 `.harness/manifest.json` names at the sync's merge commit.
 
-The porting rules the drift gate made obsolete are gone. This file's opening
-sentence and README's rule that a target lands its closure gate before its
-first sync were the last ones here; every target has had the gate since its
-first sync. Read on each target's `main` on 2026-11-13, no `CLAUDE.md`,
+The porting rules the drift gate made obsolete are gone; this file's opening
+sentence was the last one here. README's rule that a target lands its closure
+gate before its first sync went too, for another reason: `gates.yml` still
+fails a pull request whose base lacks the gate, but every target has carried it
+since its first sync. Read on each target's `main` on 2026-11-13, no `CLAUDE.md`,
 `AGENTS.md`, `docs/` page or `docs/change-locality.md` still says to carry a
 harness change to a sibling, keep copies aligned or check a sibling's copy,
 and neither do the four projects' memories, worktree directories included:
