@@ -235,7 +235,8 @@ class LabelHelperJudgesNoLineWithATool(unittest.TestCase):
         self.assertFalse([c for c in s.calls() if "label create" in c])
 
     def test_a_count_that_does_not_finish_stops_the_run(self):
-        # `grep -c` exits 1 for no row; 148 was read as zero rows behind `|| true`, a listing that "fits".
+        # `grep -c` exits 1 for no row. The old count put an empty string in front of `[` when the grep died, which
+        # refused the listing as truncated: closed, but for the wrong reason. A dead count is now named as one.
         s = LabelStub(before=["security"])
         self.addCleanup(s.cleanup)
         self.shim(s, 'echo "Child exited" >&2; exit 148\n')
