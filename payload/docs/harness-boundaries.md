@@ -1898,11 +1898,11 @@ map item are judged by bash too, and each pattern's `grep` reads a pipe,
 since Git Bash on a loaded runner reported a `grep` fed by a process
 substitution as `Child exited`, and the helper refused a valid map item
 (#451); a pattern's `grep` that does not finish exits 1 with no verdict,
-since one read past it would be `outside` for a path nothing judged. A row that fails its grammar exits 3 naming the row
-and not its content, and so does a class map that is absent, names a class
-twice, leaves one without items, or holds a line or a token outside its
-grammar: a verdict half-read from a map the helper refuses would be one no
-gate gives. **The verdict narrows
+since one read past it would be `outside` for a path nothing judged. A row
+that fails its grammar exits 3 naming the row and not its content, and so
+does a class map that is absent, names a class twice, leaves one without
+items, or holds a line or a token outside its grammar: a verdict half-read
+from a map the helper refuses would be one no gate gives. **The verdict narrows
 and grants nothing**: the caller's deny list and the class's tree set hold
 authority, an `outside` or `outside-class` line is a finding, and an
 `inside` line is not a licence for anything the caller's grant refuses.

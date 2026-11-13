@@ -217,12 +217,11 @@ done < <(printf '%s\n' "$files")
 # The endpoint stops short of a very large pull request, and a short list would read as the whole diff.
 [ "$names" -eq "$changed" ] || refuse "the files endpoint returned $names names against changedFiles $changed"
 printf 'class %s\n' "$class"
-# One grep per pattern over every path, and line N's hit is path N's: a
-# validated path holds no newline. A pattern grep cannot compile, status 2,
-# matches nothing and leaves the other patterns' verdicts alone; any status
-# past 2 is a grep that did not finish, and stops the run, since a verdict
-# read past it is `outside` for a path nothing judged. Its input is a pipe:
-# a process substitution would be started from the grep's own process.
+# One grep per pattern over every path, reading a pipe, and line N's hit is
+# path N's: a validated path holds no newline. Status 2, a pattern grep
+# cannot compile, matches nothing; a status past 2 stops the run, since a
+# verdict read past a grep that did not finish is `outside` for a path
+# nothing judged.
 hits=(); class_hits=()
 if [ -n "$list" ]; then
   for re in "${patterns[@]}"; do
