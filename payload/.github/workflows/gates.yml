@@ -129,8 +129,9 @@ jobs:
     # Keyed on the decision, not on the posts: a fork's read-only token or a
     # failed post still judges and runs every suite.
     if: ${{ !cancelled() && needs.open.outputs.closure != '' }}
-    # The report waits on the head suites too: a hung suite fails the job here
-    # and the report posts, rather than every check waiting six hours.
+    # The report waits on the head suites too: a hung suite ends the job as
+    # cancelled at this limit and the `always()` report still posts, rather
+    # than every check waiting six hours.
     timeout-minutes: 15
     runs-on: ubuntu-latest
     permissions:
