@@ -124,6 +124,17 @@ largest session, once two or more have ended; a rise against the baseline is a
 harness defect, filed in this repository. *After #297* holds that count and the
 baseline it reads against, both on the present filter.
 
+## After plans 3 and 4
+
+Superseded, never taken on their own. Plan 3 asked for *After plan 3*, the
+stop count of the next two backend `/ship` sessions, and plan 4 for *After
+plan 4*, backend's stop count since its Task 5 Step 2 and the number of syncs
+merged with no owner turn. Both windows open after 2026-11-06, so their
+sessions are inside backend's *Since a repository's first sync* row of *After
+#276* and of *After #297*, read on the filter each names, and *After plan 6*
+carries that row on. Plan 4's count of syncs was not taken: a `/ship sync`
+session is a `ship` session, so its stops are in those rows, not apart.
+
 ## After plan 5
 
 Measured on 2026-11-08, after blueprint-frontend's #382, its first sync,
@@ -323,3 +334,82 @@ No session came through the opening rather than the window: in these rows no
 leading local command beyond the old three hid a session. Where a session stays
 in both, `user_turns` falls only by local commands later in it: by 12 in backend
 `ship`, 6 in admin `ship` and 1 in backend `bug-sweep`.
+
+## After plan 6
+
+Measured on 2026-11-13, after admin's first sync, blueprint-admin#655, merged
+at 09:26 UTC on 2026-11-09, and its #657, which made its `CLAUDE.md` import
+`.harness/agent-rules.md` and triaged its memories. With it every target syncs
+(`IMPORT.md`, *Rollout closed*).
+
+### Stop count since each first sync
+
+On the filter *What is counted* describes, each window closing on 2026-11-12,
+the last whole day:
+
+```bash
+py -3.12 measure/stops.py --project 'C--dev-ashamray-blueprint-backend*' --since 2026-11-06 --until 2026-11-12 --command ship
+py -3.12 measure/stops.py --project 'C--dev-ashamray-blueprint-frontend*' --since 2026-11-08 --until 2026-11-12 --command ship
+py -3.12 measure/stops.py --project 'C--dev-ashamray-blueprint-admin*' --since 2026-11-09 --until 2026-11-12 --command ship
+```
+
+Backend's and frontend's windows open where *After #297*'s did. Admin's
+admits 23 sessions, and one, `2bc538fc`, started at 04:38 UTC, before #655
+merged, with 6 handovers and 1 turn; the row leaves it out, so it holds only
+sessions since the sync. Each cell but the count of sessions is the median,
+then the total, then the largest session.
+
+| Repository | Command | Sessions | ask_user | action_required | permission_refused | user_turns |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| backend | `ship` | 63 | 0; 0, max 0 | 0; 51, max 6 | 0; 4, max 2 | 0; 26, max 4 |
+| frontend | `ship` | 35 | 0; 0, max 0 | 1; 35, max 5 | 0; 4, max 2 | 0; 20, max 3 |
+| admin | `ship` | 22 | 0; 0, max 0 | 0; 14, max 3 | 0; 2, max 1 | 0; 12, max 3 |
+
+Against *After #297*'s baseline window, same command and same repository,
+no count per session rises. `action_required` falls from 178 over 98 to 51
+over 63 in backend, with the largest session from 27 to 6, from 16 over 9 to
+35 over 35 in frontend, with the median from 2 to 1, and from 286 over 44 to
+14 over 22 in admin, with the median from 3.5 to 0 and the largest session
+from 67 to 3. `permission_refused` and `user_turns` fall in all three, and
+`ask_user` is 0 in all three. Backend's median, which *After #297* read rising
+to 1 and left on #272, is 0 again. One cell rises: frontend's largest session
+takes 3 turns against the baseline's 2, a tail of one session against a median
+of 0 on both sides, so nothing is filed.
+
+### What each session loads
+
+LF bytes, as *After plan 2* gives backend's, read on each `main` on
+2026-11-13. Each `CLAUDE.md` imports only `.harness/agent-rules.md`, 7,088
+bytes now.
+
+| Repository | `CLAUDE.md` with its imports | `MEMORY.md` | `~/.claude/CLAUDE.md` | Total | Earlier |
+| --- | ---: | ---: | ---: | ---: | --- |
+| backend | 13,056 | 6,831 | 4,186 | 24,073 | 22,028 after plan 2 |
+| frontend | 17,893 | 1,114 | 4,186 | 23,193 | 22,318 after plan 5 |
+| admin | 17,679 | 918 | 4,186 | 22,783 | 17,777 before #657 |
+
+Admin's earlier figure is #657's body: `CLAUDE.md` 10,605 with no import and
+`MEMORY.md` 2,986. Its load rises by 5,006 bytes, the import's 7,088 less the
+triage's 2,068 and `CLAUDE.md`'s 14. Backend's rises by 2,045: the import has
+grown by 902 bytes since plan 2's 6,186 and `MEMORY.md` by 1,143 since its
+triage. Frontend's rises by 875: the import by 500 since plan 5's 6,588,
+`MEMORY.md` by 276 and `CLAUDE.md` by 99. The three now load within 1,290
+bytes of each other.
+
+### Red required checks on `main`
+
+Read with `gh run list --branch main` over plan 6's dates, 2026-11-08 to
+2026-11-13, in all four repositories, each run as its last attempt reads. A
+required check was red on `main` in two of them:
+
+| Repository | Runs still red that carry a required check | `main is red` issues opened in the window |
+| --- | --- | --- |
+| harness | `payload-suites` on macOS twice and Windows once, 2026-11-12 and 13; at `acec84e` on 2026-11-09, a `Rulesets` run that started no job and a `CI` run that ran one leg, green | #424, #429, #440, #442, #449, #450, #459, #465, all closed |
+| frontend | `harness` on Windows and macOS, 2026-11-13 | blueprint-frontend#405, #452, #514 closed, #520 open |
+| backend | none: one `CI` run's `integration` legs and one `CodeQL` run were red, and neither is required | blueprint-backend#1895, #1945, both closed |
+| admin | none | none |
+
+More issues than red runs: a run its rerun turned green reads green here and
+kept its issue. So the rollout did not keep every `main` green. Of the issues
+the main-red jobs opened, only blueprint-frontend#520 is still open, and it is
+that repository's to close.
