@@ -362,6 +362,12 @@ class WhatTheHookCannotPlaceFailsOpen(ACheckout):
         self.assertAdmitted("sed -i 's/one/uno/' {a,b,c,d}*.cs")
         self.assertLessEqual(len(walked), GUARD.MAX_FILES + 1)
 
+    def test_a_comma_quoted_inside_a_brace_list_is_the_stated_residual(self):
+        # Review R1: the quotes are gone before the list is read, so the `a,b.txt` bash passes is never looked up.
+        self.put("a,b.txt", b"one\r\n")
+        self.git("-c", "core.autocrlf=false", "add", "a,b.txt")
+        self.assertAdmitted("sed -i 's/one/uno/' {\"a,b\",c}.txt")
+
     def test_a_long_sequence_is_cut_at_the_bound(self):
         # A sequence is made lazily, so `{1..N}` costs the words read and not N.
         self.assertEqual(["1", "2"], list(GUARD.itertools.islice(GUARD.braces("{1..1000000000000}"), 2)))
