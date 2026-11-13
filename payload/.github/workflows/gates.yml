@@ -16,7 +16,8 @@ permissions: {}
 # No concurrency group: a rerun of an older head's run would cancel the newest
 # head's, which then leaves its gates unposted and the merge refused. The
 # `report` job takes the other way round: a run whose check run is not the
-# newest of its name for the head completes it neutral, naming the later one.
+# newest of its name for the head completes a pass neutral, naming the later
+# one, and posts a failure as it is.
 
 # Every judge is the base commit's copy and the head suites run after the
 # verdicts are fixed, so head test code cannot steer a judge or a verdict by
