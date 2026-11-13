@@ -281,7 +281,9 @@ def _slash_path(path):
 
 def extract_paths(text):
     found = set()
-    for quoted in re.findall(r"`([^`]+)`", text):
+    # A span closes on its own line, as Markdown draws it: paired across lines, a fence's backticks would shift every
+    # later span and drop the directory it names.
+    for quoted in re.findall(r"`([^`\n]+)`", text):
         for piece in quoted.split():
             path = _normalise(piece)
             # A slash command or a dotted identifier is not a file: it would make an empty claim look known.
