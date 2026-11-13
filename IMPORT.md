@@ -90,10 +90,11 @@ The porting rules the drift gate made obsolete are gone; this file's opening
 sentence was the last one here. README's rule that a target lands its closure
 gate before its first sync went too, for another reason: `gates.yml` still
 fails a pull request whose base lacks the gate, but every target has carried it
-since its first sync. Read on each target's `main` on 2026-11-13, no `CLAUDE.md`,
-`AGENTS.md`, `docs/` page or `docs/change-locality.md` still says to carry a
-harness change to a sibling, keep copies aligned or check a sibling's copy,
-and neither do the four projects' memories, worktree directories included:
+since its first sync. Read on each target's `main` on 2026-11-13, no
+`CLAUDE.md`, `AGENTS.md`, `docs/` page or `docs/change-locality.md` still says
+to carry a harness change to a sibling, keep copies aligned or check a
+sibling's copy, and neither do the four projects' memories, worktree
+directories included:
 the triages of plans 2, 5 and 6 had already removed them. The six memories
 plan 6 names were read and kept, since none holds such a rule; one,
 backend's `one-branch-per-service-plan`, still put a plan's worktree in a
