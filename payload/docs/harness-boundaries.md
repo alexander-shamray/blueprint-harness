@@ -2594,7 +2594,7 @@ refuse more. A comma quoted or escaped inside a list is the exception: the
 quotes are gone before the list is read, so `{"a,b",c}.txt` is read as
 `a.txt`, `b.txt` and `c.txt`, never the `a,b.txt` bash passes. An operand
 whose braces make more than 201 words is judged on its first 201, and the
-command, as any command, is admitted once it has named 200 files.
+command, as any command, is admitted once it names more than 200 files.
 
 ## Headless dispatched sessions
 
