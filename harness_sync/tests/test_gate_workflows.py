@@ -273,7 +273,8 @@ def run_with_gh(script: str, env: dict[str, str], *, gh_rc: int = 0, gh_id: str 
         stub.write_text(GH_STUB, encoding="utf-8", newline="\n")
         stub.chmod(0o755)
         env = {**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"], "CALLS": str(log),
-               "STUB_RC": str(gh_rc), "STUB_ID": gh_id, "STUB_NEWEST": newest, "STUB_READ_RC": str(read_rc), "GITHUB_OUTPUT": output.as_posix(), "GH_TOKEN": "t",
+               "STUB_RC": str(gh_rc), "STUB_ID": gh_id, "STUB_NEWEST": newest, "STUB_READ_RC": str(read_rc),
+               "GITHUB_OUTPUT": output.as_posix(), "GH_TOKEN": "t",
                "REPO": "o/r", "HEAD_SHA": "f" * 40, "RUN_URL": "u", "RUN_ID": "7", **env}
         done = subprocess.run([bash, "-c", script], capture_output=True, text=True, encoding="utf-8", env=env)
         text = log.read_text(encoding="utf-8") if log.exists() else ""
@@ -431,6 +432,20 @@ class TheReport(unittest.TestCase):
         for post in posts:
             self.assertEqual(("completed", "neutral"), (post["status"], post["conclusion"]))
             self.assertIn("check run 99", post["output[summary]"])
+
+    def test_a_failure_is_posted_as_it_is_even_under_a_later_run(self) -> None:
+        # A stale red blocks until a rerun; a stale green, or a red turned neutral, would let a merge through.
+        rc, posts, out = self.post(newest="99", harness_drift="true failure")
+        self.assertEqual(1, rc, out)
+        conclusions = {post["name"]: post["conclusion"] for post in posts}
+        self.assertEqual("failure", conclusions.pop("harness-drift"))
+        self.assertEqual({"neutral"}, set(conclusions.values()))
+
+    def test_the_read_is_scoped_to_the_actions_apps_stamped_runs(self) -> None:
+        # The stub cannot run the filter, so the step's text is held: no other app's check run may withdraw a verdict.
+        report = step_of("report", "report")
+        self.assertIn('select(.app.slug == "github-actions"', report)
+        self.assertIn('.external_id // "")', report)
 
     def test_the_newest_check_run_posts_its_own_verdict(self) -> None:
         for newest in ("0", "11"):
