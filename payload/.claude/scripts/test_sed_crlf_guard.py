@@ -366,6 +366,7 @@ class WhatTheHookCannotPlaceFailsOpen(ACheckout):
         # Review R1: the quotes are gone before the list is read, so the `a,b.txt` bash passes is never looked up.
         self.put("a,b.txt", b"one\r\n")
         self.git("-c", "core.autocrlf=false", "add", "a,b.txt")
+        self.assertRefused("sed -i 's/one/uno/' a,b.txt", "a,b.txt")
         self.assertAdmitted("sed -i 's/one/uno/' {\"a,b\",c}.txt")
 
     def test_a_long_sequence_is_cut_at_the_bound(self):
