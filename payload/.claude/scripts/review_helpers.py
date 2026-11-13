@@ -132,7 +132,9 @@ def no_maintenance(base):
 
     A commit ends by starting `git maintenance run --auto --detach`, which holds `objects/maintenance.lock` after the
     commit returns; `gc.auto = 0` does not stop it, and a config appended after the build comes too late for the
-    build's own commits. A count `base` already holds is extended, never replaced.
+    build's own commits. A count `base` already holds is extended, never replaced. This covers the repository a build's
+    own commands run in: git drops these variables from the `receive-pack` a push into a local bare remote starts, so
+    that remote's lock is left to `copy_template`'s skipping it.
     """
     count = int(base.get("GIT_CONFIG_COUNT") or 0)
     return {"GIT_CONFIG_COUNT": str(count + 1), f"GIT_CONFIG_KEY_{count}": "maintenance.auto",
@@ -167,7 +169,7 @@ def fixture_template(build, root_var="R", key=None, **env):
                 os.environ.clear()
                 os.environ.update(saved)
         else:
-            built = run_bash("set -eu\n" + build, **{root_var: root}, **env, **no_maintenance({**os.environ, **env}))
+            built = run_bash("set -eu\n" + build, **{root_var: root, **env, **no_maintenance({**os.environ, **env})})
             if built.returncode != 0:
                 raise RuntimeError(f"the fixture template did not build: {built.stderr}")
         for config in repository_configs(root):
@@ -177,12 +179,18 @@ def fixture_template(build, root_var="R", key=None, **env):
     return _templates[key]
 
 
-def _git_locks(directory, names):
-    """The `*.lock` files a background git may still hold or remove mid-copy, inside a `.git` directory or a bare
-    repository's `objects`: a fixture's own `yarn.lock` is content and is copied."""
-    if not {".git", "objects"} & set(Path(directory).parts):
-        return []
-    return [name for name in names if name.endswith(".lock")]
+def _git_locks(template):
+    """An `ignore` for `copytree` of `template`: the `*.lock` files a background git may still hold or remove
+    mid-copy, inside a `.git` directory or a bare repository's `objects` below the template's root. A fixture's own
+    `yarn.lock` is content and is copied."""
+    def ignore(directory, names):
+        here = Path(directory)
+        below = here.relative_to(template).parts
+        in_git = ".git" in below or any(
+            part == "objects" and (here.parents[len(below) - 1 - n] / "HEAD").is_file()
+            for n, part in enumerate(below))
+        return [name for name in names if name.endswith(".lock")] if in_git else []
+    return ignore
 
 
 def copy_template(case, template, root=None):
@@ -192,7 +200,7 @@ def copy_template(case, template, root=None):
     a template holding a linked worktree, whose `.git` file and `gitdir` spell absolute paths too, is not one.
     """
     root = temp_root(case) if root is None else Path(root).as_posix()
-    shutil.copytree(template, root, symlinks=True, dirs_exist_ok=True, ignore=_git_locks)
+    shutil.copytree(template, root, symlinks=True, dirs_exist_ok=True, ignore=_git_locks(template))
     for config in repository_configs(root):
         text = config.read_text(encoding="utf-8")
         if template in text:
