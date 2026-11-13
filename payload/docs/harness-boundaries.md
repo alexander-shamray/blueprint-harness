@@ -2733,9 +2733,10 @@ and no change at all. The fallback is the never-stop-placing rule again, and
 `test_suite_select.py` holds the table to the suites by reading them: each
 suite that lists a tree, in a spelling its pattern knows, must be named in
 `TREE_READERS`, and every selector must name a class that exists. The check is
-by module, so a listing added to a class beside one the table names, or spelt
-off a root the pattern does not know, passes it; any change to a suite
-selects the check. What one step misses, a caller's caller, a red that
+per class: a listing in a class the table does not name fails it, unless the
+table names its module whole, and module-level code is placed by the module or
+by any class of it that is a reader. Only a listing spelt off a root the
+pattern does not know passes it; any change to a suite selects the check. What one step misses, a caller's caller, a red that
 only the whole suite shows, is the price of the local run, and CI, which runs
 every class on three hosts, is what pays it. A selection still goes through
 the plan's check against what it kept, and a module that fails to import runs
