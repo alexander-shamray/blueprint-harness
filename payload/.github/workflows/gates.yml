@@ -216,9 +216,9 @@ jobs:
 
       # The commit gate: .github/commit-gate/README.md. The opener alone is
       # not enough to stand down: every commit's author and committer must be
-      # Dependabot's too. No job condition: the report posts the stand-down as
-      # a pass, so a human push is never left unjudged. The locality gate
-      # stands down on the same decision.
+      # Dependabot's too. No job condition names the author: the report posts
+      # the stand-down as a pass, so a human push is never left unjudged. The
+      # locality gate stands down on the same decision.
       - name: Decide whether this is Dependabot's own pull request
         id: dependabot
         if: >-
