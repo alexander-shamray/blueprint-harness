@@ -83,5 +83,6 @@ supply its own judge; a base carrying no gate fails rather than falling back.
 The suite runs only after every verdict is fixed, so head test code cannot
 alter the run ahead of it; a red suite fails the `gates` job rather than the
 `closure-gate` check. The workflow file itself is still the
-branch's copy, because `pull_request` runs the head definition, and closing
-that needs a required status check on `main`.
+branch's copy, because `pull_request` runs the head definition, so a required
+check holds against accident only and the owner's review bounds an edit made
+on purpose (`docs/harness-boundaries.md`, *Managed files*).

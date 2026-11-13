@@ -81,8 +81,9 @@ delete the line. Three things guard against that, each a different part:
   fails the check. A pull request cannot change that repository.
 - **The repository ruleset and review** are the backstop for what is left.
   `pull_request` runs the head's copy of `gates.yml`, so a pull
-  request can edit the workflow itself, and only the ruleset requiring this
-  check, with review of workflow changes, stops that.
+  request can edit the workflow itself, and the ruleset requiring this check
+  holds against accident only: the owner's review of workflow changes bounds
+  an edit made on purpose (`docs/harness-boundaries.md`, *Managed files*).
 
 Exclude means "not delivered", never "replaced". A payload path the config
 excludes that still exists in the tree is refused here and by apply, because
