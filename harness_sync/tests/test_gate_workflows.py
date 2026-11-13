@@ -434,7 +434,7 @@ class TheReport(unittest.TestCase):
             self.assertIn("check run 99", post["output[summary]"])
 
     def test_a_failure_is_posted_as_it_is_even_under_a_later_run(self) -> None:
-        # A stale red blocks until a rerun; a stale green, or a red turned neutral, would let a merge through.
+        # A red is posted as it is: a red turned neutral would be a way past a failing gate.
         rc, posts, out = self.post(newest="99", harness_drift="true failure")
         self.assertEqual(1, rc, out)
         conclusions = {post["name"]: post["conclusion"] for post in posts}
