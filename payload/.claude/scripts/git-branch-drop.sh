@@ -81,7 +81,7 @@ holder() {
   # `Feat/x` keeps `feat/x` on a filesystem where the two are one ref.
   local worktrees held common gitdir state text
   worktrees=$(git worktree list --porcelain) || return 12
-  # Held apart from the count, whose `|| true` for no match would swallow this.
+  # Read on its own line, so a failed fold returns 12 and is not taken for a list with no match.
   worktrees=$(printf '%s\n' "$worktrees" | tr -d '\r' | tr '[:upper:]' '[:lower:]') || return 12
   # A whole-line match in bash, the name quoted so it is literal; no tool starts.
   [[ $'\n'"$worktrees"$'\n' != *$'\n'"branch refs/heads/$lowered"$'\n'* ]] || { echo "checked out in a worktree (git worktree list)"; return 0; }
