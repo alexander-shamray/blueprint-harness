@@ -55,7 +55,7 @@ class OwnedIssues(unittest.TestCase):
         self.assertIn("limit", done.stderr)
 
     def test_a_jq_that_does_not_finish_is_no_owned_list(self):
-        # Git Bash reported a tool fed by a process substitution as `Child exited` (#451, #457): a failed count and
+        # Git Bash reported a tool fed by a process substitution as `Child exited`: a failed count and
         # a failed filter each end the run with nothing printed, never an empty list `/dispatch` would read as
         # "no owned issue". The stand-in dies on the count, then on the filter only.
         for dies_on, expect in (("length", "count"), ("-c", "filter")):

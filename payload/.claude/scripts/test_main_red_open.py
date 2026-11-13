@@ -49,7 +49,7 @@ class MainRedOpen(unittest.TestCase):
         return subprocess.run([BASH, str(HELPER), *args], capture_output=True, text=True, encoding="utf-8", env=env)
 
     def test_a_jq_that_does_not_finish_is_not_a_green_main(self):
-        # Git Bash reported a tool fed by a process substitution as `Child exited` (#451, #457). A `jq` dying on the
+        # Git Bash reported a tool fed by a process substitution as `Child exited`. A `jq` dying on the
         # count, then only on the title filter, stands in: either is the read failing (exit 2), never "main is green".
         for dies_on in ("length", "-r"):
             with self.subTest(dies_on=dies_on):

@@ -435,7 +435,7 @@ class TheHelperDropsWhatLanded(Fixture):
         self.assertEqual("", self.at("git config --get branch.feat/x.remote || true"))
 
     def test_no_line_of_the_worktree_list_is_judged_by_a_tool(self):
-        # Git Bash reported a `grep` fed by a process substitution as `Child exited` (#451, #457); the holder check
+        # Git Bash reported a `grep` fed by a process substitution as `Child exited`; the holder check
         # read that as "held" and kept a landed branch. A `grep` that dies on every call stands in for it: the
         # branch is judged in bash, so it still drops.
         stub = Path(self.bin, "grep")
