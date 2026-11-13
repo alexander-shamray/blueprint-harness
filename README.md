@@ -35,8 +35,13 @@ tool renders them into each target through an ordinary pull request.
   Linux, and Windows adds the comment gate's suite for its fixture. A pull
   request that reaches nothing the windows and macos legs test skips their
   test steps and still reports the check; `harness_sync/legs.py` owns what
-  reaches them. On a push to `main` that does not pass, its `main-red` job
-  files `main is red: ci`, the issue `/ship` step 6 stops on.
+  reaches them. On a push to `main` whose first attempt does not pass,
+  `.github/workflows/main-red-rerun.yml` reruns the failed jobs once and
+  comments the failed jobs and steps on the open *Flaky tests tracker*; a run
+  cannot rerun itself while its own jobs run, so that is a workflow of its own.
+  Only a second attempt that is red too has the `main-red` job file
+  `main is red: ci`, the issue `/ship` step 6 stops on, and a rerun GitHub
+  refuses files it from the rerun workflow instead.
   A red push run of `rulesets.yml`, or a red `sync.yml` run, files none, on
   purpose: that issue stops every landing and opens by asking for a revert,
   which does not answer a ruleset changed by hand or a failure on a target's
@@ -68,8 +73,9 @@ its sessions run under the harness it develops.
   `.harness/config.json` is the one input written by hand.
 - **Its own**: `payload/**`, `harness_sync/**`, `measure/**`, `targets/`, the
   rest of `docs/`, `CLAUDE.md`, `IMPORT.md`, `README.md`,
-  `.github/workflows/ci.yml`, `.github/workflows/sync.yml`, `.gitattributes` and
-  `.gitignore`.
+  `.github/workflows/ci.yml`, `.github/workflows/main-red-rerun.yml`,
+  `.github/workflows/rulesets.yml`, `.github/workflows/sync.yml`,
+  `.gitattributes` and `.gitignore`.
 - **Change a harness file under `payload/`**, never at the root. The root copy
   reaches `main` only through a sync pull request (`py -3.12 -m harness_sync
   apply --payload payload --target . --commit <main sha>`), never as a direct
@@ -149,7 +155,8 @@ Two things the jobs do not cover or cannot promise:
   GitHub cancels from the queue with no step run (seen on #11 and #15) is a
   runner shortage, not a failure of the change. Rerun the run's failed
   jobs (`gh run rerun <run id> --failed`); the check is required, so the pull
-  request waits for it.
+  request waits for it. On a push to `main` the rerun workflow does this once
+  by itself.
 
 ## The sync workflow
 
