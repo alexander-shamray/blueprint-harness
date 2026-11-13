@@ -3,8 +3,10 @@
 `payload/` was taken from `alexander-shamray/blueprint-backend` at one commit,
 and every candidate file was put on one side: **payload** (managed by the
 harness, synced into every target) or **backend-local** (stays in backend,
-listed under `local` in `targets/blueprint-backend.config.json`). Task 9 ports
-into the payload whatever backend changes under a managed path after the pin.
+listed under `local` in `targets/blueprint-backend.config.json`). Task 9 ported
+into the payload what backend changed under a managed path after the pin, until
+backend's first sync; since then a managed path changes only in the payload
+(*Rollout closed*).
 
 ## Pin
 
@@ -66,6 +68,37 @@ other payload paths, the `tooling` row naming `.harness/` in
 `.claude/scripts/sweep-slices.sh`, `.claude/commands/bug-sweep.md` and
 `.claude/commands/security-sweep.md`, were written to the payload's bytes, so
 their blob ids already match and nothing else moves.
+
+## Rollout closed
+
+Closed on 2026-11-13. Every target takes the payload only by a sync pull
+request, and `rulesets/main.json` makes `harness-drift` a required check on
+all four `main`s, so a managed file that differs from the payload cannot
+merge anywhere. Nothing is ported by hand any more, and no copy outside the
+payload is kept aligned with it.
+
+| Target | First sync | Merged | Payload commit |
+|---|---|---|---|
+| backend | blueprint-backend#1735 | 2026-11-03 | `0b03e65` |
+| frontend | blueprint-frontend#382 | 2026-11-08 | `8a00e94` |
+| admin | blueprint-admin#655 | 2026-11-09 | `77fd30f` |
+
+The payload commit is the `harness_commit` each target's
+`.harness/manifest.json` names at the sync's merge commit.
+
+The porting rules the drift gate made obsolete are gone. This file's opening
+sentence and README's rule that a target lands its closure gate before its
+first sync were the last ones here; every target has had the gate since its
+first sync. Read on each target's `main` on 2026-11-13, no `CLAUDE.md`,
+`AGENTS.md`, `docs/` page or `docs/change-locality.md` still says to carry a
+harness change to a sibling, keep copies aligned or check a sibling's copy,
+and neither do the four projects' memories, worktree directories included:
+the triages of plans 2, 5 and 6 had already removed them. The six memories
+plan 6 names were read and kept, since none holds such a rule; one,
+backend's `one-branch-per-service-plan`, still put a plan's worktree in a
+sibling directory, which `/branch` refuses, and now names
+`.claude/worktrees/`. The pull request that closed the rollout gives each
+one's reason.
 
 ## How a file was classified
 
