@@ -2170,9 +2170,9 @@ the whole of why it is safe to run on every write this repository makes.**
 A path deny is *correct* when the spelling is true of the file, so inside a
 checkout the session stands in, one holding the home aside, the hook judges
 only the disagreement and leaves every list — `.claude/settings.json`'s and
-both commands' frontmatter — to say what may be edited; where no rule reaches it reads that list rather
-than copying it, as the next paragraph says. Nothing here goes
-stale as those change, and the PR that lifts a deny to edit a helper is not
+both commands' frontmatter — to say what may be edited; where no rule
+reaches it reads that list rather than copying it, as the next paragraph
+says. Nothing here goes stale as those change, and the PR that lifts a deny to edit a helper is not
 refused by the guard on its way past. A test pins that control: a denied tree
 spelled as itself is **admitted** here.
 
