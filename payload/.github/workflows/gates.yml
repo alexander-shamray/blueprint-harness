@@ -50,7 +50,7 @@ jobs:
       locality_id: ${{ steps.open.outputs.locality }}
     steps:
       # The one decision every job below reads, so a gate the report posts is
-      # a gate whose steps ran. A gate the event does not run posts nothing, so
+      # a gate the event runs. A gate the event does not run posts nothing, so
       # `edited` or a label leaves the push's verdict standing.
       - name: Choose the gates this event runs
         id: event
