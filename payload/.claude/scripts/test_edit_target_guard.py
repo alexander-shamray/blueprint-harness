@@ -283,6 +283,26 @@ class ALinkIsNotTheFileItIsSpelledAs(GuardCase):
         self.assertAdmitted(plain)
         self.assertTrue(guard.alternate_alphabet("\\\\nas\\projects\\repo"))
 
+    def test_a_unc_checkout_licenses_only_what_it_contains(self):
+        # The exemption both ways: a checkout on a share is not refused
+        # wholesale, and its being `\\`-spelled admits no other spelling. A
+        # missing share on `localhost` answers the guard's reads in
+        # milliseconds, where an unknown host waits on name resolution.
+        share = "\\\\localhost\\guard-no-share\\repo"
+        guard = self.guard_module()
+        if os.name != "nt":
+            self.assertFalse(guard.alternate_alphabet(share))
+            return
+        on_share = {"project": share, "cwd": share}
+        self.assertAdmitted(share + "\\docs\\chapter.md", **on_share)
+        self.assertAdmitted("docs\\chapter.md", **on_share)
+        for spelling in ("\\\\?\\UNC\\localhost\\guard-no-share\\repo",
+                         "\\\\.\\UNC\\localhost\\guard-no-share\\repo",
+                         "\\\\localhost\\guard-no-share\\other"):
+            with self.subTest(spelling=spelling):
+                self.assertIn("other path grammar", self.assertRefused(
+                    spelling + "\\.claude\\settings.json", **on_share))
+
     def test_an_eight_dot_three_spelling_is_refused_where_one_exists(self):
         # Windows' other alphabet: `CLAUDE~1` is a different string from
         # `.claude`, and this guard refuses it without a special case because
