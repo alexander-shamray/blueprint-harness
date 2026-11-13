@@ -767,12 +767,12 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
 
     def test_a_pattern_grep_that_does_not_finish_stops_the_run(self):
         # Status 1 is no match and 2 a pattern grep cannot compile; a grep killed mid-run read as either would print
-        # `outside` for a path nothing judged.
+        # `outside` for a path nothing judged, and a lone class line reads as a pull request with no changed path.
         dying = 'grep() { case "$1" in -nE) printf "Child exited\\n" >&2; return 148 ;; esac; command grep "$@"; }\n'
         body = "| Class | D |\n| Touch set | docs/** |\n"
         r, _ = self._spawns_for(body, "docs/a.md\n", shims=dying, code=1)
-        self.assertEqual(["class D"], r.stdout.splitlines())
-        self.assertIn("a pattern's grep did not finish, so no verdict is printed", r.stderr)
+        self.assertEqual("", r.stdout)
+        self.assertIn("a pattern's grep did not finish, so nothing is printed", r.stderr)
 
     def test_a_path_the_row_admits_and_the_class_does_not_is_outside_class(self):
         # The CI gate judges each path against the class's tree set in

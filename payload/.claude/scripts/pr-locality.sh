@@ -8,7 +8,7 @@ set -euo pipefail
 pr="${1:?usage: pr-locality.sh <pr-number>}"
 [[ "$pr" =~ ^[0-9]+$ ]] || { echo "pr must be a number" >&2; exit 2; }
 refuse() { echo "$1" >&2; exit 3; }
-grep_died() { echo "a pattern's grep did not finish, so no verdict is printed" >&2; exit 1; }
+grep_died() { echo "a pattern's grep did not finish, so nothing is printed" >&2; exit 1; }
 # A path token's characters, spelled out so no locale reads a range, judged by bash itself: Git Bash on a loaded
 # Windows runner reported a `grep` fed by a process substitution as `Child exited`, refusing a valid token.
 is_token() {
@@ -216,7 +216,6 @@ while IFS= read -r line; do
 done < <(printf '%s\n' "$files")
 # The endpoint stops short of a very large pull request, and a short list would read as the whole diff.
 [ "$names" -eq "$changed" ] || refuse "the files endpoint returned $names names against changedFiles $changed"
-printf 'class %s\n' "$class"
 # One grep per pattern over every path, reading a pipe, and line N's hit is
 # path N's: a validated path holds no newline. Status 2, a pattern grep
 # cannot compile, matches nothing; a status past 2 stops the run, since a
@@ -237,6 +236,8 @@ if [ -n "$list" ]; then
     done < <(printf '%s\n' "$matched")
   done
 fi
+# Printed once every grep has finished, so a run stopped above prints nothing that reads as a pull request with no paths.
+printf 'class %s\n' "$class"
 i=0
 # bash 3.2 calls an empty array unbound under `set -u`, and a pull request can have no changed file.
 for path in ${verdicts[@]+"${verdicts[@]}"}; do
