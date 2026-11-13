@@ -150,10 +150,14 @@ class TheJobs(unittest.TestCase):
                 self.assertRegex(step, r"(?m)^        if: (?:>-\n          )?\$\{\{ !cancelled\(\) ")
 
     def test_the_report_runs_after_the_gates_and_whatever_they_concluded(self) -> None:
-        # Its default condition is success(), which would leave a failed gate's check in progress.
-        report = job_of(GATES_YML.read_text(encoding="utf-8"), "report")
+        # Its default condition is success(), which would leave a failed gate's check in progress, and !cancelled()
+        # would leave every check in progress when a run is cancelled during the head suites.
+        text = GATES_YML.read_text(encoding="utf-8")
+        report = job_of(text, "report")
         self.assertRegex(report, r"(?m)^    needs: \[open, gates\]$")
-        self.assertRegex(report, r"(?m)^    if: \$\{\{ !cancelled\(\) \}\}$")
+        self.assertRegex(report, r"(?m)^    if: \$\{\{ always\(\) \}\}$")
+        # A hung head suite would otherwise hold the report to the six-hour default.
+        self.assertRegex(job_of(text, "gates"), r"(?m)^    timeout-minutes: \d+$")
 
     def test_the_judging_job_reads_the_open_jobs_one_decision(self) -> None:
         text = GATES_YML.read_text(encoding="utf-8")
