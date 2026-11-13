@@ -372,6 +372,19 @@ class TheEvent(unittest.TestCase):
         decided = self.decide("opened", answer="dir")
         self.assertEqual(("true", "false"), (decided["closure"], decided["locality"]))
 
+    def test_the_filter_reads_a_directorys_array_as_no_file(self) -> None:
+        # The contents API answers a directory with an array, on which `.type` alone errors and fails the step.
+        jq = shutil.which("jq")
+        if jq is None:
+            raise RuntimeError("jq is what `gh --jq` evaluates")  # not a skip: a skip passes unrun
+        expression = re.search(r"--jq '([^']+)'", step_of("event", "open")).group(1)
+        for answer, want in (('[{"type": "file"}]', "dir"), ('{"type": "file"}', "file"),
+                             ('{"type": "symlink"}', "symlink")):
+            with self.subTest(answer=answer):
+                done = subprocess.run([jq, "-r", expression], input=answer, capture_output=True, text=True,
+                                      encoding="utf-8")
+                self.assertEqual((0, want), (done.returncode, done.stdout.strip()), done.stderr)
+
     def test_a_read_that_fails_otherwise_fails_the_step_and_decides_nothing(self) -> None:
         # A guess either way is wrong: a gate run on no script fails, and one skipped on a 500 is a silent pass.
         decided = self.decide("opened", answer="gh: Server Error (HTTP 500)", rc=1, ok=False)
