@@ -277,7 +277,7 @@ def protected_in_worktree(path, root):
 
 
 def home_offence(spelled, lexical, resolved):
-    """The reason to refuse a target outside every checkout, or `None`.
+    """The reason to refuse a target no checkout below the home holds, or `None`.
 
     Spelling and resolution are both judged, so a link into `~/.ssh` is held.
     Only `~/.claude`'s first component is control. Unreadable names refuse.
@@ -304,7 +304,7 @@ def home_offence(spelled, lexical, resolved):
             if place == "login":
                 return (
                     f"guard-edit-target: {spelled} resolves to {resolved}, "
-                    "which is outside every checkout and is a key, a shell "
+                    "which no checkout below the home holds and is a key, a shell "
                     "profile or git's own configuration: what runs at login, "
                     "under every session (docs/harness-boundaries.md)."
                 )

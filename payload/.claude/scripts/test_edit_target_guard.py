@@ -670,7 +670,7 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
             os.path.join(self.HOME, ".gitconfig"),
         ):
             with self.subTest(target=target):
-                self.assertIn("outside every checkout", self.assertRefused(target))
+                self.assertIn("no checkout below the home holds", self.assertRefused(target))
 
     def test_a_link_into_the_keys_is_held(self):
         for linker in linkers():
@@ -716,7 +716,7 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
         # under it, and containing a target is not owning it.
         for project in (self.HOME, os.path.dirname(self.HOME)):
             with self.subTest(project=project):
-                self.assertIn("outside every checkout", self.assertRefused(
+                self.assertIn("no checkout below the home holds", self.assertRefused(
                     os.path.join(self.HOME, ".ssh", "authorized_keys"),
                     project=project))
                 self.assertIn("control surface", self.assertRefused(
@@ -734,7 +734,7 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
                     "env": {"HOME": home, "USERPROFILE": home}}
         for name in ((".ssh", "authorized_keys"), (".bashrc",)):
             with self.subTest(name=name):
-                self.assertIn("outside every checkout", self.assertRefused(
+                self.assertIn("no checkout below the home holds", self.assertRefused(
                     os.path.join(home, *name), **dotfiles))
         self.assertAdmitted(os.path.join(home, "notes", "todo.md"), **dotfiles)
         # A checkout at `~/.claude` beside it owns nothing the home anchor
