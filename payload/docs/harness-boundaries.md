@@ -1897,8 +1897,9 @@ the helper look hung. The rows, their cells, the class, each token and each
 map item are judged by bash too, and each pattern's `grep` reads a pipe,
 since Git Bash on a loaded runner reported a `grep` fed by a process
 substitution as `Child exited`, and the helper refused a valid map item
-(#451); a pattern's `grep` that does not finish exits 1 with no verdict,
-since one read past it would be `outside` for a path nothing judged. A row
+(#451); a pattern's `grep` ending past status 2, as a killed one does,
+exits 1 and prints nothing, since a verdict read past it would be
+`outside` for a path nothing judged. A row
 that fails its grammar exits 3 naming the row and not its content, and so
 does a class map that is absent, names a class twice, leaves one without
 items, or holds a line or a token outside its grammar: a verdict half-read
