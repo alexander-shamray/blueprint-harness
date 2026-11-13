@@ -235,7 +235,7 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
         self.assertIn("which *.txt matches", reason)
 
     def test_a_brace_list_is_expanded_as_bash_would(self):
-        # #480: the operand was looked up as one literal path, found missing and admitted, though bash expands it.
+        # The operand was looked up as one literal path, found missing and admitted, though bash expands it.
         self.put("n02.txt", b"one\r\n")
         self.git("-c", "core.autocrlf=false", "add", "n02.txt")
         for command, names in (
