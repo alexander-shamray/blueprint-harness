@@ -9,7 +9,7 @@ pr="${1:?usage: pr-locality.sh <pr-number>}"
 [[ "$pr" =~ ^[0-9]+$ ]] || { echo "pr must be a number" >&2; exit 2; }
 refuse() { echo "$1" >&2; exit 3; }
 # A path token's characters, spelled out so no locale reads a range, judged by bash itself: Git Bash on a loaded
-# Windows runner reported a `grep` fed by a process substitution as `Child exited`, refusing a valid token (#451).
+# Windows runner reported a `grep` fed by a process substitution as `Child exited`, refusing a valid token.
 is_token() {
   case "$1" in ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_./*?{},\(\)@+-]*) return 1 ;; esac
 }
