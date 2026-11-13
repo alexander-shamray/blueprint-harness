@@ -65,9 +65,10 @@ testable without a network. The live invocation is in
 ## How it runs
 
 The `gates` job in [`gates.yml`](../workflows/gates.yml), which runs every
-gate of the pull request in one job, while its `report` job, which checks
-nothing out and alone holds `checks: write`, posts this one's verdict as the
-`closure-gate` check, on every pull request with no path filter, and on
+gate of the pull request in one job, while its `open` and `report` jobs,
+which check nothing out and alone hold `checks: write`, open this one's check
+run before it judges and complete it as the `closure-gate` check, on every
+pull request with no path filter, and on
 `edited` as well as pushes, because a description edit with no push behind
 it can break the claim. **The gate that judges is read out of the base
 commit**, while the suite runs the branch's copy, so a pull request cannot
