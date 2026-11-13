@@ -2733,14 +2733,15 @@ and no change at all. The fallback is the never-stop-placing rule again, and
 `test_suite_select.py` holds the table to the suites by reading them: each
 suite that lists a tree, in a spelling its pattern knows, must be named in
 `TREE_READERS`, and every selector must name a class that exists. The check is
-per class: a listing in a class the table does not name fails it, unless the
-table names its module whole, and module-level code is placed by the module or
-by any class of it that is a reader. A listing in a spelling the pattern does
-not know, a root included, passes it; any change to a suite selects the
-check. What one step misses, a caller's caller, a red that only the whole suite
-shows, is the price of the local run, and CI, which runs every class on three
-hosts, is what pays it. A selection still goes through the plan's check against
-what it kept, and a module that fails to import runs in every selection.
+per class: a listing in a test class the table does not name fails it, unless
+the table names its module whole. Module-level code, and a class holding no
+test, is placed by the module or by any class of it that is a reader. A
+listing in a spelling the pattern does not know, a root included, passes it;
+any change to a suite selects the check. What one step misses, a caller's
+caller, a red that only the whole suite shows, is the price of the local run,
+and CI, which runs every class on three hosts, is what pays it. A selection
+still goes through the plan's check against what it kept, and a module that
+fails to import runs in every selection.
 
 **Each run leaves one line of how long it took.** `harness_timings.py` appends
 it to `%LOCALAPPDATA%/blueprint-harness/timings.jsonl`, or
