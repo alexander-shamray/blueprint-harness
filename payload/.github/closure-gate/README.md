@@ -53,6 +53,14 @@ for text this repository did not write. `closingIssuesReferences` is still
 compared in full, so a keyword GitHub links in this repository is still
 caught.
 
+Upstream notes may also link their closures as full issue URLs
+(`closes [#3227](https://github.com/o/r/issues/3227)`): GitHub still parses
+the keyword and the URL and reports `o/r#3227` in `closingIssuesReferences`.
+For the Dependabot bot alone, a foreign entry whose issue URL appears inside
+the `<details>` blocks and nowhere outside them is excused. A foreign entry
+from any other author, or whose URL is also written outside the blocks, is
+still refused.
+
 ## What it reads
 
 One JSON document on stdin — the pull request's number, URL, body, commits,
