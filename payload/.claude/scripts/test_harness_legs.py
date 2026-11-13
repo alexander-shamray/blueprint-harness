@@ -28,7 +28,8 @@ CONFIG = '{"local": ["docs/commands/review-branch.md", ".github/x-gate/test_*_ta
 # is the root, and `parents[1]` or `parent.parent` is `.claude/`.
 FILE = r'Path\((?:\w+\.)?__file__\)(?:\.resolve\(\))?'
 SPELT = re.compile(rf'\b(?:(?P<root>SCRIPTS\.parent\.parent|SCRIPTS\.parents\[1\]|ROOT|REPO|CLAUDE\.parent'
-                   rf'|COMMANDS\.parent\.parent|{FILE}\.parents\[2\])|(?P<claude>SCRIPTS\.parent|CLAUDE|{FILE}\.(?:parents\[1\]|parent\.parent)))'
+                   rf'|COMMANDS\.parent\.parent|{FILE}\.parents\[2\])'
+                   rf'|(?P<claude>SCRIPTS\.parent|CLAUDE|{FILE}\.(?:parents\[1\]|parent\.parent)))'
                    r'((?:\s*/\s*"[^"]+")+)')
 
 
