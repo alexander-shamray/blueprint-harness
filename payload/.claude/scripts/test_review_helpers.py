@@ -8,7 +8,8 @@ import subprocess
 import unittest
 from pathlib import Path
 
-from review_helpers import GIT, QUIET_GIT, copy_template, fixture_template, no_maintenance, run_bash, setUpModule  # noqa: F401
+from review_helpers import (  # noqa: F401
+    GIT, QUIET_GIT, copy_template, fixture_template, no_maintenance, run_bash, setUpModule)
 
 QUIET = {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
 
@@ -62,7 +63,7 @@ class NoMaintenance(unittest.TestCase):
 
         def build(root):
             result = subprocess.run([GIT, "config", "--get", "maintenance.auto"], capture_output=True, text=True,
-                                    env={**os.environ, **QUIET}, cwd=root)
+                                    encoding="utf-8", env={**os.environ, **QUIET}, cwd=root)
             seen.append(result.stdout.strip())
 
         fixture_template(build, key="review-helpers-function-build")
@@ -93,7 +94,7 @@ class CopyTemplate(unittest.TestCase):
 
     def test_the_copy_is_a_working_repository(self):
         result = subprocess.run([GIT, "-C", str(self.root / "work"), "log", "--format=%s"], capture_output=True,
-                                text=True, env={**os.environ, **QUIET})
+                                text=True, encoding="utf-8", env={**os.environ, **QUIET})
         self.assertEqual("base", result.stdout.strip())
 
 
