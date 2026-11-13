@@ -2757,7 +2757,7 @@ in a spelling it does not know, a lowercase or attribute name, passes it, and a
 script a suite runs over the checkout is named in the check's own table; any
 change to a suite selects the check. What one step misses, a caller's caller, a
 red that only the whole suite shows, is the price of the local run, and CI,
-where it runs the whole suite (this repository's runs every class on three
+where it runs the whole suite (`blueprint-harness`'s runs every class on three
 hosts), is what pays it; a target whose CI runs less pays less. A selection
 still goes through the plan's check against what it kept, and a module that
 fails to import runs in every selection.
@@ -2766,9 +2766,9 @@ fails to import runs in every selection.
 it to `%LOCALAPPDATA%/blueprint-harness/timings.jsonl`, or
 `~/.cache/blueprint-harness/` elsewhere, outside every checkout so that no
 clean, sync or teardown loses it, and `HARNESS_TIMINGS` points it elsewhere,
-as this repository's CI does to upload it, a target's setting it or not: the
-script and mode, the repository, branch and commit, the host, the workers, the lock wait, the wall time, the exit, and
-each class's seconds. A line that cannot be written is said and swallowed,
+as `blueprint-harness`'s CI does to upload it, a target's setting it or not:
+the script and mode, the repository, branch and commit, the host, the workers,
+the lock wait, the wall time, the exit, and each class's seconds. A line that cannot be written is said and swallowed,
 since a run's exit is its tests', never its record's. `harness_timings.py
 report` prints p50, p90 and the maximum per script and mode and the slowest
 classes; a check script records itself with `harness_timings.py record
