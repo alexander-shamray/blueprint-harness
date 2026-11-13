@@ -789,7 +789,7 @@ class AWorktreeTheSessionHasNotEntered(GuardCase):
     def linked(self, name="linked", beside=None, relative=False):
         """A linked worktree of the fixture, in the shape the guard reads.
 
-        `relative` writes both pointers as `git worktree add --relative-paths`
+        `relative` writes both pointers as git's `--relative-paths` option
         does, each against the directory of the file holding it.
         """
         worktree = os.path.join(beside or self.outside, name)
