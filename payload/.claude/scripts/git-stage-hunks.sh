@@ -16,8 +16,9 @@ if [ "$1" = "--list" ]; then
   mode=list path=$2 numbers=""
 else
   mode=stage path=$1 numbers=$2
-  [[ "$numbers" =~ ^[1-9][0-9]*(,[1-9][0-9]*)*$ ]] \
-    || { echo "hunk numbers are <n>[,<n>...], counted from 1: $numbers" >&2; exit 2; }
+  # Nine digits at most, so `-gt` below never meets a number past its integers and reads the error as false.
+  [[ "$numbers" =~ ^[1-9][0-9]{0,8}(,[1-9][0-9]{0,8})*$ ]] \
+    || { echo "hunk numbers are <n>[,<n>...], counted from 1, nine digits at most: $numbers" >&2; exit 2; }
 fi
 case "$path" in
   "" | -*) echo "path may not be empty or start with '-': $path" >&2; exit 2 ;;
