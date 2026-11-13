@@ -338,9 +338,19 @@ class TheVerdicts(unittest.TestCase):
 class TheLeg(unittest.TestCase):
     """A leg's script, run as written, for the conclusion it gives its gate's check."""
 
-    def conclude(self, line: str, gate: str = "harness-drift") -> tuple[int, str]:
-        rc, out, _ = run_step(step_script("verdict", "report"), {"GATE": gate, "LINE": line})
+    def conclude(self, line: str, gate: str = "harness-drift", head: str = "o/r") -> tuple[int, str]:
+        rc, out, _ = run_step(step_script("verdict", "report"),
+                              {"GATE": gate, "LINE": line, "HEAD_REPO": head, "REPO": "o/r"})
         return rc, out
+
+    def test_a_forks_pull_request_fails_every_gate_however_it_was_judged(self) -> None:
+        # A leg needs no token, so the fork barrier the read-only token gave is kept by name.
+        for line in ("true success", "false"):
+            with self.subTest(line=line):
+                rc, out = self.conclude(line, "closure-gate", head="someone/r")
+                self.assertEqual(1, rc, out)
+                self.assertIn("a fork", out)
+        self.assertIn("HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}", step_of("verdict", "report"))
 
     def test_a_gate_whose_every_step_passed_passes(self) -> None:
         for line in ("true success", "true success success success"):
