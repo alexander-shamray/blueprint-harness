@@ -96,8 +96,10 @@ path and its branch.
 main checkout, plain `git rev-parse --git-dir --git-common-dir` prints the
 first absolute and the second relative (`C:/repo/.git` beside `../.git`), so
 the main checkout would read as a linked worktree and step 5 would branch in
-place instead of forking. `--path-format=absolute`, which the worktree helpers
-already pass, makes both absolute wherever the session stands.
+place instead of forking. `--path-format=absolute` makes both absolute
+wherever the session stands. The worktree helpers compare the plain pair
+only after refusing to run anywhere but the checkout root, where both print
+as `.git`.
 
 **What this step switches off is the `git worktree add`, and nothing else.**
 Carry on into step 1 and let it read the branch and the tree as usual: a
