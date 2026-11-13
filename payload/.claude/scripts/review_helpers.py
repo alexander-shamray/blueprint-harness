@@ -130,11 +130,8 @@ QUIET_GIT = "[core]\n\tfsmonitor = false\n[gc]\n\tauto = 0\n[maintenance]\n\taut
 def no_maintenance(base):
     """The three variables that make a git started with `base` in its environment run no `maintenance --auto`.
 
-    A commit ends by starting `git maintenance run --auto --detach`, which holds `objects/maintenance.lock` after the
-    commit returns; `gc.auto = 0` does not stop it, and a config appended after the build comes too late for the
-    build's own commits. A count `base` already holds is extended, never replaced. This covers the repository a build's
-    own commands run in: git drops these variables from the `receive-pack` a push into a local bare remote starts, so
-    that remote's lock is left to `copy_template`'s skipping it.
+    Its detached run holds `objects/maintenance.lock` past a commit, and a config added after the build is too late.
+    A count `base` holds is extended; a push into a local bare remote is not covered, and `copy_template` skips it.
     """
     count = int(base.get("GIT_CONFIG_COUNT") or 0)
     return {"GIT_CONFIG_COUNT": str(count + 1), f"GIT_CONFIG_KEY_{count}": "maintenance.auto",

@@ -1,9 +1,7 @@
 """review_helpers.py's fixture templates: a build starts no background git maintenance, and a copy takes no lock a
 background git holds.
 
-A commit ends by starting `git maintenance run --auto --detach`, which holds `objects/maintenance.lock` past the commit;
-the first copy after a build listed it and then found it gone. Each case that shows the lock left out is paired with a
-file that is copied, so it failed for its reason."""
+Each case showing a lock left out is paired with a file that is copied, so it failed for its reason."""
 
 import os
 import subprocess
