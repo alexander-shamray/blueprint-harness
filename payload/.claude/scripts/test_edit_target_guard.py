@@ -140,11 +140,11 @@ class GuardCase(unittest.TestCase):
         return linkpath
 
     def judge(self, file_path, tool="Edit", cwd=None, key="file_path",
-              project=None, process_cwd=None, hook=HOOK):
+              project=None, process_cwd=None, hook=HOOK, env=None):
         """The hook's verdict on one call: the reason, or `None` for allowed.
 
-        `cwd` is the event's, which a relative path resolves against;
-        `process_cwd` is where the hook process starts, the runner's if `None`.
+        `cwd` is the event's, for a relative path; `process_cwd` the hook
+        process's, the runner's if `None`; `env` lies over the runner's.
         """
         event = {
             "hook_event_name": "PreToolUse",
@@ -157,7 +157,8 @@ class GuardCase(unittest.TestCase):
             input=json.dumps(event), capture_output=True, text=True, encoding="utf-8",
             cwd=process_cwd,
             env={**os.environ,
-                 "CLAUDE_PROJECT_DIR": self.root if project is None else project},
+                 "CLAUDE_PROJECT_DIR": self.root if project is None else project,
+                 **(env or {})},
         )
         self.assertEqual(
             0, result.returncode,
@@ -709,6 +710,39 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
         ):
             with self.subTest(target=target):
                 self.assertIn("control surface", self.assertRefused(target))
+
+    def test_an_anchor_holding_the_home_excuses_nothing_at_login(self):
+        # A project directory set to the home or above contains every target
+        # under it, and containing a target is not owning it.
+        for project in (self.HOME, os.path.dirname(self.HOME)):
+            with self.subTest(project=project):
+                self.assertIn("outside every checkout", self.assertRefused(
+                    os.path.join(self.HOME, ".ssh", "authorized_keys"),
+                    project=project))
+                self.assertIn("control surface", self.assertRefused(
+                    os.path.join(self.CLAUDE, "settings.json"), project=project))
+                self.assertAdmitted(os.path.join(self.HOME, "notes.md"),
+                                    project=project)
+
+    def test_a_dotfiles_checkout_at_the_home_excuses_nothing_at_login(self):
+        # The session stands in a home that is itself a checkout, so the
+        # event's cwd walks up to the home as an anchor.
+        home = os.path.join(self.outside, "home")
+        os.makedirs(os.path.join(home, ".git"))
+        os.makedirs(os.path.join(home, "notes"))
+        dotfiles = {"cwd": os.path.join(home, "notes"),
+                    "env": {"HOME": home, "USERPROFILE": home}}
+        for name in ((".ssh", "authorized_keys"), (".bashrc",)):
+            with self.subTest(name=name):
+                self.assertIn("outside every checkout", self.assertRefused(
+                    os.path.join(home, *name), **dotfiles))
+        self.assertAdmitted(os.path.join(home, "notes", "todo.md"), **dotfiles)
+        # A checkout at `~/.claude` beside it owns nothing the home anchor
+        # leaves to `home_offence`: every anchor holding the target agrees.
+        control = os.path.join(home, ".claude")
+        os.makedirs(os.path.join(control, ".git"))
+        self.assertIn("control surface", self.assertRefused(
+            os.path.join(control, "settings.json"), project=control, **dotfiles))
 
     def test_names_that_cannot_be_read_refuse_the_home_and_nothing_else(self):
         # They live in `guard-git-argv.py`, so a guard copied without it fails
