@@ -108,8 +108,10 @@ class RulesetTests(unittest.TestCase):
                     job = found.group(1)
                     legs.add(job)
                     continue
-                # gates.yml's report completes a check run under each gate's name.
-                posted = re.match(r"\s+verdict ([A-Za-z0-9_-]+) ", line)
+                # gates.yml names a leg of its report job after each gate; an older rendered copy posted each by
+                # a `verdict` call instead, and stays until the next sync replaces it.
+                posted = re.match(r"\s+- gate: ([A-Za-z0-9_-]+)\s*$", line) or re.match(
+                    r"\s+verdict ([A-Za-z0-9_-]+) ", line)
                 if posted:
                     legs.add(posted.group(1))
                     continue

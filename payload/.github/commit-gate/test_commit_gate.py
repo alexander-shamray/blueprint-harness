@@ -213,7 +213,7 @@ def job_of(text: str, job: str) -> str:
 
 
 def gates_job(text: str) -> str:
-    """The judging job's lines: the jobs opening and completing the check runs run no step of this gate."""
+    """The judging job's lines: the legs concluding each gate's check run no step of this gate."""
     return job_of(text, "gates")
 
 
@@ -359,10 +359,9 @@ class Standing(unittest.TestCase):
 
 
 class WorkflowShape(unittest.TestCase):
-    def test_the_job_waits_on_the_decision_alone_so_a_human_push_is_judged(self) -> None:
+    def test_the_job_runs_on_every_event_so_a_human_push_is_judged(self) -> None:
         job = gates_job(WORKFLOW.read_text(encoding="utf-8")).split("\n    steps:\n", 1)[0]
-        self.assertEqual(["${{ !cancelled() && needs.open.outputs.closure != '' }}"],
-                         re.findall(r"(?m)^    if: (.*)$", job))
+        self.assertEqual([], re.findall(r"(?m)^    (?:if|needs): (.*)$", job))
 
     def test_the_checkout_runs_first_with_full_history_and_no_condition(self) -> None:
         first = workflow_steps()[0]
