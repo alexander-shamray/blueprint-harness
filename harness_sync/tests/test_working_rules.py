@@ -120,7 +120,7 @@ class WorkingRulesTests(unittest.TestCase):
         block = re.search(r"^on:\n(.*?)(?=^\S)", workflow, re.MULTILINE | re.DOTALL)
         self.assertEqual(re.findall(r"^  (\w+):", block.group(1), re.MULTILINE), ["pull_request"])
         for gate in gates:
-            self.assertRegex(workflow, rf"(?m)^ +verdict {re.escape(gate)} ", gate)
+            self.assertRegex(workflow, rf"(?m)^ +- gate: {re.escape(gate)}$", gate)
 
     def test_one_owner_per_fact_leaves_an_untouched_restatement_to_the_finding_bar(self):
         rule = _bullet(self.rules, "One owner per fact")
