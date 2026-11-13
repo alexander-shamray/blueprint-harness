@@ -206,8 +206,10 @@ def setUpModule() -> None:
 
 def workflow_steps() -> list[str]:
     # The comments between steps dropped, or the one ahead of the next step reads as the end of this one's script.
+    # The judging job's alone: the posting job after it runs no step of this gate.
     text = re.sub(r"(?m)^      #.*\n", "", WORKFLOW.read_text(encoding="utf-8"))
-    return re.split(r"\n(?=      - )", text.split("\n    steps:\n", 1)[1])
+    job = re.split(r"(?m)^  (?!gates:)[\w-]+:\n", text.split("\n  gates:\n", 1)[1], maxsplit=1)[0]
+    return re.split(r"\n(?=      - )", job.split("\n    steps:\n", 1)[1])
 
 
 def deciding_step() -> str:
@@ -316,8 +318,8 @@ class WorkflowShape(unittest.TestCase):
 
     def test_the_stand_down_is_posted_as_a_pass(self) -> None:
         # The steps skip, so the check a ruleset requires has to be posted as passing or it never reports.
-        report = next(step for step in workflow_steps() if "id: report" in step)
-        commit_gate = re.search(r"(?m)^          COMMIT_GATE: >-\n((?:            .+\n)+)", report)
+        verdicts = next(step for step in workflow_steps() if "id: verdicts" in step)
+        commit_gate = re.search(r"(?m)^          COMMIT_GATE: >-\n((?:            .+\n)+)", verdicts)
         self.assertIsNotNone(commit_gate)
         self.assertEqual(2, commit_gate.group(1).count("steps.dependabot.outputs.own == 'true' && 'success' ||"))
 

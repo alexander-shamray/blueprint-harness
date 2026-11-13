@@ -115,7 +115,7 @@ class WorkingRulesTests(unittest.TestCase):
         named = re.search(r"((?:`[\w-]+`(?:, | and ))+`[\w-]+`) run on `pull_request` alone", rule)
         gates = re.findall(r"`([\w-]+)`", named.group(1))
         self.assertTrue(gates, "the rule should name the gates that run on pull_request alone")
-        # Each is a check the gates job posts, so the triggers that matter are that workflow's.
+        # Each is a check the gates workflow posts, so the triggers that matter are that workflow's.
         workflow = (PAYLOAD / ".github" / "workflows" / "gates.yml").read_text(encoding="utf-8").replace("\r\n", "\n")
         block = re.search(r"^on:\n(.*?)(?=^\S)", workflow, re.MULTILINE | re.DOTALL)
         self.assertEqual(re.findall(r"^  (\w+):", block.group(1), re.MULTILINE), ["pull_request"])
