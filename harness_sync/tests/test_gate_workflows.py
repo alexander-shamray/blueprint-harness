@@ -367,7 +367,7 @@ class TheLeg(unittest.TestCase):
                 self.assertIn("::error::", out)
 
     def test_a_judging_job_that_published_nothing_fails_every_gate(self) -> None:
-        # The gates job was skipped or died before its verdicts step: the line is empty, or holds the decision alone.
+        # The gates job died before its verdicts step, so the line is empty; a decision with no outcome is malformed.
         for line in ("", " ", "true"):
             with self.subTest(line=line):
                 rc, out = self.conclude(line)
