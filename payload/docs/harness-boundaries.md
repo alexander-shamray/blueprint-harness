@@ -2587,11 +2587,14 @@ an untracked CRLF file, whose endings are not yet the checkout's. A
 `printf` piped into a shell is read as its words rather than its format's
 expansion, so it is refused where the format holds the `sed` and its
 arguments carry the file, and admitted where an argument carries the whole
-line. A quoted glob or brace list is expanded although bash would pass it
-literally, and a brace list's own name is read beside the words it makes,
-since the hook cannot tell the quoted from the bare: either can only
-refuse more. An operand whose braces make more than 201 words is judged on
-its first 201.
+line. A glob or brace list quoted whole is expanded although bash would
+pass it literally, and a brace list's own name is read beside the words it
+makes, since the hook cannot tell the quoted from the bare: either can only
+refuse more. A comma quoted or escaped inside a list is the exception: the
+quotes are gone before the list is read, so `{"a,b",c}.txt` is read as
+`a.txt`, `b.txt` and `c.txt`, never the `a,b.txt` bash passes. An operand
+whose braces make more than 201 words is judged on its first 201, and the
+command, as any command, is admitted once it has named 200 files.
 
 ## Headless dispatched sessions
 
