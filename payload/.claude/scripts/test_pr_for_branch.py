@@ -35,8 +35,8 @@ class OnlyThisCheckoutsPullRequestsSurvive(unittest.TestCase):
     HELPER = SCRIPTS / "pr-for-branch.sh"
     OWNER = "acme/widgets"
 
-    # Rows 2-4 differ from row 1 only in `headRepository`, so the repository filter is what drops them; the
-    # base filter would otherwise drop them first and the tests below would pass with no repository filter.
+    # Rows 2-4 pass every other drop, a base of `main` and no `mergeCommit`, so the repository filter is what
+    # drops them; the base filter would otherwise drop them first and the tests below pass with no repository filter.
     ROWS = """[
       {"number": 1, "state": "OPEN", "url": "u1", "headRefOid": "aaa1", "baseRefName": "main",
        "headRepository": {"nameWithOwner": "acme/widgets"}},
