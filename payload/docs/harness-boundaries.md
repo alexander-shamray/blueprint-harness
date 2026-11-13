@@ -1579,8 +1579,8 @@ prompts: `--list <path>` numbers one tracked file's unstaged hunks, and
 them with `git apply --cached`. Before it, a session split a file's hunks by
 writing a patch to the scratchpad and applying it, a line Claude Code's
 worktree isolation check refused whenever a variable held the path or a loop
-walked the patches (`docs/harness/pitfalls.md`, *A worktree session refuses
-git it cannot follow*). The helper takes the path literally, refuses one
+walked the patches (`docs/harness/pitfalls.md`, its entry on git a worktree
+session cannot follow). The helper takes the path literally, refuses one
 starting `-`, a directory, an untracked, binary, added, deleted, retyped or
 unmerged file and a number past the last, and spells out each option a config
 could set to make the patch unreadable to `git apply` or refused by it. Its
