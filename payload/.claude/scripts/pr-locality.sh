@@ -8,6 +8,11 @@ set -euo pipefail
 pr="${1:?usage: pr-locality.sh <pr-number>}"
 [[ "$pr" =~ ^[0-9]+$ ]] || { echo "pr must be a number" >&2; exit 2; }
 refuse() { echo "$1" >&2; exit 3; }
+# A path token's characters, spelled out so no locale reads a range, judged by bash itself: Git Bash on a loaded
+# Windows runner reported a `grep` fed by a process substitution as `Child exited`, refusing a valid token (#451).
+is_token() {
+  case "$1" in ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_./*?{},\(\)@+-]*) return 1 ;; esac
+}
 # The token as an anchored regular expression: `**` crosses directories,
 # `*` and `?` do not, braces are alternation, and a token also covers
 # everything beneath the directory it names — `tests/Ordering.*` is the
@@ -42,7 +47,8 @@ if [ -z "$class_row" ] && [ -z "$touch_row" ]; then exit 0; fi
 class=$(sed -E 's/^\| *Class *\| *//; s/ *\| *$//' < <(printf '%s\n' "$class_row"))
 # Spelled out, here and in the map's grammar below: a regex library that collates by locale reads a range as taking
 # lower case too, which the gate refuses.
-grep -Eq '^([ABCDE](\+[ABCDE])?|A\+D\+E)$' < <(printf '%s\n' "$class") || refuse "the Class row is not a class"
+class_re='^([ABCDE](\+[ABCDE])?|A\+D\+E)$'
+[[ "$class" =~ $class_re ]] || refuse "the Class row is not a class"
 [ "${class:0:1}" != "${class:2:1}" ] || refuse "the Class row repeats a class"
 # The touch-set cell, then each comma-separated token on its own.
 cells=$(sed -E 's/^\| *Touch set *\| *//; s/ *\| *$//' < <(printf '%s\n' "$touch_row"))
@@ -88,8 +94,7 @@ for item in "${items[@]}"; do
     '`'*'`') t="${t:1:${#t}-2}" ;;
     *'`'*) refuse "the Touch set row has an unbalanced backtick" ;;
   esac
-  grep -Eq '^[A-Za-z0-9_./*?{},()@+-]+$' < <(printf '%s\n' "$t") ||
-    refuse "the Touch set row is not a path list"
+  is_token "$t" || refuse "the Touch set row is not a path list"
   case "$t" in *[/.]*) ;; *) refuse "the Touch set row is not a path list" ;; esac
   t="${t%/}"
   # A brace alternative is a segment start too: `{../outside,docs/x.md}`
@@ -137,7 +142,7 @@ while IFS= read -r raw || [ -n "$raw" ]; do
   # An item takes the touch-set token checks, since an unchecked one widens a
   # class: `docs/a,docs/b` would admit `docs/admin`. A target's own gate may
   # admit fewer characters than this grammar does.
-  grep -Eq '^[A-Za-z0-9_./*?{},()@+-]+$' < <(printf '%s\n' "$item") && [[ "$item" == *[/.]* ]] ||
+  is_token "$item" && [[ "$item" == *[/.]* ]] ||
     refuse "classes.yml has an item that is not a path token"
   depth=0
   for ((i = 0; i < ${#item}; i++)); do
