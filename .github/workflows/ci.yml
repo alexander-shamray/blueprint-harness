@@ -158,7 +158,7 @@ jobs:
   # The concurrency block above cancels nothing on `main`, so the false alarms are somebody's own cancel and a leg
   # GitHub cancels from the runner queue (README.md, *Tests*), which a rerun of the failed jobs answers.
   # A first attempt files nothing: `main-red-rerun.yml` reruns its failed jobs once, which reruns this job with them,
-  # and only a second attempt that is red too files. That workflow files itself when the rerun is refused.
+  # and only a later attempt that is red too files. That workflow files itself when the rerun does not start.
   # `harness_sync/tests/test_main_red_job.py` holds `needs` to every other job here.
   main-red:
     needs: [sync-tool, payload-suites]
