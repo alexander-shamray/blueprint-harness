@@ -497,8 +497,17 @@ jobs:
         env:
           GATE: ${{ matrix.gate }}
           LINE: ${{ needs.gates.outputs[matrix.key] }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPO: ${{ github.repository }}
         run: |
           set -uo pipefail
+          # A fork's pull request lands only once its commits are pushed to a
+          # branch here, as when its read-only token posted nothing. Against
+          # accident only: a fork can edit this file.
+          if [ "$HEAD_REPO" != "$REPO" ]; then
+            echo "::error::$GATE: the head is $HEAD_REPO, a fork; push its commits to a branch of $REPO to be judged"
+            exit 1
+          fi
           # The line unquoted on purpose: the decision, then each outcome, as words.
           # shellcheck disable=SC2086
           set -- $LINE
