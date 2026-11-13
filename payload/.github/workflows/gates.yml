@@ -67,7 +67,7 @@ jobs:
           # base with no gate script has no gate to run, though it may keep the
           # class map a local check reads, so the gate neither runs nor posts.
           # A 404 is no script, and a directory answers with an array; any
-          # other failed read fails the step.
+          # other failed read runs the gate, which fails where there is none.
           locality=$(runs_on 'opened synchronize reopened edited')
           if [ "$locality" = true ]; then
             if found=$(gh api "repos/$REPO/contents/.github/locality-gate/locality_gate.py?ref=$BASE_SHA" \
@@ -76,8 +76,7 @@ jobs:
             elif [[ $found == *"HTTP 404"* ]]; then
               locality=false
             else
-              echo "::error::could not read whether $BASE_SHA carries the locality gate: $found"
-              exit 1
+              echo "::warning::could not read whether $BASE_SHA carries the locality gate, so it runs: $found"
             fi
           fi
           {

@@ -338,10 +338,10 @@ GATE_AT_BASE = f"repos/o/r/contents/.github/locality-gate/locality_gate.py?ref={
 class TheEvent(unittest.TestCase):
     """The decision step, run as written with `gh` answering whether the base commit carries the locality gate."""
 
-    def decide(self, action: str, *, answer: str = "file", rc: int = 0, ok: bool = True) -> dict[str, str]:
+    def decide(self, action: str, *, answer: str = "file", rc: int = 0) -> dict[str, str]:
         rc_seen, calls, out, output = run_with_gh(step_script("event", "open"), {"ACTION": action, "BASE_SHA": BASE},
                                                   gh_rc=rc, gh_id=answer)
-        self.assertEqual(0 if ok else 1, rc_seen, out)
+        self.assertEqual(0, rc_seen, out)
         # The one read it makes, of the gate script at the base, and only when the event runs the gate.
         self.assertIn(calls, ([], [{"path": GATE_AT_BASE}]))
         self.calls = calls
@@ -379,10 +379,14 @@ class TheEvent(unittest.TestCase):
                                       encoding="utf-8")
                 self.assertEqual((0, want), (done.returncode, done.stdout.strip()), done.stderr)
 
-    def test_a_read_that_fails_otherwise_fails_the_step_and_decides_nothing(self) -> None:
-        # A guess either way is wrong: a gate run on no script fails, and one skipped on a 500 is a silent pass.
-        decided = self.decide("opened", answer="gh: Server Error (HTTP 500)", rc=1, ok=False)
-        self.assertEqual({}, decided)
+    def test_a_read_that_fails_otherwise_runs_the_gate_and_decides_every_other(self) -> None:
+        # Skipped on a 500 is a silent pass, and a failed step would leave an `edited` run's closure gate unopened, so
+        # the push's verdict stood over the new description. Run, the gate fails where the base has no script.
+        for action in ("opened", "edited"):
+            with self.subTest(action=action):
+                decided = self.decide(action, answer="gh: Server Error (HTTP 500)", rc=1)
+                self.assertEqual(("true", "true"), (decided["closure"], decided["locality"]))
+                self.assertEqual({"closure", "commit", "drift", "comment", "locality"}, set(decided))
 
     def test_each_gate_judges_only_on_its_own_events(self) -> None:
         # The Dependabot decision runs for either gate, so a gate behind it has to name its own event too: an
