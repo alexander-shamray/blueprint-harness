@@ -342,7 +342,7 @@ at 09:26 UTC on 2026-11-09, and its #657, which made its `CLAUDE.md` import
 `.harness/agent-rules.md` and triaged its memories. With it every target syncs
 (`IMPORT.md`, *Rollout closed*).
 
-### Stop count since each first sync
+### Stop count since the move
 
 On the filter *What is counted* describes, each window closing on 2026-11-12,
 the last whole day:
@@ -353,7 +353,10 @@ py -3.12 measure/stops.py --project 'C--dev-ashamray-blueprint-frontend*' --sinc
 py -3.12 measure/stops.py --project 'C--dev-ashamray-blueprint-admin*' --since 2026-11-09 --until 2026-11-12 --command ship
 ```
 
-Backend's and frontend's windows open where *After #297*'s did. Admin's
+Backend's and frontend's windows open where *After #297*'s did. Frontend's
+opens at its first sync; backend's opens on 2026-11-06, after #1750 made its
+`CLAUDE.md` import the rules, as *After plan 2* names it, so the sessions
+between its first sync on 2026-11-03 and then are not in the row. Admin's
 admits 23 sessions, and one, `2bc538fc`, started at 04:38 UTC, before #655
 merged, with 6 handovers and 1 turn; the row leaves it out, so it holds only
 sessions since the sync. Each cell but the count of sessions is the median,
