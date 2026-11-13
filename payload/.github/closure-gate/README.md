@@ -51,7 +51,7 @@ not read for unresolvable keywords, and only when `author` is the Dependabot
 bot. Commits and every other author are read whole, because the exemption is
 for text this repository did not write. `closingIssuesReferences` is still
 compared in full, so a keyword GitHub links in this repository is still
-caught.
+caught, bar the foreign entries excused below.
 
 Upstream notes may also link their closures as full issue URLs
 (`closes [#3227](https://github.com/o/r/issues/3227)`): GitHub still parses
