@@ -304,7 +304,7 @@ class VerifyTests(SyncCase):
 
     def test_a_path_dropped_from_the_manifest_and_kept_unchanged_is_refused(self):
         # An incomplete sync: the payload and the manifest both drop the file, and the head keeps it as it was, so
-        # the diff never names it; apply deletes it and the drift gate refuses it.
+        # the diff never names it; apply deletes it, and the drift gate refuses one only under a managed directory.
         self.deleted = []
         self.start()
         out = self.refused("docs/c.md left the manifest but is still on the head")
