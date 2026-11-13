@@ -73,7 +73,7 @@ def steps_of(text: str, job: str = "gates") -> list[str]:
     return re.split(r"\n(?=      - )", parts[1])
 
 
-def report_at(steps: list[str]) -> int:
+def verdicts_at(steps: list[str]) -> int:
     """Where the judging job fixes its verdicts; nothing the head wrote may run at or before it."""
     at = [i for i, step in enumerate(steps) if VERDICTS.search(step)]
     if len(at) != 1:
@@ -92,9 +92,9 @@ def name_of(step: str) -> str:
     return found.group(1) if found else step.splitlines()[0].strip()
 
 
-def head_code_before_the_report(text: str, job: str = "gates") -> list[str]:
+def head_code_before_the_verdicts(text: str, job: str = "gates") -> list[str]:
     steps = steps_of(text, job)
-    return [name_of(step) for step in steps[:report_at(steps) + 1] if runs_head_code(step)]
+    return [name_of(step) for step in steps[:verdicts_at(steps) + 1] if runs_head_code(step)]
 
 
 def workflow(*steps: str) -> str:
@@ -252,13 +252,13 @@ class TheGrants(unittest.TestCase):
 
 
 class TheOrder(unittest.TestCase):
-    def test_nothing_the_head_wrote_runs_before_the_report(self) -> None:
-        self.assertEqual([], head_code_before_the_report(GATES_YML.read_text(encoding="utf-8")))
+    def test_nothing_the_head_wrote_runs_before_the_verdicts(self) -> None:
+        self.assertEqual([], head_code_before_the_verdicts(GATES_YML.read_text(encoding="utf-8")))
 
-    def test_each_gate_still_runs_its_suite_after_the_report(self) -> None:
-        # Moving a suite past the report is the fix; deleting it would pass the case above.
+    def test_each_gate_still_runs_its_suite_after_the_verdicts(self) -> None:
+        # Moving a suite past the verdicts is the fix; deleting it would pass the case above.
         steps = steps_of(GATES_YML.read_text(encoding="utf-8"))
-        suites = [step for step in steps[report_at(steps) + 1:] if "python -m unittest" in step]
+        suites = [step for step in steps[verdicts_at(steps) + 1:] if "python -m unittest" in step]
         found = [re.search(r"working-directory: \.github/(\S+)", step) for step in suites]
         self.assertNotIn(None, found)
         self.assertEqual(sorted(CHECKS), sorted(match.group(1) for match in found))
@@ -521,7 +521,7 @@ class TheReport(unittest.TestCase):
 class TheReader(unittest.TestCase):
     """What the order cases lean on, against workflows that are wrong on purpose."""
 
-    def test_each_spelling_of_head_code_before_the_report_is_named(self) -> None:
+    def test_each_spelling_of_head_code_before_the_verdicts_is_named(self) -> None:
         for spelling in ("        run: python -m unittest",
                          "        run: python .github/gate/test_gate.py",
                          "        run: python3 -m pytest",
@@ -535,23 +535,23 @@ class TheReader(unittest.TestCase):
                          "        uses: ./.github/actions/suite",
                          "        working-directory: .github/gate\n        run: make"):
             with self.subTest(spelling=spelling):
-                self.assertEqual(["step 1"], head_code_before_the_report(workflow(JUDGES, spelling, REPORTS)))
+                self.assertEqual(["step 1"], head_code_before_the_verdicts(workflow(JUDGES, spelling, REPORTS)))
 
     def test_a_path_run_by_a_nameless_step_is_named(self) -> None:
         text = ("jobs:\n  gates:\n    steps:\n"
                 '      - run: python "$RUNNER_TEMP/gate/gate.py"\n      - run: ./.github/gate/suite.sh\n'
                 "      - id: verdicts\n        run: true\n")
-        self.assertEqual(["- run: ./.github/gate/suite.sh"], head_code_before_the_report(text))
+        self.assertEqual(["- run: ./.github/gate/suite.sh"], head_code_before_the_verdicts(text))
 
-    def test_the_same_code_after_the_report_is_not_named(self) -> None:
-        self.assertEqual([], head_code_before_the_report(workflow(JUDGES, REPORTS, "        run: python -m unittest")))
+    def test_the_same_code_after_the_verdicts_are_not_named(self) -> None:
+        self.assertEqual([], head_code_before_the_verdicts(workflow(JUDGES, REPORTS, "        run: python -m unittest")))
 
     def test_head_code_beside_a_judge_is_named_on_either_side(self) -> None:
         above = '        run: |\n          python .github/gate/check.py\n          python "$RUNNER_TEMP/gate/gate.py"'
         below = '        run: |\n          python "$RUNNER_TEMP/gate/gate.py"\n          python .github/gate/check.py'
         for step in (above, below):
             with self.subTest(step=step):
-                self.assertEqual(["step 0"], head_code_before_the_report(workflow(step, REPORTS)))
+                self.assertEqual(["step 0"], head_code_before_the_verdicts(workflow(step, REPORTS)))
 
     def test_what_runs_nothing_from_the_checkout_is_not_named(self) -> None:
         for spelling in ("        uses: actions/setup-python@v7\n        with:\n          python-version: '3.12'",
@@ -560,22 +560,22 @@ class TheReader(unittest.TestCase):
                          "        run: git show \"$BASE_SHA:$GATE\" > \"$RUNNER_TEMP/gate/gate.py\"",
                          "        # python -m unittest\n        run: true"):
             with self.subTest(spelling=spelling):
-                self.assertEqual([], head_code_before_the_report(workflow(spelling, JUDGES, REPORTS)))
+                self.assertEqual([], head_code_before_the_verdicts(workflow(spelling, JUDGES, REPORTS)))
 
-    def test_a_workflow_with_no_report_two_or_no_judge_ahead_is_refused(self) -> None:
+    def test_a_workflow_with_no_verdicts_two_or_no_judge_ahead_is_refused(self) -> None:
         for steps in ((JUDGES,), (JUDGES, REPORTS, REPORTS), (REPORTS, JUDGES)):
             with self.subTest(steps=steps), self.assertRaises(ValueError):
-                head_code_before_the_report(workflow(*steps))
+                head_code_before_the_verdicts(workflow(*steps))
 
     def test_a_second_jobs_steps_are_not_read_as_the_first_jobs(self) -> None:
         second = "  other:\n    runs-on: ubuntu-latest\n    steps:\n      - run: python -m unittest\n"
-        self.assertEqual([], head_code_before_the_report(workflow(JUDGES, REPORTS) + second))
+        self.assertEqual([], head_code_before_the_verdicts(workflow(JUDGES, REPORTS) + second))
         self.assertEqual(["- run: python -m unittest"], [name_of(step) for step in steps_of(
             workflow(JUDGES, REPORTS) + second, "other") if runs_head_code(step)])
 
     def test_a_job_that_is_not_there_is_refused(self) -> None:
         with self.assertRaises(ValueError):
-            head_code_before_the_report(workflow(JUDGES, REPORTS), "other")
+            head_code_before_the_verdicts(workflow(JUDGES, REPORTS), "other")
 
 
 if __name__ == "__main__":
