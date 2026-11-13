@@ -1635,7 +1635,9 @@ CRLF folded, since `run` starts an executor on that file before CI has judged
 it; the manifest lists each payload file the config neither excludes nor keeps
 local, and lists no path it does; and the head changes only manifest paths,
 old-manifest paths and the manifest, with `.harness/config.json` and every
-`local` path untouched. The settings proof executes code from the head: its
+`local` path untouched, and holds no path the old manifest listed and the new
+one drops, changed or not, but one a `local` glob keeps, since apply deletes
+it, excluded or not. The settings proof executes code from the head: its
 `.harness/render.py`, read by oid and never from a tree, runs only once that
 commit is on the harness's `main` and the renderer and
 `.harness/settings.base.json` are manifest paths whose blobs are the payload's
