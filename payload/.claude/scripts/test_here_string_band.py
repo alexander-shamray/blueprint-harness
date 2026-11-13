@@ -58,6 +58,39 @@ class NoHereString(unittest.TestCase):
         self.assertEqual([], here_strings("# cmd <<<\"$x\" hangs\ncat <<'EOF'\nbody\nEOF\ncat <<-EOF\nEOF\n"))
 
 
+# `< <(` outside a comment; the shell reads it when the command is the builtin `read` or the `done` of a loop.
+PROCESS_SUBSTITUTION = re.compile(r"^(?!\s*#)(?P<head>.*?)<\s*<\(")
+SHELL_READS = re.compile(r"^\s*done\s*$|(^|[\s;|&(])read(\s|$)")
+
+
+def tools_fed_by_process_substitution(text):
+    found = []
+    for n, line in enumerate(text.splitlines(), 1):
+        match = PROCESS_SUBSTITUTION.match(line)
+        if match and not SHELL_READS.search(match.group("head")):
+            found.append(n)
+    return found
+
+
+class NoToolFedByProcessSubstitution(unittest.TestCase):
+    """Git Bash reported such a tool as `Child exited` on a loaded Windows runner (#451, #457).
+
+    Only the shell's own `read` may take the form. The cases beside each script prove what a dead tool does there; this
+    walk is the one that proves a site was moved, and covers a script added later.
+    """
+
+    def test_no_shell_script_feeds_a_tool_by_process_substitution(self):
+        offenders = {path.name: lines for path in shell_scripts()
+                     if (lines := tools_fed_by_process_substitution(path.read_text(encoding="utf-8")))}
+        self.assertEqual({}, offenders, "judge it in bash or pipe it, as docs/harness/pitfalls.md's entry says")
+
+    def test_the_pattern_catches_a_tool_and_passes_the_shells_own_read(self):
+        self.assertEqual([1, 3], tools_fed_by_process_substitution(
+            'count=$(jq length < <(printf x) | tr -d y)\ndone < <(printf x)\n  grep -q a < <(printf x)\n'))
+        self.assertEqual([], tools_fed_by_process_substitution(
+            'IFS=, read -r -a a < <(printf x)\n  done < <(printf "$m")\n# jq length < <(printf x)\n'))
+
+
 class TheBand(unittest.TestCase):
     """The list helpers return on a list of the size that hung, under a bound that ends the whole tree."""
 
