@@ -600,15 +600,10 @@ jobs:
             local conclusion=success outcome
             [ "$#" -gt 0 ] || conclusion=failure
             for outcome in "$@"; do [ "$outcome" = success ] || conclusion=failure; done
-            # A later run of this head opened its own check run of the name
-            # (ids rise with creation) and judges the head afresh, so an older
-            # run's pass completes neutral and names it rather than standing
-            # beside it. Only a run of the Actions app that `open` stamped with
-            # a run id counts, so no other app's check can withdraw a verdict,
-            # and only a pass yields: a red is posted as it is, since a red
-            # turned neutral would be a way past a failing gate. A read that
-            # fails posts this run's own verdict, a missing post being the
-            # worse.
+            # A later run of this head judges it afresh, so an older run's
+            # pass completes neutral. Only the Actions app's runs stamped with
+            # a run id count, and only a pass yields: a red neutral would be
+            # a way past a failing gate. A failed read posts the run's own.
             local newest
             newest=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=$name" \
               --jq '[.check_runs[] | select(.app.slug == "github-actions" and ((.external_id // "") | test("^[0-9]+$"))) | .id] | max // 0' \
