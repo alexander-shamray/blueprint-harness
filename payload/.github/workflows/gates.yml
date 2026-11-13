@@ -14,7 +14,9 @@ on:
 permissions: {}
 
 # No concurrency group: a rerun of an older head's run would cancel the newest
-# head's, which then leaves its gates unposted and the merge refused.
+# head's, which then leaves its gates unposted and the merge refused. The
+# `report` job takes the other way round: a run whose check run is not the
+# newest of its name for the head completes it neutral, naming the later one.
 
 # Every judge is the base commit's copy and the head suites run after the
 # verdicts are fixed, so head test code cannot steer a judge or a verdict by
@@ -100,6 +102,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_ID: ${{ github.run_id }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           CLOSURE: ${{ steps.event.outputs.closure }}
           COMMIT: ${{ steps.event.outputs.commit }}
@@ -113,7 +116,7 @@ jobs:
             local id
             id=$(gh api --method POST "repos/$REPO/check-runs" \
               -f name="$2" -f head_sha="$HEAD_SHA" -f status=in_progress \
-              -f "output[title]=$2: judging" \
+              -f external_id="$RUN_ID" -f "output[title]=$2: judging" \
               -f "output[summary]=Judged in the gates job: $RUN_URL" --jq .id)
             [[ $id =~ ^[0-9]+$ ]] || { echo "::error::no check run id for $2: $id"; exit 1; }
             echo "$1=$id" >> "$GITHUB_OUTPUT"
@@ -561,6 +564,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           # Each gate's check run and the event's decision, from the open job,
           # then the outcome of each of its steps, from the gates job: a gates
@@ -595,6 +599,25 @@ jobs:
             local conclusion=success outcome
             [ "$#" -gt 0 ] || conclusion=failure
             for outcome in "$@"; do [ "$outcome" = success ] || conclusion=failure; done
+            # A later run of this head opened its own check run of the name
+            # (ids rise with creation): its verdict is the one GitHub reads, so
+            # this older run completes neutral and names it. A read that fails
+            # posts this run's own verdict, since a missing post is the worse.
+            local newest
+            newest=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=$name" \
+              --jq '[.check_runs[].id] | max // 0' 2>/dev/null || echo 0)
+            if [[ $newest =~ ^[0-9]+$ ]] && [ "$newest" -gt "$id" ]; then
+              if gh api --method PATCH "repos/$REPO/check-runs/$id" \
+                  -f status=completed -f conclusion=neutral \
+                  -f "output[title]=$name: superseded" \
+                  -f "output[summary]=A later run of this head judges: check run $newest. This run: $RUN_URL" > /dev/null; then
+                echo "$name: superseded by check run $newest"
+              else
+                echo "::error::could not post the $name check run"
+                failed=1
+              fi
+              return 0
+            fi
             if ! gh api --method PATCH "repos/$REPO/check-runs/$id" \
                 -f status=completed -f conclusion="$conclusion" \
                 -f "output[title]=$name: $conclusion" \

@@ -228,7 +228,8 @@ class TheOrder(unittest.TestCase):
 ENV_OF = {"closure-gate": "CLOSURE_GATE", "commit-gate": "COMMIT_GATE", "harness-drift": "HARNESS_DRIFT",
           "comment-gate": "COMMENT_GATE", "locality-gate": "LOCALITY_GATE"}
 ID_OF = {"closure-gate": "11", "commit-gate": "12", "harness-drift": "13", "comment-gate": "14", "locality-gate": "15"}
-# Each call a line per argument it was handed, then a line of its own ending the call; it answers with $STUB_ID.
+# Each call a line per argument it was handed, then a line of its own ending the call; it answers with $STUB_ID, and
+# a read of a head's check runs by name with $STUB_NEWEST, failing with $STUB_READ_RC.
 GH_STUB = """#!/usr/bin/env bash
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -236,11 +237,15 @@ while [ "$#" -gt 0 ]; do
     --method) echo "method=$2" >> "$CALLS"; shift ;;
     -f) echo "$2" >> "$CALLS"; shift ;;
     --jq) shift ;;
-    *) echo "path=$1" >> "$CALLS" ;;
+    *) echo "path=$1" >> "$CALLS"; last=$1 ;;
   esac
   shift
 done
 echo -- >> "$CALLS"
+if [[ "$last" == *check_name=* ]]; then
+  echo "$STUB_NEWEST"
+  exit "$STUB_READ_RC"
+fi
 echo "$STUB_ID"
 exit "$STUB_RC"
 """
@@ -256,7 +261,8 @@ def find_bash() -> str | None:
     return shutil.which("bash")
 
 
-def run_with_gh(script: str, env: dict[str, str], *, gh_rc: int = 0, gh_id: str = "42") -> tuple[int, list[dict], str, str]:
+def run_with_gh(script: str, env: dict[str, str], *, gh_rc: int = 0, gh_id: str = "42", newest: str = "0",
+                read_rc: int = 0) -> tuple[int, list[dict], str, str]:
     """A step's script under bash with `gh` stubbed: its exit, each call's fields, its output and $GITHUB_OUTPUT."""
     bash = find_bash()
     if bash is None:
@@ -267,8 +273,8 @@ def run_with_gh(script: str, env: dict[str, str], *, gh_rc: int = 0, gh_id: str 
         stub.write_text(GH_STUB, encoding="utf-8", newline="\n")
         stub.chmod(0o755)
         env = {**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"], "CALLS": str(log),
-               "STUB_RC": str(gh_rc), "STUB_ID": gh_id, "GITHUB_OUTPUT": output.as_posix(), "GH_TOKEN": "t",
-               "REPO": "o/r", "HEAD_SHA": "f" * 40, "RUN_URL": "u", **env}
+               "STUB_RC": str(gh_rc), "STUB_ID": gh_id, "STUB_NEWEST": newest, "STUB_READ_RC": str(read_rc), "GITHUB_OUTPUT": output.as_posix(), "GH_TOKEN": "t",
+               "REPO": "o/r", "HEAD_SHA": "f" * 40, "RUN_URL": "u", "RUN_ID": "7", **env}
         done = subprocess.run([bash, "-c", script], capture_output=True, text=True, encoding="utf-8", env=env)
         text = log.read_text(encoding="utf-8") if log.exists() else ""
         calls = [dict(line.split("=", 1) for line in call.splitlines() if line) for call in text.split("--\n")[:-1]]
@@ -358,8 +364,8 @@ class TheOpening(unittest.TestCase):
         self.assertEqual(0, rc, out)
         self.assertEqual(["closure-gate", "comment-gate", "locality-gate"], [call["name"] for call in calls])
         for call in calls:
-            self.assertEqual(("POST", "repos/o/r/check-runs", "in_progress", "f" * 40),
-                             (call["method"], call["path"], call["status"], call["head_sha"]))
+            self.assertEqual(("POST", "repos/o/r/check-runs", "in_progress", "f" * 40, "7"),
+                             (call["method"], call["path"], call["status"], call["head_sha"], call["external_id"]))
         self.assertEqual("closure=42\ncomment=42\nlocality=42\n", output)
 
     def test_an_answer_with_no_id_fails_the_step(self) -> None:
@@ -392,13 +398,19 @@ class TheVerdicts(unittest.TestCase):
 class TheReport(unittest.TestCase):
     """The report job's script, run as written with `gh` stubbed, for the verdicts it posts."""
 
-    def post(self, *, gh_rc: int = 0, ids: dict[str, str] | None = None, **gates: str) -> tuple[int, list[dict], str]:
+    def post(self, *, gh_rc: int = 0, ids: dict[str, str] | None = None, newest: str = "0", read_rc: int = 0,
+             **gates: str) -> tuple[int, list[dict], str]:
         values = {name: "true success" for name in ENV_OF}
         values.update({name.replace("_", "-"): value for name, value in gates.items()})
         env = {ENV_OF[name]: value for name, value in values.items()}
         env.update({f"{ENV_OF[name]}_ID": value for name, value in {**ID_OF, **(ids or {})}.items()})
-        rc, calls, out, _ = run_with_gh(step_script("report", "report"), env, gh_rc=gh_rc)
+        rc, calls, out, _ = run_with_gh(step_script("report", "report"), env, gh_rc=gh_rc, newest=newest,
+                                     read_rc=read_rc)
         name_of_id = {f"repos/o/r/check-runs/{value}": name for name, value in ID_OF.items()}
+        reads = [call for call in calls if "method" not in call]
+        self.assertTrue(all(call["path"].startswith("repos/o/r/commits/" + "f" * 40 + "/check-runs?check_name=")
+                            for call in reads), reads)
+        calls = [call for call in calls if "method" in call]
         for call in calls:
             self.assertEqual("PATCH", call["method"])
             call["name"] = name_of_id[call["path"]]
@@ -410,6 +422,28 @@ class TheReport(unittest.TestCase):
         self.assertEqual(sorted(CHECKS), sorted(post["name"] for post in posts))
         for post in posts:
             self.assertEqual(("completed", "success"), (post["status"], post["conclusion"]))
+
+    def test_a_check_run_a_later_run_of_the_head_opened_over_is_completed_neutral(self) -> None:
+        # The older run's `open` job ran after the newer's, so its ids are the lower: it yields rather than standing.
+        rc, posts, out = self.post(newest="99")
+        self.assertEqual(0, rc, out)
+        self.assertEqual(sorted(CHECKS), sorted(post["name"] for post in posts))
+        for post in posts:
+            self.assertEqual(("completed", "neutral"), (post["status"], post["conclusion"]))
+            self.assertIn("check run 99", post["output[summary]"])
+
+    def test_the_newest_check_run_posts_its_own_verdict(self) -> None:
+        for newest in ("0", "11"):
+            with self.subTest(newest=newest):
+                rc, posts, out = self.post(newest=newest, harness_drift="true failure")
+                self.assertEqual(1, rc, out)
+                self.assertEqual({"success", "failure"}, {post["conclusion"] for post in posts})
+
+    def test_a_read_that_fails_posts_the_runs_own_verdict(self) -> None:
+        # A missing post leaves the check in progress, which is the worse of the two.
+        rc, posts, out = self.post(newest="99", read_rc=1)
+        self.assertEqual(0, rc, out)
+        self.assertEqual({"success"}, {post["conclusion"] for post in posts})
 
     def test_a_gate_whose_run_was_not_opened_fails(self) -> None:
         rc, posts, out = self.post(ids={"commit-gate": ""})
