@@ -1,7 +1,7 @@
 ---
 description: Split the working tree into semantic commits with bodies that argue the change
 argument-hint: "[what to commit — omit for everything staged and unstaged]"
-allowed-tools: Read, Grep, Glob, Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git branch --list:*), Bash(git branch --show-current), Bash(git branch -a), Bash(git add:*), Bash(git commit:*), Bash(bash .claude/scripts/git-unstage.sh:*), Bash(bash .claude/scripts/git-stage-hunks.sh:*), Bash(bash .claude/scripts/pr-for-branch.sh:*), Bash(wc:*)
+allowed-tools: Read, Grep, Glob, Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git branch --list:*), Bash(git branch --show-current), Bash(git branch -a), Bash(git add:*), Bash(git commit:*), Bash(bash .claude/scripts/git-unstage.sh:*), Bash(bash .claude/scripts/pr-for-branch.sh:*), Bash(wc:*)
 ---
 
 Commit the working tree. Scope: $ARGUMENTS — if empty, everything modified
@@ -36,9 +36,9 @@ The splits this repo has actually wanted:
 Do not manufacture splits. Three commits that each say something beat six that
 divide one idea.
 
-**A file's hunks in two commits**: `git-stage-hunks.sh --list <path>`
-lists them, `git-stage-hunks.sh <path> <n>[,<n>...]` stages them; never
-`git add -p` (`docs/harness/pitfalls.md`).
+**A file's hunks in two commits**: `bash .claude/scripts/git-stage-hunks.sh
+--list <path>` lists them, `bash .claude/scripts/git-stage-hunks.sh <path>
+<n>[,<n>...]` stages them; never `git add -p` (`docs/harness/pitfalls.md`).
 
 ## Message form
 
