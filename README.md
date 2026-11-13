@@ -39,9 +39,9 @@ tool renders them into each target through an ordinary pull request.
   `.github/workflows/main-red-rerun.yml` reruns the failed jobs once and
   comments the failed jobs and steps on the open *Flaky tests tracker*; a run
   cannot rerun itself while its own jobs run, so that is a workflow of its own.
-  Only a second attempt that is red too has the `main-red` job file
-  `main is red: ci`, the issue `/ship` step 6 stops on, and a rerun GitHub
-  refuses files it from the rerun workflow instead.
+  Only a later attempt that is red too has the `main-red` job file
+  `main is red: ci`, the issue `/ship` step 6 stops on, and a rerun that
+  does not start files it from the rerun workflow instead.
   A red push run of `rulesets.yml`, or a red `sync.yml` run, files none, on
   purpose: that issue stops every landing and opens by asking for a revert,
   which does not answer a ruleset changed by hand or a failure on a target's
