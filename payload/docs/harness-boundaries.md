@@ -2736,11 +2736,11 @@ suite that lists a tree, in a spelling its pattern knows, must be named in
 per class: a listing in a class the table does not name fails it, unless the
 table names its module whole, and module-level code is placed by the module or
 by any class of it that is a reader. Only a listing spelt off a root the
-pattern does not know passes it; any change to a suite selects the check. What one step misses, a caller's caller, a red that
-only the whole suite shows, is the price of the local run, and CI, which runs
-every class on three hosts, is what pays it. A selection still goes through
-the plan's check against what it kept, and a module that fails to import runs
-in every selection.
+pattern does not know passes it; any change to a suite selects the check. What
+one step misses, a caller's caller, a red that only the whole suite shows, is
+the price of the local run, and CI, which runs every class on three hosts, is
+what pays it. A selection still goes through the plan's check against what it
+kept, and a module that fails to import runs in every selection.
 
 **Each run leaves one line of how long it took.** `harness_timings.py` appends
 it to `%LOCALAPPDATA%/blueprint-harness/timings.jsonl`, or
