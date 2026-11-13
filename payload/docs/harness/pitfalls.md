@@ -68,8 +68,9 @@ when a step behaves unexpectedly.
   ones return. `gh-issue-list.sh` met it the night its list reached 65,541
   bytes and held `/dispatch` at step 0 for 56 minutes. Safe: feed a
   variable as `cmd < <(printf '%s\n' "$s")`, the here-string's exact
-  input; `test_here_string_band.py` refuses a here-string in a shell
-  script under `.claude/scripts/` or `.claude/hooks/`.
+  input, within the limit the next entry sets on it;
+  `test_here_string_band.py` refuses a here-string in a shell script under
+  `.claude/scripts/` or `.claude/hooks/`.
 - **Git Bash can report a tool fed by a process substitution as killed.**
   On a loaded Windows runner, `grep -Eq … < <(printf '%s\n' "$item")` in
   `pr-locality.sh` ended as `Child exited`, which the script read as a
@@ -77,7 +78,9 @@ when a step behaves unexpectedly.
   (#451); 8,800 runs on a loaded workstation did not reproduce it. In that
   form bash starts the substitution from the tool's own process. Safe:
   judge a short string in bash itself, by `case` or `[[ =~ ]]` with the
-  characters spelled out; `while read … done < <(…)` is not that form.
+  characters spelled out, and hand a tool that reads its input whole a
+  pipe; `while read … done < <(…)`, whose substitution the shell starts,
+  is not that form.
 - **A Python `timeout=` does not end a hung Git Bash.** On Windows
   `subprocess.run(…, capture_output=True, timeout=…)` kills only the
   direct child, which for Git's `bin/bash.exe` is a launcher, and then
