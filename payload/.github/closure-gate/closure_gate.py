@@ -99,9 +99,8 @@ def linked_issues(
 ) -> tuple[set[int], list[str]]:
     """This repository's closing numbers, and a description of each foreign entry.
 
-    No `url` reads as local; a `url` that is another repository's, or unreadable, is foreign.
-    A foreign entry whose URL is in `notes` and not in `outside` is left out: `notes` is the
-    Dependabot description and `outside` what remains once its `<details>` blocks are cut.
+    No `url` reads as local; another repository's, or an unreadable one, is foreign, unless the
+    Dependabot `notes` hold it and `outside`, the notes cut of their `<details>`, does not.
     """
     numbers: set[int] = set()
     foreign: list[str] = []
