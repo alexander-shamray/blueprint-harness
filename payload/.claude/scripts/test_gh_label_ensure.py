@@ -215,7 +215,7 @@ class LabelHelperBehaviour(unittest.TestCase):
 
 
 class LabelHelperJudgesNoLineWithATool(unittest.TestCase):
-    """Git Bash reported a tool fed by a process substitution as `Child exited` (#451, #457)."""
+    """Git Bash reported a tool fed by a process substitution as `Child exited`."""
 
     def shim(self, s, body):
         grep = Path(s.dir) / "grep"

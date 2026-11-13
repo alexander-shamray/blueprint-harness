@@ -153,7 +153,7 @@ class OnlyThisCheckoutsPullRequestsSurvive(unittest.TestCase):
         self.assertIn("truncated", result.stderr)
 
     def test_a_jq_that_does_not_finish_is_no_answer(self):
-        # Git Bash reported a tool fed by a process substitution as `Child exited` (#451, #457). A `jq` dying on the
+        # Git Bash reported a tool fed by a process substitution as `Child exited`. A `jq` dying on the
         # count, the repository filter, the merged-row read or the final shape stands in: each ends the run with
         # nothing printed, never an empty list `/ship` would read as "no pull request".
         for dies_on in ("length", "--arg", "-r", "--argjson"):

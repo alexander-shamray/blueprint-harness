@@ -379,7 +379,7 @@ class RemoveShape(unittest.TestCase):
         self.assertTrue(self.registered(root))
 
     def test_the_registration_is_read_in_bash_not_by_a_tool(self):
-        # Git Bash reported a `grep` fed by a process substitution as `Child exited` (#451, #457), which read as
+        # Git Bash reported a `grep` fed by a process substitution as `Child exited`, which read as
         # "no longer registered" and sent a dirty worktree down the failed-delete path. A `grep` that dies on every
         # call stands in for it: the dirty refusal still names git's own reason.
         root, native = self.fixture()

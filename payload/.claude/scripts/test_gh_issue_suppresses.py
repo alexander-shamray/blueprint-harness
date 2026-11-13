@@ -276,7 +276,7 @@ class WhatSuppressesIsDecidedByCodeNow(unittest.TestCase):
                     self.assertIn('"number":2', result.stdout)
 
     def test_a_count_that_does_not_finish_is_no_list(self):
-        # Git Bash reported a tool fed by a process substitution as `Child exited` (#451, #457). A `jq` that dies as
+        # Git Bash reported a tool fed by a process substitution as `Child exited`. A `jq` that dies as
         # that one did stands in: the count is a failure, never an empty one that passes the limit and prints the list.
         stub_dir = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, stub_dir, ignore_errors=True)

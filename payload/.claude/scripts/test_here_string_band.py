@@ -79,7 +79,7 @@ def tools_fed_by_process_substitution(text):
 
 
 class NoToolFedByProcessSubstitution(unittest.TestCase):
-    """Git Bash reported such a tool as `Child exited` on a loaded Windows runner (#451, #457).
+    """Git Bash reported such a tool as `Child exited` on a loaded Windows runner.
 
     Only the shell's own `read` may take the form. The cases beside each script prove what a dead tool does there; this
     walk is the one that proves a site was moved, and covers a script added later.

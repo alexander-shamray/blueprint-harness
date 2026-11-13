@@ -356,7 +356,7 @@ class FailedFork(unittest.TestCase):
         self.assertEqual("", self.branch(root))
 
     def test_the_worktree_list_is_read_in_bash_not_by_a_tool(self):
-        # Git Bash reported a `grep` fed by a process substitution as `Child exited` (#451, #457), which read as
+        # Git Bash reported a `grep` fed by a process substitution as `Child exited`, which read as
         # "no worktree holds it", and the branch a worktree holds was deleted from under it. A `grep` that dies on
         # every call stands in for it: the held branch is still kept.
         root = self.fixture()
