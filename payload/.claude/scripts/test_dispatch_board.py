@@ -401,8 +401,13 @@ class PathTests(unittest.TestCase):
         # A hard-wrapped body breaks a span over two lines; paired line by line, its closing backtick would open the
         # next span and drop the directory that follows it.
         self.assertEqual({"deploy/rabbitmq"}, db.extract_paths("run `gh issue\nlist` and `deploy/rabbitmq/` too"))
-        # A blank line ends the paragraph, so an unclosed backtick before it shifts nothing after it.
-        self.assertEqual({"deploy/rabbitmq"}, db.extract_paths("a stray ` here\n\nthen `deploy/rabbitmq/`"))
+        self.assertEqual({"deploy/rabbitmq"}, db.extract_paths("- run `gh issue\n  list` and `deploy/rabbitmq/`"))
+        # A blank line, a list item, a heading or a block quote ends the block, so an unclosed backtick before it
+        # shifts nothing after it.
+        for start in ("\n", "- ", "* ", "2. ", "## ", "> "):
+            with self.subTest(start=start):
+                found = db.extract_paths(f"- a stray ` here\n{start}then `deploy/rabbitmq/`")
+                self.assertEqual({"deploy/rabbitmq"}, found)
 
     def test_a_dotless_token_under_a_nested_directory_still_claims(self):
         self.in_checkout()
