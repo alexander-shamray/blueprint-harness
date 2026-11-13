@@ -30,8 +30,9 @@ Executors fork from `origin/main` and land onto it; the dispatcher's own
 checkout is where it pulls each merge and checks that `main` holds it. A
 checkout off `main`, dirty or ahead of `origin/main` would make that check
 answer about the wrong tree, so step 0 refuses one before anything is asked,
-as `/ship` step 0 refuses the last (spec §3). `git rev-parse --git-dir
---git-common-dir` printing one directory twice is what tells the main
+as `/ship` step 0 refuses the last (spec §3). `git rev-parse
+--path-format=absolute --git-dir --git-common-dir` printing one directory
+twice is what tells the main
 checkout from a linked worktree, the same test `git-worktree-fork.sh` makes:
 the fork and the removal helpers run only from there.
 
