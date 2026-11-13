@@ -505,6 +505,13 @@ class DependabotDescription(unittest.TestCase):
         problems = self._linked(self.NOTES, self.DEPENDABOT)
         self.assertTrue(any("stryker-mutator/stryker-net#3227" in p for p in problems), problems)
 
+    def test_a_longer_issue_number_in_the_notes_does_not_excuse_a_shorter_one(self):
+        data = payload(body=self.LINKED_NOTES, author=self.DEPENDABOT)
+        data["closingIssuesReferences"] = [
+            {"number": 3, "url": "https://github.com/stryker-mutator/stryker-net/issues/3"}]
+        problems = check(data)
+        self.assertTrue(any("stryker-mutator/stryker-net#3" in p for p in problems), problems)
+
     def test_a_payload_without_author_is_read_whole(self):
         legacy = payload(body=self.NOTES)
         del legacy["author"]
