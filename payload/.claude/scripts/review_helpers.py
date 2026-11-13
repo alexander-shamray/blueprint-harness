@@ -124,7 +124,19 @@ def temp_root(case):
 _templates = {}
 
 # Appended to every config a template holds, so that no copy starts a file-system monitor or an automatic collection.
-QUIET_GIT = "[core]\n\tfsmonitor = false\n[gc]\n\tauto = 0\n"
+QUIET_GIT = "[core]\n\tfsmonitor = false\n[gc]\n\tauto = 0\n[maintenance]\n\tauto = false\n"
+
+
+def no_maintenance(base):
+    """The three variables that make a git started with `base` in its environment run no `maintenance --auto`.
+
+    A commit ends by starting `git maintenance run --auto --detach`, which holds `objects/maintenance.lock` after the
+    commit returns; `gc.auto = 0` does not stop it, and a config appended after the build comes too late for the
+    build's own commits. A count `base` already holds is extended, never replaced.
+    """
+    count = int(base.get("GIT_CONFIG_COUNT") or 0)
+    return {"GIT_CONFIG_COUNT": str(count + 1), f"GIT_CONFIG_KEY_{count}": "maintenance.auto",
+            f"GIT_CONFIG_VALUE_{count}": "false"}
 
 
 def repository_configs(root):
@@ -147,9 +159,15 @@ def fixture_template(build, root_var="R", key=None, **env):
         unittest.addModuleCleanup(_templates.clear)
         root = Path(holder.name).as_posix()
         if callable(build):
-            build(Path(root))
+            saved = dict(os.environ)
+            os.environ.update(no_maintenance(saved))
+            try:
+                build(Path(root))
+            finally:
+                os.environ.clear()
+                os.environ.update(saved)
         else:
-            built = run_bash("set -eu\n" + build, **{root_var: root}, **env)
+            built = run_bash("set -eu\n" + build, **{root_var: root}, **env, **no_maintenance({**os.environ, **env}))
             if built.returncode != 0:
                 raise RuntimeError(f"the fixture template did not build: {built.stderr}")
         for config in repository_configs(root):
@@ -159,6 +177,14 @@ def fixture_template(build, root_var="R", key=None, **env):
     return _templates[key]
 
 
+def _git_locks(directory, names):
+    """The `*.lock` files a background git may still hold or remove mid-copy, inside a `.git` directory or a bare
+    repository's `objects`: a fixture's own `yarn.lock` is content and is copied."""
+    if not {".git", "objects"} & set(Path(directory).parts):
+        return []
+    return [name for name in names if name.endswith(".lock")]
+
+
 def copy_template(case, template, root=None):
     """A fresh copy of `template` at `root`, a `temp_root` of `case`'s by default, every git config re-pointed at it.
 
@@ -166,7 +192,7 @@ def copy_template(case, template, root=None):
     a template holding a linked worktree, whose `.git` file and `gitdir` spell absolute paths too, is not one.
     """
     root = temp_root(case) if root is None else Path(root).as_posix()
-    shutil.copytree(template, root, symlinks=True, dirs_exist_ok=True)
+    shutil.copytree(template, root, symlinks=True, dirs_exist_ok=True, ignore=_git_locks)
     for config in repository_configs(root):
         text = config.read_text(encoding="utf-8")
         if template in text:
