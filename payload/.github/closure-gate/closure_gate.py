@@ -235,7 +235,7 @@ def check(payload: dict) -> list[str]:
 
     # The release notes are the text this repository did not write. For the
     # Dependabot bot alone, a foreign entry whose URL sits only inside them is
-    # excused; `body` below is what remains outside.
+    # excused.
     body = payload["body"] or ""
     author = payload.get("author") or {}
     notes = ""
@@ -246,7 +246,9 @@ def check(payload: dict) -> list[str]:
         while stripped != body:
             body, stripped = stripped, DETAILS.sub("", stripped)
         notes = whole
-    # `body` is now what lies outside the blocks, `notes` the whole description.
+    # For the Dependabot bot, `body` is now what lies outside the blocks and
+    # `notes` the whole description; for any other author `body` is the whole
+    # description and `notes` is empty.
     linked, foreign = linked_issues(
         payload["closingIssuesReferences"], repository, notes, body
     )
@@ -285,7 +287,8 @@ def check(payload: dict) -> list[str]:
     # The body is read only for the keyword-shaped tokens below. What the
     # description *closes* is `closingIssuesReferences`, which is GitHub's own
     # answer rather than this file's, and there is no reason to prefer a second
-    # opinion to the authority. `body` is cut of the release notes above.
+    # opinion to the authority. For the Dependabot bot `body` is cut of
+    # its release notes above.
     _, body_unreadable = closing_references(body, repository)
     for phrase in body_unreadable:
         problems.append(
