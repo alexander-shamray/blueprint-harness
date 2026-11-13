@@ -489,8 +489,8 @@ jobs:
     permissions: {}
     steps:
       # A pass only when every step of the gate succeeded. A gates job that
-      # published nothing leaves an empty line, and one that died before a
-      # gate's steps leaves the decision with no outcomes: both fail.
+      # died before its verdicts step leaves an empty line, which fails, as
+      # does a malformed line holding a decision and no outcome.
       - name: Conclude as the gate concluded
         id: verdict
         shell: bash
