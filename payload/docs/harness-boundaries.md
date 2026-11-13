@@ -2750,11 +2750,15 @@ suite that lists a tree, in a spelling its pattern knows, must be named in
 `TREE_READERS`, and every selector must name a class that exists. The check is
 per class: a listing in a test class the table does not name fails it, unless
 the table names its module whole. Module-level code, and a class holding no
-test, is placed by the module or by any class of it that is a reader. A
-listing in a spelling the pattern does not know, a root included, passes it;
-any change to a suite selects the check. What one step misses, a caller's
-caller, a red that only the whole suite shows, is the price of the local run,
-and CI, which runs every class on three hosts, is what pays it. A selection
+test, is placed by the module or by any class of it that is a reader. The
+pattern reads a glob or directory listing off any ALL-CAPS module constant, off
+`root`, off `__file__` and a few attribute names, and `git ls-files`; a listing
+in a spelling it does not know, a lowercase or attribute name, passes it, and a
+script a suite runs over the checkout is named in the check's own table; any
+change to a suite selects the check. What one step misses, a caller's caller, a
+red that only the whole suite shows, is the price of the local run, and CI,
+where it runs the whole suite (this repository's runs every class on three
+hosts), is what pays it; a target whose CI runs less pays less. A selection
 still goes through the plan's check against what it kept, and a module that
 fails to import runs in every selection.
 
@@ -2762,7 +2766,7 @@ fails to import runs in every selection.
 it to `%LOCALAPPDATA%/blueprint-harness/timings.jsonl`, or
 `~/.cache/blueprint-harness/` elsewhere, outside every checkout so that no
 clean, sync or teardown loses it, and `HARNESS_TIMINGS` points it elsewhere,
-as CI does to upload it: the script and mode, the repository, branch and
+as this repository's CI does to upload it, a target's setting it or not: the script and mode, the repository, branch and
 commit, the host, the workers, the lock wait, the wall time, the exit, and
 each class's seconds. A line that cannot be written is said and swallowed,
 since a run's exit is its tests', never its record's. `harness_timings.py
