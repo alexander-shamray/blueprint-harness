@@ -144,7 +144,8 @@ when a step behaves unexpectedly.
   one; put the anchoring in a hook.
 - **Hunks of one file are hard to split across commits**: `git add -p` is
   interactive, and a patch cut by hand into the scratchpad and applied with
-  `git apply --cached` is a line the guards often cannot judge, a variable
+  `git apply --cached` is a line a worktree session's isolation check often
+  refuses (*A worktree session refuses git it cannot follow*), a variable
   holding the path or a loop over patches among them, or a patch that no
   longer applies. Safe: `bash .claude/scripts/git-stage-hunks.sh --list
   <path>` numbers the file's unstaged hunks, and `bash
