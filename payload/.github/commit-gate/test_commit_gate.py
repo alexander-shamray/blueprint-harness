@@ -296,9 +296,10 @@ class Standing(unittest.TestCase):
 
 
 class WorkflowShape(unittest.TestCase):
-    def test_the_job_has_no_condition_so_a_human_push_is_judged(self) -> None:
+    def test_the_job_waits_on_the_decision_alone_so_a_human_push_is_judged(self) -> None:
         job = gates_job(WORKFLOW.read_text(encoding="utf-8")).split("\n    steps:\n", 1)[0]
-        self.assertNotRegex(job, r"(?m)^    if:")
+        self.assertEqual(["${{ !cancelled() && needs.open.outputs.closure != '' }}"],
+                         re.findall(r"(?m)^    if: (.*)$", job))
 
     def test_the_checkout_runs_first_with_full_history_and_no_condition(self) -> None:
         first = workflow_steps()[0]

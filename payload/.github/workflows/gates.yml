@@ -126,6 +126,9 @@ jobs:
 
   gates:
     needs: open
+    # Keyed on the decision, not on the posts: a fork's read-only token or a
+    # failed post still judges and runs every suite.
+    if: ${{ !cancelled() && needs.open.outputs.closure != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
