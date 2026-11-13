@@ -263,8 +263,8 @@ still lists the twelve modules as `local` and apply refuses a payload file
 that is `local` and differs: the config this repository's draft carries, ten
 of the eleven siblings and the sync's apply together (blueprint-backend#1773).
 The eleventh, `test_issue_form_gate_backend.py`, does not land: #7 brought its
-cases back to the payload and it names symbols that are gone. Until #1773
-lands, `sync.yml`'s backend leg is refused.
+cases back to the payload and it names symbols that are gone. `sync.yml`'s
+backend leg was refused until #1773 closed, on 2026-11-06.
 
 ## Test counts
 
