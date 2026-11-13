@@ -40,7 +40,7 @@ repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner) ||
   { echo "cannot resolve this checkout's repository" >&2; exit 3; }
 
 # --search is a match, not an equality, so the exact name is checked with
-# grep -x afterwards: searching for `low` also returns `slow` if one ever
+# a whole-line match afterwards: searching for `low` also returns `slow` if one ever
 # exists, and a helper that concluded "already there" from a near miss would
 # leave the sweep filing against a label that does not exist.
 
