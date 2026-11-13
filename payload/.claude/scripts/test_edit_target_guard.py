@@ -752,17 +752,34 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
 class AWorktreeTheSessionHasNotEntered(GuardCase):
     """No permission rule reaches it, so the target's own denies judge it."""
 
-    def linked(self, name="linked", beside=None):
-        """A linked worktree of the fixture, in the shape the guard reads."""
+    def linked(self, name="linked", beside=None, relative=False):
+        """A linked worktree of the fixture, in the shape the guard reads.
+
+        `relative` writes both pointers as `git worktree add --relative-paths`
+        does, each against the directory of the file holding it.
+        """
         worktree = os.path.join(beside or self.outside, name)
         os.makedirs(os.path.join(worktree, "docs"), exist_ok=True)
         admin = os.path.join(self.root, ".git", "worktrees", name)
         os.makedirs(admin, exist_ok=True)
-        self.write(os.path.join(worktree, ".git"), "gitdir: " + admin + "\n")
-        self.write(os.path.join(admin, "gitdir"),
-                   os.path.join(worktree, ".git") + "\n")
+        pointer, backlink = admin, os.path.join(worktree, ".git")
+        if relative:
+            pointer = os.path.relpath(pointer, worktree).replace(os.sep, "/")
+            backlink = os.path.relpath(backlink, admin).replace(os.sep, "/")
+        self.write(os.path.join(worktree, ".git"), "gitdir: " + pointer + "\n")
+        self.write(os.path.join(admin, "gitdir"), backlink + "\n")
         self.write(os.path.join(admin, "commondir"), "../..\n")
         return worktree
+
+    def test_a_worktree_with_relative_pointers_is_judged_the_same(self):
+        # Read against the hook's own cwd, the runner's here, both pointers
+        # name nothing and neither rule recognises the worktree.
+        worktree = self.linked("relative", relative=True)
+        self.assertIn("worktree of this repository", self.assertRefused(
+            os.path.join(worktree, ".claude", "settings.json")))
+        self.assertIn("main checkout", self.assertRefused(
+            os.path.join(self.root, ".claude", "settings.json"), cwd=worktree))
+        self.assertAdmitted(os.path.join(worktree, "docs", "note.md"))
 
     def hook_denying(self, *denies):
         """A copy of both guards whose checkout's settings carry `denies`."""
@@ -892,6 +909,12 @@ class AWorktreeTheSessionHasNotEntered(GuardCase):
         self.write(os.path.join(forged, ".git"), "gitdir: " + admin + "\n")
         self.write(os.path.join(admin, "gitdir"), "/elsewhere/.git\n")
         self.assertAdmitted(os.path.join(forged, ".claude", "scripts", "x.sh"))
+        # A relative backlink is read against the admin directory, so one
+        # naming the forged checkout from the hook's cwd agrees with nothing.
+        self.write(os.path.join(admin, "gitdir"), os.path.relpath(
+            os.path.join(forged, ".git"), self.outside) + "\n")
+        self.assertAdmitted(os.path.join(forged, ".claude", "scripts", "x.sh"),
+                            process_cwd=self.outside)
 
     def test_a_link_inside_it_is_judged(self):
         worktree = self.linked()
