@@ -84,6 +84,15 @@ def repository_of(pull_url: str) -> str | None:
 
 ISSUE_URL = re.compile(r"^https?://github\.com/(?P<repo>[\w.-]+/[\w.-]+)/issues/\d+", re.IGNORECASE)
 
+ISSUE_URL_ANYWHERE = re.compile(
+    r"https?://github\.com/[\w.-]+/[\w.-]+/issues/\d+(?!\d)", re.IGNORECASE
+)
+
+
+def _issue_urls(text: str) -> set[str]:
+    """Each whole issue URL in `text`, so `issues/3` is not found inside `issues/3227`."""
+    return {m.group(0).lower() for m in ISSUE_URL_ANYWHERE.finditer(text)}
+
 
 def linked_issues(
     entries: list[dict], repository: str, notes: str = "", outside: str = ""
@@ -106,8 +115,8 @@ def linked_issues(
             numbers.add(entry["number"])
         elif (
             match
-            and match.group(0).lower() in notes.lower()
-            and match.group(0).lower() not in outside.lower()
+            and match.group(0).lower() in _issue_urls(notes)
+            and match.group(0).lower() not in _issue_urls(outside)
         ):
             continue
         else:
