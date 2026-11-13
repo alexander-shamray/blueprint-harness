@@ -2525,9 +2525,10 @@ its input —
 as a command of its own, and reads sed's options as `getopt_long` does:
 clusters, `-i<suffix>`, `--in-place=`, unique prefixes of long names, and
 the first operand as the script when no `-e` or `-f` names one. It refuses
-when an operand, globbed as bash would, is a regular file whose first 4 MiB
-hold a CRLF and which `git ls-files --error-unmatch` finds in its
-checkout's index. The refusal names the forms that keep the endings: the
+when an operand, its brace lists and sequences expanded and its globs
+matched as bash would, is a regular file whose first 4 MiB hold a CRLF and
+which `git ls-files --error-unmatch` finds in its checkout's index. The
+refusal names the forms that keep the endings: the
 Edit tool, a Python script that opens the file with `newline=""`, or
 `sed --binary -i`, which is admitted. **It judges on Windows alone**: GNU
 sed on Linux and macOS keeps the CR as an ordinary character, so a refusal
@@ -2543,14 +2544,17 @@ as a separator, and an apostrophe in a comment as an unbalanced quote.
 
 **What it reads, and what a crafted path makes it run.** Only a regular
 file is opened, read-only, and nothing read leaves the hook but a path: the
-one the command spelled, or the file in its directory that a glob of it
-matched. So a device, a FIFO or a directory is never opened,
+one the command spelled, or a file its brace expansion names or a glob of
+it matched. So a device, a FIFO or a directory is never opened,
 and a path outside the checkout costs a read the session could `cat`
 anyway. The one thing a path can make it run is git in that path's
 directory, whose checkout may be foreign: the call switches
 `core.fsmonitor` off, since `ls-files` would otherwise run the command a
 hostile config names, and sets `GIT_OPTIONAL_LOCKS=0` so the read writes no
-index. Each git call is bounded at 5 seconds, and a command at 200 files.
+index. Each git call is bounded at 5 seconds, and a command at 200 files;
+an operand's braces are expanded to 201 words at most, made one at a time,
+and its globs share one walk of 201 entries, so a `{1..1000000}` costs
+what is read of it.
 
 **Which git it runs.** The first on `PATH` by the hook's own search, the
 rule *Index refresh and worktree seeding* gives its console script but for
@@ -2583,9 +2587,11 @@ an untracked CRLF file, whose endings are not yet the checkout's. A
 `printf` piped into a shell is read as its words rather than its format's
 expansion, so it is refused where the format holds the `sed` and its
 arguments carry the file, and admitted where an argument carries the whole
-line. A quoted
-glob is expanded although bash would pass it literally, which can only
-refuse more.
+line. A quoted glob or brace list is expanded although bash would pass it
+literally, and a brace list's own name is read beside the words it makes,
+since the hook cannot tell the quoted from the bare: either can only
+refuse more. An operand whose braces make more than 201 words is judged on
+its first 201.
 
 ## Headless dispatched sessions
 
