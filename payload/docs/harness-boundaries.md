@@ -2728,7 +2728,8 @@ it. The operating system drops the lock with the process that held it, so there
 is nothing stale to clear. A run that waited says how long once the lock comes
 free, since no time it prints after that includes the wait.
 
-**`--selective` runs what the change reaches, and CI runs the rest.** The
+**`--selective` runs what the change reaches, and CI, where it runs the whole
+suite, runs the rest.** The
 change is what the checkout holds that `origin/main` does not: its commits, its
 edits and its untracked files. `suite_select.py` places each changed path: a
 suite that names its file, or names a code file that does, one step out; a
