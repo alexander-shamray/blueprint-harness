@@ -1572,18 +1572,20 @@ that name, so nothing to drop; 7 it has not landed, with no `MERGED` row into
 or its worktrees could not be read, so whether it landed or is in use is
 unknown.
 
-**One helper is granted for a line the guards could not judge, and writes only
-the index.** `git-stage-hunks.sh` is `git add -p` without its prompts: `--list
-<path>` numbers one tracked file's unstaged hunks, and `<path> <n>[,<n>...]`
-cuts those from `git diff` inside the script and stages them with `git apply
---cached`. Before it, a session split a file's hunks by writing a patch to the
-scratchpad and applying it, a line the worktree guard refused whenever a
-variable held the path or a loop walked the patches. The helper takes the path
-literally, refuses one starting `-`, a directory, an untracked, binary, added,
-deleted, retyped or unmerged file and a number past the last, and spells out
-every diff and apply option a config could change. Its exit codes: 0 listed or
-staged; 2 usage; 3 a path it refuses; 4 a hunk number past the last; 5 `git
-apply` refused, with nothing staged.
+**One helper is granted for a line a worktree session could not run, and
+writes only the index.** `git-stage-hunks.sh` is `git add -p` without its
+prompts: `--list <path>` numbers one tracked file's unstaged hunks, and
+`<path> <n>[,<n>...]` cuts those from `git diff` inside the script and stages
+them with `git apply --cached`. Before it, a session split a file's hunks by
+writing a patch to the scratchpad and applying it, a line Claude Code's
+worktree isolation check refused whenever a variable held the path or a loop
+walked the patches (`docs/harness/pitfalls.md`, *A worktree session refuses
+git it cannot follow*). The helper takes the path literally, refuses one
+starting `-`, a directory, an untracked, binary, added, deleted, retyped or
+unmerged file and a number past the last, and spells out every diff and apply
+option a config could change. Its
+exit codes: 0 listed or staged; 2 usage; 3 a path it refuses; 4 a hunk number
+past the last; 5 `git apply` refused, with nothing staged.
 
 **A merged sync's branch goes from origin through a helper no setting grants.**
 `git push --delete` stays denied, and `dispatch_board.py sync-drop`, which
