@@ -1,11 +1,9 @@
 name: Main red rerun
 
-# A first red attempt of a push run of `ci.yml` on `main` is rerun once before
-# anything is filed: most red runs on `main` were a loaded runner, an outside
-# service or a leg no runner picked up, and a rerun turned them green.
-# Here, because a run cannot rerun itself while its own `main-red` job is still
-# running. The second attempt's `main-red` job, which reruns with the jobs it
-# needs, files `main is red: ci` when that attempt is red too.
+# A first red attempt of a push run of `ci.yml` on `main` is rerun once before anything is filed: most red runs
+# on `main` were a loaded runner, an outside service or a leg no runner picked up, and a rerun turned them green.
+# A workflow of its own, as a run cannot rerun itself while its `main-red` job still runs. The second attempt's
+# `main-red` job, rerun with the jobs it needs, files `main is red: ci` when that attempt is red too.
 on:
   workflow_run:
     # By name, which is what `workflow_run` matches.
