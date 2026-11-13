@@ -208,11 +208,12 @@ class TheGrants(unittest.TestCase):
         held = 0
         for path in sorted(WORKFLOWS.glob("*.yml")):
             text = path.read_text(encoding="utf-8")
-            inherited = permissions_of(text, 0) or ""
+            # With no block at either level a job holds the repository's default token, which may write.
+            inherited = permissions_of(text, 0)
             for job in re.findall(r"(?m)^  ([\w-]+):$", text.split("\njobs:\n", 1)[1]):
                 lines = job_of(text, job)
                 own = permissions_of(lines, 4)
-                grants = WRITE.findall(inherited if own is None else own)
+                grants = WRITE.findall(own if own is not None else inherited if inherited is not None else "write-all")
                 held += bool(grants)
                 with self.subTest(job=f"{path.name}:{job}"):
                     if grants:
