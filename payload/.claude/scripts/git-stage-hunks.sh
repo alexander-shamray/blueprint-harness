@@ -52,8 +52,8 @@ fi
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-# Every option that changes the diff's form is spelled out: a config's `diff.noprefix`, colour, textconv
-# or `diff.suppressBlankEmpty` would hand `git apply` a patch it cannot read.
+# Each option a config could set to make the diff unreadable to `git apply` is spelled out: its
+# `diff.noprefix`, colour, textconv or `diff.suppressBlankEmpty`.
 git -c diff.suppressBlankEmpty=false diff --no-color --no-ext-diff --no-textconv --no-relative \
   --src-prefix=a/ --dst-prefix=b/ -U3 -- "$file" >"$work/diff"
 
