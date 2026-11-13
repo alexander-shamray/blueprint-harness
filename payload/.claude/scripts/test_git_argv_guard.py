@@ -105,6 +105,9 @@ class TheGitArgvGuard(unittest.TestCase):
     def assertRefused(self, command):
         reason = self.judge(command)
         self.assertIsNotNone(reason, f"admitted: {command}")
+        # `main` answers any exception with a deny, so a refusal alone cannot
+        # tell a judged command from a parser that raised on it.
+        self.assertNotIn("crashed the guard", reason)
         return reason
 
     def assertAdmitted(self, command):
@@ -2187,7 +2190,8 @@ class TheGitArgvGuard(unittest.TestCase):
         # And the property behind those two, asserted over the corpus rather
         # than over the one input that exposed it: nothing in this suite may
         # take the hook down. `judge` already fails the test on a non-zero
-        # exit, so this is the subject stated where a reader will find it.
+        # exit, and `main` answers a caught exception with the crash deny, so
+        # each verdict, an admission or a judged refusal, must not be that one.
         for command in (
             "git log $'\\u0000' -5",
             "git log $'\\777' -5",
@@ -2196,7 +2200,7 @@ class TheGitArgvGuard(unittest.TestCase):
             "git log $'\\x' -5",
         ):
             with self.subTest(command=command):
-                self.judge(command)
+                self.assertNotIn("crashed the guard", self.judge(command) or "")
 
     def test_an_expansion_has_more_than_one_reading(self):
         # An empty expansion joining its neighbours is one reading of four, and
