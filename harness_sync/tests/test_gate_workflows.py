@@ -479,8 +479,8 @@ class TheReport(unittest.TestCase):
         self.assertEqual(["closure-gate"], [post["name"] for post in posts])
 
     def test_a_missing_decision_posts_nothing_and_fails(self) -> None:
-        # The event step failed: no output, so the outcomes come first and are no decision.
-        rc, posts, out = self.post(closure_gate=" skipped skipped")
+        # The open job's event step failed, so the gates job never ran: the line is the two empty outputs.
+        rc, posts, out = self.post(closure_gate=" ")
         self.assertEqual(1, rc, out)
         self.assertNotIn("closure-gate", [post["name"] for post in posts])
 
