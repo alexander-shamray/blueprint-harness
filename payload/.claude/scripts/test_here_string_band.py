@@ -58,17 +58,23 @@ class NoHereString(unittest.TestCase):
         self.assertEqual([], here_strings("# cmd <<<\"$x\" hangs\ncat <<'EOF'\nbody\nEOF\ncat <<-EOF\nEOF\n"))
 
 
-# `< <(` outside a comment; the shell reads it when the command is the builtin `read` or the `done` of a loop.
-PROCESS_SUBSTITUTION = re.compile(r"^(?!\s*#)(?P<head>.*?)<\s*<\(")
-SHELL_READS = re.compile(r"^\s*done\s*$|(^|[\s;|&(])read(\s|$)")
+# Each `< <(` outside a comment is judged by the command segment in front of it, the text after the last `;`, `|`,
+# `&`, `(`, `do` or `then`: the shell reads it when that segment is the builtin `read` (after any assignments) or
+# the `done` of a loop.
+PROCESS_SUBSTITUTION = re.compile(r"<\s*<\(")
+SEGMENT_BREAK = re.compile(r"[;|&(]|\bdo\b|\bthen\b")
+SHELL_READS = re.compile(r"^\s*(\w+=\S*\s+)*(read\b|done\s*$)")
 
 
 def tools_fed_by_process_substitution(text):
     found = []
     for n, line in enumerate(text.splitlines(), 1):
-        match = PROCESS_SUBSTITUTION.match(line)
-        if match and not SHELL_READS.search(match.group("head")):
-            found.append(n)
+        if line.lstrip().startswith("#"):
+            continue
+        for match in PROCESS_SUBSTITUTION.finditer(line):
+            if not SHELL_READS.match(SEGMENT_BREAK.split(line[:match.start()])[-1]):
+                found.append(n)
+                break
     return found
 
 
@@ -85,8 +91,9 @@ class NoToolFedByProcessSubstitution(unittest.TestCase):
         self.assertEqual({}, offenders, "judge it in bash or pipe it, as docs/harness/pitfalls.md's entry says")
 
     def test_the_pattern_catches_a_tool_and_passes_the_shells_own_read(self):
-        self.assertEqual([1, 3], tools_fed_by_process_substitution(
-            'count=$(jq length < <(printf x) | tr -d y)\ndone < <(printf x)\n  grep -q a < <(printf x)\n'))
+        self.assertEqual([1, 3, 4, 5], tools_fed_by_process_substitution(
+            'count=$(jq length < <(printf x) | tr -d y)\ndone < <(printf x)\n  grep -q a < <(printf x)\n'
+            'read -r a < <(x); jq . < <(y)\nwhile read -r l; do grep -c . < <(printf "$l"); done\n'))
         self.assertEqual([], tools_fed_by_process_substitution(
             'IFS=, read -r -a a < <(printf x)\n  done < <(printf "$m")\n# jq length < <(printf x)\n'))
 
