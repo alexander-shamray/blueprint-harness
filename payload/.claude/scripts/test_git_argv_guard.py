@@ -4223,6 +4223,19 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         self.link(plugin, reached)
         self.assertAdmitted("ls > notes.md", cwd=reached, env=env)
 
+    def test_a_dotfiles_checkout_at_the_home_is_not_left_to_its_denies(self):
+        # Its denies name none of these, as the edit guard's home anchor does not.
+        home, env = self.real_home()
+        os.makedirs(os.path.join(home, ".git"))
+        os.makedirs(os.path.join(home, "notes"))
+        for cwd in (home, os.path.join(home, "notes")):
+            with self.subTest(cwd=cwd):
+                for command in ("ls > ~/.ssh/authorized_keys", "echo x >> ~/.bashrc",
+                                "ls > ~/.claude/.credentials.json"):
+                    self.assertIn("No rule judges a shell write",
+                                  self.assertRefused(command, cwd=cwd, env=env))
+                self.assertAdmitted("ls > ~/notes/todo.md", cwd=cwd, env=env)
+
     def test_a_redirection_through_a_link_into_a_protected_tree_is_refused(self):
         self.link(os.path.join(self.root, ".claude"),
                   os.path.join(self.root, "notes", "linked"))
