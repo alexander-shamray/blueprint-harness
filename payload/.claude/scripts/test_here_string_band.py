@@ -47,7 +47,7 @@ class NoHereString(unittest.TestCase):
     def test_no_shell_script_feeds_a_here_string(self):
         offenders = {path.name: lines for path in shell_scripts()
                      if (lines := here_strings(path.read_text(encoding="utf-8")))}
-        self.assertEqual({}, offenders, "feed it as `< <(printf '%s\\n' \"$x\")` (docs/harness/pitfalls.md)")
+        self.assertEqual({}, offenders, "feed it as docs/harness/pitfalls.md's two entries on Git Bash input say")
 
     def test_the_walk_reaches_every_rewritten_script(self):
         reached = {path.name for path in shell_scripts()}
