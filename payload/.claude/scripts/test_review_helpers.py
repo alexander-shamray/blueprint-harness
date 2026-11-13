@@ -20,6 +20,11 @@ def build_with_locks(root):
     work = root / "work"
     work.mkdir()
     (work / "yarn.lock").write_text("content\n", encoding="utf-8")
+    (root / "bare" / "objects").mkdir(parents=True)
+    (root / "bare" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    (root / "bare" / "objects" / "maintenance.lock").write_text("", encoding="utf-8")
+    (work / "objects").mkdir()
+    (work / "objects" / "kept.lock").write_text("content\n", encoding="utf-8")
     built = run_bash('set -eu\ncd "$W"\ngit init -q\ngit config user.email test@example.invalid\n'
                      'git config user.name Test\ngit add yarn.lock\ngit commit -qm base\n',
                      W=work.as_posix(), **QUIET)
@@ -41,6 +46,12 @@ class NoMaintenance(unittest.TestCase):
         variables = no_maintenance({})
         self.assertEqual("1", variables["GIT_CONFIG_COUNT"])
         self.assertEqual("maintenance.auto", variables["GIT_CONFIG_KEY_0"])
+
+    def test_a_count_the_caller_passes_to_a_bash_build_is_extended(self):
+        template = fixture_template(
+            'set -eu\ncd "$R"\n(git config --get maintenance.auto; git config --get my.key) > "$R/seen"\n',
+            GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="my.key", GIT_CONFIG_VALUE_0="mine", **QUIET)
+        self.assertEqual(["false", "mine"], Path(template, "seen").read_text(encoding="utf-8").split())
 
     def test_a_bash_build_runs_with_maintenance_off(self):
         template = fixture_template(
@@ -72,8 +83,15 @@ class CopyTemplate(unittest.TestCase):
     def test_a_lock_a_background_git_holds_is_not_copied(self):
         self.assertFalse((self.root / "work" / ".git" / "objects" / "maintenance.lock").exists())
 
+    def test_a_lock_in_a_bare_repositorys_objects_is_not_copied(self):
+        self.assertTrue((self.root / "bare" / "HEAD").is_file())
+        self.assertFalse((self.root / "bare" / "objects" / "maintenance.lock").exists())
+
     def test_a_tracked_file_that_ends_in_lock_is_copied(self):
         self.assertEqual("content\n", (self.root / "work" / "yarn.lock").read_text(encoding="utf-8"))
+
+    def test_a_lock_file_in_a_work_tree_directory_named_objects_is_copied(self):
+        self.assertTrue((self.root / "work" / "objects" / "kept.lock").is_file())
 
     def test_the_copy_is_a_working_repository(self):
         result = subprocess.run([GIT, "-C", str(self.root / "work"), "log", "--format=%s"], capture_output=True,
