@@ -2882,6 +2882,21 @@ inside a managed directory: a sync neither writes nor deletes it.
 gate refuses, how a config change re-renders the settings, and what to do
 when it is red.
 
+**The gate checks hold against accident, not against a pull request that
+names its own job after one.** `pull_request` runs the head's copy of
+`gates.yml`, and a job's check run needs no token, so a branch that edits it
+(or adds a workflow) with a job named `closure-gate`, `commit-gate` or
+`harness-drift` posts a passing check of that name. It held before the
+`report` legs too, when the verdicts were posted through the API. It is
+accepted, and the fix is not filed again: the two ways to close it are a
+required workflow taken from `main`, a ruleset `workflows` rule that
+GitHub offers organisation repositories only, and verdicts posted from a
+`pull_request_target` or `workflow_run` workflow, a redesign that runs
+judges beside a token and a pull request's refs. What bounds a branch that
+sets out to spoof a gate is the owner's review of every merged pull request,
+which sees the edit to `gates.yml`, as *The guards' threat model* bounds the
+guards.
+
 **`docs/harness-local.md` is the one document every target writes for the
 payload**, and the payload cites it rather than any target document by path:
 the commands run in repositories with different products, so where one
