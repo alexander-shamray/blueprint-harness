@@ -33,8 +33,9 @@ answer about the wrong tree, so step 0 refuses one before anything is asked,
 as `/ship` step 0 refuses the last (spec §3). `git rev-parse
 --path-format=absolute --git-dir --git-common-dir` printing one directory
 twice is what tells the main
-checkout from a linked worktree, the same test `git-worktree-fork.sh` makes:
-the fork and the removal helpers run only from there.
+checkout from a linked worktree, the comparison `git-worktree-fork.sh` makes
+from the checkout root, where the plain form is exact: the fork and the
+removal helpers run only from there.
 
 The executor never tears its own worktree down, because a session cannot
 delete its working directory on Windows; the dispatcher removes it once the
