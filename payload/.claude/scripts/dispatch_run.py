@@ -1399,7 +1399,9 @@ def sync_close(root, run, gid):
     entry = _entry(state, gid)
     if entry.get("kind") != "sync":
         raise Refusal(f"{gid} is not a sync group; tasks done and back close its rows")
-    if entry.get("status") in ACTIVE and not _worktree_kept(root, entry):
+    # Every active status is read for a live executor and an unread exit, a kept worktree's too: a relaunch keeps
+    # `window`, which a sync may otherwise close, while its executor runs.
+    if entry.get("status") in ACTIVE:
         pid = _pid(directory, gid)
         if pid is not None and alive(pid):
             raise Refusal(f"{gid}'s executor is still running")
@@ -1407,6 +1409,7 @@ def sync_close(root, run, gid):
         if _refused(directory, gid, entry) is not None or (record.exists()
                                                             and not _read_already(directory, gid, entry)):
             raise Refusal(f"{gid} has an exit not yet read; run result first")
+    if entry.get("status") in ACTIVE and not _worktree_kept(root, entry):
         # Nothing can relaunch it, and it would hold `wake` and `sync-launch` all night. It may have merged or left
         # work, so it ends as a hand-back, which the report puts before a human.
         entry.update(status="crash-hand-back", reason="its worktree is gone, so how its executor ended is unknown")
