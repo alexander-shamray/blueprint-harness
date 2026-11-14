@@ -439,6 +439,20 @@ class RevertHelper(Fixture):
         self.stray()
         self.assertEqual(3, self.run_helper(REVERT, pr="5").returncode)
 
+    def test_main_refuses_however_it_is_spelled(self):
+        # On a case-insensitive filesystem `Main` is `main`'s ref; `symbolic-ref` takes every spelling on every one.
+        self.land("a", 5)
+        tip = self.git("rev-parse", "HEAD")
+        for spelling in ("main", "Main", "MAIN", "heads/main", "refs/heads/main", "origin/main", "refs/remotes/origin/main"):
+            with self.subTest(spelling=spelling):
+                self.git("update-ref", f"refs/heads/{spelling}", tip)
+                self.git("symbolic-ref", "HEAD", f"refs/heads/{spelling}")
+                out = self.run_helper(REVERT, pr="5")
+                self.assertEqual(3, out.returncode, f"{spelling!r}: {out.stderr}")
+                self.assertIn("never on main", out.stderr)
+        self.git("symbolic-ref", "HEAD", "refs/heads/main")
+        self.assertEqual(tip, self.git("rev-parse", "HEAD"), "no revert landed")
+
     def test_an_untracked_file_refuses_whatever_status_shows(self):
         self.land("a", 5)
         self.git("checkout", "-q", "-b", "chore/undo")
