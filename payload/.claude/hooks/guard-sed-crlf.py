@@ -585,7 +585,7 @@ def judge(command, cwd, git, checked, depth):
             parent = next(scope[:length] for length in range(len(scope) - 1, -1, -1)
                           if scope[:length] in directories)
             directories[scope] = directories[parent]
-            stacks[scope] = list(stacks[parent])
+            stacks[scope] = None if stacks[parent] is None else list(stacks[parent])
         cwd = directories[scope]
         words = segment.words
         start = command_word(words)
@@ -602,14 +602,20 @@ def judge(command, cwd, git, checked, depth):
                 stack = stacks[scope]
                 directories[scope] = stack.pop() if not arguments and stack else None
                 continue
-            if len(arguments) != 1 or "$" in arguments[0] or arguments[0] == "-" or (
-                    name == "pushd" and arguments[0][:1] in ("+", "-")):
-                target = None
-            else:
+            plain = not (len(arguments) != 1 or "$" in arguments[0] or arguments[0] == "-" or (
+                name == "pushd" and arguments[0][:1] in ("+", "-")))
+            if plain:
                 target = native(arguments[0])
                 target = target if os.path.isabs(target) else (os.path.join(cwd, target) if cwd else None)
+            else:
+                target = None
             if name == "pushd":
-                stacks[scope].append(cwd)
+                # Any other `pushd` form, `-n <dir>` among them, changes the stack in ways not followed here, so every
+                # `popd` after it is unplaceable too.
+                if plain and stacks[scope] is not None:
+                    stacks[scope].append(cwd)
+                else:
+                    stacks[scope] = None
             directories[scope] = target
             continue
         program = os.path.basename(native(name)).lower()
