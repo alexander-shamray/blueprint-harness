@@ -1682,12 +1682,13 @@ file committed on a local branch, with that branch's `HEAD` as the pin, runs
 nothing. It then refuses a `HEAD` other than the oid or a tree `git status
 --short --untracked-files=all` says is not clean, the comparison the sync
 section requires and which `dispatch_board.py sync-launch` and `run` compare
-before a `--dispatched` run starts in it, and runs each path `local-suites` derives from
-`.harness/config.json` and `git ls-files` as `py -3.12 -m unittest discover -s
-<dir> -p <file>`. A target's *Ship checks* that runs the whole `.claude/scripts`
-suite runs `shard-harness-suite.py`, granted with no `:*` so that its `--ids
-<file>` and `--queue <file>`, its workers' own, stay out; its `--selective`
-is granted as a second whole command for the same reason. Residual: those suites
+before a `--dispatched` run starts in it, and runs each path `local-suites`
+derives from `.harness/config.json` and `git ls-files` as `py -3.12 -m
+unittest discover -s <dir> -p <file>`. A target's *Ship checks* that runs the
+whole `.claude/scripts` suite runs `shard-harness-suite.py`, granted with no
+`:*` so that its `--ids <file>` and `--queue <file>`, its workers' own, stay
+out; its `--selective` is granted as a second whole command for the same
+reason. Residual: those suites
 run with the session's credentials, and what they run is an open sync's head,
 which its pull request shows; a session can still run any test file by a command
 no grant names, which asks in the default mode and under `auto` is the
