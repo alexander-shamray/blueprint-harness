@@ -284,6 +284,9 @@ class TheHookWiringRunsOnMoreThanOneOperatingSystem(LauncherMarkCases, unittest.
         # On Windows `python3` is the Store alias, so a launcher probing it first finds the wrong thing there. The
         # probe lines, not the first mention: the `command -v` block above them names the remembered candidate.
         code = "\n".join(self.code())
+        # Present first: `find` answers -1 for a missing probe, which is less than any position.
+        self.assertIn('py -3.12 -c "$probe"', code)
+        self.assertIn('python3 -c "$probe"', code)
         self.assertLess(code.find('py -3.12 -c "$probe"'), code.find('python3 -c "$probe"'))
         self.assertIn("exec py -3.12", code)
         self.assertIn("exec python3", code)
