@@ -1,7 +1,7 @@
 """Replay the Bash commands of Claude Code transcripts through a guard hook.
 
 Each distinct (command, cwd) runs through the hook's stdin contract, and every use counts.
-A crash (exit 1) and a refusal only a cwd now gone earns are not refusals; an unreadable guard is exit 2.
+A crash (exit 1) and a refusal only a removed worktree earns are not refusals; an unreadable guard is exit 2.
 Usage: py -3.12 measure/replay_guard.py --project <glob> --since <date> --guard <hook>"""
 
 import argparse
@@ -10,6 +10,7 @@ import datetime
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -24,6 +25,7 @@ PROGRESS_EVERY = 5000
 # The guard's own fail-closed branch: a deny, but no judgement of the command.
 _CRASHED_DENY = "crashed the guard"
 _UNJUDGED_STDERR = ("Traceback (most recent call last)", "not judging")
+_WORKTREE = re.compile(r"(?i)^(.+?)[\\/]\.claude[\\/]worktrees[\\/][^\\/]+(?:[\\/](.*))?$")
 
 
 def touched(project, since, root):
@@ -105,26 +107,27 @@ def run_guard(guard, command, cwd, session):
     )
 
 
-def standing(path):
-    """The nearest directory at or above `path` that exists, or `""`."""
-    while path and not os.path.isdir(path):
-        parent = os.path.dirname(path)
-        if parent == path:
-            return ""
-        path = parent
-    return path
+def image(cwd):
+    """For a cwd in a removed worktree, the same place in the main checkout, else `None`."""
+    found = _WORKTREE.match(cwd)
+    if found is None:
+        return None
+    root, rest = found.group(1), found.group(2)
+    place = os.path.join(root, rest) if rest else root
+    return place if os.path.isdir(place) else None
 
 
 def judge(guard, command, cwd, session):
-    """`read_verdict`'s pair, but `"gone"` for a refusal only a gone cwd earns.
+    """`read_verdict`'s pair, but `"gone"` for a refusal only a removed worktree earns.
 
-    A guard may refuse for the missing directory alone, as guard-git-argv refuses
-    git from a removed worktree, so one judged gone is judged again from above it.
+    guard-git-argv refuses git from a removed worktree for that alone, so a refusal
+    there is judged again from the main checkout, where its paths name the same files.
     """
     kind, detail = run_guard(guard, command, cwd, session)
-    if kind != "refused" or not cwd or os.path.isdir(cwd):
+    place = image(cwd) if kind == "refused" and cwd and not os.path.isdir(cwd) else None
+    if place is None:
         return kind, detail
-    again = run_guard(guard, command, standing(cwd), session)
+    again = run_guard(guard, command, place, session)
     return ("gone", detail) if again[0] == "admitted" else again
 
 
