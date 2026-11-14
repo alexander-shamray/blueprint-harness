@@ -745,7 +745,7 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
             os.path.join(control, "settings.json"), project=control, **dotfiles))
 
     def test_an_anchor_inside_a_home_place_excuses_nothing_there(self):
-        # #504: no anchor here holds the home, so only the place's own anchor
+        # No anchor here holds the home, so only the place's own anchor
         # contains the target; containing it is not owning it, and its deny
         # rules, anchored one level down, name nothing the home protects.
         home = os.path.join(self.outside, "home")
