@@ -312,4 +312,7 @@ with no required check is refused before anything is applied. A dropped or
 renamed required check is caught only by the review loop that precedes the
 apply. A scheduled run that is red, a difference such as a ruleset changed by
 hand or a failed read-back, files a `harness`, `high` issue whose body says
-which, or comments on the open one.
+which, or comments on the open one. A read-back that hangs counts as failed:
+each step of the `rulesets` job has a limit, together under the job's, so a hung
+step fails, and a hang outside a step that reaches the job's limit, which reads
+as cancelled, files too; a scheduled run somebody cancels whole files nothing.

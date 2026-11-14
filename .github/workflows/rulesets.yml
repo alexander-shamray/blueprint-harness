@@ -29,10 +29,15 @@ jobs:
     outputs:
       differences: ${{ steps.check.outputs.differences }}
       status: ${{ steps.check.outputs.status }}
+    # Each step has a limit and together they end before the job's, so a step
+    # that hangs fails, the plain red, and the job's limit is left to a hang
+    # outside a step (README, *The sync workflow*).
     steps:
       - uses: actions/checkout@v7
+        timeout-minutes: 2
 
       - uses: actions/setup-python@v7
+        timeout-minutes: 2
         with:
           python-version: '3.12'
 
@@ -40,6 +45,7 @@ jobs:
       # under a delimiter the text cannot guess, and the exit code is the
       # check's own, so a difference or a refusal still turns the job red.
       - id: check
+        timeout-minutes: 5
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -59,10 +65,12 @@ jobs:
   # A scheduled red run is an issue, not a notification: an issue stays open
   # until somebody closes it, and the next red run comments on it rather than
   # filing again (backend's `main-red.yml`). Pull request and push runs are
-  # red in the checks and need no issue.
+  # red in the checks and need no issue. At a job's limit `failure()` and
+  # `cancelled()` are both false, so the read-back's own result is read, and
+  # `!cancelled()` is false only for a run cancelled whole.
   rulesets-issue:
     needs: rulesets
-    if: failure() && github.event_name == 'schedule'
+    if: ${{ !cancelled() && github.event_name == 'schedule' && (needs.rulesets.result == 'failure' || needs.rulesets.result == 'cancelled') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     # One at a time, so two red runs never both see no open issue.
@@ -73,6 +81,7 @@ jobs:
       issues: write
     steps:
       - name: A red scheduled read-back is an issue
+        timeout-minutes: 4
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
