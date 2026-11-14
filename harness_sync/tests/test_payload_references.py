@@ -230,11 +230,23 @@ def local_commands() -> set[str]:
 PAYLOAD_DEFINED = {"local_commands.py"}
 
 
+# What a script's name ends in, outside .claude/scripts/: a skill keeps its own, and a page beside it is no script.
+SCRIPT_SUFFIXES = (".py", ".sh", ".ps1", ".mjs", ".cjs", ".js")
+
+
 def local_scripts() -> set[str]:
-    """The file names of the scripts a target keeps local, its suites aside: a payload file naming one names nothing."""
-    return {glob.rsplit("/", 1)[1] for glob in _local_globs()
-            if glob.startswith(".claude/scripts/") and "*" not in glob and not glob.rsplit("/", 1)[1].startswith("test_")
-            and glob.rsplit("/", 1)[1] not in PAYLOAD_DEFINED}
+    """The file names of the scripts a target keeps local, its suites aside: a payload file naming one names nothing.
+
+    Every file under .claude/scripts/, and code anywhere else under .claude/, as frontend's
+    .claude/skills/codebase-index/scripts/mcp-launch.mjs; a SKILL.md or a command page is not one."""
+    names = set()
+    for glob in _local_globs():
+        name = glob.rsplit("/", 1)[1]
+        if "*" in glob or name.startswith("test_") or name in PAYLOAD_DEFINED:
+            continue
+        if glob.startswith(".claude/scripts/") or (glob.startswith(".claude/") and name.endswith(SCRIPT_SUFFIXES)):
+            names.add(name)
+    return names
 
 
 def local_scripts_named(payload: Path, names: set[str], import_text: str) -> list[str]:
@@ -304,6 +316,8 @@ class PayloadReferences(unittest.TestCase):
     def test_local_script_not_named(self) -> None:
         names = local_scripts()
         self.assertIn("mutation-run.sh", names, "the local-script list stopped reading the target configs")
+        self.assertIn("mcp-launch.mjs", names, "the local-script list reads only .claude/scripts/")
+        self.assertNotIn("SKILL.md", names, "a skill's page is not a script")
         self.assertEqual(local_scripts_named(PAYLOAD, names, IMPORT.read_text(encoding="utf-8")), [])
 
     def test_the_declaration_module_a_target_lists_is_not_a_local_script(self) -> None:
