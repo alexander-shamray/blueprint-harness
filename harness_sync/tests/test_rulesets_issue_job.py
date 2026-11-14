@@ -68,7 +68,8 @@ class TheScriptFilesOneIssue(unittest.TestCase):
             env = {**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"],
                    "STUB_LOG": log.as_posix(), "STUB_ROWS": json.dumps(rows), "GH_REPO": "a/h",
                    "STATUS": status, "DIFFERENCES": differences, "RUN_URL": "https://run"}
-            result = subprocess.run([bash, path.as_posix()], capture_output=True, text=True, encoding="utf-8", env=env)
+            result = subprocess.run([bash, path.as_posix()], capture_output=True, text=True, encoding="utf-8", env=env,
+                                    stdin=subprocess.DEVNULL)
             return result, log.read_text(encoding="utf-8")
 
     def test_a_read_back_cut_off_at_its_limit_files_a_failed_read_back(self) -> None:
