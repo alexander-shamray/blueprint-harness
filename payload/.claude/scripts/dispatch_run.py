@@ -39,7 +39,7 @@ RESULT_CAP = 1 << 20
 OID = re.compile(r"[0-9a-f]{40}")
 SESSION_ID = re.compile(r"[A-Za-z0-9-]{1,80}")
 # A group holds an executor slot while it runs or waits to run again; a week's limit ends the night until it resets,
-# and an account the API refused ends it until the group is launched again.
+# and an account the API refused ends it until `resume`, the owner's word that the account is fixed, lifts it.
 ACTIVE = ("running", "relaunch", "window", "week", "account")
 # A `run` that started no executor: no slot is held, and the group goes back rather than being launched again.
 PRE_LAUNCH = "crashed-before-launch"
@@ -1105,7 +1105,8 @@ def _unreviewed(entry, result, crashes):
     if not (isinstance(result, Result) and result.outcome == "merged" and not result.rounds):
         return False
     earlier = entry.get("absorbed") is not None
-    return not (earlier and (crashes >= 1 or entry.get("status") in RELAUNCHED))
+    # A refused account's session ran no turn past the first, so it reviewed nothing either.
+    return not (earlier and (crashes >= 1 or entry.get("status") in RELAUNCHED and entry.get("status") != "account"))
 
 
 def _unrecorded(directory, state, gid, entry, line):
@@ -1508,8 +1509,7 @@ def wake(root, run, tasks_path, today, body_source, open_source, branch_source, 
         return out + ["end: week"]
     if any(entry.get("status") == "week" and not _week_passed(entry, current) for entry in entries.values()):
         return out + ["end: week"]
-    # Until its relaunch removes the record it was read from: a resumed run is the owner's word the account is fixed.
-    if any(entry.get("status") == "account" and _read_already(directory, gid, entry) for gid, entry in entries.items()):
+    if any(entry.get("status") == "account" for entry in entries.values()):
         return out + ["end: account"]
     # A group launched beside a sync would run under the settings the sync is about to replace.
     if any(entries[gid].get("kind") == "sync" for gid in active):
@@ -1553,7 +1553,9 @@ def resume(root, run):
     """What each of this run's unfinished groups needs next; worktrees the run never recorded are not its own."""
     directory = run_dir(root, run)
     out, current = [], now()
-    for gid, entry in load_state(directory).get("groups", {}).items():
+    state = load_state(directory)
+    lifted = False
+    for gid, entry in state.get("groups", {}).items():
         if not isinstance(entry, dict):
             raise Refusal(f"{gid}'s record in state.json is not an object")
         status = entry.get("status")
@@ -1589,6 +1591,11 @@ def resume(root, run):
                 stamp = _parse_stamp(entry.get("resets_at"))
                 out.append(f"wait {gid}: the week resets {stamp.isoformat() if stamp else 'unknown'}")
             else:
+                if status == "account":
+                    # A resumed run is the owner's word that the account is fixed, so the hold goes before any wake
+                    # can read it, and the relaunch is a first session's: the refused one did nothing.
+                    entry["status"] = "running"
+                    lifted = True
                 out.append(f"relaunch {gid}")
         elif status is None:
             out.append(f"launch {gid}: moved, never launched")
@@ -1599,6 +1606,8 @@ def resume(root, run):
                        else f"done {gid}: verified, its rows are still In progress")
         elif status in HANDED:
             out.append(f"{'sync-close' if sync else 'back'} {gid}: {status}")
+    if lifted:
+        save_state(directory, state)
     return out
 
 
@@ -1778,8 +1787,10 @@ def report(root, run, tasks_path, today, body_source, open_source, owned_source)
             needs.append(f"{gid} {status}: its worktree {entry.get('worktree')} is gone" + ("" if sync else f"; {rows}")
                          + _decisions_text(entry.get("decisions")))
         elif status == "account":
+            # A sync holds no row, so its run closes at this report and the next night's step 0 takes it again.
+            again = "takes the sync again" if entry.get("kind") == "sync" else f"resumes run {run} and relaunches it"
             interrupted.append(f"{gid} account: {one_line(entry.get('reason') or 'no reason recorded', 200)}; "
-                               "fix the account, then run /dispatch again to relaunch it")
+                               f"fix the account, then run /dispatch again, which {again}")
         else:
             interrupted.append(f"{gid} {UNFINISHED.get(status, status)}")
         usage += _usage_lines(gid, entry)
