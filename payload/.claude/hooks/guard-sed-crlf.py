@@ -25,15 +25,20 @@ SAFE_FORMS = (
 # `>` and a separator between commands otherwise. A newline is one of them, so `shlex` is told it is not whitespace.
 PUNCTUATION = ";&|()<>\n"
 
-# Words that run the command after them, so `sed` behind one is still the command: the prefix commands, and the
-# reserved words that open a group or a clause, as in `if …; then sed -i …; fi`.
+# Words that run the command after them, so `sed` behind one is still the command: the reserved words that open a
+# group or a clause, as in `if …; then sed -i …; fi`. They take no options.
 PREFIXES = {
-    "command", "exec", "time", "builtin", "nohup",
     "{", "!", "if", "then", "elif", "else", "while", "until", "do",
 }
 
-# Programs that run the command after their own options, each with the options that take a separate argument.
+# Programs and prefix commands that run the command after their own options, each with the options that take a
+# separate argument; `time -p` or `command -p` before `sed` leaves `sed` the command.
 WRAPPERS = {
+    "command": set(),
+    "exec": {"-a"},
+    "time": set(),
+    "builtin": set(),
+    "nohup": set(),
     "env": {"-u", "--unset", "-C", "--chdir"},
     "nice": {"-n", "--adjustment"},
     "timeout": {"-s", "--signal", "-k", "--kill-after"},
