@@ -578,7 +578,9 @@ def _launch(root, directory, run, gid, entry, flag=False):
     scratch = executor_temp(root, run, gid)
     # Parallel executors sharing the system temp directory ran each other's scratch scripts. The marker makes the
     # task-list helper refuse the executor's writes: the dispatcher is the list's one writer while it runs.
-    env = {**os.environ, "TMP": str(scratch), "TEMP": str(scratch), "TMPDIR": str(scratch), DISPATCHED: "1"}
+    # An inherited ANTHROPIC_API_KEY outranks the owner's subscription login in a headless claude, so it is dropped.
+    env = {name: value for name, value in os.environ.items() if name != "ANTHROPIC_API_KEY"}
+    env.update({"TMP": str(scratch), "TEMP": str(scratch), "TMPDIR": str(scratch), DISPATCHED: "1"})
     started = now()
     # The permission mode is the settings' own, never a flag here (spec section 6.2); the prompt goes on stdin.
     try:

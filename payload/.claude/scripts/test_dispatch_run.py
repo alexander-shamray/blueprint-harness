@@ -67,7 +67,7 @@ FAKE_CLAUDE = """import json, os, sys
 here = os.path.dirname(os.path.abspath(__file__))
 seen = {"argv": sys.argv[1:], "cwd": os.getcwd(), "stdin": sys.stdin.buffer.read().decode("utf-8"),
         "temp": {name: os.environ.get(name) for name in ("TMP", "TEMP", "TMPDIR")},
-        "dispatched": os.environ.get("HARNESS_DISPATCHED")}
+        "dispatched": os.environ.get("HARNESS_DISPATCHED"), "api_key": os.environ.get("ANTHROPIC_API_KEY")}
 with open(os.path.join(here, "seen.json"), "w", encoding="utf-8") as handle:
     json.dump(seen, handle)
 with open(os.path.join(here, "reply.bin"), "rb") as handle:
@@ -603,6 +603,14 @@ class LaunchTests(InRoot):
         run_fake_claude(stdout=json.dumps(SUCCESS).encode("utf-8"))
         seen = json.loads(Path("fake/seen.json").read_text(encoding="utf-8"))
         self.assertEqual("1", seen["dispatched"])
+
+    def test_run_keeps_the_dispatchers_api_key_from_the_executor(self):
+        # Inherited, the key outranked the owner's subscription login, and a drained API balance crashed every launch.
+        record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
+        with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-ant-dispatcher"}):
+            run_fake_claude(stdout=json.dumps(SUCCESS).encode("utf-8"))
+        seen = json.loads(Path("fake/seen.json").read_text(encoding="utf-8"))
+        self.assertIsNone(seen["api_key"])
 
     def test_run_removes_the_executors_temp_directory_once_it_exits(self):
         # Each launch's mkdtemp directory outlived its executor and piled up under the system temp root.

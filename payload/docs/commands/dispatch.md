@@ -325,6 +325,13 @@ executor it then runs `git worktree prune`, as best effort: a `git worktree
 add` the session made under that directory has lost its target, and would stay
 listed until something pruned it.
 
+`run` drops `ANTHROPIC_API_KEY` from the environment it hands an executor.
+A headless `claude -p` takes that key ahead of the owner's subscription
+login, so a key the dispatcher's shell happened to hold billed every
+executor to an API account. On run 20261114-081919 that account had no
+credit, and both launches of a sync failed in seconds with API 400 *Credit
+balance is too low*.
+
 On every wake it absorbs the result, verifies a merge, places what was
 filed, then asks `wake` what to launch; the outcome table is the spec's
 §6.4. A hand-back or a stop goes back into its wave marked `OWNER` and is
