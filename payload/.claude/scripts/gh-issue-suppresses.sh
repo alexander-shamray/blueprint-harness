@@ -20,8 +20,8 @@
 # that it could not find out.
 #
 # Exit codes, which are the whole interface:
-#   0  tracking      — the owner opened it and it is open; the candidate may be suppressed
-#   1  not tracking  — someone else opened it, or it is closed; the candidate files normally
+#   0  tracking      — the owner opened it; the candidate may be suppressed
+#   1  not tracking  — someone else opened it; the candidate files normally
 #   2  usage         — the argument is not an issue number
 #   3  undetermined  — the lookup failed; treat as not tracking and say so
 set -euo pipefail
@@ -54,8 +54,8 @@ state=""
 [ -n "$state" ] ||
   { echo "issue #$issue reports no state; refusing to call it tracking" >&2; exit 3; }
 
-# A closed issue suppresses nothing, the owner's included: a finding that
-# reproduces after the close is the fix not holding, and re-files.
+# Exit 1 too for a closed issue, the owner's included: only an open one
+# suppresses, and a finding that reproduces after the close re-files.
 if [ "$state" != "OPEN" ]; then
   echo "not tracking: #$issue is $state, and only an open issue suppresses"
   exit 1

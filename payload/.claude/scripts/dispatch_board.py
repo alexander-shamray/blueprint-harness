@@ -42,7 +42,7 @@ CLAUDE_TREE = re.compile(r"(^|[^\w])\.claude([/\\]|\b)", re.IGNORECASE)
 # What the Task cell and the body name beneath .claude/: a bare `.claude/` in prose names no file to change.
 CLAUDE_PATH = re.compile(r"(^|[^\w])\.claude/[\w.-]", re.IGNORECASE)
 # An issue in Depends on is written #n, after n, waits on n or n's; a bare number is a count, not an issue.
-# Without a # it takes two digits, so a count of 3 is none; after an explicit # one digit is issue #7.
+# Without a # it takes two digits, so a count of 3 is none; after an explicit # one digit names an issue.
 ISSUE_REF = re.compile(
     r"(?:#(\d{1,6})|\b(?:after|waits on|wait on|waiting on|blocked by)\s+#?(\d{2,6}))\b"
     r"(?!\s*(?:day|week|hour|month|min))"

@@ -1,10 +1,8 @@
 """Replay the Bash commands of Claude Code transcripts through a guard hook.
 
-Each distinct (command, cwd) runs through the hook's stdin contract, and every use counts.
-A crash (exit 1) and a refusal only a removed worktree earns are not refusals; an unreadable guard is exit 2,
-and so is a --project that matches no directory. A command naming CLAUDE_PROJECT_DIR is not run: the replay
-cannot set it to the recorded session's root, so it is counted apart as unjudged.
-Usage: py -3.12 measure/replay_guard.py --project <glob> --since <date> --guard <hook>"""
+Each distinct (command, cwd) runs through the hook's stdin contract; every use counts. Not refusals: a crash (exit 1),
+a refusal only a removed worktree earns, a command naming CLAUDE_PROJECT_DIR (unjudged). Exit 2: an unreadable guard
+or no --project directory. Usage: py -3.12 measure/replay_guard.py --project <glob> --since <date> --guard <hook>"""
 
 import argparse
 import concurrent.futures
@@ -131,12 +129,10 @@ def image(cwd):
 
 
 def judge(guard, command, cwd, session):
-    """`read_verdict`'s pair, but `"gone"` for a refusal only a removed worktree earns.
+    """`read_verdict`'s pair, `"gone"` for a refusal only a removed worktree earns, `"unjudged"` for CLAUDE_PROJECT_DIR.
 
-    One whose command holds no `..` path to climb out of the worktree is judged again from
-    the same place in the main checkout, where its paths name the same files. One naming
-    CLAUDE_PROJECT_DIR is `"unjudged"`: run_guard strips the caller's, so the guard would
-    expand nothing and admit what it could not place.
+    One whose command holds no `..` to climb out of the worktree is judged again from the same place in the main
+    checkout; run_guard strips CLAUDE_PROJECT_DIR, so a guard would place nothing spelled through it and admit it.
     """
     if _PROJECT_DIR in command:
         return "unjudged", f"names {_PROJECT_DIR}, which the replay cannot set to the recorded session's root"
