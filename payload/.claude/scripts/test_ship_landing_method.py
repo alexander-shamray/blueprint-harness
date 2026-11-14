@@ -372,6 +372,13 @@ class TheStepZeroReadsAreTheOnesTheProseArgues(unittest.TestCase):
     def test_the_tip_read_is_there(self):
         self.assertIn(TIP_READ, [ln.split("#")[0].strip() for ln in fenced_lines(SHIP)])
 
+    def test_every_clean_tree_read_names_untracked_files(self):
+        # status.showUntrackedFiles=no makes a bare `git status --short` read untracked work as a clean tree, at
+        # step 0's finished predicate and step 6's workspace gate alike.
+        clean = [ln.split("#")[0].strip() for ln in fenced_lines(SHIP)
+                 if ln.startswith("git status") and ln.partition("#")[2].strip().startswith("empty")]
+        self.assertEqual(["git status --short --untracked-files=all"] * 2, clean)
+
     def test_the_row_read_is_there_and_names_the_head(self):
         fenced = fenced_lines(SHIP)
         rows = [i for i, ln in enumerate(fenced) if ln.startswith(ROW_READ)]
