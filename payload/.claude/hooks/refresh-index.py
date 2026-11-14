@@ -131,6 +131,14 @@ def common_dir(root: Path) -> Path | None:
         return None
 
 
+def safe_path() -> list[str]:
+    """`-P`, which keeps the script's or the working directory off `sys.path`, where the interpreter has it.
+
+    It is Python 3.11's, and an older `python3` may run the hook, where it is an unknown option and the child exits at
+    once with its stderr discarded: the refresh would never run, and a worktree's index never be seeded."""
+    return ["-P"] if sys.version_info >= (3, 11) else []
+
+
 def linked(path: Path) -> bool:
     # `isjunction` is Python 3.12's, and an older `python3` may run the hook.
     isjunction = getattr(os.path, "isjunction", None)
@@ -689,7 +697,7 @@ def refresh(root: Path, handle=None) -> bool:
     script = console_script(root)
     for command in (
         *([[script, "update"]] if script else []),
-        [sys.executable, "-P", "-m", "codebase_index", "update"],
+        [sys.executable, *safe_path(), "-m", "codebase_index", "update"],
     ):
         note(handle, str(os.getpid()))
         try:
@@ -959,7 +967,7 @@ def main() -> int:
     root = root.absolute()
     try:
         subprocess.Popen(
-            [sys.executable, "-P", str(Path(__file__).resolve()), "--worker", str(root)],
+            [sys.executable, *safe_path(), str(Path(__file__).resolve()), "--worker", str(root)],
             cwd=tempfile.gettempdir(),
             env=dict(os.environ, **{NO_CWD_SEARCH: "1"}),
             stdin=subprocess.DEVNULL,

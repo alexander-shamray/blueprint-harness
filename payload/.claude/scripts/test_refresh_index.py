@@ -2182,6 +2182,22 @@ class Refreshing(Base):
             [arguments[0] for arguments, _ in self.ran])
 
 
+    def test_an_interpreter_without_the_safe_path_flag_is_not_handed_it(self):
+        """`-P` is Python 3.11's; an older `python3` exits at once on it, with stderr discarded, so nothing would
+        refresh. The worker and the module route both drop it there, and keep it from 3.11."""
+        self.patch(mock.patch.object(self.mod, "console_script", lambda _root: None))
+        root = self.checkout("main")
+        for version, flags in (((3, 9, 6), []), ((3, 10, 12), []), ((3, 11, 0), ["-P"]), ((3, 12, 10), ["-P"])):
+            with self.subTest(version=version), mock.patch.object(self.mod.sys, "version_info", version):
+                self.ran.clear()
+                self.spawned.clear()
+                self.mod.refresh(root)
+                self.run_event({"cwd": str(root)})
+                self.assertEqual([[self.mod.sys.executable, *flags, "-m", "codebase_index", "update"]],
+                                 [arguments[0] for arguments, _ in self.ran])
+                self.assertEqual(1, len(self.spawned))
+                self.assertEqual([self.mod.sys.executable, *flags], self.spawned[0][0][0][:-3])
+
 class TheWorkerIsDetached(Base):
     """The worker has to outlive the hook, whose own session or console ends
     with the call, and has to run: the hook discards every stream and always
