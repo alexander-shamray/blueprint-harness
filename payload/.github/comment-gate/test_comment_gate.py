@@ -601,6 +601,13 @@ class TheDiff(unittest.TestCase):
                     gate.added_lines(f"{header}\n@@ -0,0 +1 @@\n+x\n")
 
 
+class LineNumbersCountLineFeeds(unittest.TestCase):
+    def test_a_lone_carriage_return_does_not_start_a_line(self):
+        # git numbers a diff's lines by LF alone, so a CR inside a line must not move every number after it.
+        lines = gate.scan("A.cs", 'var s = "a\rb";\n// said\n')
+        self.assertEqual([(1, False), (2, True)], [(line.number, line.comment) for line in lines])
+
+
 def git(repo, *args):
     subprocess.run(["git", "-C", repo, "-c", "user.name=t",
                     "-c", "user.email=t@t", "-c", "core.autocrlf=false",

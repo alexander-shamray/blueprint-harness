@@ -707,9 +707,8 @@ def reader_for(path):
 
 
 def _line_starts(text):
-    starts = [0]
-    for line in io.StringIO(text, newline=""):
-        starts.append(starts[-1] + len(line))
+    # LF alone ends a line, as git numbers a diff's: a universal-newline read would start one at a lone CR too.
+    starts = [0] + [found.end() for found in re.finditer("\n", text)]
     if starts[-1] == len(text) and len(starts) > 1:
         starts.pop()
     return starts
