@@ -519,8 +519,13 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual((self.target / "x").read_bytes(), b"file\n")
 
     def test_non_canonical_payload_path_refused_up_front(self) -> None:
+        pristine = self.payload.parent / "pristine"
+        shutil.copytree(self.payload, pristine)
         for name in ("a:b.md", "sub/.git/x", "a\\b.md"):
             with self.subTest(name=name):
+                # A fresh payload each time: a name an earlier subtest left would refuse in this one's place.
+                shutil.rmtree(self.payload)
+                shutil.copytree(pristine, self.payload)
                 try:
                     self.put(self.payload, name, b"x")
                 except OSError:
