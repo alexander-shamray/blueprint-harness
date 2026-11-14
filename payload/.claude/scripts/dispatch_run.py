@@ -565,6 +565,23 @@ def _launch(root, directory, run, gid, entry, flag=False):
     # read as absent beside a marker or a refusal line. Its pid goes too: `result --refused` reads a pid file as an
     # executor started, and one this removal missed as the cautious side. An earlier launch's went at `launch`.
     _remove_stale(directory / f"{gid}.json", directory / f"{gid}.session.json", directory / f"{gid}.pid")
+    # Until the executor's pid replaces it, the file names this process, which is alive while it launches: with no
+    # file a `resume` in that window would read no executor and relaunch beside this one. A refusal removes it, so
+    # `result` reads no pid file as nothing launched, as before.
+    pid_file = directory / f"{gid}.pid"
+    _write(pid_file, f"{os.getpid()}\n")
+    try:
+        return _start(root, directory, run, gid, entry, flag, pid_file)
+    except BaseException:
+        try:
+            if pid_file.read_text(encoding="utf-8").strip() == str(os.getpid()):
+                pid_file.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def _start(root, directory, run, gid, entry, flag, pid_file):
     # The owner's stop file ends relaunches too, not only the next wake's launches.
     if (directory / "STOP").exists():
         raise Refusal("stop file: the owner ended the night, so nothing more launches")
@@ -598,7 +615,7 @@ def _launch(root, directory, run, gid, entry, flag=False):
         _remove_temp(scratch)
         raise Refusal(f"could not start claude: {error}") from None
     try:
-        _write(directory / f"{gid}.pid", f"{child.pid}\n")
+        _write(pid_file, f"{child.pid}\n")
     except Refusal:
         # An executor resume cannot see would be relaunched over; Popen.kill is the intended stop here.
         child.kill()
@@ -1036,10 +1053,19 @@ def reviewer_spawned(transcript):
 
 
 def _pid(directory, gid):
+    """The pid a group's pid file holds, or None when there is no file. A file that cannot be read, or holds no pid,
+    is refused: read as no executor, it would let `resume` relaunch over one that is running."""
+    path = Path(directory) / f"{gid}.pid"
     try:
-        return int(_read(Path(directory) / f"{gid}.pid").strip())
-    except (OSError, ValueError):
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
         return None
+    except OSError as error:
+        raise Refusal(f"its pid file cannot be read, so whether its executor runs is unknown: {error}") from None
+    try:
+        return int(text.strip())
+    except ValueError:
+        raise Refusal("its pid file holds no pid, so whether its executor runs is unknown") from None
 
 
 def _read_already(directory, gid, entry):
@@ -1570,7 +1596,11 @@ def resume(root, run):
         # A sync holds no row, so its lines lead to `sync-close`, never `tasks done` or `tasks back`.
         sync = entry.get("kind") == "sync"
         if status in ACTIVE:
-            pid = _pid(directory, gid)
+            try:
+                pid = _pid(directory, gid)
+            except Refusal as unknown:
+                out.append(f"refused {gid}: {unknown}")
+                continue
             if pid is not None and alive(pid):
                 out.append(f"refused {gid}: its executor is still running")
                 continue
