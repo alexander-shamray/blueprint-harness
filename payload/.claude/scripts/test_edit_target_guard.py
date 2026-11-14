@@ -140,7 +140,7 @@ class GuardCase(unittest.TestCase):
         return linkpath
 
     def judge(self, file_path, tool="Edit", cwd=None, key="file_path",
-              project=None, process_cwd=None, hook=HOOK, env=None):
+              project=None, process_cwd=None, hook=HOOK, env=None, extra=None):
         """The hook's verdict on one call: the reason, or `None` for allowed.
 
         `cwd` is the event's, for a relative path; `process_cwd` the hook
@@ -150,7 +150,7 @@ class GuardCase(unittest.TestCase):
             "hook_event_name": "PreToolUse",
             "cwd": self.root if cwd is None else cwd,
             "tool_name": tool,
-            "tool_input": {} if file_path is None else {key: file_path},
+            "tool_input": ({} if file_path is None else {key: file_path}) | (extra or {}),
         }
         result = subprocess.run(
             [sys.executable, str(hook)],
@@ -385,6 +385,15 @@ class ALinkIsNotTheFileItIsSpelledAs(GuardCase):
             with self.subTest(link=linker):
                 self.assertRefused(self.link_to("book", target, linker),
                                    tool="NotebookEdit", key="notebook_path")
+
+    def test_a_harmless_file_path_beside_the_notebook_path_excuses_nothing(self):
+        # Every key a call carries is judged: the first one read is not the one the tool writes through.
+        target = os.path.join(self.root, ".claude", "scripts", "helper.sh")
+        harmless = {"file_path": os.path.join(self.root, "docs", "chapter.md")}
+        for linker in linkers():
+            with self.subTest(link=linker):
+                self.assertRefused(self.link_to("book2", target, linker),
+                                   tool="NotebookEdit", key="notebook_path", extra=harmless)
 
 
 class TheOrdinaryWriteIsNotDisturbed(GuardCase):
