@@ -15,6 +15,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+import unittest.mock
 
 from measure import replay_guard
 
@@ -125,6 +126,42 @@ class Replay(unittest.TestCase):
                 code, lines = self.replay(guard)
                 self.assertNotEqual(code, 0)
                 self.assertEqual(lines, [])
+
+    def test_a_transcript_deleted_after_the_listing_is_skipped_and_the_totals_print(self):
+        self.transcript("kept", bash("refuse-me"))
+        kept, gone = self.project / "kept.jsonl", self.project / "gone.jsonl"
+        # Gone before its time is read, and gone between that read and its lines.
+        for name, attribute, value in (
+            ("before the stat", "_transcripts",
+             lambda project, root: iter([gone, kept] if project == "project" else [])),
+            ("after the stat", "transcripts", lambda project, since, root: iter([gone, kept])),
+        ):
+            with self.subTest(name), unittest.mock.patch.object(replay_guard, attribute, value):
+                code, lines = self.replay()
+                self.assertEqual(code, 0)
+                self.assertEqual(lines[-1], {"commands": 1, "refused": 1})
+
+    def test_a_project_that_matches_no_directory_is_refused_and_not_an_empty_window(self):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            with self.assertRaises(SystemExit) as caught:
+                replay_guard.main(["--project", "absent*", "--since", "2000-01-01",
+                                   "--guard", str(self.guard), "--root", str(self.root)])
+        self.assertEqual(caught.exception.code, 2)
+        self.assertEqual(out.getvalue(), "")
+        self.assertIn("matches no directory", err.getvalue())
+
+    def test_a_command_naming_the_project_dir_is_counted_unjudged_and_not_admitted(self):
+        # The stub admits it, as the real guard admits a write target it cannot expand.
+        for command in ('echo x > "$CLAUDE_PROJECT_DIR/.claude/settings.json"',
+                        "cd ${CLAUDE_PROJECT_DIR} && git push --force"):
+            with self.subTest(command):
+                self.transcript("s1", bash(command), bash("refuse-me"))
+                code, lines = self.replay()
+                self.assertEqual(code, 0)
+                self.assertEqual(lines[0]["command"], command)
+                self.assertIn("CLAUDE_PROJECT_DIR", lines[0]["unjudged"])
+                self.assertEqual(lines[-2:], [{"unjudged": 1}, {"commands": 2, "refused": 1}])
 
     def test_a_repeated_command_is_judged_once_and_every_use_counted(self):
         self.guard.write_text(

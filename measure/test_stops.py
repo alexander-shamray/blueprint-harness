@@ -11,6 +11,7 @@ import os
 import pathlib
 import tempfile
 import unittest
+import unittest.mock
 
 from measure import stops
 
@@ -231,6 +232,85 @@ class StopsTest(unittest.TestCase):
             "unstamped": [*ahead, user("go")],
         }
         self.assertEqual(self.window(sessions, "--since", "2026-10-19"), ["bookkeeping", "unreadable"])
+
+    def test_a_transcript_deleted_after_the_listing_is_skipped_and_the_totals_print(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        project = pathlib.Path(directory.name) / "project"
+        project.mkdir()
+        kept = project / "kept.jsonl"
+        kept.write_text(json.dumps(user("<command-name>/ship</command-name>", timestamp="2026-10-20T00:00:00Z")) + "\n",
+                        encoding="utf-8")
+        gone = project / "gone.jsonl"
+        started = datetime.datetime(2026, 10, 20, tzinfo=datetime.UTC)
+        # Gone before its start is read, and gone between that read and the count.
+        for name, patches in (("before the start", {}), ("after the start", {"_started": lambda path: started})):
+            for command in ([], ["--command", "ship"]):
+                with self.subTest(name, command=command):
+                    out = io.StringIO()
+                    with contextlib.ExitStack() as stack:
+                        stack.enter_context(unittest.mock.patch.object(
+                            stops, "_transcripts", lambda project, root: iter([gone, kept])))
+                        for attribute, value in patches.items():
+                            stack.enter_context(unittest.mock.patch.object(stops, attribute, value))
+                        stack.enter_context(contextlib.redirect_stdout(out))
+                        code = stops.main(["--project", "project", "--root", directory.name,
+                                           "--since", "2026-10-19", *command])
+                    self.assertEqual(code, 0)
+                    rows = [json.loads(line) for line in out.getvalue().splitlines()]
+                    self.assertEqual([row["session"] for row in rows[:-1]], ["kept"])
+                    self.assertEqual(rows[-1]["sessions"], 1)
+
+    def test_a_root_holding_glob_characters_names_itself(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        # Windows refuses ? and * in a name, so the brackets stand for every glob character.
+        for name in ("home[1]", "[ab]home"):
+            with self.subTest(name):
+                root = pathlib.Path(directory.name) / name / "projects"
+                (root / "project").mkdir(parents=True)
+                (root / "project" / "s.jsonl").write_text(
+                    json.dumps(user("go", timestamp="2026-10-20T00:00:00Z")) + "\n", encoding="utf-8")
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    code = stops.main(["--project", "proj*", "--root", str(root), "--since", "2026-10-19"])
+                self.assertEqual(code, 0)
+                self.assertEqual(json.loads(out.getvalue().splitlines()[-1])["sessions"], 1)
+
+    def refused(self, *args):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        (pathlib.Path(directory.name) / "project").mkdir()
+        (pathlib.Path(directory.name) / "project" / "s.jsonl").write_text("", encoding="utf-8")
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            with self.assertRaises(SystemExit) as caught:
+                stops.main(["--root", directory.name, *args])
+        self.assertEqual(caught.exception.code, 2)
+        self.assertEqual(out.getvalue(), "")
+        return err.getvalue()
+
+    def test_a_project_that_matches_no_directory_is_refused_and_not_an_empty_window(self):
+        for project in ("absent", "absent*", "project/s.jsonl"):
+            with self.subTest(project):
+                self.assertIn("matches no directory", self.refused("--project", project, "--since", "2026-10-19"))
+
+    def test_an_until_before_the_since_is_refused(self):
+        self.assertIn("before --since", self.refused("--project", "project", "--since", "2026-10-19",
+                                                     "--until", "2026-10-18"))
+
+    def test_the_command_filter_takes_the_slash_form_and_refuses_an_empty_name(self):
+        sessions = {
+            "shipped": [user("<command-name>/ship</command-name>", timestamp="2026-10-20T00:00:00Z")],
+            "other": [user("go", timestamp="2026-10-20T00:00:00Z")],
+        }
+        for command in ("ship", "/ship"):
+            with self.subTest(command):
+                self.assertEqual(self.window(sessions, "--since", "2026-10-19", "--command", command), ["shipped"])
+        for command in ("", "/"):
+            with self.subTest(command):
+                self.assertIn("names no command", self.refused("--project", "project", "--since", "2026-10-19",
+                                                               "--command", command))
 
     def test_median_line_reports_zero_sessions(self):
         self.assertEqual(stops.summarise([]), {"sessions": 0, "median": None})

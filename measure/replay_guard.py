@@ -1,7 +1,9 @@
 """Replay the Bash commands of Claude Code transcripts through a guard hook.
 
 Each distinct (command, cwd) runs through the hook's stdin contract, and every use counts.
-A crash (exit 1) and a refusal only a removed worktree earns are not refusals; an unreadable guard is exit 2.
+A crash (exit 1) and a refusal only a removed worktree earns are not refusals; an unreadable guard is exit 2,
+and so is a --project that matches no directory. A command naming CLAUDE_PROJECT_DIR is not run: the replay
+cannot set it to the recorded session's root, so it is counted apart as unjudged.
 Usage: py -3.12 measure/replay_guard.py --project <glob> --since <date> --guard <hook>"""
 
 import argparse
@@ -17,7 +19,7 @@ import sys
 # Run as the script the usage names, `measure/` is on the path and its parent is not.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-from measure.stops import _lines, _parts, _transcripts  # noqa: E402
+from measure.stops import _lines, _parts, _transcripts, require_project  # noqa: E402
 
 GUARD_TIMEOUT = 120
 PROGRESS_EVERY = 5000
@@ -26,13 +28,19 @@ PROGRESS_EVERY = 5000
 _CRASHED_DENY = "crashed the guard"
 _UNJUDGED_STDERR = ("Traceback (most recent call last)", "not judging")
 _CLIMB = re.compile(r"(?<![\w.])\.\.(?![\w.])")
+_PROJECT_DIR = "CLAUDE_PROJECT_DIR"
 _WORKTREE = re.compile(r"(?i)^(.+?)[\\/]\.claude[\\/]worktrees[\\/][^\\/]+(?:[\\/](.*))?$")
 
 
 def touched(project, since, root):
     # The commands run since a day, so a session started earlier holds some of them.
     for path in _transcripts(project, root):
-        if datetime.datetime.fromtimestamp(path.stat().st_mtime) >= since:
+        try:
+            used = path.stat().st_mtime
+        except OSError:
+            # Deleted since the listing: skipped, and the totals still print.
+            continue
+        if datetime.datetime.fromtimestamp(used) >= since:
             yield path
 
 
@@ -43,15 +51,19 @@ def transcripts(project, since, root):
 
 
 def bash_uses(transcript):
-    for entry in _lines(transcript):
-        if entry.get("type") != "assistant":
-            continue
-        for part in _parts(entry):
-            if part.get("type") != "tool_use" or part.get("name") != "Bash":
+    try:
+        for entry in _lines(transcript):
+            if entry.get("type") != "assistant":
                 continue
-            command = (part.get("input") or {}).get("command")
-            if isinstance(command, str):
-                yield command, entry.get("cwd") or "", entry.get("sessionId") or transcript.stem
+            for part in _parts(entry):
+                if part.get("type") != "tool_use" or part.get("name") != "Bash":
+                    continue
+                command = (part.get("input") or {}).get("command")
+                if isinstance(command, str):
+                    yield command, entry.get("cwd") or "", entry.get("sessionId") or transcript.stem
+    except OSError:
+        # Deleted since the listing: skipped, and the totals still print.
+        return
 
 
 def event_for(command, cwd, session):
@@ -122,8 +134,12 @@ def judge(guard, command, cwd, session):
     """`read_verdict`'s pair, but `"gone"` for a refusal only a removed worktree earns.
 
     One whose command holds no `..` path to climb out of the worktree is judged again from
-    the same place in the main checkout, where its paths name the same files.
+    the same place in the main checkout, where its paths name the same files. One naming
+    CLAUDE_PROJECT_DIR is `"unjudged"`: run_guard strips the caller's, so the guard would
+    expand nothing and admit what it could not place.
     """
+    if _PROJECT_DIR in command:
+        return "unjudged", f"names {_PROJECT_DIR}, which the replay cannot set to the recorded session's root"
     kind, detail = run_guard(guard, command, cwd, session)
     gone = kind == "refused" and cwd and not os.path.isdir(cwd) and not _CLIMB.search(command)
     place = image(cwd) if gone else None
@@ -163,6 +179,7 @@ def main(argv=None):
     parser.add_argument("--root", type=pathlib.Path, default=pathlib.Path.home() / ".claude" / "projects")
     parser.add_argument("--workers", type=int, default=min(8, os.cpu_count() or 1))
     args = parser.parse_args(argv)
+    require_project(parser, args.project, args.root)
     guard = args.guard.resolve()
     try:
         guard.read_bytes()
@@ -172,7 +189,7 @@ def main(argv=None):
     since = datetime.datetime.combine(args.since, datetime.time.min)
     uses = (use for path in transcripts(args.project, since, args.root) for use in bash_uses(path))
     commands, rows = replay(guard, uses, args.workers)
-    refused = crashed = gone = 0
+    refused = crashed = gone = unjudged = 0
     for row in rows:
         kind, detail = row.pop("verdict")
         if kind == "admitted":
@@ -183,11 +200,16 @@ def main(argv=None):
         elif kind == "gone":
             gone += row["count"]
             print(json.dumps({**row, "gone": detail}))
+        elif kind == "unjudged":
+            unjudged += row["count"]
+            print(json.dumps({**row, "unjudged": detail}))
         else:
             crashed += row["count"]
             print(json.dumps({**row, "crash": detail}))
     if gone:
         print(json.dumps({"gone": gone}))
+    if unjudged:
+        print(json.dumps({"unjudged": unjudged}))
     if crashed:
         print(json.dumps({"crashed": crashed}))
     print(json.dumps({"commands": commands, "refused": refused}))
