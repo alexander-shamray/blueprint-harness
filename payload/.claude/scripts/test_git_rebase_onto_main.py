@@ -258,6 +258,21 @@ class TheHelperRefusesBeforeItRewrites(unittest.TestCase):
         self.assertEqual(5, result.returncode, result.stderr)
         self.assertIn("the tree is dirty", result.stderr)
 
+    def test_an_assume_unchanged_file_is_refused_and_named(self):
+        # Tag h in `git ls-files -v`: `git status` reads clean, and the replay's checkout would overwrite the edit.
+        self.at("git update-index --assume-unchanged b.txt && echo local >> b.txt")
+        self.assertEqual("", self.at("git status --porcelain").stdout.strip())
+        before = self.head()
+        result = self.helper("feat/x")
+        self.assertEqual(5, result.returncode, result.stderr)
+        self.assertIn("assume-unchanged", result.stderr)
+        self.assertIn("b.txt", result.stderr)
+        self.assertEqual(before, self.head())
+        self.assertIn("local", self.at("cat b.txt").stdout, "the edit survives the refusal")
+        # No sparse checkout sets the flag, so saying there is one lifts nothing.
+        self.at("git config core.sparseCheckout true")
+        self.assertEqual(5, self.helper("feat/x").returncode)
+
     def test_a_skip_worktree_file_is_refused_and_named(self):
         # `git status` reads clean here, so the dirty-tree guard cannot be what
         # fires; the message is what tells this guard from that one.

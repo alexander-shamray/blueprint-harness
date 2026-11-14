@@ -370,15 +370,19 @@ case "$mode" in
     # git's "local changes would be overwritten" and name no file. It is
     # refused here, by name, under the dirty tree's own exit. A sparse checkout
     # sets the same flag on purpose, so one that says so is not read as a lift.
+    # An assume-unchanged file, tag h, hides its edits from `git status` the
+    # same way and no sparse checkout sets it, so it is refused either way.
     sparse=$(git config --type=bool core.sparseCheckout || :)
     if [ "$sparse" != "true" ]; then
-      flagged=$(git ls-files -v | sed -n 's/^[Ss] //p')
-      [ -z "$flagged" ] ||
-        { echo "these tracked files carry skip-worktree, which git status does not show and a replay will not overwrite:" >&2
-          printf '%s\n' "$flagged" >&2
-          echo "clear the flag with 'git update-index --no-skip-worktree <file>', or restore the file, then start again" >&2
-          exit 5; }
+      flagged=$(git ls-files -v | sed -n 's/^[Ssh] //p')
+    else
+      flagged=$(git ls-files -v | sed -n 's/^[sh] //p')
     fi
+    [ -z "$flagged" ] ||
+      { echo "these tracked files carry skip-worktree or assume-unchanged, which git status does not show and a replay stops on or overwrites:" >&2
+        printf '%s\n' "$flagged" >&2
+        echo "clear the flag with 'git update-index --no-skip-worktree <file>' or 'git update-index --no-assume-unchanged <file>', or restore the file, then start again" >&2
+        exit 5; }
 
     # Ahead of the fetch, so a redirect reads nothing from where it points and the
     # branch is not replayed; `publish` asks again, since `continue` comes later.
