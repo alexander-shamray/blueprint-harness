@@ -2566,7 +2566,8 @@ class TheDetachedWorkerReallyRuns(unittest.TestCase):
     def test_an_event_reaches_the_cli_through_the_detached_worker(self):
         event = json.dumps({"cwd": str(self.worktree), "hook_event_name": "PostToolUse"})
         done = launch("PostToolUse", event.encode("utf-8"), self.environment(), 60)
-        self.assertEqual(0, done.returncode, done.stderr)
+        # The launcher leaves 0 on every path, so its line, not its status, says the hook did not start.
+        self.assertEqual((0, b""), (done.returncode, done.stdout), done.stderr)
 
         ran = self.worktree / "cli-ran"
         deadline = time.monotonic() + 60
