@@ -13,6 +13,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / "payload" / ".github" / "workflows"
+
+
+def workflow_files(directory: Path = WORKFLOWS) -> list[Path]:
+    """Every workflow GitHub runs from a directory: it reads `.yaml` as it reads `.yml`."""
+    return sorted(p for p in directory.iterdir() if p.is_file() and p.suffix in (".yml", ".yaml"))
 GATES_YML = WORKFLOWS / "gates.yml"
 # The check name each gate posts, its directory under .github/; rulesets/main.json requires all but comment-gate,
 # and locality-gate only of the targets with a change contract, whose own the gate directory is.
@@ -118,10 +123,19 @@ def run_step(script: str, env: dict[str, str], cwd: Path | None = None) -> tuple
 
 
 class TheJobs(unittest.TestCase):
+    def test_the_workflow_list_takes_both_suffixes_github_runs(self) -> None:
+        # The subject is the list both checks below walk: a `.yaml` workflow it missed would escape both.
+        with tempfile.TemporaryDirectory() as directory:
+            for name in ("a.yml", "b.yaml", "c.txt", "d.yml.orig"):
+                (Path(directory) / name).write_text("", encoding="utf-8")
+            (Path(directory) / "e.yml").mkdir()
+            self.assertEqual(["a.yml", "b.yaml"], [p.name for p in workflow_files(Path(directory))])
+        self.assertIn("gates.yml", [p.name for p in workflow_files()])
+
     def test_each_pull_request_event_starts_one_judging_job_and_the_legs(self) -> None:
         # The account's concurrency cap is the queue: a gate a job each was a runner slot and a queue wait each.
         started: dict[str, list[str]] = {}
-        for path in sorted(WORKFLOWS.glob("*.yml")):
+        for path in workflow_files():
             text = path.read_text(encoding="utf-8")
             for event in pull_request_types(text):
                 started.setdefault(event, []).extend(f"{path.name}:{job}" for job in jobs_of(text))
@@ -224,7 +238,7 @@ class TheGrants(unittest.TestCase):
 
     def test_no_shipped_workflow_holds_a_write_grant(self) -> None:
         jobs = 0
-        for path in sorted(WORKFLOWS.glob("*.yml")):
+        for path in workflow_files():
             text = path.read_text(encoding="utf-8")
             # With no block at either level a job holds the repository's default token, which may write.
             inherited = permissions_of(text, 0)
