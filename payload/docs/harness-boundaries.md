@@ -2826,6 +2826,7 @@ decision accepts, and Linux still judges them on every pull request.
 - name: Decide whether this leg tests
   id: reach
   if: runner.os != 'Linux'
+  shell: bash
   run: python .claude/scripts/harness-legs.py >> "$GITHUB_OUTPUT"
 - name: Test the harness
   if: runner.os == 'Linux' || steps.reach.outputs.test != 'false'
