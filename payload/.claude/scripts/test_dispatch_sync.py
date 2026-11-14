@@ -240,6 +240,18 @@ class SyncLaunch(Bound):
         pid.write_text(f"{finished_pid()}\n", encoding="utf-8")
         self.assertEqual("", self.sync_launch())
 
+    def test_an_earlier_runs_pid_file_that_holds_no_pid_is_named_where_it_is(self):
+        # Read as no executor it would launch beside one; refused, the owner is told which file to read or clear.
+        earlier = state_dir("20261031-220000")
+        earlier.mkdir(parents=True)
+        pid = earlier / f"{GID}.pid"
+        pid.write_text("garbled\n", encoding="utf-8")
+        self.refused(f"{GID} in run 20261031-220000: its pid file holds no pid")
+        out = self.sync_launch()
+        self.assertIn(str(pid), out)
+        pid.write_text(f"{finished_pid()}\n", encoding="utf-8")
+        self.assertEqual("", self.sync_launch())
+
     def test_another_syncs_live_executor_does_not_hold_this_one(self):
         earlier = state_dir("20261031-220000")
         earlier.mkdir(parents=True)
