@@ -177,6 +177,21 @@ class NothingToSyncTests(SyncTestCase):
         self.assertEqual(self.remote_branches(), ["main"])
         self.assertEqual(git(self.target, "branch", "--show-current").strip(), "main")
 
+    def test_a_manifest_whose_file_list_changes_is_not_current(self) -> None:
+        # A managed file the target's config now keeps local is neither written nor deleted, yet the manifest drops
+        # it, and the drift gate reads the manifest: that change is the sync.
+        self.seed()
+        config = self.target / ".harness/config.json"
+        cfg = json.loads(config.read_text(encoding="utf-8"))
+        config.write_text(json.dumps({**cfg, "local": [*cfg.get("local", []), "docs/b.md"]}), encoding="utf-8")
+        git(self.target, "add", "-A")
+        git(self.target, *SEED, "commit", "-q", "-m", "chore: keep b local")
+        git(self.target, "push", "-q", "origin", "main")
+        outcome = self.sync(FakeGh(self.origin))
+        self.assertNotEqual("current", outcome.state, outcome.reason)
+        pushed = json.loads(git(self.origin, "show", f"{self.branch()}:.harness/manifest.json"))
+        self.assertNotIn("docs/b.md", pushed["files"])
+
     def test_current_closes_the_stale_syncs(self) -> None:
         # R31: a target already current makes every open sync stale; a fork's look-alike is not ours to close.
         self.seed()

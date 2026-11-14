@@ -96,6 +96,16 @@ def _restore(target: Path) -> None:
     _git(target, "clean", "-q", "-fd")
 
 
+def _manifest_files_at_head(target: Path) -> dict | None:
+    """The `files` map of the manifest HEAD holds, or None where HEAD holds none or one out of shape."""
+    try:
+        raw = json.loads(_git(target, "show", f"HEAD:{MANIFEST}"))
+    except (SyncError, ValueError):
+        return None
+    files = raw.get("files") if isinstance(raw, dict) else None
+    return files if isinstance(files, dict) else None
+
+
 def _short(sha: str) -> str:
     return sha[:7]
 
@@ -302,14 +312,20 @@ def open_sync_pr(
     # first manifest is the drift gate's whole input and is.
     had_manifest = (target / MANIFEST).is_file()
     try:
+        # The base's file list, read from HEAD rather than the tree: apply has not vetted the manifest's path yet.
+        old_files = _manifest_files_at_head(target) if had_manifest else None
         result = apply(payload, target, harness_commit)
+        new = Manifest.read(target / MANIFEST)
         open_prs = _open_sync_prs(gh)
         _check_no_newer(harness, harness_commit, open_prs)
     except BaseException:
         # Nothing is committed before the branch exists, so a failure up to here hands the checkout back as found.
         _restore(target)
         raise
-    current = had_manifest and not result.written and not result.deleted
+    # A file that moves into or out of the manifest unwritten and undeleted, as one a config now keeps local, still
+    # changes what the drift gate reads.
+    current = (had_manifest and not result.written and not result.deleted
+               and new is not None and old_files == new.files)
     branch = f"{PREFIX}{_short(harness_commit)}"
 
     if current:
