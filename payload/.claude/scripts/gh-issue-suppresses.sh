@@ -33,7 +33,7 @@ state=""
 [ -n "$state" ] ||
   { echo "issue #$issue reports no state; refusing to call it tracking" >&2; exit 3; }
 
-# A closed one is the owner's too, and a finding that reproduces after the close re-files.
+# A closed one does not suppress, the owner's included, so a finding that reproduces after the close re-files.
 if [ "$state" != "OPEN" ]; then
   echo "not tracking: #$issue is $state, and only an open issue suppresses"
   exit 1
