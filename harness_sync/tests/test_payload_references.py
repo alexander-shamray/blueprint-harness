@@ -43,6 +43,8 @@ RUNTIME = (".claude/worktrees/", ".claude/projects/", ".claude/cache/")
 # its trailing slash, or the target's CLAUDE.md. A bare `docs/split-the-runbook` is a branch name, not a path.
 _PATH = re.compile(
     r"(?<![\w./<>-])((?:\.claude|\.github|\.harness|docs)/[\w./*<>-]*(?:\.[A-Za-z]+|/)|CLAUDE\.md)(?![\w/{-])")
+# A shell variable a path is written under, which `_PATH`'s look-behind would otherwise read as part of a longer path.
+_VARIABLE_PREFIX = re.compile(r"\$\{?\w+\}?/(?=(?:\.claude|\.github|\.harness|docs)/)")
 # A cited path, written bare, in a code span or as a link's text, then its section in italics.
 _LINKED = r"`?(?:\]\([^)\s]*\))?(?:'s)?,? \*"
 _SECTION = re.compile(r"`?((?:\.claude|\.github|\.harness|docs)/[\w./-]+\.md|CLAUDE\.md)" + _LINKED + r"([^*]+)\*")
@@ -62,9 +64,18 @@ _LOCAL_HEADING = re.compile(r"^- \*([^*]+)\*:", re.MULTILINE)
 _LINK = re.compile(r"\]\(([^)\s#]+)(?:#[^)\s]*)?\)|^\s*\[[^\]]+\]:\s*<?([^>\s#]+)")
 
 
+def _script_without_suffix(path: Path) -> bool:
+    """A file named with no suffix whose first line is an interpreter line, as `cbx` is."""
+    if path.suffix:
+        return False
+    with path.open("rb") as handle:
+        return handle.read(2) == b"#!"
+
+
 def payload_files(payload: Path = PAYLOAD) -> list[Path]:
-    """The payload's text files, but its suites: a path in a test is a fixture, data and not a citation."""
-    return sorted(p for p in payload.rglob("*") if p.is_file() and p.suffix in TEXT_SUFFIXES
+    """The payload's text files, a suffixless script included, but its suites: a path in a test is a fixture."""
+    return sorted(p for p in payload.rglob("*")
+                  if p.is_file() and (p.suffix in TEXT_SUFFIXES or _script_without_suffix(p))
                   and "__pycache__" not in p.parts and not p.name.startswith("test_"))
 
 
@@ -115,6 +126,19 @@ def stale_sites(payload: Path, import_text: str) -> list[str]:
     return found
 
 
+def ambiguous_sites(payload: Path, import_text: str) -> list[str]:
+    """The listed sites whose anchor more than one line of their file carries: each such line is exempt, listed or
+    not, so an anchor has to name its one line."""
+    found = []
+    for path, anchor in sorted(stack_sites(import_text)[1]):
+        target = payload / path
+        if target.is_file():
+            count = sum(anchor in line for line in target.read_text(encoding="utf-8").splitlines())
+            if count > 1:
+                found.append(f"{path}#{anchor}: {count} lines")
+    return found
+
+
 def suffixless_names(payload: Path) -> set[str]:
     """The payload's files under `.claude/` and `.github/` named without a suffix, such as `cbx`."""
     return {p.name for tree in (".claude", ".github") if (payload / tree).is_dir()
@@ -161,7 +185,9 @@ def unresolved(payload: Path, held: set[str], import_text: str) -> list[str]:
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if at_site(sites, rel, line):
                 continue
-            for match in (*_PATH.finditer(line), *(suffixless.finditer(line) if suffixless else ())):
+            # A path behind a variable, `$D/docs/x.md` or `${CLAUDE_PROJECT_DIR}/.claude/x.py`, is read as bare.
+            bare = _VARIABLE_PREFIX.sub("", line)
+            for match in (*_PATH.finditer(bare), *(suffixless.finditer(bare) if suffixless else ())):
                 if not resolves(match.group(1), payload, held, rel):
                     found.append(f"{rel}:{number}: {match.group(1)}")
             if path.suffix != ".md":
@@ -328,6 +354,9 @@ class PayloadReferences(unittest.TestCase):
     def test_listed_stack_site_still_exists(self) -> None:
         self.assertEqual(stale_sites(PAYLOAD, IMPORT.read_text(encoding="utf-8")), [])
 
+    def test_listed_stack_site_names_one_line(self) -> None:
+        self.assertEqual(ambiguous_sites(PAYLOAD, IMPORT.read_text(encoding="utf-8")), [])
+
     def test_stack_name_only_at_a_listed_site(self) -> None:
         self.assertEqual(stack_names(PAYLOAD, IMPORT.read_text(encoding="utf-8")), [])
 
@@ -411,6 +440,25 @@ class PlantedCitations(unittest.TestCase):
             ".github/output-gate/README.md:1: docs/testing.md",
             ".github/output-gate/README.md:1: (../../docs/backend-only.md)",
         ])
+
+    def test_a_stack_site_anchor_on_two_lines_is_reported(self) -> None:
+        # An anchor exempts every line carrying it, so one carried twice exempts a line nobody listed.
+        stack = "## Stack mentions left verbatim\n\n- `.claude/commands/pr.md#.yaml`\n"
+        self.plant(".claude/commands/pr.md", "MSBuild reads `.yaml`.\nA `.yaml` cites `docs/gone.md`.\n")
+        self.assertEqual(ambiguous_sites(self.payload, stack), [".claude/commands/pr.md#.yaml: 2 lines"])
+
+    def test_a_citation_behind_a_variable_is_resolved(self) -> None:
+        # `$D/docs/x.md` and `${CLAUDE_PROJECT_DIR}/.claude/x.py` name the target's own files as much as bare ones.
+        self.plant(".claude/commands/pr.md",
+                   'Run `${CLAUDE_PROJECT_DIR}/.claude/hooks/gone.py` and read "$root/docs/gone.md".\n')
+        self.assertEqual(unresolved(self.payload, TARGET_HELD, "## Stack mentions left verbatim\n"), [
+            ".claude/commands/pr.md:1: .claude/hooks/gone.py", ".claude/commands/pr.md:1: docs/gone.md"])
+
+    def test_a_suffixless_script_is_read(self) -> None:
+        # `cbx` is a bash script with no suffix; a citation in it is a citation.
+        self.plant(".claude/skills/x/scripts/tool", "#!/usr/bin/env bash\n# See docs/gone.md.\n")
+        self.plant(".claude/skills/x/scripts/DATA", "docs/gone.md is data with no interpreter line\n")
+        self.assertEqual(unresolved(self.payload, TARGET_HELD, "## Stack mentions left verbatim\n"), [".claude/skills/x/scripts/tool:2: docs/gone.md"])
 
     def test_stack_site_survives_an_edit_above_it(self) -> None:
         stack = "## Stack mentions left verbatim\n\n- `.claude/commands/pr.md#second`\n"
