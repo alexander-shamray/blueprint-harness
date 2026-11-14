@@ -1680,9 +1680,9 @@ where the old grant was `/ship`'s alone, so what bounds the subcommand is its
 own proof: it runs `verify <n> --head <oid>` and refuses a failure, so a test
 file committed on a local branch, with that branch's `HEAD` as the pin, runs
 nothing. It then refuses a `HEAD` other than the oid or a tree `git status
---short` says is not clean, the comparison the sync section requires and which
-`dispatch_board.py sync-launch` and `run` compare before a `--dispatched` run
-starts in it, and runs each path `local-suites` derives from
+--short --untracked-files=all` says is not clean, the comparison the sync
+section requires and which `dispatch_board.py sync-launch` and `run` compare
+before a `--dispatched` run starts in it, and runs each path `local-suites` derives from
 `.harness/config.json` and `git ls-files` as `py -3.12 -m unittest discover -s
 <dir> -p <file>`. A target's *Ship checks* that runs the whole `.claude/scripts`
 suite runs `shard-harness-suite.py`, granted with no `:*` so that its `--ids
