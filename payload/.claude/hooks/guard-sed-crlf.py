@@ -308,7 +308,7 @@ def shell_line(arguments, stdin):
         index += 1
         if not argument.startswith("--"):
             letters = argument[1:]
-            command = command or (argument.startswith("-") and "c" in letters)
+            command = command or "c" in letters
             reads_input = reads_input or "s" in letters
             index += letters.count("o") + letters.count("O")
     if index < len(arguments):
