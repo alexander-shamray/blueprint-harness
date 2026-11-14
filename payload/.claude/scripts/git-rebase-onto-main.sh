@@ -360,7 +360,9 @@ case "$mode" in
       { echo "on $current, not $branch: this helper only ever touches the current branch" >&2; exit 4; }
     # Assigned rather than read inside `[`, where a command substitution
     # discards the exit status and a git that failed reads as a clean tree.
-    dirty=$(git status --porcelain)
+    # Every untracked file is named, whatever status.showUntrackedFiles says:
+    # `no` would read untracked work as a clean tree.
+    dirty=$(git status --porcelain --untracked-files=all)
     [ -z "$dirty" ] ||
       { echo "the tree is dirty; a rebase would carry or refuse it, and neither is this helper's call" >&2; exit 5; }
     # A skip-worktree file reads clean in `git status` and is still local state

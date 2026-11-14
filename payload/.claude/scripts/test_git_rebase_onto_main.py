@@ -250,6 +250,14 @@ class TheHelperRefusesBeforeItRewrites(unittest.TestCase):
         self.assertIn("the tree is dirty", result.stderr)
         self.assertIn("uncommitted", self.at("cat b.txt").stdout, "the edit survives the refusal")
 
+    def test_an_untracked_file_is_dirty_whatever_status_shows(self):
+        # status.showUntrackedFiles=no would read the planted file as a clean tree.
+        self.at("git config status.showUntrackedFiles no && echo x > planted.txt")
+        self.assertEqual("", self.at("git status --porcelain").stdout.strip())
+        result = self.helper("feat/x")
+        self.assertEqual(5, result.returncode, result.stderr)
+        self.assertIn("the tree is dirty", result.stderr)
+
     def test_a_skip_worktree_file_is_refused_and_named(self):
         # `git status` reads clean here, so the dirty-tree guard cannot be what
         # fires; the message is what tells this guard from that one.
