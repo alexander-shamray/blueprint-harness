@@ -249,10 +249,19 @@ class WhatSuppressesIsDecidedByCodeNow(unittest.TestCase):
         self.assertNotIn("--json body", code)
 
     def test_the_gh_pattern_sees_every_spelling_of_the_grant(self):
-        for grant in ("gh:*", "gh", "gh*", "gh issue:*", "gh api", "gh.exe:*", "GH:*", "GH_TOKEN=x gh:*"):
+        for grant in ("gh:*", "gh", "gh*", "gh issue:*", "gh api", "gh.exe:*", "GH:*", "GH_TOKEN=x gh:*",
+                      "env gh:*", "command gh issue:*", "/usr/bin/gh:*", "env GH_TOKEN=x gh"):
             with self.subTest(grant=grant):
-                self.assertIsNotNone(TheSweepsReachIssuesOnlyThroughTheHelpers.GH_GRANT.match(grant))
-        self.assertIsNone(TheSweepsReachIssuesOnlyThroughTheHelpers.GH_GRANT.match("bash .claude/scripts/gh-issue-sweep.sh:*"))
+                self.assertIsNotNone(TheSweepsReachIssuesOnlyThroughTheHelpers.GH_GRANT.search(grant))
+        self.assertIsNone(TheSweepsReachIssuesOnlyThroughTheHelpers.GH_GRANT.search("bash .claude/scripts/gh-issue-sweep.sh:*"))
+        self.assertIsNone(TheSweepsReachIssuesOnlyThroughTheHelpers.GH_GRANT.search("ghost"))
+
+    def test_the_grant_reader_reads_the_whole_allowed_tools_value(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "x.md"
+            path.write_text("---\nallowed-tools: Read,\n  Bash(env gh:*)\nallowed-tools: Bash(gh api:*)\n---\n",
+                            encoding="utf-8")
+            self.assertEqual(["env gh:*", "gh api:*"], TheSweepsReachIssuesOnlyThroughTheHelpers.granted_bash(path))
 
     def test_the_listing_helper_fixes_its_field_set(self):
         code = "\n".join(code_lines(ISSUE_LIST.read_text(encoding="utf-8")))
@@ -355,17 +364,16 @@ class TheSweepsReachIssuesOnlyThroughTheHelpers(unittest.TestCase):
     SWEEPS = ("security-sweep.md", "bug-sweep.md")
 
     # A `gh` grant in any spelling, as `granted_bash` returns it: `gh:*`, `gh*`, `gh issue:*`, `gh`, `gh.exe`,
-    # any case, or behind an env assignment.
-    GH_GRANT = re.compile(r"(?:\w+=\S*\s+)*gh(?:\.exe)?(?:[\s*:]|$)", re.IGNORECASE)
+    # any case, and `gh` as a command word anywhere, behind an env assignment, `env`, `command` or a path. Searched.
+    GH_GRANT = re.compile(r"(?:^|[\s/])gh(?:\.exe)?(?:[\s*:]|$)", re.IGNORECASE)
 
     @staticmethod
     def granted_bash(path):
-        """The `Bash(...)` grants on one command's allowed-tools line: what it may run, not what its prose says."""
+        """The `Bash(...)` grants in one command's allowed-tools value: what it may run, not what its prose says."""
         frontmatter = path.read_text(encoding="utf-8").split("---")[1]
-        line = next(
-            (ln for ln in frontmatter.splitlines()
-             if ln.startswith("allowed-tools:")), "")
-        return re.findall(r"Bash\(([^)]*)\)", line)
+        # Every allowed-tools key, each with the indented or listed lines that continue its value.
+        value = " ".join(re.findall(r"^allowed-tools:(.*(?:\n[ \t-].*)*)", frontmatter, re.MULTILINE))
+        return re.findall(r"Bash\(([^)]*)\)", value)
 
     def test_both_sweeps_grant_the_helper(self):
         for name in self.SWEEPS:
@@ -395,7 +403,7 @@ class TheSweepsReachIssuesOnlyThroughTheHelpers(unittest.TestCase):
         for name in self.SWEEPS:
             for grant in self.granted_bash(COMMANDS / name):
                 with self.subTest(command=name, grant=grant):
-                    self.assertIsNone(self.GH_GRANT.match(grant))
+                    self.assertIsNone(self.GH_GRANT.search(grant))
 
     def test_both_sweeps_reach_the_issue_set_only_through_the_helper(self):
         for name in self.SWEEPS:
