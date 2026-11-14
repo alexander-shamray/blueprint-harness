@@ -2,8 +2,7 @@
 
 Each distinct (command, cwd) runs through the hook's stdin contract; every use counts. Not refusals: a crash (exit 1),
 a refusal only a removed worktree earns, a command naming CLAUDE_PROJECT_DIR (unjudged). Exit 2: an unreadable guard
-or no --project directory. --since is a UTC day: a command counts by its own timestamp, read from the files written
-since then. Usage: py -3.12 measure/replay_guard.py --project <glob> --since <date> --guard <hook>"""
+or no --project directory. Usage: py -3.12 measure/replay_guard.py --project <glob> --since <UTC date> --guard <hook>"""
 
 import argparse
 import concurrent.futures
@@ -32,7 +31,8 @@ _WORKTREE = re.compile(r"(?i)^(.+?)[\\/]\.claude[\\/]worktrees[\\/][^\\/]+(?:[\\
 
 
 def touched(project, since, root):
-    # The files written since the day, so a session started earlier is read; bash_uses drops its earlier commands.
+    # The files written since the day, so a session started earlier is read; bash_uses counts a command by its own
+    # timestamp, so that session's earlier commands are dropped.
     for path in _transcripts(project, root):
         try:
             used = path.stat().st_mtime

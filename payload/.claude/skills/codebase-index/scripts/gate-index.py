@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Refuse to start the code-index CLI over an index the refresh hook would not
-open, asking the hook's own `index_openable` of the working directory and of
-the checkout git puts it in. Exit 3 is a refusal, a git that cannot answer
-included, and 0 lets the CLI run:
-`docs/harness-boundaries.md`, *Index refresh and worktree seeding*."""
+"""Refuse to start the code-index CLI over an index the refresh hook would not open, asking the hook's own
+`index_openable` of the working directory and of the checkout git puts it in. Exit 3 is a refusal, a git that
+cannot answer included, and 0 lets the CLI run: `docs/harness-boundaries.md`, *Index refresh and worktree
+seeding*."""
 
 import importlib.util
 import os

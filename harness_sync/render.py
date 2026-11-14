@@ -71,12 +71,9 @@ _PATH_TOOLS = {"Read", "Edit", "Write", "MultiEdit", "NotebookEdit"}
 
 
 def _covers(deny: str, allow: str) -> bool:
-    """Whether a deny matches every call the allow admits, so the allow could never take effect.
-
-    A bare tool covers all its uses; `Bash(x:*)` covers `x` and each command `x ` begins, `*` elsewhere in a Bash
-    specifier is a wildcard, and a path tool's specifier is a glob in which `*` crosses `/`. Anything else covers
-    only its own spelling.
-    """
+    """Whether a deny matches every call the allow admits: a bare tool covers all its uses, `Bash(x:*)` covers `x`
+    and each command `x ` begins, `*` elsewhere in Bash is a wildcard, a path tool's specifier is a glob in which
+    `*` crosses `/`, and anything else covers only its own spelling."""
     deny, allow = deny.strip(), allow.strip()
     d, a = _RULE.fullmatch(deny), _RULE.fullmatch(allow)
     if d is None or a is None or d.group(1) != a.group(1):

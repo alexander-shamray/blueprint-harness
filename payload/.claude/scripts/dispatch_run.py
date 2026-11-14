@@ -329,10 +329,9 @@ def _plural(count, noun):
 def _left_behind(root, entry, earlier=False):
     """What a relaunched group's earlier session left in its worktree, as a clause for the prompt.
 
-    Each read is best effort: one that fails or answers out of shape drops its part, and /ship's own state read
-    still decides what is owed. A sync is held to its proved head instead; a first launch left nothing. `earlier`
-    is a pid file an earlier `run` of this launch left, which makes a `running` group one `resume` relaunched.
-    """
+    Each read is best effort: one that fails or answers out of shape drops its part. A sync is held to its proved
+    head instead; a first launch left nothing. `earlier`, a pid file an earlier `run` left, marks a `running` group
+    as one `resume` relaunched."""
     branch, worktree = entry.get("branch"), entry.get("worktree")
     relaunched = entry.get("status") in RELAUNCHED or (earlier and entry.get("status") == "running")
     if entry.get("kind") == "sync" or not relaunched:
@@ -568,11 +567,11 @@ def run_session(root, run, gid):
 def _launch(root, directory, run, gid, entry, flag=False):
     """Everything up to a started executor, which is returned with its prompt, start time and temp directory; a
     refusal starts none and leaves no temp directory."""
+    # `launch` removed an earlier launch's pid file, so one here is an earlier `run`'s.
+    earlier = (directory / f"{gid}.pid").exists()
     # A relaunch's earlier session was read, so it goes before the launch checks; a record this removal missed is
     # read as absent beside a marker or a refusal line. Its pid goes too: `result --refused` reads a pid file as an
-    # executor started, and one this removal missed as the cautious side. An earlier launch's went at `launch`, so
-    # one here is an earlier `run`'s.
-    earlier = (directory / f"{gid}.pid").exists()
+    # executor started, and one this removal missed as the cautious side.
     _remove_stale(directory / f"{gid}.json", directory / f"{gid}.session.json", directory / f"{gid}.pid")
     # Until the executor's pid replaces it, the file names this process, which is alive while it launches: with no
     # file a `resume` in that window would read no executor and relaunch beside this one. A refusal removes it, so
