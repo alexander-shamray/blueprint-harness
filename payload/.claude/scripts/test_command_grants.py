@@ -63,7 +63,10 @@ def profiles():
 
 
 def undenied_agents(text, profiles):
-    """The agent types a command that grants some neither grants nor denies, or None if it grants none."""
+    """The agent types a command that grants some neither grants nor denies, or None if it grants none.
+
+    A bare `Agent` or `Agent(*)` grant returns one item naming it, since it grants every type.
+    """
     allowed = frontmatter_list(text, "allowed-tools")
     # A bare grant admits every type, the broad grant this class exists to refuse.
     if any(t in ("Agent", "Agent(*)") for t in allowed):
