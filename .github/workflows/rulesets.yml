@@ -65,11 +65,12 @@ jobs:
   # A scheduled red run is an issue, not a notification: an issue stays open
   # until somebody closes it, and the next red run comments on it rather than
   # filing again (backend's `main-red.yml`). Pull request and push runs are
-  # red in the checks and need no issue. At a job's limit `failure()` and
-  # `cancelled()` are both false, so the read-back's own result is read, and
-  # `!cancelled()` is false only for a run cancelled whole.
+  # red in the checks and need no issue.
   rulesets-issue:
     needs: rulesets
+    # At a job's limit `failure()` and `cancelled()` are both false, so the
+    # read-back's own result is read, and `!cancelled()` is false only for a
+    # run cancelled whole.
     if: ${{ !cancelled() && github.event_name == 'schedule' && (needs.rulesets.result == 'failure' || needs.rulesets.result == 'cancelled') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
