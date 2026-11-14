@@ -280,7 +280,8 @@ def unlisted(payload, paths, local, exclude):
         return []  # an unread tree or config is already a failure
     return [f"{_name(rel)} is a payload file but the manifest does not list it" for rel in sorted(payload)
             if rel not in (SETTINGS, MANIFEST, CONFIG) and rel not in paths
-            and not any(glob_match(g, rel) for g in (*local, *exclude))]
+            # A local glob folded, as apply's write path matches it; an exclude glob exactly, as apply's walk does.
+            and not folded(local, rel) and not any(glob_match(g, rel) for g in exclude)]
 
 
 def settings_problem(oid, paths, payload, in_head):

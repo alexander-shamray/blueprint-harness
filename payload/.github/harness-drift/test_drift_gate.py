@@ -593,6 +593,14 @@ class AgainstThePayload(unittest.TestCase):
         problems = check(self.tree.root, self.payload)
         self.assertTrue(any("excluded but exists" in p for p in problems), problems)
 
+    def test_a_local_glob_in_another_case_keeps_the_payload_file_local(self) -> None:
+        # Apply's write path folds a local glob's case, so it lists no such file, and the gate must not ask for it.
+        rel = ".claude/skills/a/SKILL.md"
+        self.tree.write_json(".harness/config.json", {**CFG, "local": [".claude/skills/a/skill.md"]})
+        del self.tree.files[rel]
+        self.tree.save_manifest()
+        self.assertEqual(check(self.tree.root, self.payload), [])
+
     def test_a_local_path_that_is_a_link_is_a_problem(self) -> None:
         rel = ".claude/skills/a/SKILL.md"
         self.tree.write_json(".harness/config.json", {**CFG, "local": [rel]})
