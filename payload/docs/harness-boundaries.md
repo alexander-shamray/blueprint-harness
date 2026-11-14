@@ -2206,8 +2206,9 @@ nothing about what it protects.
 name and admits the rest.** A checkout holding the home, a dotfiles one at
 `~` or a project directory set there or above, or one inside a place below,
 a checkout at `~/.claude` or `~/.ssh` (#504), still refuses a link that
-disagrees, as any checkout does, but excuses none of these names: its denies
-are anchored at its own root and name none of them.
+disagrees, as any checkout does, but excuses none of these names: containing
+a target is not owning it, and the denies of one inside a place are anchored
+at its own root and name none of them.
 `~/.ssh`, the shell profiles and `~/.gitconfig` run at login under every
 session, and `~/.claude`'s credentials, settings, hooks, commands, agents,
 plugins, scripts, skills and sandbox apply to every project, judged on the
