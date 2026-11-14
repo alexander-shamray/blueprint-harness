@@ -1890,7 +1890,13 @@ or more, indented at most three spaces, a backtick opener's info string
 holding no backtick, closed by a run of the same character at least as long
 with only blanks after it, or by the end of the body. Read otherwise, a
 quoted example beside the table is a second row and the round refuses a
-body the gate passes. A
+body the gate passes. A fence opened after a list item, a block quote or an
+HTML block start is the exception, and a row in it, indented or without its
+leading pipe, exits 3 as the gate refuses it: GitHub ends a fence in a list
+item when the list ends and hides one in an HTML comment, which a line reader
+cannot follow, so that row may be the table GitHub shows. A carriage return
+that ends no CRLF ends a line for GitHub and not for the helper, and exits 3
+too. A
 class cell is one letter A–E, two distinct letters joined by `+`, or
 `A+D+E`; a touch-set cell is a comma-separated list of path tokens, bare or
 in balanced backticks, a backticked one optionally followed by a space and its
