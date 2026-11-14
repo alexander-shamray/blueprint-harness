@@ -22,6 +22,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from review_helpers import sign_nothing
 from test_link_skips import skip_only_without_links
 
 # Captured at import, before any case patches them, for the canary at the end: any stand-in is not these.
@@ -1269,6 +1270,7 @@ class IgnoredPaths(unittest.TestCase):
     git is asked of a real repository whether the path is ignored."""
 
     def setUp(self):
+        sign_nothing(self)
         self.mod = _load()
         self.base = Path(tempfile.mkdtemp())
         self.addCleanup(remove_tree, self.base)
@@ -2505,6 +2507,7 @@ class TheDetachedWorkerReallyRuns(unittest.TestCase):
     lock."""
 
     def setUp(self):
+        sign_nothing(self)
         self.base = Path(tempfile.mkdtemp())
         self.addCleanup(remove_tree, self.base)
         self.owner = self.base / "owner"
