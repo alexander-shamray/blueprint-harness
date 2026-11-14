@@ -209,7 +209,7 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
         gh_calls = [line.strip() for line in code if BARE_GH.search(line) or "gh_read " in line]
         self.assertEqual(
             [
-                'body=$(gh_read pr view "$pr" --json body --jq .body)',
+                """body=$(gh_read pr view "$pr" --json body --jq '.body + "."')""",
                 'changed=$(gh_read pr view "$pr" --json changedFiles --jq .changedFiles)',
                 'files=$(gh_read api "repos/{owner}/{repo}/pulls/$pr/files" '
                 """--paginate --jq '.[] | (.filename | @json), (.previous_filename // empty | "from " + @json)')""",
@@ -466,7 +466,7 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
         script = (
             "case \"$*\" in *changedFiles*) echo 1 ;;\n"
             "*\"/files\"*) echo '\"docs/x.md\"' ;;\n"
-            "*) printf '| Class | D |\\r\\n| Touch set | docs/x.md |\\r\\n' ;; esac\n"
+            "*) printf '| Class | D |\\r\\n| Touch set | docs/x.md |\\r\\n.\\n' ;; esac\n"
         )
         r = self._run_locality_with_gh(script)
         self.assertEqual(0, r.returncode, r.stderr)
@@ -621,17 +621,18 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
     def test_a_lone_carriage_return_is_refused(self):
         # A lone CR ends a line for GitHub and not for this helper, so `note` + CR + an opener fences the table on
         # the page and not here; the CI gate refuses it, and so does the helper. CRLF endings are still read. printf
-        # makes each CR at run time, as in the CRLF case above, since the stub is written with the host's endings.
+        # makes each CR at run time, as in the CRLF case above, and ends on the `.` the helper's `--jq` appends.
         table = "| Class | D |\n| Touch set | docs/x.md |\n"
         example = "| Class | E |\n| Touch set | src/y.py |\n"
 
         def printing(body):
             escaped = body.replace("\r", "\\r").replace("\n", "\\n")
-            return f"case \"$*\" in *changedFiles*) echo 1 ;;\n*\"/files\"*) echo '\"docs/x.md\"' ;;\n*) printf '{escaped}' ;; esac\n"
+            return f"case \"$*\" in *changedFiles*) echo 1 ;;\n*\"/files\"*) echo '\"docs/x.md\"' ;;\n*) printf '{escaped}.\\n' ;; esac\n"
 
         for name, body in (
             ("before an opener", "note\r```\n" + table + "```\n" + example),
             ("inside a row", "| Class | D |\r| Touch set | docs/x.md |\n"),
+            ("at the end", table + "\r"),
         ):
             with self.subTest(name=name):
                 r = self._run_locality_with_gh(printing(body))
