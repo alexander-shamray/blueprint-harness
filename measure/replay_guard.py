@@ -25,6 +25,7 @@ PROGRESS_EVERY = 5000
 # The guard's own fail-closed branch: a deny, but no judgement of the command.
 _CRASHED_DENY = "crashed the guard"
 _UNJUDGED_STDERR = ("Traceback (most recent call last)", "not judging")
+_CLIMB = re.compile(r"""(?:^|[\s/\\='"])\.\.(?:[/\\\s'"]|$)""")
 _WORKTREE = re.compile(r"(?i)^(.+?)[\\/]\.claude[\\/]worktrees[\\/][^\\/]+(?:[\\/](.*))?$")
 
 
@@ -120,11 +121,11 @@ def image(cwd):
 def judge(guard, command, cwd, session):
     """`read_verdict`'s pair, but `"gone"` for a refusal only a removed worktree earns.
 
-    One whose command holds no `..` to climb out of the worktree is judged again from
+    One whose command holds no `..` path to climb out of the worktree is judged again from
     the same place in the main checkout, where its paths name the same files.
     """
     kind, detail = run_guard(guard, command, cwd, session)
-    gone = kind == "refused" and cwd and not os.path.isdir(cwd) and ".." not in command
+    gone = kind == "refused" and cwd and not os.path.isdir(cwd) and not _CLIMB.search(command)
     place = image(cwd) if gone else None
     if place is None:
         return kind, detail
