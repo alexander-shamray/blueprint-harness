@@ -575,14 +575,14 @@ would meet the same refusal, so `result` counts no crash and the group keeps
 its slot rather than going back marked `OWNER`; run 20261114-081919 read it
 as a crash and spent a relaunch on it (#500). It holds every later night of
 the run until a resumed run, the owner's word that the account is fixed,
-lifts it: `resume` gives the group back the status it launched under before
-it prints `relaunch`, so no `wake` can read the hold while the relaunch
-starts, and since the refused session did nothing, the relaunch is what that
-launch was, a first session's or a relaunch's. A sync holds no row, so
-unless another group's rows keep its run open, the run closes at the report
-and the next night's step 0 takes the sync again as a new group. The report
-lists it under *Interrupted* with the API's notice and which of the two
-comes next.
+lifts it: before it prints `relaunch`, `resume` sets the group `running`
+where the refused session was its first and `relaunch` otherwise, so no
+`wake` can read the hold while the relaunch starts, and since the refused
+session did nothing, the relaunch is what that launch was. A sync holds no
+row, so unless another group's rows keep its run open, the run closes at the
+report and the next night's step 0 takes the sync again as a new group. The
+report lists it under *Interrupted* with the API's notice and which of the
+two comes next.
 
 A night where `wake` names nothing to launch and no background task of
 this session is left to wake it is §8's nothing running, read from this
