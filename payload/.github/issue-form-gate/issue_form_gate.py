@@ -29,6 +29,10 @@ FIELD = re.compile(r"^  - type: (\S+)\s*$")
 FIELD_ID = re.compile(r"^    id: (\S+)\s*$")
 OPTIONS = re.compile(r"^      options:\s*$")
 OPTION = re.compile(r"^        - (.*?)\s*$")
+# A `type`, `id` or `options` key where the shape puts one, however it is spelled: one the three above do not read,
+# quoted or in flow style, would take its dropdown past every check.
+FIELD_KEY = re.compile(r"""^(?:  - |    |      )["']?(type|id|options)["']?\s*:""")
+QUOTED = re.compile(r"""^["']""")
 LABEL_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 BLANK_OFF = re.compile(r"^blank_issues_enabled:\s*false\s*$", re.MULTILINE)
 # A top-level `labels:` attaches its labels to every issue the form opens, whatever was answered.
@@ -74,6 +78,11 @@ def dropdowns(form: Path) -> dict[str, list[str]]:
             if line.startswith("        "):
                 raise InputRefused(f"{form.name} line {number} is inside an options list but is not an option")
             collecting = False
+        if key := FIELD_KEY.match(line):
+            read = FIELD.match(line) or FIELD_ID.match(line) or OPTIONS.match(line)
+            if read is None or (read.groups() and QUOTED.match(read.group(1))):
+                raise InputRefused(
+                    f"{form.name} line {number}: {key.group(1)} is not in the one shape this gate reads")
         if match := FIELD.match(line):
             close()
             field_type, field_id, options = match.group(1), None, []
