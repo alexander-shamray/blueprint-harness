@@ -900,6 +900,7 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(nest=nest[-8:]):
                 searches.clear()
                 guard.heredoc_spans(nest)
+                self.assertGreater(len(searches), 0, "the count never saw a search")
                 self.assertLess(len(searches), 5)
 
     def test_the_fallback_scan_also_treats_a_heredoc_body_as_data(self):
@@ -3228,10 +3229,14 @@ class TheGitArgvGuard(unittest.TestCase):
         # The one deliberate fail-OPEN, and it is argued rather than assumed:
         # refusing every Bash call because this file cannot read its own input
         # would turn a defect here into a dead session. It says so on stderr.
-        result = subprocess.run(
-            [sys.executable, str(HOOK)],
-            input="not json at all", capture_output=True, text=True, encoding="utf-8",
-        )
+        try:
+            result = subprocess.run(
+                [sys.executable, str(HOOK)],
+                input="not json at all", capture_output=True, text=True, encoding="utf-8",
+                timeout=HOOK_TIMEOUT,
+            )
+        except subprocess.TimeoutExpired:
+            self.fail(f"no verdict on a malformed event within {HOOK_TIMEOUT}s")
         self.assertEqual(0, result.returncode)
         self.assertEqual("", result.stdout.strip())
         self.assertIn("guard-git-argv", result.stderr)
@@ -3354,7 +3359,7 @@ class TheGitArgvGuard(unittest.TestCase):
         # will call it at all.
         settings = json.loads(SETTINGS.read_text(encoding="utf-8"))
         entries = settings.get("hooks", {}).get("PreToolUse", [])
-        matched = [e for e in entries if e.get("matcher") == "Bash"]
+        matched = [e for e in entries if "Bash" in (e.get("matcher") or "").split("|")]
         self.assertTrue(matched, "no PreToolUse hook is registered for Bash")
         commands = [
             h.get("command", "")
@@ -3883,7 +3888,9 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         if not result.stdout.strip():
             return None
-        return json.loads(result.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+        decision = json.loads(result.stdout)["hookSpecificOutput"]
+        self.assertEqual("deny", decision["permissionDecision"])
+        return decision["permissionDecisionReason"]
 
     def assertRefused(self, command, **kwargs):
         reason = self.judge(command, **kwargs)
