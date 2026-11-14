@@ -12,7 +12,7 @@ case "$INDEX_HOOK" in
   refresh-index.py) lost="the code index was not refreshed, so its answers may miss this checkout's latest edits" ;;
   *) echo "index-hook.sh: not a hook this launcher runs: $INDEX_HOOK" >&2; exit 0 ;;
 esac
-# A file, not a substitution: refresh-index.py's worker outlives the hook, and an inherited pipe would hold this open.
+# A file, not a substitution: any orphaned child of an interpreter or launcher could hold a pipe open past the hook.
 out="$(mktemp)"
 trap 'rm -f "$out"' EXIT
 # hint-bound.sh's choice, which is run-guard.sh's probe order: `py` is the Windows launcher, which macOS and Linux
