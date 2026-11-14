@@ -5,6 +5,7 @@ The shared harness and the reason it shells out rather than
 re-implementing are `review_helpers.py`'s.
 """
 
+import os
 import subprocess
 import unittest
 from pathlib import Path
@@ -93,17 +94,14 @@ class SweepWorktreeShape(unittest.TestCase):
         )
         self.assertEqual(2, two_args.returncode)
 
-    def sweep_dirs(self):
-        listing = run_bash('ls -d "$ROOT"/secsweep-* 2>/dev/null || true', ROOT=self.tmproot)
-        return set(listing.stdout.split())
-
     def test_a_bad_commit_creates_no_directory(self):
         # The argument is checked before anything is made, so a refused call
-        # leaves no litter behind for the next run to trip over.
-        before = self.sweep_dirs()
-        result = run_bash('bash "$DETACH" not-a-sha', DETACH=str(DETACH))
+        # leaves no litter behind for the next run to trip over. A temp root
+        # of its own, so a real sweep starting meanwhile is not read as litter.
+        root = temp_root(self)
+        result = run_bash('bash "$DETACH" not-a-sha', DETACH=str(DETACH), TMPDIR=root)
         self.assertEqual(2, result.returncode)
-        self.assertEqual(before, self.sweep_dirs())
+        self.assertEqual([], os.listdir(root))
 
     def test_the_helper_returns_only_the_path_on_stdout(self):
         # `git worktree add` writes "HEAD is now at <sha> <subject>" to stdout,
