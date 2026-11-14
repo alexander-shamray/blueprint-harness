@@ -143,6 +143,17 @@ GLOBAL_VALUE_FLAGS = {
     "--attr-source",
 }
 
+# Git's globals that take no value, so the word after one is the subcommand.
+# Only the push search reads it, and a flag missing here is read as taking a
+# value, which over-refuses rather than hiding a push.
+GLOBAL_VALUELESS_FLAGS = frozenset({
+    "-p", "--paginate", "-P", "--no-pager", "--bare", "--no-replace-objects",
+    "--no-lazy-fetch", "--no-optional-locks", "--no-advice",
+    "--literal-pathspecs", "--glob-pathspecs", "--noglob-pathspecs",
+    "--icase-pathspecs", "--exec-path", "--html-path", "--man-path",
+    "--info-path", "-v", "--version", "-h", "--help",
+})
+
 # Per subcommand, because arity is not a property of a flag name: `-m` is a
 # message for `commit` and "show merge diffs" for `log`. Absent an entry, nothing
 # is skipped — a false positive is cheap and a bypass is not.
@@ -2307,6 +2318,20 @@ def subcommand_of(segment):
     return stripped[0] if stripped else ""
 
 
+def push_position(segment):
+    """The index of `push` in `segment` where it is the subcommand, or None."""
+    for index, element in enumerate(segment):
+        if element.startswith("-"):
+            continue
+        if element == "push":
+            return index
+        previous = segment[index - 1] if index else ""
+        if (not previous.startswith("-") or "=" in previous
+                or previous in GLOBAL_VALUELESS_FLAGS):
+            return None  # this is the subcommand, and it is not `push`
+    return None
+
+
 def push_offence(segment):
     """The reason to refuse a `git push`, or None — by allow-list.
 
@@ -2323,16 +2348,10 @@ def push_offence(segment):
     # It also keeps `git log push` — a ref that happens to be called `push` —
     # out of the push checks, because `log` is a non-flag that no flag precedes,
     # so `log` is the subcommand and `push` is one of its arguments: a guard
-    # that fires on innocent traffic is one somebody turns off.
-    start = None
-    for index, element in enumerate(segment):
-        if element.startswith("-"):
-            continue
-        if element == "push":
-            start = index
-            break
-        if index == 0 or not segment[index - 1].startswith("-"):
-            break  # this is the subcommand, and it is not `push`
+    # that fires on innocent traffic is one somebody turns off. A flag git
+    # documents as valueless, or one carrying its value after `=`, precedes
+    # nothing, so `git --no-pager grep push` is a `grep`.
+    start = push_position(segment)
     if start is None:
         return None
     rest = segment[start + 1:]
@@ -2464,14 +2483,7 @@ CONFIG_OTHER_ACTIONS = frozenset({"edit", "get", "list", "remove-section",
 
 def _is_push(segment):
     """Whether `segment` is a `git push`, located as `push_offence` locates it."""
-    for index, element in enumerate(segment):
-        if element.startswith("-"):
-            continue
-        if element == "push":
-            return True
-        if index == 0 or not segment[index - 1].startswith("-"):
-            return False
-    return False
+    return push_position(segment) is not None
 
 
 def _sets_pipefail(words):
