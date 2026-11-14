@@ -511,6 +511,40 @@ class LaunchTests(InRoot):
             self.assertTrue((state_dir() / name).is_file(), f"a second launch removed the executor's {name}")
         self.assertEqual("running", group_state(RUN, "S1")["status"])
 
+    def test_a_resume_while_run_launches_reads_the_executor_as_running(self):
+        # `run` removes the earlier launch's pid file before it starts claude and writes the new one after: a resume
+        # between the two that read no file as no executor would relaunch a second one into the same worktree.
+        seen = []
+        real = subprocess.Popen
+
+        def popen(*args, **kwargs):
+            if not seen:
+                seen.append(None)
+                seen[0] = run_cli(["resume", RUN])
+            return real(*args, **kwargs)
+
+        with mock.patch.object(dr.subprocess, "Popen", popen):
+            run_fake_claude()
+        self.assertIn("refused S1: its executor is still running", seen[0])
+        self.assertNotIn("relaunch S1", seen[0])
+        self.assertNotEqual(os.getpid(), int((state_dir() / "S1.pid").read_text(encoding="utf-8")),
+                            "the executor's pid replaces the launcher's")
+
+    def test_a_refused_run_leaves_no_pid_file_for_result_to_read_as_a_launch(self):
+        record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
+        (state_dir() / "STOP").write_text("", encoding="utf-8")
+        self.assertIn("refused: stop file", run_cli(["run", RUN, "S1"]))
+        self.assertFalse((state_dir() / "S1.pid").exists())
+
+    def test_a_pid_file_that_holds_no_pid_is_not_read_as_no_executor(self):
+        record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
+        for text in ("", "garbled\n", "12a\n"):
+            with self.subTest(text=text):
+                (state_dir() / "S1.pid").write_text(text, encoding="utf-8")
+                out = run_cli(["resume", RUN])
+                self.assertIn("refused S1: its pid file holds no pid", out)
+                self.assertNotIn("relaunch S1", out)
+
     def test_run_passes_the_prompt_on_stdin_and_no_skip_permissions_flag(self):
         record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
         stale = Path(WORKTREE) / "artifacts" / "dispatch" / RUN / "S1.json"
