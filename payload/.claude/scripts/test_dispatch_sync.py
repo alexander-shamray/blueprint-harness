@@ -663,6 +663,19 @@ class SyncClose(InRoot):
         self.assertIn(f"refused: {GID}'s executor is still running", run_cli(["sync-close", RUN, GID]))
         self.assertEqual("running", group_state(RUN, GID)["status"])
 
+    def test_a_relaunched_window_sync_with_its_worktree_is_read_before_it_closes(self):
+        # A relaunch keeps `window` while its executor runs, so the closable status alone says nothing about it.
+        record_sync(status="window")
+        pid = state_dir() / f"{GID}.pid"
+        pid.write_text(f"{os.getpid()}\n", encoding="utf-8")
+        self.assertIn(f"refused: {GID}'s executor is still running", run_cli(["sync-close", RUN, GID]))
+        self.assertEqual("window", group_state(RUN, GID)["status"])
+        pid.unlink()
+        record = state_dir() / f"{GID}.session.json"
+        record.write_text(json.dumps({"started": NOW.isoformat(), "stdout": "{}"}), encoding="utf-8")
+        self.assertIn(f"refused: {GID} has an exit not yet read; run result first", run_cli(["sync-close", RUN, GID]))
+        self.assertEqual("window", group_state(RUN, GID)["status"])
+
     def test_a_group_with_rows_is_not_closed_this_way(self):
         record(RUN, "S1", status="verified")
         self.assertIn("refused: S1 is not a sync group", run_cli(["sync-close", RUN, "S1"]))
