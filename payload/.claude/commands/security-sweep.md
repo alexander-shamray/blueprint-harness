@@ -106,11 +106,9 @@ bash .claude/scripts/gh-issue-suppresses.sh <number>
 ```
 
 - `gh-issue-suppresses.sh` takes the suppression decision: exit **0 tracking**,
-  **1 not tracking** (someone else's issue, or a closed one, the owner's
-  included: only an open record suppresses, and a finding that reproduces
-  after a fix closed its issue is that fix no longer holding), **3 could not
-  find out**. Treat 3 as untracked, so the finding files, and say in the
-  summary that the lookup failed.
+  **1 not tracking** (a closed one too), **3 could not find out**. Treat 3 as
+  untracked, so the finding files, and say in the summary that the lookup
+  failed.
 - Never read an issue's `author`; the owner's login is resolved by the helper,
   never typed from memory.
 - **A label is deliberately NOT a second sufficient condition**; authorship
