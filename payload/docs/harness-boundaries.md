@@ -627,9 +627,13 @@ no other hook**: the guards fail closed on their own and carry no timeout,
 and `index-mcp-root` and `refresh-index` print nothing a session reads as
 advice. Those two run under `.claude/hooks/index-hook.sh` instead, which
 takes the interpreter as this wrapper does and leaves the same way, with 0
-and a line naming the hook on any failure, but holds no bound: the root
-check reads two paths, and the refresh hands its work to a detached worker
-inside a 3 s git budget, so neither waits on anything a bound would cut.
+and a line naming the hook on any non-zero exit, but holds no bound: the
+root check reads two paths, and the refresh hands its work to a detached
+worker inside a 3 s git budget, so once started neither waits long. Its
+residual is the one this wrapper closes: an interpreter start that stalls
+past the settings timeout is killed by the harness and leaves no line, so
+a root check or refresh that did not run then looks like one with nothing
+to say, as it did under a raw `py -3.12`.
 Both wrappers take `py -3.12` where a `py` is on `PATH`, else `python3`,
 else `python`, in *The guard launcher*'s order, because a raw `py -3.12`
 exits 127 on every call on a host without the Windows launcher (#543); an
