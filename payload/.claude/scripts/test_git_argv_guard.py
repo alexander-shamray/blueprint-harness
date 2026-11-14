@@ -3248,6 +3248,9 @@ class TheGitArgvGuard(unittest.TestCase):
             "(git push origin feat/x | tail -1) && echo pushed",
             "(git push origin feat/x 2>&1 | tail -1)&& echo pushed",
             "(git push origin feat/x |& tail -1) || echo failed",
+            # The lexer glues a pipe to a grouping token.
+            "git push origin feat/x |(tail -1) && echo pushed",
+            "(git push origin feat/x | tail -1)| cat && echo ok",
         ):
             with self.subTest(command=command):
                 reason = self.assertRefused(command)
