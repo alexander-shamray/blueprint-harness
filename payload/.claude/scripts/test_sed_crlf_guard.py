@@ -181,6 +181,10 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             "exec -cl sed -i 's/one/uno/' crlf.txt",
             "nohup -- sed -i 's/one/uno/' crlf.txt",
             "time -p command -p sed -i 's/one/uno/' crlf.txt",
+            # A cluster whose last letter takes a value takes the next word with it.
+            "exec -ca name sed -i 's/one/uno/' crlf.txt",
+            "exec -cla name sed -i 's/one/uno/' crlf.txt",
+            "env -iu LANG sed -i 's/one/uno/' crlf.txt",
         ):
             with self.subTest(command=command):
                 self.assertRefused(command, "crlf.txt")

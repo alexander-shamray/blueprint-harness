@@ -45,6 +45,19 @@ def _index_guard():
     return module
 
 
+def _option_width(option, valued):
+    """The words a wrapper's option spans: two where it, or the last letter of its short cluster, takes a value."""
+    if option in valued:
+        return 2
+    if option.startswith("--"):
+        return 1
+    for position, letter in enumerate(option[1:], 1):
+        if f"-{letter}" in valued:
+            # A value letter before the cluster's end takes the rest of the word as its value.
+            return 2 if position == len(option) - 1 else 1
+    return 1
+
+
 def _command_word(run):
     """The words from the one this simple command runs: past assignments, prefix words and wrappers' options."""
     index = 0
@@ -56,7 +69,7 @@ def _command_word(run):
             index += 1
             while index < len(run) and run[index].startswith("-") and run[index] != "-":
                 option = run[index]
-                index += 2 if option in WRAPPERS[word] else 1
+                index += _option_width(option, WRAPPERS[word])
                 if option == "--":
                     break
             # `timeout` takes its duration before the command.

@@ -55,6 +55,8 @@ class GuardHelperArgv(unittest.TestCase):
             f'command -p {BOARD} x "$(id)"',
             f'exec -a name {BOARD} x "$(id)"',
             f'nohup -- {BOARD} x "$(id)"',
+            f'exec -la name {BOARD} x "$(id)"',
+            f'env -iu HOME {BOARD} x "$(id)"',
             'py -3.12 -X utf8 .claude/scripts/dispatch_board.py x "$(id)"',
             'python -W ignore .claude/scripts/sync_pr.py x `id`',
             'gh --repo o/r pr create --title "$(id)"',
