@@ -635,6 +635,22 @@ class TheOrdinaryWriteIsNotDisturbed(GuardCase):
                     self.assertAdmitted(plain)
                     self.assertAdmitted(through)
 
+    def test_a_differently_cased_link_to_the_checkout_is_judged_from_its_root(self):
+        # An anchor spelled through a link has a real root elsewhere, and a
+        # relative part taken by a comparison that does not fold climbs out of
+        # the spelled root to re-enter it, so the expected path lands beside
+        # the real root and an ordinary write reads as resolving elsewhere.
+        for linker in linkers():
+            with self.subTest(link=linker):
+                alias = os.path.join(self.outside, f"Alias-{linker}")
+                if linker == "symlink":
+                    os.symlink(self.root, alias, target_is_directory=True)
+                else:
+                    JUNCTIONS(self.root, alias)
+                other_case = os.path.join(
+                    self.outside, f"aLIAS-{linker}", "docs", "chapter.md")
+                self.assertAdmitted(other_case, project=alias)
+
     def test_the_case_of_a_windows_spelling_is_not_a_difference(self):
         # Windows' `realpath` answers with the on-disk case, so `DOCS` comes
         # back as `docs` and a case-sensitive comparison would read that as a

@@ -142,6 +142,19 @@ def under(child, parent, traits):
     return child.startswith(parent)
 
 
+def below(child, parent):
+    """The part of `child` beneath `parent`, in `child`'s own spelling.
+
+    Only where `under` holds. It counts `parent`'s components rather than
+    comparing them, because `os.path.relpath` folds case on Windows alone, and
+    a part taken by a comparison that does not fold climbs out of a
+    differently-cased root.
+    """
+    parts = [part for part in os.path.normpath(child).split(os.sep) if part]
+    depth = len([part for part in os.path.normpath(parent).split(os.sep) if part])
+    return os.path.join(*parts[depth:]) if parts[depth:] else os.curdir
+
+
 def checkout_root(path):
     """The nearest ancestor of `path` holding a `.git`, or `None`.
 
@@ -461,7 +474,7 @@ def offence(event):
         judged = True
 
         expected = os.path.normpath(
-            os.path.join(real_root, os.path.relpath(lexical, base)))
+            os.path.join(real_root, below(lexical, base)))
 
         # The traits are measured at the root and a child can disagree: Windows
         # sets case sensitivity per directory (`fsutil file
