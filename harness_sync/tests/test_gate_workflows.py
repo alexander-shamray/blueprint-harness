@@ -393,5 +393,44 @@ class TheLeg(unittest.TestCase):
         self.assertIn("nothing to judge", out)
 
 
+# A `gh … list` bounded by `--limit N`, and the check that refuses a page of N rows, which may be a cut prefix.
+BOUNDED_LISTING = re.compile(r"\bgh (?:issue|label|pr|run) list\b.*--limit (\d+)")
+
+
+def uncut(text):
+    """Each bounded listing in a workflow's text with no `-lt N` check of its own limit within the next three lines."""
+    lines = text.splitlines()
+    missing = []
+    for number, line in enumerate(lines):
+        found = BOUNDED_LISTING.search(line)
+        if found and not any(f"-lt {found.group(1)}" in later for later in lines[number:number + 4]):
+            missing.append(line.strip())
+    return missing
+
+
+class EveryBoundedListingRefusesAFullPage(unittest.TestCase):
+    """A listing as long as its limit may be cut, so each workflow listing checks for it."""
+
+    def workflows(self):
+        return sorted([*(ROOT / ".github" / "workflows").glob("*.yml"), *WORKFLOWS.glob("*.yml")])
+
+    def test_every_workflow_listing_checks_for_a_cut(self):
+        listings = 0
+        for path in self.workflows():
+            text = path.read_text(encoding="utf-8")
+            listings += len(BOUNDED_LISTING.findall(text))
+            with self.subTest(workflow=path.relative_to(ROOT).as_posix()):
+                self.assertEqual([], uncut(text))
+        self.assertGreater(listings, 3, "the scan stopped finding the workflows' listings")
+
+    def test_the_scan_sees_an_unchecked_listing(self):
+        # The positive control: a scan that matched nothing would pass every workflow.
+        self.assertEqual(["x=$(gh issue list --label flaky --limit 100 --json number)"],
+                         uncut("x=$(gh issue list --label flaky --limit 100 --json number)\nnext\n"))
+        self.assertEqual([], uncut('l=$(gh label list --limit 1000 --json name)\n[ "$(jq length <<<"$l")" -lt 1000 ]\n'))
+        self.assertEqual(["gh label list --limit 1000 --json name |"],
+                         uncut('gh label list --limit 1000 --json name |\n  [ "$n" -lt 100 ]\n'))
+
+
 if __name__ == "__main__":
     unittest.main()
