@@ -1370,13 +1370,21 @@ class BerserkTests(InRoot):
     def wake(self, text, **sources):
         with open("todo.md", "w", encoding="utf-8", newline="") as handle:
             handle.write(text)
+        sources.setdefault("open_source", set)
         with mock.patch.object(dr, "PROJECTS", self.root / "projects"):
             return run_cli(["wake", RUN, "--tasks", "todo.md", "--today", "2026-11-01"],
-                           body_source=lambda n: self.BODIES.get(n, ""), open_source=set,
-                           branch_source=NO_BRANCH, **sources).splitlines()
+                           body_source=lambda n: self.BODIES.get(n, ""), branch_source=NO_BRANCH,
+                           **sources).splitlines()
 
     def state(self, **fields):
         dr.save_state(state_dir(), {"run": RUN, "pairs": 2, "lang": "en", "berserk": True, "groups": {}, **fields})
+
+    def test_the_wake_keeps_the_numbers_the_issue_list_knows(self):
+        # A number no issue in the list holds, a typo or a pull request's, is no closed issue's pass to launch.
+        self.state()
+        listed = lambda: db.OpenIssues({1440}, known={1440, 99})  # noqa: E731
+        self.assertEqual("end: drained", self.wake(tasks_of(line(depends="after #1441")), open_source=listed)[-1])
+        self.assertEqual("launch: Z1", self.wake(tasks_of(line(depends="after #99")), open_source=listed)[-1])
 
     def s1(self):
         return next(g for g in db.groups(db.parse_tasks(FIXTURE)) if g.id == "S1")

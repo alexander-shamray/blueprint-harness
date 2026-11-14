@@ -18,8 +18,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from dispatch_board import (BRANCH_NAME, DISPATCHED, MODEL, MODELS, NOT_OWNERS, Group, Refusal, _blocker, _bodies,
-                            _held, _number,
+from dispatch_board import (BRANCH_NAME, DISPATCHED, MODEL, MODELS, NOT_OWNERS, Group, OpenIssues, Refusal, _blocker,
+                            _bodies, _held, _number,
                             _read, _row, _write, git, group_claim, groups, helper, model_problem, one_line,
                             parse_tasks, path_which, pick, released, row_branch, runnable, strangers)
 from sync_pr import SYNC_HEAD
@@ -1528,7 +1528,7 @@ def wake(root, run, tasks_path, today, body_source, open_source, branch_source, 
         return out + [f"held: {', '.join(claimed)} merge claimed, not yet verified", "launch: none"]
     tasks = parse_tasks(_read(tasks_path))
     bodies = _bodies(tasks, directory, body_source)
-    open_set = set(open_source())
+    open_set = OpenIssues.of(open_source())
     candidates = groups(tasks)
     flag, kept = berserk(state)
     owned = owned_source()
@@ -1809,7 +1809,7 @@ def report(root, run, tasks_path, today, body_source, open_source, owned_source)
     if held:
         interrupted.append(f"resume: run /dispatch again in the main checkout; it resumes run {run}")
     bodies = _bodies(tasks, directory, body_source)
-    open_set = set(open_source())
+    open_set = OpenIssues.of(open_source())
     left = []
     owned = owned_source()
     for group in groups(tasks):

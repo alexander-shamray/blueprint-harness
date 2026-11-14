@@ -206,6 +206,28 @@ class ReadyTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("cannot judge", why)
 
+    def test_a_label_is_read_whatever_its_case(self):
+        # GitHub's label names are case-insensitive, so a hand-made `Question` is the label `question`.
+        for labels, why in (("Question, low", "waits on a human"), ("Paused", "labelled paused"),
+                            ("code, TRACKING", "labelled tracking")):
+            with self.subTest(labels=labels):
+                self.assertEqual((False, why), self.ready(line(labels=labels)))
+
+    def test_a_one_digit_issue_after_a_hash_is_an_issue(self):
+        self.assertEqual((False, "depends on open #7"), self.ready(line(depends="after #7"), {7}))
+        self.assertEqual((True, ""), self.ready(line(depends="#7"), {70}))
+
+    def test_a_depends_on_number_the_issue_list_does_not_hold_is_not_ready(self):
+        # gh-issue-list.sh lists issues alone, so a pull request's number is as unknown as a typo or a deleted issue.
+        listed = json.dumps([{"number": 1440, "title": "x", "state": "OPEN", "labels": []},
+                             {"number": 99, "title": "y", "state": "CLOSED", "labels": []}])
+        with mock.patch.object(db, "helper", return_value=listed):
+            issues = db.open_issues(".")
+        for text, verdict in (("after #1441", (False, "depends on #1441, which no issue in the list holds")),
+                              ("after #99", (True, "")), ("after #1440", (False, "depends on open #1440"))):
+            with self.subTest(text=text):
+                self.assertEqual(verdict, db.ready(group_of(line(depends=text)), issues, TODAY))
+
     def test_a_question_label_or_an_owed_row_is_not_ready(self):
         self.assertEqual((False, "waits on a human"), self.ready(line(labels="question, low")))
         owed = line().replace("| 1700 |", "| owed (not filed) |")
@@ -461,6 +483,13 @@ class PathTests(unittest.TestCase):
         other = self.claim({"elsewhere/b.cs"})
         self.assertTrue(self.over(claim, other, b_issues={1682}))
         self.assertFalse(self.over(claim, other, b_issues={1999}))
+
+    def test_a_conflicts_cell_naming_a_one_digit_issue_after_a_hash_claims_it(self):
+        claim = db.group_claim(group_of(line(conflicts="with #7: same files")), {1700: "a.cs"})
+        self.assertEqual({7}, claim.issues)
+        self.assertTrue(self.over(claim, self.claim({"elsewhere/b.cs"}), b_issues={7}))
+        # Without the hash one digit is a count, as two were before.
+        self.assertEqual(frozenset(), db.group_claim(group_of(line(conflicts="with 7 others")), {1700: "a.cs"}).issues)
 
     def test_a_dateless_conflicts_cell_names_no_issue(self):
         claim = db.group_claim(group_of(line(conflicts="not inside Window B 2026-11-08")), {1700: "a.cs"})
@@ -1348,6 +1377,18 @@ class EventTests(unittest.TestCase):
                          (self.find(1700).section, *self.find(1700).cells[1:2], *self.find(1700).cells[3:]))
         self.assertEqual(("Tracking", None, "none"), (self.find(1701).section, None if self.find(1701).group == "—"
                                                        else self.find(1701).group, self.find(1701).cells[5]))
+        self.assertEqual("OWNER; " + db.UNPLACED, self.find(1702).cells[5])
+        self.readable()
+
+    def test_a_capitalised_label_files_a_row_as_its_lowercase_name(self):
+        # Through issues_from, which reads gh-issue-list.sh's JSON, as `tasks` reads it.
+        listed = [(1700, "Parked", ["bug", "Paused"]), (1701, "Measured", ["enhancement", "Tracking"]),
+                  (1702, "Ask", ["QUESTION"])]
+        self.issues = db.issues_from([{"number": n, "title": t, "state": "OPEN", "labels": [{"name": x} for x in names]}
+                                      for n, t, names in listed])
+        for n in (1700, 1701, 1702):
+            self.assertEqual(0, self.cli("place", str(n))[0])
+        self.assertEqual(("Paused", "Tracking", "Remaining"), tuple(self.find(n).section for n in (1700, 1701, 1702)))
         self.assertEqual("OWNER; " + db.UNPLACED, self.find(1702).cells[5])
         self.readable()
 
