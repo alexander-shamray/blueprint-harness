@@ -355,7 +355,8 @@ only an `.exe` or a `.com` counts, never `PATHEXT`'s `.bat` or `.cmd`: those
 run through `cmd.exe` in the checkout, which looks there first for every
 command the script names, so a shim found safely would reopen the search this
 closes. pip writes the console script as an `.exe`. The worker runs that
-script, then the module through its own interpreter: `py -3.12 -m pip` is a
+script, then, on Python 3.11 or later, the module through its own interpreter,
+where `-P` keeps the checkout off the import path: `py -3.12 -m pip` is a
 supported install that leaves the script in a directory that need not be on
 `PATH`, so both `cbx` wrappers fall back the same way, and a pipx install has
 no module this interpreter can import, so the script is not dropped for it.
