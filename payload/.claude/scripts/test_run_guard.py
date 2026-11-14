@@ -262,9 +262,12 @@ class TheHookWiringRunsOnMoreThanOneOperatingSystem(LauncherMarkCases, unittest.
                 self.assertIn("permissionDecision", out.stdout)
                 self.assertNotIn("Traceback", out.stderr)
 
-    def test_no_guard_command_names_a_windows_only_interpreter(self):
-        found = self.guard_commands()
-        self.assertTrue(found, "no guard is registered at all")
+    def test_no_hook_command_names_a_windows_only_interpreter(self):
+        # Every hook, not the guards alone: an index hook wired as a raw `py -3.12` exited 127 on every call where
+        # `py` is absent, and each one's launcher picks the interpreter instead.
+        found = self.commands()
+        self.assertTrue(self.guard_commands(), "no guard is registered at all")
+        self.assertGreater(len(found), len(self.guard_commands()), "only the guards were read")
         for command in found:
             with self.subTest(command=command):
                 self.assertNotIn("py -3.12", command)

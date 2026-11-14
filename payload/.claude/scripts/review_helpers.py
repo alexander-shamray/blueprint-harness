@@ -226,8 +226,8 @@ def copy_template(case, template, root=None):
 def python_as_py(env, directory):
     """`env` with a `py` first on PATH that runs this interpreter and drops the launcher's version argument.
 
-    hint-bound.sh starts its hook as `py -3.12`; a runner without the Windows launcher has none, and the wrapper
-    would report every hook as not run.
+    hint-bound.sh and index-hook.sh start their hook as `py -3.12` wherever a `py` is on PATH, so the shim makes that
+    this interpreter, whatever else the runner has.
     """
     shim = Path(directory) / "py"
     shim.write_text('#!/usr/bin/env bash\nexec "' + Path(sys.executable).as_posix() + '" "${@:2}"\n', encoding="utf-8")

@@ -625,10 +625,19 @@ and it writes the hook's output to a file and not a pipe, so a launcher's
 orphaned child cannot hold it past the bound. **It wraps the two hints and
 no other hook**: the guards fail closed on their own and carry no timeout,
 and `index-mcp-root` and `refresh-index` print nothing a session reads as
-advice. Two residuals are accepted, because neither can be reported from
-inside the hook and neither has been seen: the wrapper's own start, where
-`bash` stalling past the settings timeout is a case no hook can report, and
-a machine without Git Bash, where the paragraph on hook commands needing no
+advice. Those two run under `.claude/hooks/index-hook.sh` instead, which
+takes the interpreter as this wrapper does and leaves the same way, with 0
+and a line naming the hook on any failure, but holds no bound: the root
+check reads two paths, and the refresh hands its work to a detached worker
+inside a 3 s git budget, so neither waits on anything a bound would cut.
+Both wrappers take `py -3.12` where a `py` is on `PATH`, else `python3`,
+else `python`, in *The guard launcher*'s order, because a raw `py -3.12`
+exits 127 on every call on a host without the Windows launcher (#543); an
+interpreter older than `-P` fails into the line. Two residuals are
+accepted, because neither can be reported from inside the hook and neither
+has been seen: a wrapper's own start, where `bash` stalling past the
+settings timeout is a case no hook can report, and a machine without Git
+Bash, where the paragraph on hook commands needing no
 shell says why the hint is dropped. A fresh `bash -c true` on the owner's
 workstation, read 2026-10-13, took 0.1 s to 3.3 s over six starts, so the
 cold start that stalls a `py` launcher stays far below the settings
@@ -637,7 +646,10 @@ close the second, and is not taken: it would run a hint hook the wrapper
 cannot bound.
 `test_hint_bound.py` runs the wrapper against a launcher that never answers,
 one that fails and one that answers, and holds `settings.json` to routing
-both hints through it with a timeout above the bound.
+both hints through it with a timeout above the bound. `test_index_hook.py`
+runs each registered root check and refresh with no `py` on `PATH`, holds
+them to the launcher under their own events, and `test_run_guard.py` holds
+no hook command to naming `py -3.12` itself.
 
 **`MCP_TIMEOUT` is raised in `.claude/settings.json`'s `env`.** The plugin
 servers started through `npx` — `playwright` and `chrome-devtools` — failed
@@ -663,20 +675,21 @@ preference.** An env-var prefix — `VAR=1 cmd` — is POSIX syntax that `cmd`
 and PowerShell do not run, and a bare `bash` is whatever `PATH` resolves
 first, which on Windows may be Git Bash or the WSL launcher: different
 programs, with different filesystems. Either way the failure lands in the
-redirect and reports nothing. So each index hook here is `py -3.12` and
-its arguments, with no env-var prefix and no bare `bash`. **The two hint
-hooks and the guards are the exceptions**, started as
-`bash …/hint-bound.sh` and `sh …/run-guard.sh`: Claude Code passes a hook's
-command to Git Bash on Windows, so the `bash` and `sh` inside it are Git's
-own and never the WSL launcher. A machine without Git Bash falls back to
-PowerShell, where neither wrapper runs: the hint is dropped, as it was before
-the wrapper existed, and the guards' residual is *The guard launcher*'s. The
-index hooks are
+redirect and reports nothing. So each hook here is a launcher and its
+arguments, with no env-var prefix: `bash …/hint-bound.sh` for the hints,
+`bash …/index-hook.sh` for the root check and the refresh, and
+`sh …/run-guard.sh` for the guards. The `bash` and `sh` are safe where a bare
+one typed at a prompt is not: Claude Code passes a hook's command to Git Bash
+on Windows, so the `bash` and `sh` inside it are Git's own and never the WSL
+launcher. A machine without Git Bash falls back to PowerShell, where no
+wrapper runs: the hints, the root check and the refresh are dropped, and the
+guards' residual is *The guard launcher*'s. The index hooks are
 started through `runpy` from `-c` rather than as a file argument, because
 Python exits 2 on a file it cannot open, as when a worktree is emptied under
 a session still running in it: under `UserPromptSubmit` that erases every
 prompt, and under `PostToolUse` it reports an error after every call, where
-through `runpy` the failure exits 1 and only reports. They read
+through `runpy` the failure exits 1, which each launcher turns into its line
+and 0. They read
 `CLAUDE_PROJECT_DIR` from the environment rather than having it spliced into
 the program, which a path holding a quote would break. The refresh hook sets
 its own environment — `CBX_NO_SKILL_AUTO_UPDATE=1`, which it owes because it
@@ -969,10 +982,13 @@ command through its config. It runs the five guards and nothing else.
   something was put inside cannot be removed, and refuses every call until
   somebody removes it, saying so.
 
-The hints keep `hint-bound.sh`, which bounds them and leaves with 0, and the
-index hooks keep `runpy`, which leaves with 1 on a file it cannot open
-(*Index hint hooks and hook wiring*): neither guards anything, and the
-launcher's exit 2 would erase a prompt or block every call.
+The hints keep `hint-bound.sh`, which bounds them, and the root check and
+the refresh take `index-hook.sh`, and both leave with 0 (*Index hint hooks
+and hook wiring*): this launcher's exit 2 would erase a prompt or block
+every index call. `index-mcp-root.py` does refuse calls, but it fails open
+by design, letting through every call it cannot judge, so a check that did
+not start gives the answer it gives on any failure, and says so in a line;
+the refresh refuses nothing.
 
 **Residuals.** A machine without Git Bash runs a hook command under
 PowerShell, which has no `sh`: the command fails with a status that is not
