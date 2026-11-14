@@ -51,7 +51,8 @@ WRAPPERS = {
 SHELLS = {"bash", "sh", "bash.exe", "sh.exe"}
 # Stands for a heredoc body in the line `prepared` returns: a NUL, which no bash command line can carry.
 BODY = "\x00"
-SHELL_COMMAND = re.compile(r"-[A-Za-z]*c[A-Za-z]*")
+# A shell's long options that take the next word as their value; a short one's are its cluster's `o` and `O`.
+SHELL_VALUED = {"--rcfile", "--init-file"}
 MAX_DEPTH = 3
 
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
@@ -281,22 +282,32 @@ def echoed(segment):
 
 
 def shell_line(arguments, stdin):
-    """The command line a shell with these arguments runs: its `-c` line, or its input where it reads that."""
+    """The command line a shell with these arguments runs: its `-c` line, or its input where it reads that.
+
+    The options are read as bash reads them: each `o` or `O` in a cluster takes the next word as its value, and the
+    first operand after them all is the `-c` line, or else a script, which reads its input as data unless `-s` said to
+    read commands from it.
+    """
     index = 0
-    reads_input = False
+    command = reads_input = False
     while index < len(arguments):
         argument = arguments[index]
-        if SHELL_COMMAND.fullmatch(argument):
-            return arguments[index + 1] if index + 1 < len(arguments) else None
-        if argument in ("-o", "+o"):
-            index += 2
-            continue
-        if argument == "--" or not argument.startswith(("-", "+")):
-            # An operand is a script, which reads its input as data, unless `-s` said to read commands from it.
-            return stdin if reads_input else None
-        reads_input = reads_input or (not argument.startswith("--") and "s" in argument)
+        if argument in ("--", "-"):
+            index += 1
+            break
+        if not argument.startswith(("-", "+")):
+            break
         index += 1
-    return stdin
+        if argument in SHELL_VALUED:
+            index += 1
+        elif not argument.startswith("--"):
+            letters = argument[1:]
+            command = command or (argument.startswith("-") and "c" in letters)
+            reads_input = reads_input or "s" in letters
+            index += letters.count("o") + letters.count("O")
+    if index < len(arguments):
+        return arguments[index] if command else (stdin if reads_input else None)
+    return None if command else stdin
 
 
 def long_option(name):
