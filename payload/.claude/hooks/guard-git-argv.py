@@ -1818,7 +1818,7 @@ def reads_stdin_as_script(words):
 
     # A reader takes a shell's name as a pattern or a file; `git` is no reader
     # here, since `bisect run` executes its operand. A printer that formats,
-    # piped into any other run naming a shell, is still refused.
+    # piped into any other run that reads its stdin as a script, is refused.
     if program_name(body[0]) in READING_COMMANDS - {"git"}:
         return False
     for position, word in enumerate(body):
