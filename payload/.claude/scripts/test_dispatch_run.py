@@ -588,6 +588,20 @@ class LaunchTests(InRoot):
         # status.showUntrackedFiles=no would otherwise read untracked work as nothing left.
         self.assertIn(("status", "--porcelain", "--untracked-files=all"), reads)
 
+    def test_a_resumed_running_group_is_told_what_the_earlier_session_left(self):
+        # `resume` relaunches a `running` group whose executor died unrecorded; the pid file it left is the sign.
+        record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
+        (state_dir() / "S1.pid").write_text(f"{finished_pid()}\n", encoding="utf-8")
+
+        def fake_git(root, *args):
+            return {"rev-list": "2\n"}.get(args[0], "")
+
+        with mock.patch.object(dr, "git", fake_git), mock.patch.object(dr, "helper", lambda root, *a: "[]"):
+            run_fake_claude(stdout=json.dumps(SUCCESS).encode("utf-8"), description="Narrow")
+        seen = json.loads(Path("fake/seen.json").read_text(encoding="utf-8"))
+        self.assertIn(f"(relaunched: the previous session ended with no result the dispatcher accepted, and left "
+                      f"{BRANCH} 2 commits ahead of origin/main;", seen["stdin"])
+
     def test_a_first_launch_reads_nothing_it_left(self):
         record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
         read = mock.Mock(side_effect=AssertionError("a first launch has no earlier session to read"))
