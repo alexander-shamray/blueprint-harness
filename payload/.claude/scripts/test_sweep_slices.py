@@ -11,7 +11,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from review_helpers import SCRIPTS, code_lines, copy_template, fixture_template, setUpModule, run_bash
+from review_helpers import SCRIPTS, code_lines, copy_template, fixture_template, setUpModule, run_bash, temp_root
 
 SLICES = SCRIPTS / "sweep-slices.sh"
 MARK = SCRIPTS / "sweep-mark.sh"
@@ -440,9 +440,10 @@ class TheCommandsReadTheRowFile(unittest.TestCase):
     """The rows are the checkout's, so no command restates them as a table."""
 
     def test_each_command_names_the_row_file_and_holds_no_row_table(self):
-        for kind in ("bug", "security"):
-            with self.subTest(kind=kind):
-                text = (SCRIPTS.parent / "commands" / f"{kind}-sweep.md").read_text(encoding="utf-8")
+        # Each name spelled whole, so `suite_select` selects this class for an edit to either command.
+        for name in ("bug-sweep.md", "security-sweep.md"):
+            with self.subTest(command=name):
+                text = (SCRIPTS.parent / "commands" / name).read_text(encoding="utf-8")
                 self.assertIn(".harness/sweep-rows.tsv", text)
                 self.assertEqual([], re.findall(r"^\s*\| `[a-z-]+` \|", text, re.MULTILINE))
 
@@ -453,10 +454,15 @@ class Arguments(unittest.TestCase):
         self.assertEqual(2, result.returncode)
 
     def test_kind_and_mode_are_closed_sets(self):
-        for args in ("other /tmp", "bug /tmp since", "bug"):
+        # Against a sweep-shaped child of the temp root, which the path checks admit, so only the kind, the mode
+        # or the count can refuse it.
+        root = temp_root(self)
+        os.mkdir(f"{root}/secsweep-abcdef")
+        for args in ("other secsweep-abcdef", "bug secsweep-abcdef since", "bug"):
             with self.subTest(args=args):
-                result = run_bash(f'bash "$SLICES" {args}', SLICES=str(SLICES))
-                self.assertEqual(2, result.returncode)
+                result = run_bash(f'cd "$TMPDIR" && bash "$SLICES" {args}', SLICES=str(SLICES), TMPDIR=root)
+                self.assertEqual(2, result.returncode, result.stderr)
+                self.assertIn("usage: sweep-slices.sh <bug|security> <worktree> [full]", result.stderr)
 
 
 if __name__ == "__main__":
