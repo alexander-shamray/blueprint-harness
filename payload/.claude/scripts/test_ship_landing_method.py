@@ -555,7 +555,9 @@ class TheFinishedPredicateSurvivesTheLandingMethod(unittest.TestCase):
 
     def test_a_merge_that_invented_content_keeps_the_workspace(self):
         # The case the patch read could not see at all: it prints a line only
-        # for a commit with one parent.
+        # for a commit with one parent. The row is the head the pull request
+        # merged, as every row here is; the merge below is local work made
+        # after that push, which only a later tip records.
         git(self.work, "checkout", "-b", "feat/evil")
         self.commit("h.txt", "eight", "the branch's work")
         rows = [self.row("MERGED")]
