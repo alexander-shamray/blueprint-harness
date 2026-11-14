@@ -47,7 +47,9 @@ class TheJobHearsEveryOtherJob(unittest.TestCase):
         # An unbounded job runs to GitHub's 360-minute default: a hung suite holds a required check that long, and
         # main-red, which waits on its needs, files nothing until it ends. Read from the directory, so a job or a
         # workflow added later is held too.
-        for workflow in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
+        workflows = sorted(p for p in (ROOT / ".github" / "workflows").iterdir() if p.suffix in {".yml", ".yaml"})
+        self.assertIn(CI, workflows)
+        for workflow in workflows:
             for job, text in _jobs(workflow).items():
                 with self.subTest(workflow=workflow.name, job=job):
                     self.assertRegex(text, r"(?m)^    timeout-minutes: [1-9]\d*$")
