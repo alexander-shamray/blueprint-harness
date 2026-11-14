@@ -23,8 +23,9 @@ from review_helpers import (
 )
 
 
-# A `gh` grant in any spelling: the bare prefix, a wildcard, a subcommand, `.exe`, any case, an env prefix.
-GH_GRANT = re.compile(r"(?:\w+=\S*\s+)*gh(?:\.exe)?(?:\s|\*|$)", re.IGNORECASE)
+# A `gh` grant in any spelling: the bare prefix, a wildcard, a subcommand, `.exe`, any case, and `gh` as a command
+# word anywhere, behind an env prefix, `env`, `command` or a path. Searched, not matched.
+GH_GRANT = re.compile(r"(?:^|[\s/])gh(?:\.exe)?(?:\s|\*|$)", re.IGNORECASE)
 
 
 # The class map every locality case reads unless it names its own: the shape of a target's
@@ -97,10 +98,9 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
 
     def granted_bash(self, path):
         frontmatter = path.read_text(encoding="utf-8").split("---")[1]
-        line = next(
-            (ln for ln in frontmatter.splitlines()
-             if ln.startswith("allowed-tools:")), "")
-        return re.findall(r"Bash\(([^)]*)\)", line)
+        # Every allowed-tools key, each with the indented or listed lines that continue its value.
+        value = " ".join(re.findall(r"^allowed-tools:(.*(?:\n[ \t-].*)*)", frontmatter, re.MULTILINE))
+        return re.findall(r"Bash\(([^)]*)\)", value)
 
     def test_no_command_can_fetch_a_feed_outside_the_fixed_helpers(self):
         """No command holds a `gh` grant that can fetch a feed unfiltered.
@@ -111,7 +111,7 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
         for path in sorted(COMMANDS.glob("*.md")):
             for grant in self.granted_bash(path):
                 command = grant[:-2] if grant.endswith(":*") else grant
-                if not GH_GRANT.match(command):
+                if not GH_GRANT.search(command):
                     continue
                 with self.subTest(command=path.name, grant=grant):
                     self.assertIn(
@@ -136,12 +136,14 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
             self.assertNotIn(banned, self.GH_GRANTS_THAT_CANNOT_REACH_A_FEED)
 
     def test_a_gh_grant_is_seen_in_every_spelling(self):
-        for grant in ("gh:*", "gh", "gh*", "gh issue:*", "gh api:*", "gh.exe:*", "GH:*", "GH_TOKEN=x gh:*"):
+        for grant in ("gh:*", "gh", "gh*", "gh issue:*", "gh api:*", "gh.exe:*", "GH:*", "GH_TOKEN=x gh:*",
+                      "env gh:*", "command gh issue:*", "/usr/bin/gh:*", "env GH_TOKEN=x gh"):
             command = grant[:-2] if grant.endswith(":*") else grant
             with self.subTest(grant=grant):
-                self.assertTrue(GH_GRANT.match(command))
+                self.assertTrue(GH_GRANT.search(command))
                 self.assertNotIn(command, self.GH_GRANTS_THAT_CANNOT_REACH_A_FEED)
-        self.assertIsNone(GH_GRANT.match("ghost"))
+        self.assertIsNone(GH_GRANT.search("ghost"))
+        self.assertIsNone(GH_GRANT.search("bash .claude/scripts/gh-pr-create.sh"))
 
     # The payload's commands that hold each helper's grant; a target's own commands that do are held to it there.
     BRANCH_LOOKUP_COMMANDS = ("pr.md", "ship.md")
