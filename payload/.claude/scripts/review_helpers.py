@@ -249,9 +249,11 @@ def code_lines(text):
 
 # What can introduce a command, beyond the `VAR=value` run: a shell keyword or
 # a negation. Stripped in a loop, because they stack, as in
-# `if ! GIT_DIR=x git push …`.
+# `if ! GIT_DIR=x git push …`. An assignment's value may be quoted and hold a
+# space, as in `FOO="a b" git push`.
 COMMAND_LEAD = re.compile(
-    r"^(?:\w+=\S*|then|else|elif|do|done|if|while|until|!|exec|time|eval|env|nohup|builtin)\s+")
+    r"""^(?:\w+=(?:"[^"]*"|'[^']*'|[^\s"'])*|then|else|elif|do|done|if|while|until|!|exec|time|eval|env|nohup"""
+    r"|builtin)\s+")
 
 # A wrapper that takes a command as its argument, with the options and the
 # one numeric argument they may carry (`timeout -k 5 60`, `xargs -n 1`).
