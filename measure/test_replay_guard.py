@@ -147,17 +147,18 @@ class Replay(unittest.TestCase):
         self.assertEqual([(line["session"], line["count"]) for line in lines[:-1]], [("s1", 3)])
 
     def test_the_guard_is_handed_the_events_recorded_cwd_on_stdin(self):
-        self.transcript("s1", bash("gone-me", cwd="C:\\gone\\worktree"))
+        gone = str(self.root / "gone" / "worktree")
+        self.transcript("s1", bash("gone-me", cwd=gone))
         _, lines = self.replay()
-        self.assertIn("C:\\gone\\worktree", lines[0]["gone"])
+        self.assertIn(f"refused in {gone}", lines[0]["gone"])
 
     def test_a_refusal_that_stands_above_a_gone_cwd_is_refused(self):
-        self.transcript("s1", bash("refuse-me", cwd="C:\\gone\\worktree"),
-                        bash("gone-me", cwd="C:\\gone\\worktree"))
+        gone = str(self.root / "gone" / "worktree")
+        self.transcript("s1", bash("refuse-me", cwd=gone), bash("gone-me", cwd=gone))
         _, lines = self.replay()
         self.assertEqual(lines[-2:], [{"gone": 1}, {"commands": 2, "refused": 1}])
         self.assertEqual(lines[0]["command"], "refuse-me")
-        self.assertIn("refused in", lines[0]["reason"])
+        self.assertEqual(lines[0]["reason"], f"refused in {self.root}")
 
     def test_a_refusal_in_a_gone_cwd_is_counted_apart_from_the_refused(self):
         # The real guard refuses every git command from a removed worktree for
