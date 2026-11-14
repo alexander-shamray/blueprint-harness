@@ -238,6 +238,17 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
         self.assertRefused("cd sub && sed -i 's/one/uno/' inner.txt", "inner.txt")
         self.assertRefused("(cd sub && sed -i 's/one/uno/' inner.txt)", "inner.txt")
 
+    def test_a_pushd_moves_the_files_after_it_and_a_popd_moves_them_back(self):
+        # Only `cd` was once followed, so after `pushd sub` the operand was looked up where the line started.
+        self.assertRefused("pushd sub && sed -i 's/one/uno/' inner.txt", "inner.txt")
+        self.assertRefused("pushd sub && popd && sed -i 's/one/uno/' crlf.txt", "crlf.txt")
+        self.assertRefused("pushd sub; pushd ..; popd; sed -i 's/one/uno/' inner.txt", "inner.txt")
+        # A rotation, or a `popd` past what the line pushed, reads a stack the line did not build: unplaceable.
+        self.put(os.path.join("sub", "crlf.txt"), b"one\r\n")
+        self.git("-c", "core.autocrlf=false", "add", "sub/crlf.txt")
+        self.assertAdmitted("pushd sub && pushd +1 && sed -i 's/one/uno/' crlf.txt")
+        self.assertAdmitted("popd; sed -i 's/one/uno/' crlf.txt")
+
     def test_a_cd_in_a_subshell_or_a_pipeline_stays_there(self):
         # Review R4: bash runs a `( … )` group and each pipeline stage in a subshell, so the `cd` is gone after it.
         for command in (
