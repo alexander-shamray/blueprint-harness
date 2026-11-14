@@ -73,7 +73,7 @@ class TheScriptFilesOneIssue(unittest.TestCase):
             return result, log.read_text(encoding="utf-8")
 
     def test_a_read_back_cut_off_at_its_limit_files_a_failed_read_back(self) -> None:
-        # A job past its limit ends before the check step writes its outputs, so both reach this job empty.
+        # A job cut off before its check step wrote its outputs, at set-up or in the step, hands both on empty.
         result, log = self.run_script([{"number": 3, "title": "another"}])
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("issue create --title", log)
