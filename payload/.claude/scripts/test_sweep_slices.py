@@ -21,6 +21,16 @@ REPO = str(SCRIPTS.parent.parent)
 GIT_ID = "-c user.name=t -c user.email=t@example.invalid"
 
 
+def own_clone(case):
+    """A shared clone of this checkout at its HEAD and a temp root of its own: a detach drops the repository's day-old
+    sweeps from the temp root, so one run against the checkout itself could drop a real sweep, or race one."""
+    root = temp_root(case)
+    clone = f"{root}/checkout"
+    made = run_bash('git clone -q --shared --no-checkout "$R" "$C"', R=REPO, C=clone)
+    case.assertEqual(0, made.returncode, made.stderr)
+    return clone, root
+
+
 def git(repo, args):
     result = run_bash(f'cd "$R" && git {GIT_ID} {args}', R=repo)
     assert result.returncode == 0, result.stderr
@@ -37,17 +47,19 @@ class Sweep:
         self.script = str(script)
         self.env = {"TMPDIR": root} if root else {}
         sha = git(repo, "rev-parse HEAD")
-        made = run_bash(
-            'cd "$R" && bash "$DETACH" "$SHA" 2>/dev/null', R=repo, DETACH=str(DETACH), SHA=sha, **self.env
-        )
+        # The helper's stderr is kept, so a failed detach says why.
+        made = run_bash('cd "$R" && bash "$DETACH" "$SHA"', R=repo, DETACH=str(DETACH), SHA=sha, **self.env)
         case.assertEqual(0, made.returncode, made.stderr)
         self.path = made.stdout.strip()
-        case.addCleanup(
-            lambda: run_bash(
-                'cd "$R" && bash "$DROP" "$W" >/dev/null 2>&1; rm -rf "$W.slices"',
-                R=repo, DROP=str(DROP), W=self.path, **self.env,
-            )
-        )
+        case.addCleanup(self.drop, case)
+
+    def drop(self, case):
+        # A drop that fails leaves a worktree the next detach may prune or trip over, so it fails the case; one a
+        # case already dropped is gone.
+        dropped = run_bash('[ ! -e "$W" ] || { cd "$R" && bash "$DROP" "$W"; }',
+                           R=self.repo, DROP=str(DROP), W=self.path, **self.env)
+        case.assertEqual(0, dropped.returncode, dropped.stderr)
+        run_bash('rm -rf "$W.slices"', W=self.path)
 
     def slices(self, kind, *extra, **env):
         return run_bash(
@@ -62,7 +74,8 @@ def parse(stdout):
     for line in stdout.splitlines():
         word, _, rest = line.partition(" ")
         if word == "slice":
-            n, row, files, size, listing = rest.split(" ")
+            # Bounded: the listing is a path, and a temp root may hold a space.
+            n, row, files, size, listing = rest.split(" ", 4)
             slices.append((row, int(files), int(size), listing))
         elif word == "tracked":
             words = line.split(" ")
@@ -282,7 +295,7 @@ class ASmallRepository(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         head, slices = parse(result.stdout)
         self.assertEqual(1, head["counts"]["binary"])
-        count, listing = head["binary"].split(" ")
+        count, listing = head["binary"].split(" ", 1)
         self.assertEqual("1", count)
         read = run_bash('cat -- "$P"', P=listing)
         self.assertEqual(["tools/z.sh"], read.stdout.splitlines(), read.stderr)
@@ -384,7 +397,7 @@ class TheCheckout(unittest.TestCase):
     def test_the_checkout_partitions_with_no_unowned_path(self):
         for kind in ("bug", "security"):
             with self.subTest(kind=kind):
-                result = Sweep(self, REPO).slices(kind, "full")
+                result = Sweep(self, *own_clone(self)).slices(kind, "full")
                 self.assertEqual(0, result.returncode, result.stderr)
                 self.assertNotIn("no row owns", result.stderr)
                 head, slices = parse(result.stdout)
@@ -408,7 +421,7 @@ class TheCheckoutReadsEachFileOnce(unittest.TestCase):
                 blobs[name] = meta.split(" ")[2]
         for kind in ("bug", "security"):
             with self.subTest(kind=kind):
-                result = Sweep(self, REPO).slices(kind, "full")
+                result = Sweep(self, *own_clone(self)).slices(kind, "full")
                 self.assertEqual(0, result.returncode, result.stderr)
                 head, slices = parse(result.stdout)
                 paths = listed(slices)
