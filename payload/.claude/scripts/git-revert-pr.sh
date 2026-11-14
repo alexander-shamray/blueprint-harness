@@ -11,7 +11,8 @@ pr="$1"
 branch=$(git branch --show-current)
 [ -n "$branch" ] && [ "$branch" != main ] ||
   { echo "not on a working branch: reverts land on a branch, never on main" >&2; exit 3; }
-dirty=$(git status --porcelain)
+# Every untracked file is named, whatever status.showUntrackedFiles says: `no` would read untracked work as clean.
+dirty=$(git status --porcelain --untracked-files=all)
 [ -z "$dirty" ] || { echo "the tree is not clean: commit or stash first" >&2; exit 3; }
 
 git fetch --quiet origin main

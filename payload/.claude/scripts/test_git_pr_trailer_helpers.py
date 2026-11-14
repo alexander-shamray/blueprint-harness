@@ -207,6 +207,14 @@ class TrailerHelper(Fixture):
         self.assertEqual(3, out.returncode)
         self.assertIn("not clean", out.stderr)
 
+    def test_an_untracked_file_refuses_whatever_status_shows(self):
+        self.two_commit_branch()
+        self.git("config", "status.showUntrackedFiles", "no")
+        self.stray()
+        out = self.run_helper(TRAILER)
+        self.assertEqual(3, out.returncode, out.stderr)
+        self.assertIn("not clean", out.stderr)
+
     def test_an_unpushed_commit_refuses(self):
         self.two_commit_branch()
         self.commit("three", "docs: three", push=False)
@@ -430,6 +438,15 @@ class RevertHelper(Fixture):
         self.git("checkout", "-q", "-b", "chore/undo")
         self.stray()
         self.assertEqual(3, self.run_helper(REVERT, pr="5").returncode)
+
+    def test_an_untracked_file_refuses_whatever_status_shows(self):
+        self.land("a", 5)
+        self.git("checkout", "-q", "-b", "chore/undo")
+        self.git("config", "status.showUntrackedFiles", "no")
+        self.stray()
+        out = self.run_helper(REVERT, pr="5")
+        self.assertEqual(3, out.returncode, out.stderr)
+        self.assertIn("not clean", out.stderr)
 
     def test_the_argument_is_checked_first(self):
         for bad in ("", "x5", "5 6"):
