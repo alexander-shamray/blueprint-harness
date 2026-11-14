@@ -230,7 +230,9 @@ def option_width(option, valued):
     if option in valued:
         return 2
     if option.startswith("--"):
-        return 1
+        # getopt_long takes a prefix only one long name has as that name; `--name=value` is one word.
+        return 2 if len(option) > 2 and "=" not in option and any(
+            name.startswith(option) for name in valued if name.startswith("--")) else 1
     for position, letter in enumerate(option[1:], 1):
         if f"-{letter}" in valued:
             # A value letter before the cluster's end takes the rest of the word as its value.
