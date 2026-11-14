@@ -260,7 +260,7 @@ class TableRow(unittest.TestCase):
         self.assertEqual(declared_in_table(body), {88})
 
     def test_another_repositorys_issue_in_the_row_is_not_a_local_one(self):
-        # A local #5 linked beside a row naming another repository's #5 must not read as agreement.
+        # A linked local issue beside a row naming another repository's issue of that number is no agreement.
         for cell in ("other/repo#5", "https://github.com/other/repo/issues/5", "#7, other/repo#5"):
             with self.subTest(cell=cell):
                 problems = check(payload(body=f"| Closes | {cell} |\n\nCloses #5\nCloses #7\n", linked=(5, 7)))

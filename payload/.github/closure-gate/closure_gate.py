@@ -58,8 +58,8 @@ TABLE_ROW = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 
-# A reference in the row's cell, with the repository it names when it names one: `other/repo#5` and an issue URL
-# are another repository's issue unless the repository is this one, and are never this repository's `#5`.
+# A reference in the row's cell, with the repository it names when it names one: an `owner/repo` prefix or an issue
+# URL names another repository's issue unless the repository is this one, never this repository's of that number.
 CELL_REFERENCE = re.compile(
     r"(?:(?P<repo>[\w.-]+/[\w.-]+)?#|(?<![^\W_])gh-)(?P<number>\d+)\b"
     r"|https?://github\.com/(?P<url_repo>[\w.-]+/[\w.-]+)/issues/(?P<url_number>\d+)\b",
