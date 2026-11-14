@@ -287,10 +287,8 @@ def echoed(segment):
 def shell_line(arguments, stdin):
     """The command line a shell with these arguments runs: its `-c` line, or its input where it reads that.
 
-    The options are read as bash reads them: first the long ones, `-login` as well as `--login`, then the clusters, in
-    which each `o` or `O` takes the next word as its value; the first operand after them all is the `-c` line, or else
-    a script, which reads its input as data unless `-s` said to read commands from it.
-    """
+    As bash reads them: the long options, `-login` or `--login`, then the clusters, each `o` or `O` taking a word; the
+    first operand after them is the `-c` line, or a script, which reads its input as data unless `-s` was given."""
     index = 0
     while index < len(arguments) and arguments[index].startswith("-"):
         name = arguments[index][2 if arguments[index].startswith("--") else 1:]
