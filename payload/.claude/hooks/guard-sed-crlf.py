@@ -601,6 +601,8 @@ def judge(command, cwd, git, checked, depth):
             if name == "popd":
                 stack = stacks[scope]
                 directories[scope] = stack.pop() if not arguments and stack else None
+                if arguments:
+                    stacks[scope] = None
                 continue
             plain = not (len(arguments) != 1 or "$" in arguments[0] or arguments[0] == "-" or (
                 name == "pushd" and arguments[0][:1] in ("+", "-")))

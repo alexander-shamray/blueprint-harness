@@ -250,6 +250,8 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
         self.assertAdmitted("popd; sed -i 's/one/uno/' crlf.txt")
         # `pushd -n sub` puts sub on the stack without moving, so the `popd` after it is unplaceable too.
         self.assertAdmitted("pushd -n sub && popd && sed -i 's/one/uno/' crlf.txt")
+        # `popd +1` drops sub from the stack, so the bare `popd` after it lands here, not in sub: unplaceable too.
+        self.assertAdmitted("pushd sub; pushd ..; popd +1; popd; sed -i 's/one/uno/' crlf.txt")
 
     def test_a_cd_in_a_subshell_or_a_pipeline_stays_there(self):
         # Review R4: bash runs a `( … )` group and each pipeline stage in a subshell, so the `cd` is gone after it.
