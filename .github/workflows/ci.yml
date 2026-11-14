@@ -24,6 +24,9 @@ jobs:
   # makes every pull request wait for a check that never reports.
   sync-tool:
     runs-on: ubuntu-latest
+    # About 25 s on green runs to 2026-11-14; the bound is for a hung suite, which would otherwise hold this
+    # required check and `main-red` for GitHub's 360-minute default.
+    timeout-minutes: 10
     # Read only still: the issue-form gate below lists the repository's labels.
     permissions:
       contents: read
