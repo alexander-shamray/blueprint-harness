@@ -1696,6 +1696,26 @@ class WakeTests(InRoot):
         self.assertIn("S7 account: the API refused the account: 400; fix the account, then run /dispatch "
                       "again, which takes the sync again", report)
         self.assertNotIn("resume: run /dispatch again", report)
+        # Another group's rows keep the run open, so `resume` relaunches the sync instead, and the line says so.
+        with mock.patch.object(dr, "_holds_rows", return_value=(True, None)):
+            report = run_cli(["report", RUN, "--tasks", "todo.md", "--today", "2026-11-01"],
+                             body_source=lambda n: "", open_source=lambda: {1440}, branch_source=NO_BRANCH)
+        self.assertIn(f"S7 account: the API refused the account: 400; fix the account, then run /dispatch again, "
+                      f"which resumes run {RUN} and relaunches it", report)
+
+    def test_a_refused_relaunch_is_lifted_back_to_a_relaunch(self):
+        # A group relaunched from a window or a crash, then refused: its earlier session may have left work and a
+        # review, so the lifted hold keeps it a relaunch, which reads what that session left and may merge unrounded.
+        for launched_as, lifted in (("running", "running"), ("relaunch", "relaunch"), ("window", "relaunch")):
+            with self.subTest(launched_as=launched_as):
+                record(RUN, "S9", status=launched_as, absorbed=None)
+                (state_dir() / "S9.session.json").write_text(json.dumps(
+                    {"exit": 1, "started": NOW.isoformat(), "ended": NOW.isoformat(),
+                     "stdout": json.dumps(NO_CREDIT), "stderr": ""}), encoding="utf-8")
+                with mock.patch.object(dr, "PROJECTS", self.root / "projects"):
+                    self.assertIn("S9: account", run_cli(["result", RUN, "S9"]))
+                self.assertIn("relaunch S9", run_cli(["resume", RUN]))
+                self.assertEqual(lifted, group_state(RUN, "S9")["status"])
 
     def test_an_unreadable_week_reset_holds_under_a_moving_clock(self):
         ticks = iter(NOW + timedelta(seconds=n) for n in range(100))
