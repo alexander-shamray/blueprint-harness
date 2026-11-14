@@ -223,6 +223,10 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             "bash -co pipefail \"sed -i 's/one/uno/' crlf.txt\"",
             "bash -c -O extglob \"sed -i 's/one/uno/' crlf.txt\"",
             "bash --rcfile rc -c \"sed -i 's/one/uno/' crlf.txt\"",
+            # Bash reads its long options first, with one dash or two, so the `o` in `-login` takes no word.
+            "bash -login -c \"sed -i 's/one/uno/' crlf.txt\"",
+            "bash -noprofile -norc -O extglob -c \"sed -i 's/one/uno/' crlf.txt\"",
+            "bash -rcfile rc -c \"sed -i 's/one/uno/' crlf.txt\"",
         ):
             with self.subTest(command=command):
                 self.assertRefused(command, "crlf.txt")
