@@ -916,7 +916,7 @@ def session_end(raw):
 def _account_refused(envelope):
     """The API's refusal of the account, on one line, or None: an `api_error` of 400 or 401 before a second turn.
 
-    With no turn past the first nothing was done, so the result is the CLI's notice, as a rate limit's is (#500)."""
+    With no turn past the first nothing was done, so the result is the CLI's notice, as a rate limit's is."""
     if not envelope or envelope.get("terminal_reason") != "api_error":
         return None
     status, turns = envelope.get("api_error_status"), envelope.get("num_turns")

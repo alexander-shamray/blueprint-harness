@@ -63,7 +63,7 @@ LIMIT_429 = {**SUCCESS, "subtype": "error_during_execution", "is_error": True, "
              "result": "Claude usage limit reached. Your limit resets at 2026-11-02T03:00:00Z."}
 LIMIT_KIND = {**SUCCESS, "subtype": "error_during_execution", "is_error": True, "api_error_status": None,
               "error": {"type": "rate_limit"}, "result": "API Error"}
-# sync-497's envelope from run 20261114-081919 (#500), trimmed of fields nothing reads: the API refused the account
+# sync-497's envelope from run 20261114-081919, trimmed of fields nothing reads: the API refused the account
 # before any turn ran, so every group launched that night would meet the same refusal.
 NO_CREDIT = {"type": "result", "subtype": "success", "is_error": True, "api_error_status": 400,
              "api_error_type": "invalid_request_error", "api_error_origin": "first_party", "stop_reason": "stop_sequence",
@@ -808,7 +808,7 @@ class ClassifyTests(InRoot):
         self.assertEqual("week", dr.classify(got, None, 0, NOW))
 
     def test_an_account_the_api_refused_before_any_work_ends_the_night_and_is_no_crash(self):
-        # #500: run 20261114-081919 read this as `relaunch`, then `crash-hand-back`, and sent sync-497 back for it.
+        # Run 20261114-081919 read this as `relaunch`, then `crash-hand-back`, and sent sync-497 back for it.
         for status in (400, 401):
             with self.subTest(status=status):
                 got = dr.session_end({"exit": 1, "stdout": json.dumps({**NO_CREDIT, "api_error_status": status}),
@@ -1655,7 +1655,7 @@ class WakeTests(InRoot):
         self.assertIn("S9: relaunch - no result; exit 0", run_cli(["result", RUN, "S9"]))
 
     def test_an_account_the_api_refused_ends_the_night_until_the_group_is_relaunched(self):
-        # #500: each group launched after the refusal burned a relaunch on it; the night ends on the first instead.
+        # Each group launched after the refusal burned a relaunch on it; the night ends on the first instead.
         record(RUN, "S9", status="running")
         (state_dir() / "S9.session.json").write_text(json.dumps(
             {"exit": 1, "started": NOW.isoformat(), "ended": NOW.isoformat(), "stdout": json.dumps(NO_CREDIT),
