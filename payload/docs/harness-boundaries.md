@@ -1852,7 +1852,7 @@ fields is a rule a reader follows and a prefix grant beside it is what the
 session can actually run.
 
 **`pr-locality.sh` prints a verdict and never the cell it judges.** It
-reads `body` from the pull request, with any carriage return removed, and
+reads `body` from the pull request, each CRLF read as a line ending, and
 `filename` and a rename's `previous_filename` from the files endpoint, so both
 ends of a move are judged as the CI gate judges them. It prints one `class`
 line whose value is letters it validated, then one line per changed path,
