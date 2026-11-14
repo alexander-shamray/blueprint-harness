@@ -646,9 +646,12 @@ class ConfigGlobTests(SyncCase):
         self.start(payload={**PAYLOAD, "docs/d.md": "D\n"})
         self.assertEqual(0, self.cli("verify", "7")[0])
 
-    def test_the_globs_match_case_sensitively(self):
+    def test_local_globs_fold_case_and_exclude_globs_do_not(self):
+        # As apply matches them: a local glob folded, since its write path folds, and an exclude glob exactly.
         self.start(payload={**PAYLOAD, "docs/D.md": "D\n"})
-        self.refused("docs/D.md is a payload file but the manifest does not list it")
+        self.assertEqual(0, self.cli("verify", "7")[0])
+        self.start(payload={**PAYLOAD, "docs/C.md": "C\n"})
+        self.refused("docs/C.md is a payload file but the manifest does not list it")
 
 
 class DroppedLocalPathTests(SyncCase):

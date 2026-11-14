@@ -400,7 +400,7 @@ def _check_payload(
         except OSError as exc:
             problems.append(f"cannot read payload file {rel}: {exc}")
             continue
-        if _matches(local, rel):  # apply's local match is case-sensitive; a differing local file would have refused
+        if is_local(local, rel):  # folded, as apply's write path matches; a differing local file would have refused
             _check_local_copy(root, rel, digest, problems)
             continue
         expected[rel] = digest
