@@ -188,6 +188,10 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             # GNU time, reached as a program, takes its format and output file as separate words.
             "env time -o log sed -i 's/one/uno/' crlf.txt",
             "command time -f %e sed -i 's/one/uno/' crlf.txt",
+            # A long option's unique prefix is that option, as getopt_long reads it.
+            "env --un LANG sed -i 's/one/uno/' crlf.txt",
+            "env time --out log sed -i 's/one/uno/' crlf.txt",
+            "env -- sed -i 's/one/uno/' crlf.txt",
         ):
             with self.subTest(command=command):
                 self.assertRefused(command, "crlf.txt")
