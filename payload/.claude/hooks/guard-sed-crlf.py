@@ -609,6 +609,10 @@ def judge(command, cwd, git, checked, depth):
             if plain:
                 target = native(arguments[0])
                 target = target if os.path.isabs(target) else (os.path.join(cwd, target) if cwd else None)
+                # Bash refuses a directory that is not there and stays put, and a failed `pushd` pushes nothing; one an
+                # earlier command on the line makes is not there yet either. Either way the move is not followed.
+                if target is not None and not os.path.isdir(target):
+                    plain, target = False, None
             else:
                 target = None
             if name == "pushd":
