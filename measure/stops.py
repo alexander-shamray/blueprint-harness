@@ -31,10 +31,12 @@ _LOCAL_CAVEAT = "<local-command-caveat"
 
 
 def _lines(transcript):
-    with open(transcript, encoding="utf-8") as handle:
+    # Bytes, decoded line by line inside the `try`: a line torn mid-way through a multi-byte character fails its own
+    # decode, a ValueError, where a text-mode read would raise from the iterator and end the whole count.
+    with open(transcript, "rb") as handle:
         for raw in handle:
             try:
-                yield json.loads(raw)
+                yield json.loads(raw.decode("utf-8"))
             except ValueError:
                 # A live session can leave a torn final line. A corrupt line
                 # mid-file would lose only its own event, so skipping it
@@ -93,6 +95,9 @@ def count_stops(transcript):
     opened = False
     previous = {}
     for entry in _lines(transcript):
+        # A subagent's line is its own session's, whose questions and refusals this one did not meet.
+        if entry.get("isSidechain"):
+            continue
         kind = entry.get("type")
         if kind == "assistant":
             for part in _parts(entry):

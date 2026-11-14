@@ -59,6 +59,27 @@ class StopsTest(unittest.TestCase):
         )
         self.assertEqual(stops.count_stops(path)["ask_user"], 1)
 
+    def test_a_line_torn_inside_a_character_is_skipped_like_any_torn_line(self):
+        # A live session's last line can end mid-way through a multi-byte character, which no text read decodes.
+        path = self.transcript(
+            user("go", origin={"kind": "human"}),
+            assistant({"type": "tool_use", "name": "AskUserQuestion", "input": {"questions": []}}),
+        )
+        with open(path, "ab") as handle:
+            handle.write('{"type": "user", "message": {"content": "я'.encode("utf-8")[:-1])
+        self.assertEqual(stops.count_stops(path)["ask_user"], 1)
+
+    def test_a_sidechain_entry_counts_toward_nothing(self):
+        # A subagent's lines are its own; were one in this file, its questions and refusals are not this session's.
+        path = self.transcript(
+            user("go", origin={"kind": "human"}),
+            {**assistant({"type": "tool_use", "name": "AskUserQuestion", "input": {"questions": []}},
+                         text("done\n⚠️ ACTION REQUIRED — run: x")), "isSidechain": True},
+            tool_result("Permission for this action was denied.", isSidechain=True),
+        )
+        counts = stops.count_stops(path)
+        self.assertEqual((0, 0, 0), (counts["ask_user"], counts["action_required"], counts["permission_refused"]))
+
     def test_action_required_counted(self):
         path = self.transcript(
             user("go"),
