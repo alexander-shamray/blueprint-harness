@@ -56,8 +56,12 @@ jobs:
           echo 'started=true' >> "$GITHUB_OUTPUT"
           # A flake that reruns green is still written down, or the tracker goes blind. A missing tracker is a
           # warning, not a red run: the rerun, which is what unblocks `main`, has already started.
-          tracker=$(gh issue list --state open --label flaky --limit 100 --json number,title |
-            jq -r 'map(select(.title == "Flaky tests tracker")) | .[0].number // empty')
+          # A list as long as its limit may be cut short of the tracker, which would read as no tracker at all.
+          flaky=$(gh issue list --state open --label flaky --limit 1000 --json number,title) ||
+            { echo "::warning::the flaky issues could not be listed, so the first red attempt is not recorded"; exit 0; }
+          [ "$(jq length <<<"$flaky")" -lt 1000 ] ||
+            { echo "::warning::the flaky issue list reached its limit and may be cut, so the attempt is not recorded"; exit 0; }
+          tracker=$(jq -r 'map(select(.title == "Flaky tests tracker")) | .[0].number // empty' <<<"$flaky")
           if [ -z "$tracker" ]; then
             echo "::warning::no open Flaky tests tracker issue, so the first red attempt is not recorded"
             exit 0

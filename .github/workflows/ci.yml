@@ -48,8 +48,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -o pipefail
-          gh label list --repo "$GITHUB_REPOSITORY" --limit 1000 --json name |
-            python payload/.github/issue-form-gate/issue_form_gate.py
+          # A list as long as its limit may be cut, and a cut one names a label as missing that is not.
+          labels=$(gh label list --repo "$GITHUB_REPOSITORY" --limit 1000 --json name)
+          [ "$(jq length <<<"$labels")" -lt 1000 ] || { echo "::error::the label list reached its limit and may be cut"; exit 1; }
+          printf '%s\n' "$labels" | python payload/.github/issue-form-gate/issue_form_gate.py
 
   # The payload's own suites, run where a target runs them: in a worktree of
   # this commit with the payload applied over it under backend's draft config,
