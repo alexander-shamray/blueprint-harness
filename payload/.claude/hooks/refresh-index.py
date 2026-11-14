@@ -690,7 +690,7 @@ def running_indexer(handle) -> int | None:
 def refresh(root: Path, handle=None) -> bool:
     """One update, waited on and answered, because the streams are gone.
 
-    The script by its full path, then the module through this interpreter:
+    The script by its full path, then, where `-P` exists, the module through this interpreter:
     `docs/harness-boundaries.md`, *Index refresh and worktree seeding*. The
     indexer's pid goes in the lock's `handle` and is cleared once it is gone."""
     environment = dict(os.environ, CBX_NO_SKILL_AUTO_UPDATE="1", PYTHONSAFEPATH="1",
