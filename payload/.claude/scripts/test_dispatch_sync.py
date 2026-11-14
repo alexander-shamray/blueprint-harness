@@ -469,6 +469,7 @@ class AMergeWithNoResult(Bound):
         self.github()
         git_in(self.tree, "config", "status.showUntrackedFiles", "no")
         (self.tree / "dirty").write_text("x\n", encoding="utf-8")
+        self.assertEqual("", git_in(self.tree, "status", "--porcelain"))
         self.assertEqual("S1: relaunch - no result; exit 0", self.ended())
 
     def test_a_read_that_fails_or_answers_out_of_shape_is_still_the_crash(self):

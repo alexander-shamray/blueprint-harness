@@ -937,6 +937,7 @@ class RunLocalSuitesTests(SyncCase):
         head = self.take({"tools/test_bad.py": self.FAILS})
         git(self.root, "config", "status.showUntrackedFiles", "no")
         self.write({"tools/helper.py": "pass\n"})
+        self.assertEqual("", git(self.root, "status", "--porcelain").strip())
         code, out, _ = self.cli("run-local-suites", "7", "--head", head)
         self.assertEqual(1, code)
         self.assertIn("not clean", out)
