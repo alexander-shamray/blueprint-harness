@@ -1642,7 +1642,8 @@ it, excluded or not. The settings proof executes code from the head: its
 `.harness/render.py`, read by oid and never from a tree, runs only once that
 commit is on the harness's `main` and the renderer and
 `.harness/settings.base.json` are manifest paths whose blobs are the payload's
-there, and it renders from those and the base commit's config. A difference, a
+there, and it renders from those and `main`'s config, the one the drift gate
+renders with. A difference, a
 missing file, a renderer that raises or one not trusted is a failure line.
 `review-diff` proves all of it first, on the head it then reads, and refuses
 with those lines. Its one write is a `.diff` under `artifacts/review/`. Not

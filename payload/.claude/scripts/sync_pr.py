@@ -283,7 +283,7 @@ def unlisted(payload, paths, local, exclude):
             and not any(glob_match(g, rel) for g in (*local, *exclude))]
 
 
-def settings_problem(oid, base, paths, payload, in_head):
+def settings_problem(oid, paths, payload, in_head):
     """Why the head's settings.json is not what the proved renderer renders, or None: drift_gate's check, on blobs.
 
     The head is anyone's branch, so its renderer runs only once it is the payload's at a commit on the harness's main
@@ -300,13 +300,14 @@ def settings_problem(oid, base, paths, payload, in_head):
     try:
         exec(compile(read(["git", "show", f"{oid}:{RENDER}"]), RENDER, "exec"), module.__dict__)
         settings = json.loads(read(["git", "show", f"{oid}:{BASE_SETTINGS}"]))
-        cfg = types.SimpleNamespace(settings=json.loads(read(["git", "show", f"{base}:{CONFIG}"])).get("settings", {}))
+        # Main's config, not the base's: the drift gate renders with the config of the tree it checks.
+        cfg = types.SimpleNamespace(settings=json.loads(read(["git", "show", f"{MAIN}:{CONFIG}"])).get("settings", {}))
         want = module.dump_settings(module.render_settings(settings, cfg))
         have = read(["git", "show", f"{oid}:{SETTINGS}"])
     except Exception as error:  # a renderer that fails, or a read that does, is a finding and never a pass
         return f"cannot render {SETTINGS}: {_line(repr(error))}"
     if have.replace("\r\n", "\n") != want.replace("\r\n", "\n"):
-        return f"{SETTINGS} is not what {RENDER} renders from {BASE_SETTINGS} and the base's {CONFIG}"
+        return f"{SETTINGS} is not what {RENDER} renders from {BASE_SETTINGS} and main's {CONFIG}"
     return None
 
 
@@ -351,7 +352,7 @@ def prove(number, pin=None):
         failures.append(f"cannot read what the head changes: {error}")
         return failures, head
     head.update(base=base, old_commit=old_commit, old=old)
-    problem = settings_problem(oid, base, paths, payload if on_main else None, in_head)
+    problem = settings_problem(oid, paths, payload if on_main else None, in_head)
     if problem:
         failures.append(problem)
     try:
