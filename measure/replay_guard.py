@@ -2,7 +2,8 @@
 
 Each distinct (command, cwd) runs through the hook's stdin contract; every use counts. Not refusals: a crash (exit 1),
 a refusal only a removed worktree earns, a command naming CLAUDE_PROJECT_DIR (unjudged). Exit 2: an unreadable guard
-or no --project directory. Usage: py -3.12 measure/replay_guard.py --project <glob> --since <date> --guard <hook>"""
+or no --project directory. --since is a UTC day: a command counts by its own timestamp, read from the files written
+since then. Usage: py -3.12 measure/replay_guard.py --project <glob> --since <date> --guard <hook>"""
 
 import argparse
 import concurrent.futures
@@ -31,15 +32,26 @@ _WORKTREE = re.compile(r"(?i)^(.+?)[\\/]\.claude[\\/]worktrees[\\/][^\\/]+(?:[\\
 
 
 def touched(project, since, root):
-    # The commands run since a day, so a session started earlier holds some of them.
+    # The files written since the day, so a session started earlier is read; bash_uses drops its earlier commands.
     for path in _transcripts(project, root):
         try:
             used = path.stat().st_mtime
         except OSError:
             # Deleted since the listing: skipped, and the totals still print.
             continue
-        if datetime.datetime.fromtimestamp(used) >= since:
+        if datetime.datetime.fromtimestamp(used, datetime.UTC) >= since:
             yield path
+
+
+def _before(entry, since):
+    """Whether the entry is stamped before `since`; one with no stamp it can read is kept."""
+    stamp = entry.get("timestamp")
+    if since is None or not isinstance(stamp, str):
+        return False
+    try:
+        return datetime.datetime.fromisoformat(stamp).astimezone(datetime.UTC) < since
+    except ValueError:
+        return False
 
 
 def transcripts(project, since, root):
@@ -48,10 +60,10 @@ def transcripts(project, since, root):
     yield from touched(f"{project}/*/subagents", since, root)
 
 
-def bash_uses(transcript):
+def bash_uses(transcript, since=None):
     try:
         for entry in _lines(transcript):
-            if entry.get("type") != "assistant":
+            if entry.get("type") != "assistant" or _before(entry, since):
                 continue
             for part in _parts(entry):
                 if part.get("type") != "tool_use" or part.get("name") != "Bash":
@@ -182,8 +194,8 @@ def main(argv=None):
     except OSError as error:
         print(f"replay_guard: cannot read the guard: {error}", file=sys.stderr)
         return 2
-    since = datetime.datetime.combine(args.since, datetime.time.min)
-    uses = (use for path in transcripts(args.project, since, args.root) for use in bash_uses(path))
+    since = datetime.datetime.combine(args.since, datetime.time.min, datetime.UTC)
+    uses = (use for path in transcripts(args.project, since, args.root) for use in bash_uses(path, since))
     commands, rows = replay(guard, uses, args.workers)
     refused = crashed = gone = unjudged = 0
     for row in rows:

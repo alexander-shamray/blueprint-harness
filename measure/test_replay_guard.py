@@ -83,7 +83,8 @@ class Replay(unittest.TestCase):
 
     def test_the_window_reads_the_files_last_use_and_not_the_sessions_start(self):
         started = {"timestamp": "1999-01-01T00:00:00.000Z"}
-        self.transcript("used_since", bash("refuse-me", **started))
+        self.transcript("used_since", bash("refuse-me before", **started),
+                        bash("refuse-me", timestamp="2000-06-01T00:00:00.000Z"))
         self.transcript("not_since", bash("refuse-me too", session="not_since", **started))
         stamp = datetime.datetime(1999, 6, 1).timestamp()
         os.utime(self.project / "not_since.jsonl", (stamp, stamp))
