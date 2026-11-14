@@ -568,6 +568,17 @@ a rate-limited one's `wait` prints `stop file: yes` and leaves it `window`,
 so the runbook sends it back with `tasks back`, or the report would list it
 as interrupted.
 
+An account the API refuses outright ends the night as well, as
+`end: account`: an `api_error` of 400 or 401, no credit or no valid key,
+before a second turn. Nothing in the group was at fault and every launch
+would meet the same refusal, so `result` counts no crash and the group keeps
+its slot rather than going back marked `OWNER`; run 20261114-081919 read it
+as a crash and spent a relaunch on it (#500). It holds the night until the
+group is launched again, which only a resumed run does, the owner's word that
+the account is fixed: `resume` names it `relaunch`, and that launch removes
+the record the refusal was read from. The report lists it under
+*Interrupted* with the API's notice.
+
 A night where `wake` names nothing to launch and no background task of
 this session is left to wake it is §8's nothing running, read from this
 session: what still holds a slot is an earlier dispatcher's executor, whose

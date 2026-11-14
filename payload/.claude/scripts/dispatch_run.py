@@ -38,8 +38,9 @@ RESULT_KEYS = ("group", "issues", "outcome", "pr", "title", "merge_oid", "rounds
 RESULT_CAP = 1 << 20
 OID = re.compile(r"[0-9a-f]{40}")
 SESSION_ID = re.compile(r"[A-Za-z0-9-]{1,80}")
-# A group holds an executor slot while it runs or waits to run again; a week's limit ends the night until it resets.
-ACTIVE = ("running", "relaunch", "window", "week")
+# A group holds an executor slot while it runs or waits to run again; a week's limit ends the night until it resets,
+# and an account the API refused ends it until the group is launched again.
+ACTIVE = ("running", "relaunch", "window", "week", "account")
 # A `run` that started no executor: no slot is held, and the group goes back rather than being launched again.
 PRE_LAUNCH = "crashed-before-launch"
 # Each ends in `tasks back`, its worktree left for the owner, and the report's Needs a human.
@@ -54,6 +55,8 @@ RESET_PATTERN = re.compile(
     rf"\breset(?:s)?\s+(?:at\s+|on\s+)?(?:(?P<iso>{ISO_STAMP})|(?P<hour>\d{{1,2}})(?![\d-])(?::(?P<minute>\d{{2}}))?"
     r"\s*(?P<half>[ap]\.?m\b\.?)?(?:\s*\((?P<zone>[A-Za-z_]+(?:/[A-Za-z_+-]+)+)\))?)", re.IGNORECASE)
 RESET_KEYS = ("resetsAt", "resets_at", "resetAt", "reset_at")
+# What the API answers an account it will not serve at all, no credit or no valid key: every launch meets it too.
+ACCOUNT_STATUSES = (400, 401)
 STILL_ACTIVE = 259
 ERROR_ACCESS_DENIED = 5
 # The executor's command, resolved from PATH when None; a suite points it at a fake, never through the environment.
@@ -755,6 +758,7 @@ class SessionEnd:
     usage_source: str | None = None
     usage_models: dict[str, dict[str, int]] = field(default_factory=dict)
     cost_usd: float | None = None
+    account_refused: str | None = None
 
 
 def _envelope(stdout):
@@ -905,7 +909,22 @@ def session_end(raw):
     session = envelope.get("session_id") if envelope else None
     session = session if isinstance(session, str) and SESSION_ID.fullmatch(session) else None
     cost = _cost((envelope or {}).get("total_cost_usd"))
-    return SessionEnd(code, bool(is_error), limited, resets, usage, denials, session, source, models, cost)
+    return SessionEnd(code, bool(is_error), limited, resets, usage, denials, session, source, models, cost,
+                      _account_refused(envelope) if is_error else None)
+
+
+def _account_refused(envelope):
+    """The API's refusal of the account, on one line, or None: an `api_error` of 400 or 401 before a second turn.
+
+    With no turn past the first nothing was done, so the result is the CLI's notice, as a rate limit's is (#500)."""
+    if not envelope or envelope.get("terminal_reason") != "api_error":
+        return None
+    status, turns = envelope.get("api_error_status"), envelope.get("num_turns")
+    if type(status) is not int or status not in ACCOUNT_STATUSES or type(turns) is not int or turns > 1:
+        return None
+    kind, notice = envelope.get("api_error_type"), envelope.get("result")
+    said = [text for text in (kind, notice) if isinstance(text, str) and text.strip()]
+    return one_line(f"{status} " + ": ".join(said) if said else str(status), 200)
 
 
 def classify(end, result, crashes, now):
@@ -913,6 +932,9 @@ def classify(end, result, crashes, now):
         return {"merged": "merged-claimed", "handed-back": "handed-back", "stopped": "stopped"}[result.outcome]
     if end.rate_limited and end.resets_at is not None:
         return "window" if end.resets_at - now <= WINDOW else "week"
+    # Nothing in the group was at fault, and every launch tonight would meet the same refusal, so no crash is counted.
+    if end.account_refused is not None:
+        return "account"
     # 2026-11-01-dispatch-spike.md, Prompts: a call the auto classifier refused is a hand-back; a relaunch would
     # meet it again.
     if end.denials:
@@ -1062,6 +1084,8 @@ def _reason(decision, end, result):
         return one_line(result.reason) if result.reason and decision != "merged-claimed" else None
     if decision in ("window", "week"):
         return f"resets {end.resets_at.isoformat()}"
+    if decision == "account":
+        return f"the API refused the account: {end.account_refused}"
     if decision == "handed-back":
         return f"the session was refused {', '.join(sorted(set(end.denials)))} and wrote no result"
     crash = f"{'no result' if result is None else 'invalid result: ' + one_line(result.why, 200)}; exit {end.exit_code}"
@@ -1070,7 +1094,7 @@ def _reason(decision, end, result):
 
 UNREVIEWED = "merged with no review round"
 # A relaunch: a status only a read session leaves, while the group still waits on an executor.
-RELAUNCHED = ("relaunch", "window", "week")
+RELAUNCHED = ("relaunch", "window", "week", "account")
 
 
 def _unreviewed(entry, result, crashes):
@@ -1484,6 +1508,9 @@ def wake(root, run, tasks_path, today, body_source, open_source, branch_source, 
         return out + ["end: week"]
     if any(entry.get("status") == "week" and not _week_passed(entry, current) for entry in entries.values()):
         return out + ["end: week"]
+    # Until its relaunch removes the record it was read from: a resumed run is the owner's word the account is fixed.
+    if any(entry.get("status") == "account" and _read_already(directory, gid, entry) for gid, entry in entries.items()):
+        return out + ["end: account"]
     # A group launched beside a sync would run under the settings the sync is about to replace.
     if any(entries[gid].get("kind") == "sync" for gid in active):
         return out + ["launch: none"]
@@ -1750,6 +1777,9 @@ def report(root, run, tasks_path, today, body_source, open_source, owned_source)
                     if listed & set(map(str, keys)) else "its rows are no longer In progress")
             needs.append(f"{gid} {status}: its worktree {entry.get('worktree')} is gone" + ("" if sync else f"; {rows}")
                          + _decisions_text(entry.get("decisions")))
+        elif status == "account":
+            interrupted.append(f"{gid} account: {one_line(entry.get('reason') or 'no reason recorded', 200)}; "
+                               "fix the account, then run /dispatch again to relaunch it")
         else:
             interrupted.append(f"{gid} {UNFINISHED.get(status, status)}")
         usage += _usage_lines(gid, entry)
