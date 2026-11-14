@@ -2596,7 +2596,8 @@ session started in the home directory or at a drive root, and a git that is
 only a `.cmd`, read as no git on `PATH`.
 
 **Where it fails open, by design rather than by crash.** An operand holding
-an expansion (`"$FILE"`, `$(git ls-files)`), a `cd` it cannot follow, a file
+an expansion (`"$FILE"`, `$(git ls-files)`), a `cd` it cannot follow, a
+`cd` or `pushd` to a directory not there when the hook runs, a file
 that does not exist or cannot be read, a command `shlex` cannot tokenise, no
 git on `PATH`, or a git that cannot answer: each is admitted, because a
 guard that refuses what it cannot resolve blocks ordinary work for want of

@@ -253,6 +253,17 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
         # `popd +1` drops sub from the stack, so the bare `popd` after it lands here, not in sub: unplaceable too.
         self.assertAdmitted("pushd sub; pushd ..; popd +1; popd; sed -i 's/one/uno/' crlf.txt")
 
+    def test_a_cd_or_pushd_to_a_missing_directory_is_unplaceable(self):
+        # Bash refuses a directory that is not there and stays put, and a failed `pushd` pushes nothing,
+        # so after `;` these lines run their `sed` in the line's own directory, where no inner.txt is. Followed as
+        # moves, both were placed in sub and refused.
+        for command in (
+            "cd sub; cd nowhere; cd ..; sed -i 's/one/uno/' inner.txt",
+            "pushd sub; pushd nowhere; popd; sed -i 's/one/uno/' inner.txt",
+        ):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+
     def test_a_cd_in_a_subshell_or_a_pipeline_stays_there(self):
         # Review R4: bash runs a `( … )` group and each pipeline stage in a subshell, so the `cd` is gone after it.
         for command in (
