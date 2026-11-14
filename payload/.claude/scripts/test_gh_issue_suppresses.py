@@ -84,6 +84,14 @@ class BothSweepsAgreeOnWhatSuppresses(unittest.TestCase):
             with self.subTest(sweep=name):
                 self.assertIn("files normally", self.sweep(name))
 
+    def test_a_closed_issue_is_not_tracking_as_the_helper_answers(self):
+        # The helper exits 1 for a closed issue, the owner's included; a runbook
+        # that still let a closed issue block would have the parent decide in
+        # prose what the helper exists to decide in code.
+        for name in self.SWEEPS:
+            with self.subTest(sweep=name):
+                self.assertIn("a closed one, the owner's included", self.sweep(name))
+
     def test_a_verifier_record_that_is_not_a_verdict_is_retried_then_an_error(self):
         # A dropped record let a round end clean and mark its commit, and the
         # unverified candidate's file then left every incremental sweep.
