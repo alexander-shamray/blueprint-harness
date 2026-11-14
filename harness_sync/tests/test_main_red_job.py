@@ -43,6 +43,15 @@ class TheJobHearsEveryOtherJob(unittest.TestCase):
         self.assertIn("contains(needs.*.result, 'cancelled')", condition)
         self.assertNotIn("failure()", condition)
 
+    def test_every_job_in_every_workflow_is_bounded(self) -> None:
+        # An unbounded job runs to GitHub's 360-minute default: a hung suite holds a required check that long, and
+        # main-red, which waits on its needs, files nothing until it ends. Read from the directory, so a job or a
+        # workflow added later is held too.
+        for workflow in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
+            for job, text in _jobs(workflow).items():
+                with self.subTest(workflow=workflow.name, job=job):
+                    self.assertRegex(text, r"(?m)^    timeout-minutes: [1-9]\d*$")
+
     def test_main_runs_cancel_nothing_so_cancelled_is_never_a_superseded_push(self) -> None:
         # What lets `cancelled` read as red: a run on `main` has a group of its own and no newer run replaces it.
         code = "\n".join(line for line in CI.read_text(encoding="utf-8").splitlines()
