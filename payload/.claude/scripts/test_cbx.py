@@ -619,6 +619,9 @@ class CbxWrapper(unittest.TestCase):
             out = subprocess.run(
                 [_bash(), str(CBX), "search", "X"],
                 capture_output=True, text=True, encoding="utf-8", env=env, cwd=fake)
+            # Past the gate, or the negatives below hold of a run that never reached an import: 4 is no
+            # interpreter, 3 a refused index. The CLI itself may be absent, as on CI, so its own exit is not read.
+            self.assertNotIn(out.returncode, (3, 4), out.stderr)
             self.assertFalse(
                 (Path(fake) / "TOUCHED").exists(), out.stdout + out.stderr)
             self.assertNotIn("CHECKOUT", out.stdout)
@@ -634,6 +637,9 @@ class CbxWrapper(unittest.TestCase):
                     "codebase-index", "py", "python3"),
             }
             out = _ps_invoke(CBX_PS1, "search", "X", env=env, cwd=fake)
+            # Past the gate, or the negatives below hold of a run that never reached an import: 4 is no
+            # interpreter, 3 a refused index. The CLI itself may be absent, as on CI, so its own exit is not read.
+            self.assertNotIn(out.returncode, (3, 4), out.stderr)
             self.assertFalse(
                 (Path(fake) / "TOUCHED").exists(), out.stdout + out.stderr)
             self.assertNotIn("CHECKOUT", out.stdout)
