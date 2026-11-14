@@ -135,21 +135,35 @@ def summarise(rows):
     }
 
 
+def project_pattern(project, root):
+    # Only --project is a pattern: a root holding [, ? or * names itself.
+    if pathlib.Path(project).is_absolute():
+        return project
+    return str(pathlib.Path(glob.escape(str(root))) / project)
+
+
+def project_directories(project, root):
+    return sorted(d for d in glob.glob(project_pattern(project, root)) if pathlib.Path(d).is_dir())
+
+
 def _transcripts(project, root):
-    pattern = project if pathlib.Path(project).is_absolute() else str(root / project)
-    for directory in sorted(glob.glob(pattern)):
+    for directory in project_directories(project, root):
         yield from sorted(pathlib.Path(directory).glob("*.jsonl"))
 
 
 def _started(transcript):
     # Some lines ahead of it carry no timestamp, and any line that does can be the start.
-    for entry in _lines(transcript):
-        stamp = entry.get("timestamp")
-        if isinstance(stamp, str):
-            try:
-                return datetime.datetime.fromisoformat(stamp).astimezone(datetime.UTC)
-            except ValueError:
-                continue
+    try:
+        for entry in _lines(transcript):
+            stamp = entry.get("timestamp")
+            if isinstance(stamp, str):
+                try:
+                    return datetime.datetime.fromisoformat(stamp).astimezone(datetime.UTC)
+                except ValueError:
+                    continue
+    except OSError:
+        # Deleted since the listing: it is in no window.
+        return None
     return None
 
 
@@ -160,25 +174,47 @@ def sessions(project, since, root, before=None):
             yield path
 
 
+def _command_name(value):
+    # The help names the slash form, and the opening tag's pattern consumes the slash.
+    name = value.removeprefix("/")
+    if not name:
+        raise argparse.ArgumentTypeError("names no command")
+    return name
+
+
+def require_project(parser, project, root):
+    # An empty window and a pattern that names nothing print the same zeros.
+    if not project_directories(project, root):
+        parser.error(f"--project {project!r} matches no directory under {root}")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--project", required=True, help="project directory name or glob under --root")
     parser.add_argument("--since", required=True, type=datetime.date.fromisoformat,
                         help="the window's first day, in UTC: a session counts by the day it started")
     parser.add_argument("--until", type=datetime.date.fromisoformat, help="the window's last day, itself included")
-    parser.add_argument("--command", help="only sessions whose first user message, past any local command such as "
-                                          "/clear or /model, opens with /<command>")
+    parser.add_argument("--command", type=_command_name,
+                        help="only sessions whose first user message, past any local command such as "
+                             "/clear or /model, opens with /<command>; the slash is optional")
     parser.add_argument("--root", type=pathlib.Path, default=pathlib.Path.home() / ".claude" / "projects")
     args = parser.parse_args(argv)
+    if args.until is not None and args.until < args.since:
+        parser.error(f"--until {args.until} is before --since {args.since}")
+    require_project(parser, args.project, args.root)
     since = datetime.datetime.combine(args.since, datetime.time.min, datetime.UTC)
     before = None
     if args.until:
         before = datetime.datetime.combine(args.until + datetime.timedelta(days=1), datetime.time.min, datetime.UTC)
     rows = []
     for path in sessions(args.project, since, args.root, before):
-        if args.command and not is_command_session(path, args.command):
+        try:
+            if args.command is not None and not is_command_session(path, args.command):
+                continue
+            row = count_stops(path)
+        except OSError:
+            # Deleted since the listing: skipped, and the totals still print.
             continue
-        row = count_stops(path)
         rows.append(row)
         print(json.dumps({"session": path.stem, **row}))
     print(json.dumps(summarise(rows)))
