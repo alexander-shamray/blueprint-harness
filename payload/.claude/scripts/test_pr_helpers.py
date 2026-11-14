@@ -26,6 +26,8 @@ from review_helpers import (
 # A `gh` grant in any spelling: the bare prefix, a wildcard, a subcommand, `.exe`, any case, and `gh` as a command
 # word anywhere, behind an env prefix, `env`, `command` or a path. Searched, not matched.
 GH_GRANT = re.compile(r"(?:^|[\s/])gh(?:\.exe)?(?:\s|\*|$)", re.IGNORECASE)
+# `gh` run as a command word, quoted or not, which the pull request helpers may spell only as their bounded `gh_read`.
+BARE_GH = re.compile(r"""(?<![\w-])(["']?)gh\1\s""")
 
 
 # The class map every locality case reads unless it names its own: the shape of a target's
@@ -204,7 +206,7 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
         text = helper.read_text(encoding="utf-8")
         code = code_lines(text)
         # `gh_read` is `gh` under gh-read-bound.sh's bound, so both spellings are calls.
-        gh_calls = [line.strip() for line in code if "gh " in line or "gh_read " in line]
+        gh_calls = [line.strip() for line in code if BARE_GH.search(line) or "gh_read " in line]
         self.assertEqual(
             [
                 'body=$(gh_read pr view "$pr" --json body --jq .body)',
@@ -293,7 +295,6 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
         # second read spelt `gh` directly would pass it, so every call line
         # is read too, for any subcommand. Comments are skipped, since they
         # name `gh pr view`.
-        bare = re.compile(r"(?<![\w-])gh\s")
         for path in sorted(SCRIPTS.glob("pr-*.sh")):
             code = [
                 line for line in path.read_text(encoding="utf-8").splitlines()
@@ -302,7 +303,16 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
             with self.subTest(helper=path.name):
                 self.assertIn(
                     '. "$(dirname "${BASH_SOURCE[0]}")/gh-read-bound.sh"', code)
-                self.assertEqual([], [line for line in code if bare.search(line)])
+                self.assertEqual([], [line for line in code if BARE_GH.search(line)])
+
+    def test_the_bare_gh_pattern_sees_a_quoted_gh(self):
+        # The positive control for both scans above: bash runs `"gh" pr view` as `gh pr view`.
+        for line in ("gh pr view 1", 'x=$(gh api y)', '"gh" pr view 1', "'gh' api x", "command gh pr view"):
+            with self.subTest(line=line):
+                self.assertRegex(line, BARE_GH)
+        for line in ("gh_read pr view 1", '. "$here/gh-read-bound.sh"', "sigh x", '"ghost" x'):
+            with self.subTest(line=line):
+                self.assertNotRegex(line, BARE_GH)
 
     @staticmethod
     def _gh_printing(body, files="docs/x.md\n", changed=None):
@@ -881,7 +891,8 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
 # What bash 3.2, /bin/bash on macOS, refuses: `mapfile` and `readarray`, an
 # associative array, and the case-changing expansions.
 BASH_4 = re.compile(
-    r"\b(?:mapfile|readarray)\b|\b(?:declare|local|typeset)\s+-[a-zA-Z]*A|\$\{\w+(?:\[[^]]*\])?(?:,|\^)")
+    r"\b(?:mapfile|readarray)\b|\b(?:declare|local|typeset)(?:\s+-[a-zA-Z]+)*?\s+-[a-zA-Z]*A"
+    r"|\$\{\w+(?:\[[^]]*\])?(?:,|\^)")
 
 
 class AStalledGhReadEndsAtTheBound(GhShim, unittest.TestCase):
@@ -934,6 +945,7 @@ class NoHelperNeedsBash4(unittest.TestCase):
     def test_the_pattern_sees_each_construct(self):
         # The positive control: a pattern that matched nothing would pass every script.
         for line in ("mapfile -d '' tree < x", "readarray -t a", "declare -A seen=()", "local -rA x",
+                     "declare -g -A seen=()", "local -r -A x",
                      'echo "${name,,}"', 'echo "${name^^}"', 'echo "${name^}"'):
             with self.subTest(line=line):
                 self.assertRegex(line, BASH_4)
