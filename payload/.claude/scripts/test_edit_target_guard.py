@@ -33,38 +33,40 @@ def setUpModule():
     links, and the junction fallback would otherwise go unexercised.
     """
     global SYMLINKS, JUNCTIONS
-    # Removed at the end of this function, so a run leaves no tree behind.
+    # Removed however this function ends, so a run leaves no tree behind.
     probe = tempfile.mkdtemp()
-    target = os.path.join(probe, "target")
-    os.mkdir(target)
     try:
-        os.symlink(target, os.path.join(probe, "link"),
-                   target_is_directory=True)
-        SYMLINKS = True
-    except (OSError, NotImplementedError, AttributeError):
-        SYMLINKS = False
-    try:
-        from _winapi import CreateJunction
-    except ImportError:
-        CreateJunction = None
-    if CreateJunction is not None:
-        CreateJunction(target, os.path.join(probe, "junction"))
-        JUNCTIONS = CreateJunction
+        target = os.path.join(probe, "target")
+        os.mkdir(target)
+        try:
+            os.symlink(target, os.path.join(probe, "link"),
+                       target_is_directory=True)
+            SYMLINKS = True
+        except (OSError, NotImplementedError, AttributeError):
+            SYMLINKS = False
+        try:
+            from _winapi import CreateJunction
+        except ImportError:
+            CreateJunction = None
+        if CreateJunction is not None:
+            CreateJunction(target, os.path.join(probe, "junction"))
+            JUNCTIONS = CreateJunction
 
-    if not SYMLINKS and JUNCTIONS is None:
-        raise AssertionError(
-            "this platform grants neither a symbolic link nor a junction, so "
-            "the guard's whole subject is unreachable here and a green run "
-            "would mean nothing")
+        if not SYMLINKS and JUNCTIONS is None:
+            raise AssertionError(
+                "this platform grants neither a symbolic link nor a junction, so "
+                "the guard's whole subject is unreachable here and a green run "
+                "would mean nothing")
 
-    if not HOOK.exists():
-        raise AssertionError(f"the hook is missing: {HOOK}")
+        if not HOOK.exists():
+            raise AssertionError(f"the hook is missing: {HOOK}")
 
-    # Say what was exercised, because a green run does not: `unittest` names a
-    # subtest only when it fails, so a job that never reached the junction
-    # fallback reads the same as one that ran both.
-    print(f"link primitives exercised: {', '.join(linkers())}", file=sys.stderr)
-    shutil.rmtree(probe, ignore_errors=True)
+        # Say what was exercised, because a green run does not: `unittest` names a
+        # subtest only when it fails, so a job that never reached the junction
+        # fallback reads the same as one that ran both.
+        print(f"link primitives exercised: {', '.join(linkers())}", file=sys.stderr)
+    finally:
+        shutil.rmtree(probe, ignore_errors=True)
 
 
 def linkers():
