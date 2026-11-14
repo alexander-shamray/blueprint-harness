@@ -2202,10 +2202,12 @@ one only if git's backlink agrees, so a `.git` file alone makes none, and a
 checkout of another repository is not one, because this target's denies say
 nothing about what it protects.
 
-**Outside every checkout, and inside one holding the home, the guard refuses
-by name and admits the rest.** A checkout holding the home, a dotfiles one at
-`~` or a project directory set there or above, still refuses a link that
-disagrees, as any checkout does, but excuses none of these names.
+**Under the home, whatever checkout holds the target, the guard refuses by
+name and admits the rest.** A checkout holding the home, a dotfiles one at
+`~` or a project directory set there or above, or one inside a place below,
+a checkout at `~/.claude` or `~/.ssh` (#504), still refuses a link that
+disagrees, as any checkout does, but excuses none of these names: its denies
+are anchored at its own root and name none of them.
 `~/.ssh`, the shell profiles and `~/.gitconfig` run at login under every
 session, and `~/.claude`'s credentials, settings, hooks, commands, agents,
 plugins, scripts, skills and sandbox apply to every project, judged on the
