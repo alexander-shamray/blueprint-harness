@@ -15,6 +15,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from review_helpers import sign_nothing
+
 ROOT = Path(__file__).resolve().parents[2]
 SHIP = ROOT / ".claude" / "commands" / "ship.md"
 COMMANDS = ROOT / ".claude" / "commands"
@@ -116,6 +118,10 @@ def code_lines(path):
 
 
 class TheGrantAndTheInvocationAgree(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        sign_nothing(self)
 
     def test_no_command_holds_the_raw_merge_grant(self):
         # A prefix grant admits a trailing `--admin`, so no command may hold
@@ -250,6 +256,7 @@ class TheMergeHelperRefusesWhatTheGrantAdmitted(unittest.TestCase):
     OTHER = "b" * 40
 
     def setUp(self):
+        sign_nothing(self)
         self.tmp = tempfile.TemporaryDirectory()
         base = Path(self.tmp.name)
         self.repo = base / "repo"
@@ -424,6 +431,7 @@ class TheFinishedPredicateSurvivesTheLandingMethod(unittest.TestCase):
     """
 
     def setUp(self):
+        sign_nothing(self)
         self.tmp = tempfile.TemporaryDirectory()
         base = Path(self.tmp.name)
         self.remote = base / "remote.git"

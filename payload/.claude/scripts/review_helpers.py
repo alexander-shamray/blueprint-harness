@@ -14,6 +14,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import NamedTuple
+from unittest import mock
 
 SCRIPTS = Path(__file__).resolve().parent
 NEWLINE = chr(10)  # spelled this way so patch scripts cannot mangle it
@@ -137,6 +138,23 @@ def no_maintenance(base):
     return {"GIT_CONFIG_COUNT": str(count + 1), f"GIT_CONFIG_KEY_{count}": "maintenance.auto",
             f"GIT_CONFIG_VALUE_{count}": "false"}
 
+
+
+def unsigned(base):
+    """The variables that make a git started with `base` in its environment sign no commit and no tag.
+
+    A caller whose global config signs through a program the host lacks fails every commit a case makes. A count
+    `base` holds is extended, as `no_maintenance` extends it.
+    """
+    count = int(base.get("GIT_CONFIG_COUNT") or 0)
+    return {"GIT_CONFIG_COUNT": str(count + 2),
+            f"GIT_CONFIG_KEY_{count}": "commit.gpgsign", f"GIT_CONFIG_VALUE_{count}": "false",
+            f"GIT_CONFIG_KEY_{count + 1}": "tag.gpgsign", f"GIT_CONFIG_VALUE_{count + 1}": "false"}
+
+
+def sign_nothing(case):
+    """For the rest of `case`, every git it starts signs nothing, whatever the caller's config says."""
+    case.enterContext(mock.patch.dict(os.environ, unsigned(os.environ)))
 
 def repository_configs(root):
     """Every repository config under `root`: a checkout's `.git/config` and a bare repository's own."""
