@@ -431,7 +431,9 @@ class ApplyTests(unittest.TestCase):
         # Without its gate or the workflow that runs it, a target stays green and is never checked again.
         for key in ("exclude", "local"):
             for glob in (".github/harness-drift/**", ".github/harness-drift/drift_gate.py",
-                         ".github/workflows/gates.yml", ".github/workflows/*.yml", ".github/**"):
+                         ".github/workflows/gates.yml", ".github/workflows/*.yml", ".github/**",
+                         # A local glob is matched folded, so a case variant would keep the gate undelivered too.
+                         ".GITHUB/harness-drift/**", ".github/Workflows/gates.yml"):
                 with self.subTest(key=key, glob=glob):
                     self.config({**CONFIG, key: [glob]})
                     with self.assertRaises(ApplyError) as ctx:
