@@ -25,7 +25,7 @@ PROGRESS_EVERY = 5000
 # The guard's own fail-closed branch: a deny, but no judgement of the command.
 _CRASHED_DENY = "crashed the guard"
 _UNJUDGED_STDERR = ("Traceback (most recent call last)", "not judging")
-_CLIMB = re.compile(r"""(?:^|[\s/\\='"])\.\.(?:[/\\\s'"]|$)""")
+_CLIMB = re.compile(r"(?<![\w.])\.\.(?![\w.])")
 _WORKTREE = re.compile(r"(?i)^(.+?)[\\/]\.claude[\\/]worktrees[\\/][^\\/]+(?:[\\/](.*))?$")
 
 
