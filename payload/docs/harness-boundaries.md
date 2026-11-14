@@ -2070,11 +2070,13 @@ the pipeline will *execute* its stdin, and that cannot be settled by naming
 the wrappers which exec their argument — `command`, `env`, `nohup`, `nice`,
 `stdbuf`, `setsid`, `timeout`, `ionice` and `chrt` are nine before anyone has
 looked hard, and the tenth is the bypass. So a shell name **anywhere** in a
-stdin-consuming run counts, which is the direction `DATA_ONLY_COMMANDS`
-already argues for, and it costs `echo '…git push…' | grep bash` a refusal
-it does not deserve. That shape needs a printer writing a push into a pipeline
-whose far end merely mentions a shell; it has never been typed here, and the
-alternative fails open on a wrapper nobody listed.
+stdin-consuming run counts, unless a reader other than `git` leads the run
+(`READING_COMMANDS`, which takes a shell's name as a pattern or a file), which
+is the direction `DATA_ONLY_COMMANDS` already argues for. It costs
+`echo '…git push…' | xargs echo bash` a refusal it does not deserve: a
+printer writing into a run led by anything else that merely mentions a shell.
+That shape has never been typed here, and the alternative fails open on a
+wrapper nobody listed.
 
 ## Agent-type and push entries
 
