@@ -55,6 +55,17 @@ def _ps_invoke(script, *args, env=None, cwd=None):
     )
 
 
+def _keeping_git(case, path):
+    """`path` with a `git` on it: dropping the directory that holds `python3`, as Linux's `/usr/bin` does, drops
+    git too, and gate-index refuses a git that cannot say which checkout it is in."""
+    if shutil.which("git", path=path) is not None:
+        return path
+    holder = tempfile.mkdtemp(prefix="cbx-git-")
+    case.addCleanup(shutil.rmtree, holder)
+    os.symlink(shutil.which("git"), os.path.join(holder, "git"))
+    return holder + os.pathsep + path
+
+
 def _path_without_launchers(*names):
     """PATH entries that do not contain a named launcher.
 
@@ -613,8 +624,8 @@ class CbxWrapper(unittest.TestCase):
             py_dir = str(Path(sys.executable).resolve().parent)
             env = {
                 **os.environ,
-                "PATH": py_dir + os.pathsep + _path_without_launchers(
-                    "codebase-index", "py", "python3"),
+                "PATH": _keeping_git(self, py_dir + os.pathsep + _path_without_launchers(
+                    "codebase-index", "py", "python3")),
             }
             out = subprocess.run(
                 [_bash(), str(CBX), "search", "X"],
@@ -633,8 +644,8 @@ class CbxWrapper(unittest.TestCase):
             py_dir = str(Path(sys.executable).resolve().parent)
             env = {
                 **os.environ,
-                "PATH": py_dir + os.pathsep + _path_without_launchers(
-                    "codebase-index", "py", "python3"),
+                "PATH": _keeping_git(self, py_dir + os.pathsep + _path_without_launchers(
+                    "codebase-index", "py", "python3")),
             }
             out = _ps_invoke(CBX_PS1, "search", "X", env=env, cwd=fake)
             # Past the gate, or the negatives below hold of a run that never reached an import: 4 is no
