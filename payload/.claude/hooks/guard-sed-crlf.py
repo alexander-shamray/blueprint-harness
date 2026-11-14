@@ -51,8 +51,11 @@ WRAPPERS = {
 SHELLS = {"bash", "sh", "bash.exe", "sh.exe"}
 # Stands for a heredoc body in the line `prepared` returns: a NUL, which no bash command line can carry.
 BODY = "\x00"
-# A shell's long options that take the next word as their value; a short one's are its cluster's `o` and `O`.
-SHELL_VALUED = {"--rcfile", "--init-file"}
+# Bash's long options, which it reads before any cluster with one dash or two, and those that take the next word as
+# their value; a short option's value is the next word for each `o` and `O` in its cluster.
+SHELL_LONG = {"debug", "debugger", "dump-po-strings", "dump-strings", "help", "login", "noediting", "noprofile", "norc",
+              "posix", "pretty-print", "protected", "restricted", "verbose", "version", "wordexp"}
+SHELL_VALUED = {"rcfile", "init-file"}
 MAX_DEPTH = 3
 
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
@@ -284,11 +287,16 @@ def echoed(segment):
 def shell_line(arguments, stdin):
     """The command line a shell with these arguments runs: its `-c` line, or its input where it reads that.
 
-    The options are read as bash reads them: each `o` or `O` in a cluster takes the next word as its value, and the
-    first operand after them all is the `-c` line, or else a script, which reads its input as data unless `-s` said to
-    read commands from it.
+    The options are read as bash reads them: first the long ones, `-login` as well as `--login`, then the clusters, in
+    which each `o` or `O` takes the next word as its value; the first operand after them all is the `-c` line, or else
+    a script, which reads its input as data unless `-s` said to read commands from it.
     """
     index = 0
+    while index < len(arguments) and arguments[index].startswith("-"):
+        name = arguments[index][2 if arguments[index].startswith("--") else 1:]
+        if name not in SHELL_LONG and name not in SHELL_VALUED:
+            break
+        index += 2 if name in SHELL_VALUED else 1
     command = reads_input = False
     while index < len(arguments):
         argument = arguments[index]
@@ -298,9 +306,7 @@ def shell_line(arguments, stdin):
         if not argument.startswith(("-", "+")):
             break
         index += 1
-        if argument in SHELL_VALUED:
-            index += 1
-        elif not argument.startswith("--"):
+        if not argument.startswith("--"):
             letters = argument[1:]
             command = command or (argument.startswith("-") and "c" in letters)
             reads_input = reads_input or "s" in letters
