@@ -120,11 +120,12 @@ def image(cwd):
 def judge(guard, command, cwd, session):
     """`read_verdict`'s pair, but `"gone"` for a refusal only a removed worktree earns.
 
-    guard-git-argv refuses git from a removed worktree for that alone, so a refusal
-    there is judged again from the main checkout, where its paths name the same files.
+    One whose command holds no `..` to climb out of the worktree is judged again from
+    the same place in the main checkout, where its paths name the same files.
     """
     kind, detail = run_guard(guard, command, cwd, session)
-    place = image(cwd) if kind == "refused" and cwd and not os.path.isdir(cwd) else None
+    gone = kind == "refused" and cwd and not os.path.isdir(cwd) and ".." not in command
+    place = image(cwd) if gone else None
     if place is None:
         return kind, detail
     again = run_guard(guard, command, place, session)
