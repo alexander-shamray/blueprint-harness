@@ -2324,9 +2324,12 @@ def subcommand_of(segment):
 def push_position(segment):
     """The index of `push` in `segment` where it is the subcommand, or None.
 
-    A flag git documents as valueless, or one carrying its value after `=`,
-    takes nothing from the next word, so `git --no-pager grep push` is a grep.
+    A non-flag after a flag is its value, without a list of value-taking
+    globals, so `git --some-future-global X push` is still a push.
     """
+    # Unless the flag is in `GLOBAL_VALUELESS_FLAGS` or carries its value after
+    # `=`: then the non-flag is the subcommand, and `git --no-pager grep push`
+    # is a `grep`.
     for index, element in enumerate(segment):
         if element.startswith("-"):
             continue
@@ -2345,17 +2348,8 @@ def push_offence(segment):
     `push` is located rather than assumed to be first, so no global option,
     known or not, can hide it.
     """
-    # `push` is the subcommand when everything before it is either an option or
-    # an option's value — and a value is recognised structurally, as a non-flag
-    # immediately preceded by a flag, rather than by consulting a list of
-    # value-taking globals. That is what makes an unknown global harmless:
-    # `git --attr-source HEAD push` and `git --some-future-global X push` both
-    # resolve, without this file knowing either flag.
-    #
-    # It also keeps `git log push` — a ref that happens to be called `push` —
-    # out of the push checks, because `log` is a non-flag that no flag precedes,
-    # so `log` is the subcommand and `push` is one of its arguments: a guard
-    # that fires on innocent traffic is one somebody turns off.
+    # `git log push` names a ref, not a push: `log` is the subcommand, and a
+    # guard that fires on innocent traffic is one somebody turns off.
     start = push_position(segment)
     if start is None:
         return None
