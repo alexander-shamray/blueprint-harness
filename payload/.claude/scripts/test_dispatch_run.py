@@ -1522,7 +1522,7 @@ class BerserkTests(InRoot):
         with open("todo.md", encoding="utf-8", newline="") as handle:
             text = handle.read()
         self.assertIn(f"| OWNER; {db.SENT_BACK} |", text)
-        self.assertNotIn("S3", self.wake(text)[-1])
+        self.assertEqual("launch: S1 M1", self.wake(text)[-1])
 
     def test_a_later_flagged_run_does_not_lift_a_row_an_earlier_one_tried(self):
         self.state()
@@ -2063,7 +2063,7 @@ class WeeklyTests(InRoot):
         self.assertEqual((1, "no token file"), (failed["count"], failed["why"]))
         with self.assertRaises(dr.ReadingFailed):
             dr.read_weekly(broken)
-        self.assertNotEqual("end: week", self.wake(broken)[-1])
+        self.assertEqual("launch: S1 S3", self.wake(broken)[-1])
 
     def test_failures_keep_a_count_and_the_last_reason_not_a_list(self):
         for n in range(5):
@@ -2096,7 +2096,7 @@ class WeeklyTests(InRoot):
         self.assertTrue(dr.week_ends_night(dr.WeeklyReading(0.0, stamp)))
         self.assertFalse(dr.week_ends_night(dr.WeeklyReading(2.0, stamp)))
         self.assertEqual("end: week", self.wake(lambda: {"percentUsed": 99, "resetsAt": self.RESET})[-1])
-        self.assertNotEqual("end: week", self.wake(lambda: {"percentUsed": 98, "resetsAt": self.RESET})[-1])
+        self.assertEqual("launch: S1 S3", self.wake(lambda: {"percentUsed": 98, "resetsAt": self.RESET})[-1])
 
     def test_the_reading_maps_percent_used_to_percent_left(self):
         reading = dr.read_weekly(lambda: {"percentUsed": 37.5, "resetsAt": self.RESET})
