@@ -116,8 +116,9 @@ def hook_paths(base: object) -> list[str]:
 
 def _refuse_protected(cfg: Config, paths: list[str] | tuple[str, ...], why: str) -> None:
     for rel in paths:
+        # Folded, at least as broad as the local classification it guards: a case-variant glob refuses too.
         for kind, globs in (("exclude", cfg.exclude), ("local", cfg.local)):
-            glob = _first_match(globs, rel)
+            glob = _first_match(globs, rel, ignore_case=True)
             if glob is not None:
                 raise ApplyError(f"{kind} glob {glob!r} matches {rel}, which {why}")
 
