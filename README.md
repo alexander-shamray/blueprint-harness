@@ -118,13 +118,21 @@ under the `.harness/**` Edit deny.
 
 ```bash
 rendered="$(mktemp -d)"
-git clone --quiet . "$rendered"
-mkdir -p "$rendered/.harness"
-cp targets/blueprint-backend.config.json "$rendered/.harness/config.json"
-py -3.12 -m harness_sync apply --payload payload --target "$rendered" --commit "$(git rev-parse HEAD)"
-(cd "$rendered" && py -3.12 -m unittest discover -s .claude/scripts)
+(
+  set -e
+  git clone --quiet . "$rendered"
+  mkdir -p "$rendered/.harness"
+  cp targets/blueprint-backend.config.json "$rendered/.harness/config.json"
+  py -3.12 -m harness_sync apply --payload payload --target "$rendered" --commit "$(git rev-parse HEAD)"
+  cd "$rendered" && py -3.12 -m unittest discover -s .claude/scripts
+); status=$?
 rm -rf "$rendered"
+[ "$status" -eq 0 ]
 ```
+
+The steps run under `set -e` in a subshell, so a failed clone or apply ends
+the recipe red rather than running the suites over a half-made tree, an
+interactive shell survives it, and the clone is removed either way.
 
 The job's three legs run that suite through
 `.claude/scripts/shard-harness-suite.py` instead, which a local run can too;
