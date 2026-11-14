@@ -173,10 +173,11 @@ class Replay(unittest.TestCase):
     def test_a_removed_worktrees_command_that_climbs_is_judged_as_recorded(self):
         # From the checkout root, ../../.. would climb out of the checkout instead.
         gone = str(self.root / ".claude" / "worktrees" / "merged")
-        self.transcript("s1", bash("gone-me > ../../../.claude/settings.json", cwd=gone))
+        self.transcript("s1", bash("gone-me > ../../../.claude/settings.json", cwd=gone),
+                        bash("cd ..&& gone-me", cwd=gone))
         _, lines = self.replay()
-        self.assertEqual(lines[-1], {"commands": 1, "refused": 1})
-        self.assertEqual(lines[0]["reason"], f"refused in {gone}")
+        self.assertEqual(lines[-1], {"commands": 2, "refused": 2})
+        self.assertEqual([line["reason"] for line in lines[:-1]], [f"refused in {gone}"] * 2)
 
     def test_a_gone_cwd_outside_a_worktree_is_judged_as_recorded(self):
         gone = str(self.root / "gone")
