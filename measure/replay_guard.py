@@ -1,7 +1,7 @@
 """Replay the Bash commands of Claude Code transcripts through a guard hook.
 
-Each distinct (command, cwd) runs once through the hook's stdin contract, every use counts.
-A crash (exit 1) and a refusal in a cwd now gone are not refusals; an unreadable guard is exit 2.
+Each distinct (command, cwd) runs through the hook's stdin contract, and every use counts.
+A crash (exit 1) and a refusal only a cwd now gone earns are not refusals; an unreadable guard is exit 2.
 Usage: py -3.12 measure/replay_guard.py --project <glob> --since <date> --guard <hook>"""
 
 import argparse
@@ -83,13 +83,7 @@ def read_verdict(returncode, stdout, stderr):
     return ("crashed" if _CRASHED_DENY in reason else "refused"), reason
 
 
-def judge(guard, command, cwd, session):
-    """`read_verdict`'s pair, but a refusal in a recorded cwd that is gone is `"gone"`.
-
-    A guard may refuse for the missing directory alone, as guard-git-argv refuses
-    every git command from a removed worktree, which the session never met.
-    """
-    gone = bool(cwd) and not os.path.isdir(cwd)
+def run_guard(guard, command, cwd, session):
     # The caller's CLAUDE_PROJECT_DIR is this run's, not the recorded session's.
     env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
     try:
@@ -98,18 +92,40 @@ def judge(guard, command, cwd, session):
             input=json.dumps(event_for(command, cwd, session)).encode("utf-8"),
             capture_output=True,
             timeout=GUARD_TIMEOUT,
-            cwd=cwd if cwd and not gone else None,
+            cwd=cwd if cwd and os.path.isdir(cwd) else None,
             env=env,
             check=False,
         )
     except subprocess.TimeoutExpired:
         return "crashed", f"no verdict in {GUARD_TIMEOUT}s"
-    kind, detail = read_verdict(
+    return read_verdict(
         done.returncode,
         done.stdout.decode("utf-8", "replace"),
         done.stderr.decode("utf-8", "replace"),
     )
-    return ("gone" if gone and kind == "refused" else kind), detail
+
+
+def standing(path):
+    """The nearest directory at or above `path` that exists, or `""`."""
+    while path and not os.path.isdir(path):
+        parent = os.path.dirname(path)
+        if parent == path:
+            return ""
+        path = parent
+    return path
+
+
+def judge(guard, command, cwd, session):
+    """`read_verdict`'s pair, but `"gone"` for a refusal only a gone cwd earns.
+
+    A guard may refuse for the missing directory alone, as guard-git-argv refuses
+    git from a removed worktree, so one judged gone is judged again from above it.
+    """
+    kind, detail = run_guard(guard, command, cwd, session)
+    if kind != "refused" or not cwd or os.path.isdir(cwd):
+        return kind, detail
+    again = run_guard(guard, command, standing(cwd), session)
+    return ("gone", detail) if again[0] == "admitted" else again
 
 
 def replay(guard, uses, workers):

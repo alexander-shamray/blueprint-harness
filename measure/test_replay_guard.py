@@ -22,17 +22,17 @@ from measure import replay_guard
 HERE = str(pathlib.Path(__file__).resolve().parent)
 GIT_GUARD = pathlib.Path(HERE).parent / "payload" / ".claude" / "hooks" / "guard-git-argv.py"
 
-# Refuses a command holding "refuse-me", crashes the two ways a guard can on
-# one holding "crash-me", and records what it was handed for "show-me".
+# Refuses a command holding "refuse-me", and one holding "gone-me" only where
+# its cwd is missing, and crashes the two ways a guard can on "crash-me".
 STUB = textwrap.dedent("""\
-    import json, sys
+    import json, os, sys
     event = json.loads(sys.stdin.buffer.read().decode("utf-8"))
     command = event["tool_input"]["command"]
     if "raise-me" in command:
         raise RuntimeError("boom")
     if "crash-me" in command:
         reason = "this command crashed the guard that judges it"
-    elif "refuse-me" in command:
+    elif "refuse-me" in command or ("gone-me" in command and not os.path.isdir(event["cwd"])):
         reason = "refused in " + event["cwd"]
     else:
         sys.exit(0)
@@ -147,9 +147,17 @@ class Replay(unittest.TestCase):
         self.assertEqual([(line["session"], line["count"]) for line in lines[:-1]], [("s1", 3)])
 
     def test_the_guard_is_handed_the_events_recorded_cwd_on_stdin(self):
-        self.transcript("s1", bash("refuse-me", cwd="C:\\gone\\worktree"))
+        self.transcript("s1", bash("gone-me", cwd="C:\\gone\\worktree"))
         _, lines = self.replay()
         self.assertIn("C:\\gone\\worktree", lines[0]["gone"])
+
+    def test_a_refusal_that_stands_above_a_gone_cwd_is_refused(self):
+        self.transcript("s1", bash("refuse-me", cwd="C:\\gone\\worktree"),
+                        bash("gone-me", cwd="C:\\gone\\worktree"))
+        _, lines = self.replay()
+        self.assertEqual(lines[-2:], [{"gone": 1}, {"commands": 2, "refused": 1}])
+        self.assertEqual(lines[0]["command"], "refuse-me")
+        self.assertIn("refused in", lines[0]["reason"])
 
     def test_a_refusal_in_a_gone_cwd_is_counted_apart_from_the_refused(self):
         # The real guard refuses every git command from a removed worktree for
@@ -158,14 +166,16 @@ class Replay(unittest.TestCase):
         (main / ".git").mkdir(parents=True)
         removed = str(main / ".claude" / "worktrees" / "merged")
         self.transcript("s1", bash("git status", cwd=removed), bash("git status", cwd=removed),
-                        bash("ls", cwd=removed), bash("git status", cwd=str(main)))
+                        bash("ls", cwd=removed), bash("git status", cwd=str(main)),
+                        bash("git push --force origin x", cwd=removed))
         code, lines = self.replay(GIT_GUARD)
         self.assertEqual(code, 0)
-        self.assertEqual(lines[-1], {"commands": 4, "refused": 0})
-        self.assertEqual(lines[-2], {"gone": 2})
+        self.assertEqual(lines[-2:], [{"gone": 2}, {"commands": 5, "refused": 1}])
         self.assertEqual((lines[0]["cwd"], lines[0]["count"]), (removed, 2))
         self.assertIn("git no longer registers a worktree there", lines[0]["gone"])
-        self.assertEqual(len(lines), 3)
+        self.assertEqual((lines[1]["command"], lines[1]["cwd"]), ("git push --force origin x", removed))
+        self.assertIn("`git push --force` is not", lines[1]["reason"])
+        self.assertEqual(len(lines), 4)
 
     def test_a_sidechain_entry_is_bash_too(self):
         self.transcript("s1", bash("refuse-me", isSidechain=True))
