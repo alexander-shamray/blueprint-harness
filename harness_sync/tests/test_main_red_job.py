@@ -50,6 +50,11 @@ class TheJobHearsEveryOtherJob(unittest.TestCase):
         workflows = sorted(p for p in (ROOT / ".github" / "workflows").iterdir() if p.suffix in {".yml", ".yaml"})
         self.assertIn(CI, workflows)
         for workflow in workflows:
+            # `_jobs` splits on a bare `  <id>:` header; one spelled otherwise would fold into the job above and borrow
+            # its bound, so every two-space key under `jobs:` must be a job it found.
+            body = workflow.read_text(encoding="utf-8").split("\njobs:\n", 1)[1]
+            keys = re.findall(r"(?m)^  ([^\s#][^:]*):", body)
+            self.assertEqual(sorted(keys), sorted(_jobs(workflow)), workflow.name)
             for job, text in _jobs(workflow).items():
                 with self.subTest(workflow=workflow.name, job=job):
                     self.assertRegex(text, r"(?m)^    timeout-minutes: [1-9]\d*$")
