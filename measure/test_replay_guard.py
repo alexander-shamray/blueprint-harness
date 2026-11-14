@@ -132,7 +132,7 @@ class Replay(unittest.TestCase):
             '    log.write(sys.stdin.buffer.read().decode("utf-8") + "\\n")\n',
             encoding="utf-8")
         self.transcript("s1", bash("git status"), bash("git status"))
-        self.transcript("s2", bash("git status", session="s2"), bash("git status", cwd="/other"))
+        self.transcript("s2", bash("git status", session="s2"), bash("git status", cwd=str(self.project)))
         code, lines = self.replay()
         self.assertEqual(code, 0)
         self.assertEqual(lines, [{"commands": 4, "refused": 0}])
