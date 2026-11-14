@@ -279,11 +279,8 @@ def protected_in_worktree(path, root):
 def home_offence(spelled, lexical, resolved):
     """The reason to refuse a target the home protects, or `None`.
 
-    Asked of every target, whatever checkout contains it: a checkout's denies
-    are anchored at its own root, so one at `~/.claude` or `~/.ssh` names
-    nothing the home protects (#504). Spelling and resolution are both judged,
-    so a link into `~/.ssh` is held. Only `~/.claude`'s first component is
-    control. Unreadable names refuse.
+    Asked whatever checkout holds it; spelling and resolution are both judged.
+    Only `~/.claude`'s first component is control. Unreadable names refuse.
     """
     home = os.path.abspath(os.path.expanduser("~"))
     traits = traits_of(home)
@@ -452,9 +449,7 @@ def offence(event):
     # Every anchor containing the target must agree, so an extra anchor cannot
     # excuse what another refuses — the property `anchors` rests its trust in
     # `CLAUDE_PROJECT_DIR` on. An anchor judges its links and leaves
-    # `home_offence` to run, whether it holds the home, as a dotfiles checkout
-    # at `~` does, or sits inside a place the home protects, as one at
-    # `~/.claude` does.
+    # `home_offence` to run: containing a target is not owning it.
     judged = False
     for spelled_root, real_root, traits in checkouts:
         if under(lexical, spelled_root, traits):
