@@ -719,7 +719,14 @@ class WriteTests(unittest.TestCase):
         self.start()
         before = (self.run_dir / "state.json").read_bytes()
         self.write(FIXTURE)
-        with mock.patch.object(db.os, "replace", side_effect=PermissionError("held open")):
+        real_replace = os.replace
+
+        def refuse_the_list(source, destination):
+            # The list alone, so the state write before it lands and the undo after it runs.
+            if Path(destination).name == "todo.md":
+                raise PermissionError("held open")
+            real_replace(source, destination)
+        with mock.patch.object(db.os, "replace", side_effect=refuse_the_list):
             code, err = self.cli("move", "S1")
         self.assertEqual(2, code)
         self.assertIn("refused: could not write", err)
