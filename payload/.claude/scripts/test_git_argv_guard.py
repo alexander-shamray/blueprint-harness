@@ -2628,6 +2628,23 @@ class TheGitArgvGuard(unittest.TestCase):
         self.assertAdmitted("echo hello | grep bash")
         self.assertAdmitted("git log --oneline -5 | grep bash")
 
+    def test_a_reader_naming_a_shell_is_not_one(self):
+        # A run led by a reader takes a shell's name as a pattern or a file and
+        # runs nothing, so a formatting printer feeding it is text; a shell
+        # later in the same pipeline still reads the stream as a script.
+        guard = self.guard_module()
+        self.assertFalse(guard.reads_stdin_as_script(["grep", "bash"]))
+        self.assertTrue(guard.reads_stdin_as_script(["timeout", "5", "bash"]))
+        for command in ("printf '%s\\n' one two | grep bash",
+                        "echo -e 'a\\tb' | grep -c sh",
+                        "printf '%d\\n' 3 | tail -n 1 | grep -v zsh"):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+        for command in ("printf 'git p%ssh origin +HEAD:main' u | grep git | bash",
+                        "echo -e 'git\\x20push origin +HEAD:main' | grep -v bash | sh"):
+            with self.subTest(command=command):
+                self.assertRefused(command)
+
     def test_a_sigil_quoted_delimiter_refuses_a_backslash_in_either_form(self):
         # `<<$"E\"OF"` names `E"OF` to bash, where `word.index` finds the
         # escaped quote and derives `E\OF` — a delimiter matching nothing, so
