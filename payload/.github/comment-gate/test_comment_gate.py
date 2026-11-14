@@ -680,6 +680,25 @@ class TheGateOnARepository(unittest.TestCase):
         self.assertIn("docs/my notes.md:1: a prose line runs 82 columns",
                       result.stdout)
 
+    def test_a_link_turned_into_a_file_has_its_added_lines_judged(self):
+        # Index plumbing rather than the filesystem, so the link is recorded
+        # as one where the checkout cannot make it: git then calls the change
+        # a typechange, `T`, rather than a modification.
+        def plumb(*args, text=None):
+            return subprocess.run(
+                ["git", "-C", self.repo, *args], input=text, check=True,
+                capture_output=True, text=True, encoding="utf-8").stdout.strip()
+        link = plumb("hash-object", "-w", "--stdin", text="Old.cs")
+        plumb("update-index", "--add", "--cacheinfo", f"120000,{link},Link.cs")
+        plumb("commit", "-q", "-m", "link")
+        body = plumb("hash-object", "-w", "--stdin", text="x(); // see #3\n")
+        plumb("update-index", "--cacheinfo", f"100644,{body},Link.cs")
+        plumb("commit", "-q", "-m", "file")
+        self.assertEqual("T\tLink.cs", plumb("diff", "--name-status", "HEAD~1", "HEAD"))
+        result = self.run_gate(base="HEAD~1")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("Link.cs:1: a comment names an issue", result.stdout)
+
     def test_a_line_added_inside_an_old_block_fails_it(self):
         text = Path(self.repo, "Old.cs").read_text().replace(
             "// 5\n", "// 5\n// five\n")
