@@ -433,10 +433,21 @@ class RenderedSettingsTests(SyncCase):
         self.start()
         self.refused(".claude/settings.json is not what .harness/render.py renders")
 
-    def test_the_render_takes_the_base_commits_config(self):
+    def test_the_render_takes_the_targets_config(self):
         self.head_files[".claude/settings.json"] = rendered(config={})
         self.start()
         self.refused(".claude/settings.json is not what .harness/render.py renders")
+
+    def test_the_render_takes_mains_config_once_main_moved_past_the_base(self):
+        # The drift gate renders with the config of the tree it checks, main's, not the one the head was cut from.
+        self.start()
+        moved = {**CONFIG, "settings": {"deny": ["Bash(target-only:*)", "Bash(moved-on-main:*)"]}}
+        self.write({".harness/config.json": json.dumps(moved)})
+        git(self.root, "add", "-A")
+        git(self.root, *SEED, "commit", "-q", "-m", "the target's config moves")
+        git(self.root, "push", "-q", "origin", "main")
+        self.refused(".claude/settings.json is not what .harness/render.py renders from "
+                     ".harness/settings.base.json and main's .harness/config.json")
 
     def test_a_head_deleting_settings_json_is_refused(self):
         del self.head_files[".claude/settings.json"]
