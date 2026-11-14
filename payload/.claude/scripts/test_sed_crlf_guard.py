@@ -254,9 +254,10 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
         self.assertAdmitted("pushd sub; pushd ..; popd +1; popd; sed -i 's/one/uno/' crlf.txt")
 
     def test_a_cd_or_pushd_to_a_missing_directory_is_unplaceable(self):
-        # Bash refuses a directory that is not there and stays put, and a failed `pushd` pushes nothing,
-        # so after `;` these lines run their `sed` in the line's own directory, where no inner.txt is. Followed as
-        # moves, both were placed in sub and refused.
+        # Bash refuses a directory that is not there and stays put, and a failed `pushd` pushes nothing, so after `;`
+        # these lines run their `sed` in the line's own directory, where no inner.txt is. Followed as moves, the `pushd`
+        # line was placed in sub and refused everywhere, the `cd` line only on Windows, which resolves `nowhere/..`
+        # without `nowhere` existing.
         for command in (
             "cd sub; cd nowhere; cd ..; sed -i 's/one/uno/' inner.txt",
             "pushd sub; pushd nowhere; popd; sed -i 's/one/uno/' inner.txt",
