@@ -224,6 +224,19 @@ def segments(command):
     return [segment for segment in found if segment.words]
 
 
+def option_width(option, valued):
+    """The words a wrapper's option spans: two where it, or the last letter of its short cluster, takes a value."""
+    if option in valued:
+        return 2
+    if option.startswith("--"):
+        return 1
+    for position, letter in enumerate(option[1:], 1):
+        if f"-{letter}" in valued:
+            # A value letter before the cluster's end takes the rest of the word as its value.
+            return 2 if position == len(option) - 1 else 1
+    return 1
+
+
 def command_word(words):
     """The index of the word this simple command runs, past assignments, prefix words and wrappers' options."""
     index = 0
@@ -235,7 +248,7 @@ def command_word(words):
             index += 1
             while index < len(words) and words[index].startswith("-") and words[index] != "-":
                 option = words[index]
-                index += 2 if option in WRAPPERS[word] else 1
+                index += option_width(option, WRAPPERS[word])
                 if option == "--":
                     break
             # `timeout` takes its duration before the command.
