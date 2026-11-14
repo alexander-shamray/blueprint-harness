@@ -1,7 +1,7 @@
 """Replay the Bash commands of Claude Code transcripts through a guard hook.
 
-Each distinct (command, cwd) runs once through the hook's stdin contract, and every
-use counts. A crash is neither verdict: exit 1. An unreadable guard is exit 2.
+Each distinct (command, cwd) runs once through the hook's stdin contract, every use counts.
+A crash (exit 1) and a refusal in a cwd now gone are not refusals; an unreadable guard is exit 2.
 Usage: py -3.12 measure/replay_guard.py --project <glob> --since <date> --guard <hook>"""
 
 import argparse
@@ -84,6 +84,12 @@ def read_verdict(returncode, stdout, stderr):
 
 
 def judge(guard, command, cwd, session):
+    """`read_verdict`'s pair, but a refusal in a recorded cwd that is gone is `"gone"`.
+
+    A guard may refuse for the missing directory alone, as guard-git-argv refuses
+    every git command from a removed worktree, which the session never met.
+    """
+    gone = bool(cwd) and not os.path.isdir(cwd)
     # The caller's CLAUDE_PROJECT_DIR is this run's, not the recorded session's.
     env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
     try:
@@ -92,17 +98,18 @@ def judge(guard, command, cwd, session):
             input=json.dumps(event_for(command, cwd, session)).encode("utf-8"),
             capture_output=True,
             timeout=GUARD_TIMEOUT,
-            cwd=cwd if cwd and os.path.isdir(cwd) else None,
+            cwd=cwd if cwd and not gone else None,
             env=env,
             check=False,
         )
     except subprocess.TimeoutExpired:
         return "crashed", f"no verdict in {GUARD_TIMEOUT}s"
-    return read_verdict(
+    kind, detail = read_verdict(
         done.returncode,
         done.stdout.decode("utf-8", "replace"),
         done.stderr.decode("utf-8", "replace"),
     )
+    return ("gone" if gone and kind == "refused" else kind), detail
 
 
 def replay(guard, uses, workers):
@@ -144,7 +151,7 @@ def main(argv=None):
     since = datetime.datetime.combine(args.since, datetime.time.min)
     uses = (use for path in transcripts(args.project, since, args.root) for use in bash_uses(path))
     commands, rows = replay(guard, uses, args.workers)
-    refused = crashed = 0
+    refused = crashed = gone = 0
     for row in rows:
         kind, detail = row.pop("verdict")
         if kind == "admitted":
@@ -152,9 +159,14 @@ def main(argv=None):
         if kind == "refused":
             refused += row["count"]
             print(json.dumps({**row, "reason": detail}))
+        elif kind == "gone":
+            gone += row["count"]
+            print(json.dumps({**row, "gone": detail}))
         else:
             crashed += row["count"]
             print(json.dumps({**row, "crash": detail}))
+    if gone:
+        print(json.dumps({"gone": gone}))
     if crashed:
         print(json.dumps({"crashed": crashed}))
     print(json.dumps({"commands": commands, "refused": refused}))
