@@ -44,6 +44,11 @@ def flat(text):
     return " ".join(text.replace("`", "").split())
 
 
+# The caller's global and system config off, as the sibling git suites run: signing, a hooks path or
+# `status.showUntrackedFiles` there would change what these repositories report.
+QUIET = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+
+
 def git_in(cwd, *args):
     done = subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=cwd, capture_output=True,
                           encoding="utf-8", check=True, timeout=60)
@@ -124,6 +129,8 @@ class Bound(InRoot):
 
     def setUp(self):
         super().setUp()
+        # Through the environment, so the helpers under test run git under it as well.
+        self.enterContext(mock.patch.dict(os.environ, QUIET))
         git_in(".", "init", "-q", "-b", "main")
         # What the executor leaves under artifacts/ is ignored in a target, so it never reads as a dirty tree.
         Path(".gitignore").write_text("artifacts/\n", encoding="utf-8")
