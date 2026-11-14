@@ -31,13 +31,13 @@ to_regex() {
 # The body is captured before it is filtered, so a `gh` failure — no
 # authentication, no network, no such pull request — is fatal under `set -e`
 # rather than indistinguishable from a body with no rows. The rows are found
-# and cut by bash itself, as a token is.
-body=$(gh_read pr view "$pr" --json body --jq .body)
+# and cut by bash itself, as a token is. The `.` keeps the body's own last
+# line ending from the cut a capture makes, and is dropped after it.
+body=$(gh_read pr view "$pr" --json body --jq '.body + "."')
+body=${body%.}
 # A body saved on Windows or through the web form ends each line in CR, which no row grammar below expects. A
-# lone CR ends a line for GitHub and not here, so it is refused as the CI gate refuses it. The capture cuts the
-# output's last LF, so one CR left at the end is read as a CRLF: there is no line after it for it to fence.
+# lone CR ends a line for GitHub and not here, so it is refused as the CI gate refuses it.
 body=${body//$'\r\n'/$'\n'}
-body=${body%$'\r'}
 case "$body" in *$'\r'*) refuse "the body carries a carriage return that is not part of a CRLF line ending" ;; esac
 class_row="" touch_row="" class_rows=0 touch_rows=0
 class_at='^\| *Class *\|' touch_at='^\| *Touch set *\|'
