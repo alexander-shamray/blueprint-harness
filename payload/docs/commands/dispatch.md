@@ -573,11 +573,14 @@ An account the API refuses outright ends the night as well, as
 before a second turn. Nothing in the group was at fault and every launch
 would meet the same refusal, so `result` counts no crash and the group keeps
 its slot rather than going back marked `OWNER`; run 20261114-081919 read it
-as a crash and spent a relaunch on it (#500). It holds the night until the
-group is launched again, which only a resumed run does, the owner's word that
-the account is fixed: `resume` names it `relaunch`, and that launch removes
-the record the refusal was read from. The report lists it under
-*Interrupted* with the API's notice.
+as a crash and spent a relaunch on it (#500). It holds every later night of
+the run until a resumed run, the owner's word that the account is fixed,
+lifts it: `resume` sets the group running again before it prints
+`relaunch`, so no `wake` can read the hold while the relaunch starts, and
+that relaunch is a first session's, since the refused one did nothing. A
+sync holds no row, so its run closes at the report and the next night's
+step 0 takes it again as a new group. The report lists it under
+*Interrupted* with the API's notice and which of the two comes next.
 
 A night where `wake` names nothing to launch and no background task of
 this session is left to wake it is §8's nothing running, read from this

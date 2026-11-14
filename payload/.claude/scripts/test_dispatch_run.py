@@ -1667,14 +1667,35 @@ class WakeTests(InRoot):
         lines = self.wake()
         self.assertIn("running: S9", lines)
         self.assertEqual("end: account", lines[-1])
+        self.assertEqual("end: account", self.wake()[-1], "a later wake of the night still ends it")
         report = run_cli(["report", RUN, "--tasks", "todo.md", "--today", "2026-11-01"],
                          body_source=lambda n: "", open_source=lambda: {1440}, branch_source=NO_BRANCH)
         self.assertIn("S9 account: the API refused the account: 400 invalid_request_error: Credit balance is too "
-                      "low; fix the account, then run /dispatch again to relaunch it", report)
-        # A resumed run relaunches it, and the launch removes the record it was read from, so wake launches again.
+                      f"low; fix the account, then run /dispatch again, which resumes run {RUN} and relaunches it",
+                      report)
+        # A resumed run lifts the hold before its relaunch starts, so a wake racing that launch launches again.
         self.assertIn("relaunch S9", run_cli(["resume", RUN]))
-        (state_dir() / "S9.session.json").unlink()
-        self.assertEqual("launch: S1", self.wake()[-1])
+        self.assertTrue((state_dir() / "S9.session.json").is_file())
+        self.assertEqual(["running: S9", "launch: S1"], [self.wake()[i] for i in (1, -1)])
+        self.assertIn("relaunch S9", run_cli(["resume", RUN]))
+
+    def test_a_merge_with_no_round_after_a_refused_account_is_a_first_sessions(self):
+        # The refused session ran no turn past the first, so it cannot have reviewed what the relaunch merged.
+        merged = dr.validate_result({**MERGED_S1, "rounds": []}, "S1", [1682, 1683])
+        entry = {"absorbed": NOW.isoformat(), "status": "account", "crashes": 0}
+        self.assertTrue(dr._unreviewed(entry, merged, 0))
+        self.assertFalse(dr._unreviewed({**entry, "status": "week"}, merged, 0))
+        self.assertTrue(dr._unreviewed({**entry, "status": "running"}, merged, 0), "as resume leaves it")
+
+    def test_a_refused_sync_is_taken_again_by_the_next_night(self):
+        # A sync holds no row, so nothing keeps its run open for `resume`: its report line says what comes next.
+        record(RUN, "S7", status="account", kind="sync", keys=[], reason="the API refused the account: 400")
+        self.assertEqual("end: account", self.wake()[-1])
+        report = run_cli(["report", RUN, "--tasks", "todo.md", "--today", "2026-11-01"],
+                         body_source=lambda n: "", open_source=lambda: {1440}, branch_source=NO_BRANCH)
+        self.assertIn("S7 account: the API refused the account: 400; fix the account, then run /dispatch "
+                      "again, which takes the sync again", report)
+        self.assertNotIn("resume: run /dispatch again", report)
 
     def test_an_unreadable_week_reset_holds_under_a_moving_clock(self):
         ticks = iter(NOW + timedelta(seconds=n) for n in range(100))
