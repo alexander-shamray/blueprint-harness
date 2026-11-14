@@ -120,6 +120,30 @@ def real_base() -> dict:
     return json.loads(BASE.read_text(encoding="utf-8"))
 
 
+def every_config() -> list[Path]:
+    """Each target's draft config and this repository's own: every config a sync applies."""
+    return sorted((ROOT / "targets").glob("*.config.json")) + [ROOT / ".harness" / "config.json"]
+
+
+class EveryConfigTests(unittest.TestCase):
+    def test_every_config_is_read(self) -> None:
+        # The subject is the list the check below walks: a config it missed would be checked by nothing.
+        names = {path.name for path in every_config()}
+        self.assertLessEqual({FRONTEND.name, ADMIN.name, *(path.name for path in OTHERS)}, names)
+
+    def test_no_configs_local_globs_take_a_payload_file(self) -> None:
+        """A glob that matched a payload file would leave that file unmanaged in its target, and stale after a sync."""
+        payload = ROOT / "payload"
+        files = [p.relative_to(payload).as_posix() for p in payload.rglob("*") if p.is_file()]
+        self.assertGreater(len(files), 100)
+        self.assertTrue(glob_match(".claude/scripts/test_*_frontend.py", ".claude/scripts/test_x_frontend.py"))
+        self.assertTrue(glob_match(".claude/scripts/test_*_admin.py", ".claude/scripts/test_x_admin.py"))
+        for path in every_config():
+            for glob in load_config(path).local:
+                with self.subTest(config=path.name, glob=glob):
+                    self.assertEqual([], [rel for rel in files if glob_match(glob, rel)])
+
+
 class FrontendConfigTests(unittest.TestCase):
     def test_frontend_config_renders(self) -> None:
         base = real_base()
@@ -138,16 +162,6 @@ class FrontendConfigTests(unittest.TestCase):
         self.assertIn("Bash(bash .claude/scripts/npm-checks.sh:*)", rendered["permissions"]["allow"])
         self.assertEqual(rendered["hooks"], base["hooks"])
         self.assertEqual(rendered["env"], base["env"])
-
-    def test_frontends_local_globs_take_no_payload_file(self) -> None:
-        """A glob that matched a payload file would leave that file unmanaged in frontend, and stale after a sync."""
-        payload = ROOT / "payload"
-        files = [p.relative_to(payload).as_posix() for p in payload.rglob("*") if p.is_file()]
-        self.assertGreater(len(files), 100)
-        self.assertTrue(glob_match(".claude/scripts/test_*_frontend.py", ".claude/scripts/test_x_frontend.py"))
-        for glob in load_config(FRONTEND).local:
-            with self.subTest(glob=glob):
-                self.assertEqual([], [rel for rel in files if glob_match(glob, rel)])
 
     def test_the_other_configs_render_none_of_frontends_denies(self) -> None:
         """Frontend's additions live in its config alone: backend's and the harness's own settings are unchanged."""
@@ -180,16 +194,6 @@ class AdminConfigTests(unittest.TestCase):
                 self.assertIn(entry, rendered["permissions"]["allow"])
         self.assertEqual(rendered["hooks"], base["hooks"])
         self.assertEqual(rendered["env"], base["env"])
-
-    def test_admins_local_globs_take_no_payload_file(self) -> None:
-        """A glob that matched a payload file would leave that file unmanaged in admin, and stale after a sync."""
-        payload = ROOT / "payload"
-        files = [p.relative_to(payload).as_posix() for p in payload.rglob("*") if p.is_file()]
-        self.assertGreater(len(files), 100)
-        self.assertTrue(glob_match(".claude/scripts/test_*_admin.py", ".claude/scripts/test_x_admin.py"))
-        for glob in load_config(ADMIN).local:
-            with self.subTest(glob=glob):
-                self.assertEqual([], [rel for rel in files if glob_match(glob, rel)])
 
     def test_the_other_configs_render_none_of_admins_additions(self) -> None:
         """Admin's additions are in its config alone, but for what frontend holds too: AGENTS.md, `--no-index`, npm."""
