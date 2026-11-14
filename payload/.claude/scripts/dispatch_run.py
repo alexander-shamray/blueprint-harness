@@ -483,7 +483,12 @@ def _sync_may_launch(directory, entries, gid, red_source):
         raise Refusal("stop file: the owner ended the night, so nothing more launches")
     # A sync holds no rows, so a report can close its run with the executor alive, in the worktree a re-take reuses.
     for earlier in sorted(p.parent for p in directory.parent.glob(f"*/{gid}.pid")):
-        if alive(_pid(earlier, gid)):
+        try:
+            pid = _pid(earlier, gid)
+        except Refusal as unknown:
+            # An earlier run's file, so the owner is told which one to read or clear.
+            raise Refusal(f"{gid} in run {earlier.name}: {unknown}: {earlier / f'{gid}.pid'}") from None
+        if alive(pid):
             raise Refusal(f"{gid}'s executor from run {earlier.name} is still running")
     # It changes .claude/ for every group after it, so it starts only with nothing beside it.
     for other, entry in entries.items():
