@@ -1808,15 +1808,20 @@ def reads_stdin_as_script(words):
     command bash`, or `env bash` — still runs the push, so the shell is looked
     for anywhere in the run, and the exemption is `DATA_ONLY_COMMANDS`'
     allow-list rather than a set of wrappers, which fails open on the first
-    one nobody listed. Reading any shell name in the run costs an over-refusal
-    only in the shape `echo '…git push…' | grep bash`, because the printer
-    half of the pipeline pass has to match first.
+    one nobody listed. A run led by one of `READING_COMMANDS` but `git` is
+    exempt too, so `printf '%s' x | grep bash` is not a printer feeding a
+    shell. Reading any shell name elsewhere in the run still over-refuses
+    a printer that formats, `printf` with a `%` or `echo -e`, piped into a
+    run that names a shell as an argument.
 
     A run carrying `-c` reads its script from the argv rather than from stdin,
     and `evaluated_scripts` judges that channel at any position already.
     """
     body = [word for word in words if not ASSIGNMENT.match(word)]
     if not body or program_name(body[0]) in DATA_ONLY_COMMANDS:
+        return False
+    # `git` reads its words as a subcommand, and `bisect run` executes one.
+    if program_name(body[0]) in READING_COMMANDS - {"git"}:
         return False
     for position, word in enumerate(body):
         if program_name(word) not in EVALUATORS:
