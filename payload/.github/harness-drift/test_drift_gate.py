@@ -624,9 +624,12 @@ class AgainstThePayload(unittest.TestCase):
             problems = check(self.tree.root, self.payload)
         self.assertTrue(any("cannot read" in p for p in problems), problems)
 
-    def test_local_protection_of_base_is_case_sensitive_like_apply(self) -> None:
-        self.tree.write_json(".harness/config.json", {**CFG, "local": [".HARNESS/render.py"]})
-        self.assertFalse(any("needs managed" in p for p in check(self.tree.root, self.payload)))
+    def test_local_protection_of_base_folds_case_like_apply(self) -> None:
+        # The local match folds case, so a case-variant glob would keep the file unmanaged: apply refuses it too.
+        for key in ("local", "exclude"):
+            with self.subTest(key=key):
+                self.tree.write_json(".harness/config.json", {**CFG, key: [".HARNESS/render.py"]})
+                self.assertTrue(any("needs managed" in p for p in check(self.tree.root, self.payload)))
 
     def test_payload_that_is_not_a_directory_is_a_problem(self) -> None:
         self.assertTrue(check(self.tree.root, self.base / "nope"))
