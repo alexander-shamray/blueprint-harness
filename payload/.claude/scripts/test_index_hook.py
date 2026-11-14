@@ -55,8 +55,8 @@ class TheWiring(unittest.TestCase):
 
 class TheLauncher(unittest.TestCase):
     def path_with(self, **programs):
-        """A PATH holding the shell's own tools and stand-ins named by `programs`, each a bash body; never a `py`
-        unless one is named."""
+        """A PATH holding the shell's own tools and stand-ins named by `programs`, each a bash body, and no other
+        interpreter the launcher looks for."""
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         for name, body in programs.items():
@@ -68,8 +68,16 @@ class TheLauncher(unittest.TestCase):
         for tool in ("dirname", "mktemp", "rm"):
             if shutil.which(tool, path=tools) is None:
                 tools += os.pathsep + os.path.dirname(shutil.which(tool))
-        if "py" not in programs:
-            self.assertIsNone(shutil.which("py", path=tools), "the shell's tools directories hold a `py`")
+        if any(shutil.which(name, path=tools) for name in ("py", "python3", "python")):
+            # Linux and macOS keep a real `python3` beside `cat`, which the launcher would reach before a stand-in
+            # `python`, so the tools go in through links of their own; Windows' Git tools hold none.
+            linked = tempfile.mkdtemp()
+            self.addCleanup(shutil.rmtree, linked, ignore_errors=True)
+            for tool in ("bash", "cat", "dirname", "mktemp", "rm", "touch"):
+                os.symlink(shutil.which(tool), Path(linked) / tool)
+            tools = linked
+        for interpreter in ("py", "python3", "python"):
+            self.assertIsNone(shutil.which(interpreter, path=tools), f"the tools directories hold a `{interpreter}`")
         return d + os.pathsep + tools, Path(d)
 
     def launch(self, path, event, hook, stdin='{"cwd":"x"}\n'):
