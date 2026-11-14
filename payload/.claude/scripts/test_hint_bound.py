@@ -76,8 +76,12 @@ class HintBound(unittest.TestCase):
         python3 = Path(d) / "python3"
         python3.write_text("#!/usr/bin/env bash\ncat\n", encoding="utf-8")
         python3.chmod(0o755)
+        # macOS splits these between /bin and /usr/bin, so each one `cat`'s directory lacks adds its own.
         tools = os.path.dirname(shutil.which("cat"))
-        self.assertIsNone(shutil.which("py", path=tools), "the shell's tools directory holds a `py`")
+        for tool in ("dirname", "mktemp", "rm", "sleep"):
+            if shutil.which(tool, path=tools) is None:
+                tools += os.pathsep + os.path.dirname(shutil.which(tool))
+        self.assertIsNone(shutil.which("py", path=tools), "the shell's tools directories hold a `py`")
         env = dict(os.environ, PATH=d + os.pathsep + tools, CLAUDE_PROJECT_DIR=str(SCRIPTS.parent.parent))
         payload = '{"prompt":"where is the saga"}\n'
         r = subprocess.run([BASH, str(WRAPPER), "UserPromptSubmit", "index-query-hint.py"], input=payload,
