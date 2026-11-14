@@ -24,6 +24,10 @@ from unittest import mock
 
 from test_link_skips import skip_only_without_links
 
+# Captured at import, before any case patches them, for the canary at the end: any stand-in is not these.
+ORIGINAL_POPEN = subprocess.Popen
+ORIGINAL_RUN = subprocess.run
+
 SCRIPTS = Path(__file__).resolve().parent
 NO_CWD_SEARCH = "NoDefaultCurrentDirectoryInExePath"
 HOOK = SCRIPTS.parent / "hooks" / "refresh-index.py"
@@ -2583,8 +2587,8 @@ class WhatWasPatchedIsRestored(unittest.TestCase):
         import subprocess as real_subprocess
         import sys as real_sys
 
-        self.assertFalse(isinstance(real_subprocess.Popen, mock.MagicMock))
-        self.assertFalse(isinstance(real_subprocess.run, mock.MagicMock))
+        self.assertIs(ORIGINAL_POPEN, real_subprocess.Popen)
+        self.assertIs(ORIGINAL_RUN, real_subprocess.run)
         self.assertNotIsInstance(real_os.environ, dict)
         self.assertTrue(hasattr(real_sys.stdin, "fileno"))
 
