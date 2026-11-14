@@ -243,7 +243,7 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
         self.assertRefused("pushd sub && sed -i 's/one/uno/' inner.txt", "inner.txt")
         self.assertRefused("pushd sub && popd && sed -i 's/one/uno/' crlf.txt", "crlf.txt")
         self.assertRefused("pushd sub; pushd ..; popd; sed -i 's/one/uno/' inner.txt", "inner.txt")
-        # A rotation, or a `popd` past what the line pushed, reads a stack the line did not build: unplaceable.
+        # A rotation is not followed, and a `popd` past what the line pushed reads a stack it did not build: unplaceable.
         self.put(os.path.join("sub", "crlf.txt"), b"one\r\n")
         self.git("-c", "core.autocrlf=false", "add", "sub/crlf.txt")
         self.assertAdmitted("pushd sub && pushd +1 && sed -i 's/one/uno/' crlf.txt")
