@@ -535,7 +535,7 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
     def test_a_row_inside_a_fenced_code_block_is_an_example(self):
         # The CI gate reads rows only outside fences, as CommonMark reads one: a backtick or tilde run of three or
         # more, indented at most three spaces, a backtick opener's info string holding no backtick, and closed only by
-        # a run of the same character, at least as long, with nothing after it but spaces. A quoted example beside
+        # a run of the same character, at least as long, with nothing after it but blanks. A quoted example beside
         # the table was two declarations here, and a quoted example alone was the declaration.
         table = "| Class | D |\n| Touch set | docs/x.md |\n"
         example = "| Class | E |\n| Touch set | src/y.py |\n"
