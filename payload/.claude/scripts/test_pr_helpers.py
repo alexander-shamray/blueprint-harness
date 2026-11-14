@@ -585,6 +585,63 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
         self.assertEqual(0, r.returncode, r.stderr)
         self.assertEqual(["class D", "inside docs/x.md"], r.stdout.splitlines())
 
+    def test_a_row_in_a_fence_after_a_container_is_refused(self):
+        # GitHub ends a fence opened in a list item when the list ends and hides one in an HTML comment, so a fenced
+        # row after a list, block quote or HTML block may be what it shows as the table. The CI gate refuses it,
+        # in any spelling GitHub could render once the fence ends, and a verdict here would pass a body CI refuses.
+        table = "| Class | D |\n| Touch set | docs/x.md |\n"
+        example = "| Class | E |\n| Touch set | src/y.py |\n"
+        refusal = "a Class or Touch set row sits in a fenced block after a list, block quote or HTML block\n"
+        bodies = [(name, lead + table + "```\n" + example + "```\n") for name, lead in (
+            ("list item", "- note\n\n  ```\n"),
+            ("numbered item", "1. note\n\n   ```\n"),
+            ("block quote", "> note\n\n```\n"),
+            ("html comment", "<!--\n```\n-->\n"),
+            ("container long before the fence", "* note\n\ntext\n\n```\n"),
+        )]
+        bodies += [(f"row {row!r}", "- note\n\n  ```\n" + row + "\n```\n" + table)
+                   for row in (" | Class | D |", "Class | D |", "\t|Touch set| docs/x.md |")]
+        for name, body in bodies:
+            with self.subTest(name=name):
+                r = self._run_locality_with_gh(self._gh_printing(body))
+                self.assertEqual((3, "", refusal), (r.returncode, r.stdout, r.stderr))
+        # A fence after a container that holds no row hides nothing a reviewer reads as the declaration; a dash
+        # with no blank after it, or four spaces of indent, starts no list item.
+        for name, body in (
+            ("fence holds no row", "- item\n\n```\ncode\n```\n" + table),
+            ("container after the table", table + "\n- item\n\n```\ncode\n```\n"),
+            ("not a list item", "-note\n\n```\n" + example + "```\n" + table),
+            ("indented four", "    - note\n\n```\n" + example + "```\n" + table),
+        ):
+            with self.subTest(name=name):
+                r = self._run_locality_with_gh(self._gh_printing(body))
+                self.assertEqual(0, r.returncode, r.stderr)
+                self.assertEqual(["class D", "inside docs/x.md"], r.stdout.splitlines())
+
+    def test_a_lone_carriage_return_is_refused(self):
+        # A lone CR ends a line for GitHub and not for this helper, so `note` + CR + an opener fences the table on
+        # the page and not here; the CI gate refuses it, and so does the helper. CRLF endings are still read. printf
+        # makes each CR at run time, as in the CRLF case above, since the stub is written with the host's endings.
+        table = "| Class | D |\n| Touch set | docs/x.md |\n"
+        example = "| Class | E |\n| Touch set | src/y.py |\n"
+
+        def printing(body):
+            escaped = body.replace("\r", "\\r").replace("\n", "\\n")
+            return f"case \"$*\" in *changedFiles*) echo 1 ;;\n*\"/files\"*) echo '\"docs/x.md\"' ;;\n*) printf '{escaped}' ;; esac\n"
+
+        for name, body in (
+            ("before an opener", "note\r```\n" + table + "```\n" + example),
+            ("inside a row", "| Class | D |\r| Touch set | docs/x.md |\n"),
+        ):
+            with self.subTest(name=name):
+                r = self._run_locality_with_gh(printing(body))
+                self.assertEqual(
+                    (3, "", "the body carries a carriage return that is not part of a CRLF line ending\n"),
+                    (r.returncode, r.stdout, r.stderr))
+        r = self._run_locality_with_gh(printing((table + "\n```\n" + example + "```\n").replace("\n", "\r\n")))
+        self.assertEqual(0, r.returncode, r.stderr)
+        self.assertEqual(["class D", "inside docs/x.md"], r.stdout.splitlines())
+
     def test_one_row_without_the_other_is_refused(self):
         # A class alone gives /ship's review no set, and a set alone gives it
         # no class to judge the set by, so the pair is required, or neither.
