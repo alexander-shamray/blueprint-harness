@@ -22,8 +22,8 @@ CBX_PS1 = CBX.with_suffix(".ps1")
 SKILL = SCRIPTS.parent / "skills" / "codebase-index"
 
 # The bare console script `codebase-index <subcommand>`, which no wrapper pins to the interpreter or holds to the
-# allow list. At the start of a line, or after a backtick or whitespace, so the path `skills/codebase-index/` and the
-# package name in prose do not match.
+# allow list. Anywhere but after a word character, `/`, `.` or `-`, so a quote, a parenthesis or `$(` before it still
+# matches, and the path `skills/codebase-index/` and a hyphenated name do not.
 UNPINNED_CLI = re.compile(
     r"(?<![\w/.-])codebase-index\s+(search|explain|architecture|symbol|refs|impact|diff-impact|path|describe|verify"
     r"|stats|doctor|update|index|graph|mcp|clean|init|watch)\b", re.M)
