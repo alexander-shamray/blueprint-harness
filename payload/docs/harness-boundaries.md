@@ -10,7 +10,7 @@ the whole is about 46k. `Grep -n "^## <title>"` gives its first line.
 | Purpose and provenance of this file | Why the section left backend's CLAUDE.md, the four edits made in the move, and the three passages since moved to backend's residuals. |
 | Edit denies and agent self-protection | Edit-only file rules, the denied .claude and .harness trees, and why the skill and index-wrapper grants need guarding. |
 | Index refresh and worktree seeding | The PostToolUse refresh hook, seeding worktree indexes, carrying MCP approval into forks, and the SessionStart refresh. |
-| Index hint hooks and hook wiring | Query, search and MCP-root hooks, MCP_TIMEOUT, and why hook commands run without a shell. |
+| Index hint hooks and hook wiring | Query, search and MCP-root hooks, MCP_TIMEOUT, and why hook commands carry no shell syntax. |
 | Settings self-lock and permission root | The settings.json self-lock and its delay, settings.local.json, how EnterWorktree moves rules, and the hooks deny. |
 | Grant semantics | allowed-tools as auto-approval rather than whitelist, and a deny as the only refusal; where the external reviewers' machinery went. |
 | Prefix grants and wildcard denies | Table of over-wide git grants, the reset-grant lesson, mid-pattern deny wildcards, the quoting bypass and the helper argv guard. |
@@ -674,10 +674,10 @@ closes it everywhere; the owner's already carries it. No failure was a tool
 call, so `MCP_TOOL_TIMEOUT` stays at its default. `.mcp.json`'s
 `codebase-index` is not a plugin, and its failures are never cached.
 
-**A hook command needs no shell, and that is a constraint rather than a
-preference.** An env-var prefix — `VAR=1 cmd` — is POSIX syntax that `cmd`
-and PowerShell do not run, and a bare `bash` is whatever `PATH` resolves
-first, which on Windows may be Git Bash or the WSL launcher: different
+**A hook command carries no shell syntax, and that is a constraint rather
+than a preference.** An env-var prefix — `VAR=1 cmd` — is POSIX syntax that
+`cmd` and PowerShell do not run, and a bare `bash` is whatever `PATH`
+resolves first, which on Windows may be Git Bash or the WSL launcher: different
 programs, with different filesystems. Either way the failure lands in the
 redirect and reports nothing. So each hook here is a launcher and its
 arguments, with no env-var prefix: `bash …/hint-bound.sh` for the hints,
@@ -687,13 +687,11 @@ one typed at a prompt is not: Claude Code passes a hook's command to Git Bash
 on Windows, so the `bash` and `sh` inside it are Git's own and never the WSL
 launcher. A machine without Git Bash falls back to PowerShell, where no
 wrapper runs: the hints, the root check and the refresh are dropped, and the
-guards' residual is *The guard launcher*'s. The index hooks are
-started through `runpy` from `-c` rather than as a file argument, because
-Python exits 2 on a file it cannot open, as when a worktree is emptied under
-a session still running in it: under `UserPromptSubmit` that erases every
-prompt, and under `PostToolUse` it reports an error after every call, where
-through `runpy` the failure exits 1, which each launcher turns into its line
-and 0. They read
+guards' residual is *The guard launcher*'s. Python exits 2 on a file it
+cannot open, as when a worktree is emptied under a session still running in
+it, and under `UserPromptSubmit` that erases every prompt; the index hooks'
+launchers turn every non-zero exit into their line and 0, so none reaches
+the harness. Each starts its hook through `runpy` from `-c`, which reads
 `CLAUDE_PROJECT_DIR` from the environment rather than having it spliced into
 the program, which a path holding a quote would break. The refresh hook sets
 its own environment — `CBX_NO_SKILL_AUTO_UPDATE=1`, which it owes because it
