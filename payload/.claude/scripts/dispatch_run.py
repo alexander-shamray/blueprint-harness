@@ -1234,6 +1234,9 @@ def absorb(root, run, gid, run_refused=None):
     costs = [cost for cost in (_cost(entry.get("cost_usd")), end.cost_usd) if cost is not None]
     # A session with none of modelUsage, usage and total_cost_usd spent an unknown amount, so the row says so.
     uncounted = _uncounted(entry) + (not end.usage_source and not end.usage_models and end.cost_usd is None)
+    # Whether a session ran before the refused one, which `resume` reads when it lifts the hold.
+    if decision == "account":
+        entry["account_from"] = entry.get("status")
     entry.update(status=decision, absorbed=raw.get("started"), exit=end.exit_code, session_id=end.session_id,
                  usage=_add_counts(spent, end.usage), usage_sources=sources, usage_models=models,
                  cost_usd=sum(costs) if costs else None, usage_uncounted=uncounted, denials=end.denials,
@@ -1593,8 +1596,9 @@ def resume(root, run):
             else:
                 if status == "account":
                     # A resumed run is the owner's word that the account is fixed, so the hold goes before any wake
-                    # can read it, and the relaunch is a first session's: the refused one did nothing.
-                    entry["status"] = "running"
+                    # can read it. The refused session did nothing, so the group is what it was when it launched:
+                    # a first session's, or a relaunch's whose earlier session may have left work and a review.
+                    entry["status"] = "running" if entry.get("account_from") == "running" else "relaunch"
                     lifted = True
                 out.append(f"relaunch {gid}")
         elif status is None:
@@ -1740,6 +1744,8 @@ def report(root, run, tasks_path, today, body_source, open_source, owned_source)
     filed = list(dict.fromkeys(filed))
     tasks = parse_tasks(_read(tasks_path))
     listed = {row.key for row in tasks.in_progress}
+    # The same test `start` reopens by, so the line appears exactly when the next /dispatch resumes this run.
+    held = _holds_rows(directory, lambda: (listed, None))[0]
     for gid, entry in entries.items():
         status = entry.get("status")
         ended = entry.get("closed_from") if status in ("done", "returned") else status
@@ -1787,15 +1793,15 @@ def report(root, run, tasks_path, today, body_source, open_source, owned_source)
             needs.append(f"{gid} {status}: its worktree {entry.get('worktree')} is gone" + ("" if sync else f"; {rows}")
                          + _decisions_text(entry.get("decisions")))
         elif status == "account":
-            # A sync holds no row, so its run closes at this report and the next night's step 0 takes it again.
-            again = "takes the sync again" if entry.get("kind") == "sync" else f"resumes run {run} and relaunches it"
+            # A sync holds no row, so unless another group's rows hold the run, the next night's step 0 takes it again.
+            again = ("takes the sync again" if entry.get("kind") == "sync" and not held
+                     else f"resumes run {run} and relaunches it")
             interrupted.append(f"{gid} account: {one_line(entry.get('reason') or 'no reason recorded', 200)}; "
                                f"fix the account, then run /dispatch again, which {again}")
         else:
             interrupted.append(f"{gid} {UNFINISHED.get(status, status)}")
         usage += _usage_lines(gid, entry)
-    if _holds_rows(directory, lambda: (listed, None))[0]:
-        # The same test `start` reopens by, so the line appears exactly when the next /dispatch resumes this run.
+    if held:
         interrupted.append(f"resume: run /dispatch again in the main checkout; it resumes run {run}")
     bodies = _bodies(tasks, directory, body_source)
     open_set = set(open_source())
