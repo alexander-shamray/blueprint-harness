@@ -127,7 +127,7 @@ class SuppressionStub:
                 fi
                 if [ "${{1:-}}" = "issue" ] && [ "${{2:-}}" = "view" ]; then
                   {"exit 1" if issue_fails else ""}
-                  awk -v n="${{3:-}}" '$1 == n {{ print $2 }}' {table.as_posix()!r}
+                  awk -v n="${{3:-}}" '$1 == n {{ print $2 "\t" ($3 == "" ? "OPEN" : $3 == "-" ? "" : $3) }}' {table.as_posix()!r}
                   exit 0
                 fi
                 echo "stub gh: unexpected call: $*" >&2
@@ -180,6 +180,21 @@ class WhatSuppressesIsDecidedByCodeNow(unittest.TestCase):
         # the one path they need it, without their ever holding it.
         result = self.stub(owner="ada", authors={"42": "mallory"}).run("42")
         self.assertIn("mallory", result.stdout)
+
+    def test_a_closed_issue_the_owner_opened_is_not_tracking(self):
+        # Only an open issue suppresses: a closed one whose fix was reverted would otherwise hide the regression.
+        for state in ("CLOSED", "closed"):
+            with self.subTest(state=state):
+                result = self.stub(owner="ada", authors={"42": f"ada {state}"}).run("42")
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertIn(f"#42 is {state}", result.stdout)
+                self.assertNotIn("tracking: #42 was opened", result.stdout)
+
+    def test_an_issue_reporting_no_state_is_undetermined(self):
+        # The stub reads `-` as a state gh left empty.
+        result = self.stub(owner="ada", authors={"42": "ada -"}).run("42")
+        self.assertEqual(3, result.returncode, result.stderr)
+        self.assertIn("reports no state", result.stderr)
 
     def test_an_unresolvable_owner_is_undetermined_and_not_tracking(self):
         # Fail direction. Suppressing is the dangerous answer, and 3 is not 1:

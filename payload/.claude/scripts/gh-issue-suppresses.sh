@@ -20,8 +20,8 @@
 # that it could not find out.
 #
 # Exit codes, which are the whole interface:
-#   0  tracking      — the owner opened it; the candidate may be suppressed
-#   1  not tracking  — someone else opened it; the candidate files normally
+#   0  tracking      — the owner opened it and it is open; the candidate may be suppressed
+#   1  not tracking  — someone else opened it, or it is closed; the candidate files normally
 #   2  usage         — the argument is not an issue number
 #   3  undetermined  — the lookup failed; treat as not tracking and say so
 set -euo pipefail
@@ -43,10 +43,23 @@ owner=$(gh repo view --json owner --jq .owner.login) ||
 # One fixed field set. A caller that could choose fields could ask for the body
 # and route untrusted text back through a helper whose job is to keep a decision
 # out of the model's hands.
-author=$(gh issue view "$issue" --json author --jq '.author.login // ""') ||
+read=$(gh issue view "$issue" --json author,state --jq '[.author.login // "", .state // ""] | @tsv') ||
   { echo "could not read issue #$issue" >&2; exit 3; }
+read=${read//$'\r'/}
+author=${read%%$'\t'*}
+state=""
+[ "$author" = "$read" ] || state=${read#*$'\t'}
 [ -n "$author" ] ||
   { echo "issue #$issue reports no author; refusing to call it tracking" >&2; exit 3; }
+[ -n "$state" ] ||
+  { echo "issue #$issue reports no state; refusing to call it tracking" >&2; exit 3; }
+
+# A closed issue suppresses nothing, the owner's included: a finding that
+# reproduces after the close is the fix not holding, and re-files.
+if [ "$state" != "OPEN" ]; then
+  echo "not tracking: #$issue is $state, and only an open issue suppresses"
+  exit 1
+fi
 
 # Printed on both paths, so a suppression is auditable rather than asserted and
 # a near miss can be named in the round summary without the caller holding the
