@@ -185,6 +185,9 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             "exec -ca name sed -i 's/one/uno/' crlf.txt",
             "exec -cla name sed -i 's/one/uno/' crlf.txt",
             "env -iu LANG sed -i 's/one/uno/' crlf.txt",
+            # GNU time, reached as a program, takes its format and output file as separate words.
+            "env time -o log sed -i 's/one/uno/' crlf.txt",
+            "command time -f %e sed -i 's/one/uno/' crlf.txt",
         ):
             with self.subTest(command=command):
                 self.assertRefused(command, "crlf.txt")

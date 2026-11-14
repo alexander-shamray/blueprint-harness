@@ -36,7 +36,8 @@ PREFIXES = {
 WRAPPERS = {
     "command": set(),
     "exec": {"-a"},
-    "time": set(),
+    # bash's `time` keyword takes `-p` alone; GNU time, run as a program, a format and an output file.
+    "time": {"-f", "--format", "-o", "--output"},
     "builtin": set(),
     "nohup": set(),
     "env": {"-u", "--unset", "-C", "--chdir"},
