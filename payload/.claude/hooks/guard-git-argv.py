@@ -2327,6 +2327,7 @@ def push_position(segment):
     A non-flag after a flag is its value, without a list of value-taking
     globals, so `git --some-future-global X push` is still a push.
     """
+
     # Unless the flag is in `GLOBAL_VALUELESS_FLAGS` or carries its value after
     # `=`: then the non-flag is the subcommand, and `git --no-pager grep push`
     # is a `grep`.
@@ -2348,6 +2349,7 @@ def push_offence(segment):
     `push` is located rather than assumed to be first, so no global option,
     known or not, can hide it.
     """
+
     # `git log push` names a ref, not a push: `log` is the subcommand, and a
     # guard that fires on innocent traffic is one somebody turns off.
     start = push_position(segment)
