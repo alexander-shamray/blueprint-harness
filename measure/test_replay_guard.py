@@ -193,15 +193,18 @@ class Replay(unittest.TestCase):
         removed = str(main / ".claude" / "worktrees" / "merged")
         self.transcript("s1", bash("git status", cwd=removed), bash("git status", cwd=removed),
                         bash("ls", cwd=removed), bash("git status", cwd=str(main)),
-                        bash("git push --force origin x", cwd=removed))
+                        bash("git push --force origin x", cwd=removed),
+                        bash("git log origin/main..HEAD", cwd=removed))
         code, lines = self.replay(GIT_GUARD)
         self.assertEqual(code, 0)
-        self.assertEqual(lines[-2:], [{"gone": 2}, {"commands": 5, "refused": 1}])
+        self.assertEqual(lines[-2:], [{"gone": 3}, {"commands": 6, "refused": 1}])
         self.assertEqual((lines[0]["cwd"], lines[0]["count"]), (removed, 2))
         self.assertIn("git no longer registers a worktree there", lines[0]["gone"])
         self.assertEqual((lines[1]["command"], lines[1]["cwd"]), ("git push --force origin x", removed))
         self.assertIn("`git push --force` is not", lines[1]["reason"])
-        self.assertEqual(len(lines), 4)
+        self.assertEqual(lines[2]["command"], "git log origin/main..HEAD")
+        self.assertIn("gone", lines[2])
+        self.assertEqual(len(lines), 5)
 
     def test_a_sidechain_entry_is_bash_too(self):
         self.transcript("s1", bash("refuse-me", isSidechain=True))
