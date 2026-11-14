@@ -122,6 +122,14 @@ def vocabulary_areas(rules: Path) -> list[str]:
     return list(dict.fromkeys(WORD.findall(match.group(1))))
 
 
+def read_stdin() -> str:
+    """stdin as `gh`'s UTF-8, not the locale's encoding, which on Windows is not."""
+    try:
+        return sys.stdin.buffer.read().decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise InputRefused(f"stdin is not UTF-8: {error}") from error
+
+
 def label_names(stdin: str) -> set[str]:
     try:
         rows = json.loads(stdin)
@@ -204,7 +212,7 @@ def main(argv: list[str] | None = None, stdin: str | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        labels = label_names(sys.stdin.read() if stdin is None else stdin)
+        labels = label_names(read_stdin() if stdin is None else stdin)
         problems = check(args.templates, args.helper, args.rules, labels)
     except InputRefused as error:
         problems = [str(error)]
