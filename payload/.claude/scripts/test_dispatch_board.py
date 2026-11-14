@@ -1310,9 +1310,11 @@ class DayTests(unittest.TestCase):
 
     def test_a_crlf_list_stays_crlf(self):
         self.write(FIXTURE.replace("\n", "\r\n"))
-        self.start(1683)
-        self.cli("state", "1683", "PR open")
-        self.cli("back", "1683")
+        # Each step must land, or an unchanged file is what three refusals leave too.
+        self.assertEqual(0, self.start(1683)[0])
+        self.assertNotEqual(FIXTURE.replace("\n", "\r\n"), self.read())
+        self.assertEqual(0, self.cli("state", "1683", "PR open")[0])
+        self.assertEqual(0, self.cli("back", "1683")[0])
         self.assertEqual(FIXTURE.replace("\n", "\r\n"), self.read())
 
 
