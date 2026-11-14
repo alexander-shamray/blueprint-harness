@@ -474,6 +474,34 @@ class ApplyTests(unittest.TestCase):
         self.assertTrue((self.target / "Notes/A.md").exists())
         self.assertNotIn("Notes/A.md", self.manifest().files)
 
+    def test_a_payload_spelling_a_reserved_path_in_another_case_is_refused(self) -> None:
+        # On a case-folding filesystem `.harness/Manifest.json` is the manifest, and `.claude/Settings.json` the
+        # rendered settings, so a payload carrying either would overwrite what the target owns or apply renders.
+        for rel in (".harness/Manifest.json", ".HARNESS/config.json", ".claude/Settings.json"):
+            with self.subTest(rel=rel):
+                self.put(self.payload, rel, b"{}\n")
+                try:
+                    with self.assertRaises(ApplyError):
+                        apply(self.payload, self.target, COMMIT)
+                finally:
+                    (self.payload / rel).unlink()
+                self.assertFalse((self.target / ".harness/manifest.json").exists())
+
+    def test_a_payload_file_a_local_glob_names_in_another_case_is_not_managed(self) -> None:
+        # As the delete path folds case, so does the write: `docs/Testing.md` local keeps `docs/testing.md` local.
+        self.config({**CONFIG, "local": ["docs/Testing.md"]})
+        self.put(self.target, "docs/Testing.md", b"mine\n")
+        self.put(self.payload, "docs/testing.md", b"theirs\n")
+        if (self.target / "docs/testing.md").exists():
+            with self.assertRaises(ApplyError) as ctx:
+                apply(self.payload, self.target, COMMIT)
+            self.assertIn("is local", str(ctx.exception))
+        else:
+            result = apply(self.payload, self.target, COMMIT)
+            self.assertNotIn("docs/testing.md", result.written)
+            self.assertFalse((self.target / "docs/testing.md").exists())
+        self.assertEqual(b"mine\n", (self.target / "docs/Testing.md").read_bytes())
+
     def test_directory_of_empty_subdirectories_makes_way_for_a_file(self) -> None:
         self.put(self.payload, "z.md", b"z\n")
         (self.target / "z.md/sub/deeper").mkdir(parents=True)

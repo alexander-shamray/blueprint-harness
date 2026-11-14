@@ -232,9 +232,10 @@ def apply(
     contents: dict[str, bytes] = {}
     excluded: list[str] = []
     for rel in _walk(payload):
-        if rel == SETTINGS:
-            raise ApplyError(f"payload contains {SETTINGS}; it is rendered, never copied")
-        if rel in _RESERVED:
+        # Folded, as the delete path below folds: on a case-folding filesystem `.harness/Manifest.json` is the manifest.
+        if rel.lower() == SETTINGS.lower():
+            raise ApplyError(f"payload contains {rel}; {SETTINGS} is rendered, never copied")
+        if rel.lower() in {reserved.lower() for reserved in _RESERVED}:
             raise ApplyError(f"payload contains {rel}; the target owns it")
         _check_canonical(rel, "payload")
         if _first_match(cfg.exclude, rel) is not None:
@@ -248,7 +249,8 @@ def apply(
     # All refusals come before the first write so a refused apply leaves the target as it was.
     managed: dict[str, bytes] = {}
     for rel, data in contents.items():
-        glob = _first_match(cfg.local, rel)
+        # Case-insensitive, as the delete path is and for its reason: a case variant may name the local file.
+        glob = _first_match(cfg.local, rel, ignore_case=True)
         if glob is None:
             managed[rel] = data
         elif (target / rel).is_file() and not _is_current(target / rel, data):
