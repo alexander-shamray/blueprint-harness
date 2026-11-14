@@ -326,14 +326,16 @@ def _plural(count, noun):
     return f"{count} {noun}{'' if count == 1 else 's'}"
 
 
-def _left_behind(root, entry):
+def _left_behind(root, entry, earlier=False):
     """What a relaunched group's earlier session left in its worktree, as a clause for the prompt.
 
     Each read is best effort: one that fails or answers out of shape drops its part, and /ship's own state read
-    still decides what is owed. A sync is held to its proved head instead; a first launch left nothing.
+    still decides what is owed. A sync is held to its proved head instead; a first launch left nothing. `earlier`
+    is a pid file an earlier `run` of this launch left, which makes a `running` group one `resume` relaunched.
     """
     branch, worktree = entry.get("branch"), entry.get("worktree")
-    if entry.get("kind") == "sync" or entry.get("status") not in RELAUNCHED:
+    relaunched = entry.get("status") in RELAUNCHED or (earlier and entry.get("status") == "running")
+    if entry.get("kind") == "sync" or not relaunched:
         return ""
     if not isinstance(branch, str) or not BRANCH_NAME.fullmatch(branch) or not isinstance(worktree, str):
         return ""
@@ -568,7 +570,9 @@ def _launch(root, directory, run, gid, entry, flag=False):
     refusal starts none and leaves no temp directory."""
     # A relaunch's earlier session was read, so it goes before the launch checks; a record this removal missed is
     # read as absent beside a marker or a refusal line. Its pid goes too: `result --refused` reads a pid file as an
-    # executor started, and one this removal missed as the cautious side. An earlier launch's went at `launch`.
+    # executor started, and one this removal missed as the cautious side. An earlier launch's went at `launch`, so
+    # one here is an earlier `run`'s.
+    earlier = (directory / f"{gid}.pid").exists()
     _remove_stale(directory / f"{gid}.json", directory / f"{gid}.session.json", directory / f"{gid}.pid")
     # Until the executor's pid replaces it, the file names this process, which is alive while it launches: with no
     # file a `resume` in that window would read no executor and relaunch beside this one. A refusal removes it, so
@@ -576,7 +580,7 @@ def _launch(root, directory, run, gid, entry, flag=False):
     pid_file = directory / f"{gid}.pid"
     _write(pid_file, f"{os.getpid()}\n")
     try:
-        return _start(root, directory, run, gid, entry, flag, pid_file)
+        return _start(root, directory, run, gid, entry, flag, pid_file, earlier)
     except BaseException:
         try:
             if pid_file.read_text(encoding="utf-8").strip() == str(os.getpid()):
@@ -586,11 +590,11 @@ def _launch(root, directory, run, gid, entry, flag=False):
         raise
 
 
-def _start(root, directory, run, gid, entry, flag, pid_file):
+def _start(root, directory, run, gid, entry, flag, pid_file, earlier=False):
     # The owner's stop file ends relaunches too, not only the next wake's launches.
     if (directory / "STOP").exists():
         raise Refusal("stop file: the owner ended the night, so nothing more launches")
-    text = _prompt_for(directory, gid, entry, run, flag, _left_behind(root, entry))
+    text = _prompt_for(directory, gid, entry, run, flag, _left_behind(root, entry, earlier))
     flag = model_flag(entry.get("model"))
     worktree = Path(root) / _field(entry, gid, "worktree", _path_text)
     if not worktree.is_dir():
