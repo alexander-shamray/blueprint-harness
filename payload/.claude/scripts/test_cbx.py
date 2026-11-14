@@ -25,7 +25,7 @@ SKILL = SCRIPTS.parent / "skills" / "codebase-index"
 # allow list. At the start of a line, or after a backtick or whitespace, so the path `skills/codebase-index/` and the
 # package name in prose do not match.
 UNPINNED_CLI = re.compile(
-    r"(?:^|[`\s])codebase-index\s+(search|explain|architecture|symbol|refs|impact|diff-impact|path|describe|verify"
+    r"(?<![\w/.-])codebase-index\s+(search|explain|architecture|symbol|refs|impact|diff-impact|path|describe|verify"
     r"|stats|doctor|update|index|graph|mcp|clean|init|watch)\b", re.M)
 
 
@@ -242,10 +242,11 @@ class CbxWrapper(unittest.TestCase):
         self.assertIn("python3 -P -m", bash)
         self.assertIn("python -P -c", bash)
         self.assertIn("python -P -m", bash)
-        self.assertIn("-3.12 -P -c", ps1)
-        self.assertIn("-3.12 -P -m", ps1)
-        self.assertIn("-P -c", ps1)
-        self.assertIn("-P -m", ps1)
+        # Each spelled with its launcher, so the plain python fallback cannot ride on the py launcher's text.
+        self.assertIn("$pyLauncher.Source -3.12 -P -c", ps1)
+        self.assertIn("$pyLauncher.Source -3.12 -P -m", ps1)
+        self.assertIn("$py.Source -P -c", ps1)
+        self.assertIn("$py.Source -P -m", ps1)
 
     def test_powershell_restores_the_variables_in_a_finally_with_one_exit_after_it(self):
         """The text of the structure the behavioural case above runs: an
@@ -475,11 +476,13 @@ class CbxWrapper(unittest.TestCase):
         # The scan's subject is the scan: a pattern that matched nothing would pass every file above.
         for text in ("codebase-index verify --json", "Run `codebase-index search X`", "| `codebase-index impact X` |",
                      "x codebase-index  graph", "$ codebase-index doctor", "codebase-index mcp",
-                     "`codebase-index clean`", "codebase-index init .", "run codebase-index watch"):
+                     "`codebase-index clean`", "codebase-index init .", "run codebase-index watch",
+                     '"codebase-index search X"', "'codebase-index verify'", "(codebase-index refs X)",
+                     "$(codebase-index impact X)"):
             with self.subTest(text=text):
                 self.assertIsNotNone(UNPINNED_CLI.search(text))
         for text in ("the `codebase-index` package", "pip install codebase-index", "skills/codebase-index/scripts/cbx",
-                     "codebase-index is a package"):
+                     "codebase-index is a package", "x-codebase-index search", "skills/codebase-index search"):
             with self.subTest(text=text):
                 self.assertIsNone(UNPINNED_CLI.search(text))
 
