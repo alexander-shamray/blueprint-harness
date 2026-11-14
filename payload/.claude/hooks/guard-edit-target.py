@@ -550,6 +550,8 @@ def main():
               file=sys.stderr)
         return 0
 
+    # The same exception: JSON that is not an object names no tool and no
+    # path, so it is as unreadable as text that is not JSON at all.
     if not isinstance(event, dict):
         print("guard-edit-target: hook event is not an object; not judging",
               file=sys.stderr)
