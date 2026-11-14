@@ -100,6 +100,21 @@ class RenderTests(unittest.TestCase):
             with self.subTest(rule=rule), self.assertRaises(RenderError):
                 render_settings(base(), cfg(deny=[rule]))
 
+    def test_allow_a_base_deny_pattern_covers_refused(self) -> None:
+        # A deny wins over every allow it matches, not only the one spelled as it is.
+        denying = base()
+        denying["permissions"]["deny"] += ["Edit(.claude/scripts/**)", "WebFetch"]
+        for allow in ("Bash(git push --force origin:*)", "Bash(git push --force origin main)",
+                      "Edit(.claude/scripts/x.sh)", "Edit(./.claude/scripts/sub/**)", "WebFetch(domain:example.com)"):
+            with self.subTest(allow=allow), self.assertRaises(RenderError) as ctx:
+                render_settings(denying, cfg(allow=[allow]))
+            self.assertIn("denied by the base", str(ctx.exception))
+        # The controls: near spellings no deny here matches.
+        for allow in ("Bash(git push origin:*)", "Bash(git push --forcefully)", "Edit(.claude/scriptsx/a.sh)",
+                      "Edit(docs/**)", "Read(.claude/scripts/x.sh)"):
+            with self.subTest(allow=allow):
+                self.assertIn(allow, render_settings(denying, cfg(allow=[allow]))["permissions"]["allow"])
+
     def test_allow_vs_deny_comparison_strips(self) -> None:
         with self.assertRaises(RenderError):
             render_settings(base(), cfg(allow=["  Bash(git push --force:*) "]))
