@@ -1881,6 +1881,13 @@ verdicts for part of the diff.
 **Its grammar refuses rather than guesses.** A body carrying neither row
 prints nothing, and the caller skips its touch-set check and says so; one
 row without the other is refused, because each caller reads the pair. A
+row inside a fenced code block is an example and is not read, the fence
+being CommonMark's as the CI gate reads it: a backtick or tilde run of three
+or more, indented at most three spaces, a backtick opener's info string
+holding no backtick, closed by a run of the same character at least as long
+with only blanks after it, or by the end of the body. Read otherwise, a
+quoted example beside the table is a second row and the round refuses a
+body the gate passes. A
 class cell is one letter A–E, two distinct letters joined by `+`, or
 `A+D+E`; a touch-set cell is a comma-separated list of path tokens, bare or
 in balanced backticks, a backticked one optionally followed by a space and its
