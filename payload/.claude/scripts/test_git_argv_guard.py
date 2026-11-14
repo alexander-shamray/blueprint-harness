@@ -424,6 +424,21 @@ class TheGitArgvGuard(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertAdmitted(command)
 
+    def test_a_valueless_global_does_not_hide_the_subcommand(self):
+        # `--no-pager` takes no value, so the word after it is the subcommand,
+        # and a `push` further on is that subcommand's argument; a flag
+        # carrying its value after `=` takes nothing from the next word.
+        for command in ("git --no-pager grep push", "git -P stash push -m wip",
+                        "git --no-pager log push", "git -p grep -n push",
+                        "git --git-dir=.git grep push",
+                        "git --no-pager grep push | tail -1 && echo ok"):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+        for command in ("git --no-pager push origin +HEAD:main",
+                        "git --bare --no-pager push origin --mirror"):
+            with self.subTest(command=command):
+                self.assertRefused(command)
+
     def test_a_global_option_does_not_hide_the_subcommand(self):
         # A check reading `segment[0] != "push"` is a complete bypass, because
         # `-C` sits exactly where the subcommand goes and no refspec parsing
