@@ -365,13 +365,11 @@ case "$mode" in
     dirty=$(git status --porcelain --untracked-files=all)
     [ -z "$dirty" ] ||
       { echo "the tree is dirty; a rebase would carry or refuse it, and neither is this helper's call" >&2; exit 5; }
-    # A skip-worktree file reads clean in `git status` and is still local state
-    # the replay's checkout will not overwrite, so the replay would stop with
-    # git's "local changes would be overwritten" and name no file. It is
-    # refused here, by name, under the dirty tree's own exit. A sparse checkout
-    # sets the same flag on purpose, so one that says so is not read as a lift.
-    # An assume-unchanged file, tag h, hides its edits from `git status` the
-    # same way and no sparse checkout sets it, so it is refused either way.
+    # Skip-worktree and assume-unchanged (tag h) files read clean in `git status`:
+    # the replay stops on the first, naming no file, and overwrites the second.
+    # Both are refused here, by name, under the dirty tree's own exit. A sparse
+    # checkout sets skip-worktree on purpose, so one that says so lifts that
+    # flag alone; nothing sparse sets assume-unchanged.
     sparse=$(git config --type=bool core.sparseCheckout || :)
     if [ "$sparse" != "true" ]; then
       flagged=$(git ls-files -v | sed -n 's/^[Ssh] //p')

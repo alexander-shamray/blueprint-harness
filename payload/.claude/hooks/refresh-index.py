@@ -132,12 +132,11 @@ def common_dir(root: Path) -> Path | None:
 
 
 def safe_path() -> list[str]:
-    """`-P`, which keeps the script's or the working directory off `sys.path`, where the interpreter has it.
+    """`-P`, which keeps the script's or the working directory off `sys.path`, where the interpreter has it: 3.11's.
 
-    It is Python 3.11's, and an older `python3` may run the hook, where it is an unknown option and the child exits at
-    once with its stderr discarded: the refresh would never run, and a worktree's index never be seeded. Without it the
-    worker's path holds only the hook's own directory, which is as trusted as the hook; the module route, run in the
-    checkout, would hold the checkout, so `refresh` drops that route instead."""
+    An older `python3` may run the hook and exits at once on the option, stderr discarded, so nothing would refresh.
+    Without it the worker's path gains only the hook's own directory; the module route, run in the checkout, would
+    gain the checkout, so `refresh` drops that route instead."""
     return ["-P"] if sys.version_info >= (3, 11) else []
 
 
