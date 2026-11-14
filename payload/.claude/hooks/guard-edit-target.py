@@ -145,10 +145,8 @@ def under(child, parent, traits):
 def below(child, parent):
     """The part of `child` beneath `parent`, in `child`'s own spelling.
 
-    Only where `under` holds. It counts `parent`'s components rather than
-    comparing them, because `os.path.relpath` folds case on Windows alone, and
-    a part taken by a comparison that does not fold climbs out of a
-    differently-cased root.
+    Counted rather than compared, where `under` holds: `os.path.relpath`
+    folds case on Windows alone, and elsewhere climbs out of a cased root.
     """
     parts = [part for part in os.path.normpath(child).split(os.sep) if part]
     depth = len([part for part in os.path.normpath(parent).split(os.sep) if part])

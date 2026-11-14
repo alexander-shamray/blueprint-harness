@@ -1804,23 +1804,21 @@ def leading_command(run):
 def reads_stdin_as_script(words):
     """Whether a run made of `words` will execute what arrives on its stdin.
 
-    A wrapper in front of a shell — `echo 'git push origin +HEAD:main' |
-    command bash`, or `env bash` — still runs the push, so the shell is looked
-    for anywhere in the run, and the exemption is `DATA_ONLY_COMMANDS`'
-    allow-list rather than a set of wrappers, which fails open on the first
-    one nobody listed. A run led by one of `READING_COMMANDS` but `git` is
-    exempt too, so `printf '%s' x | grep bash` is not a printer feeding a
-    shell. Reading any shell name elsewhere in the run still over-refuses
-    a printer that formats, `printf` with a `%` or `echo -e`, piped into a
-    run that names a shell as an argument.
-
     A run carrying `-c` reads its script from the argv rather than from stdin,
     and `evaluated_scripts` judges that channel at any position already.
     """
     body = [word for word in words if not ASSIGNMENT.match(word)]
+
+    # A wrapper in front of a shell, `command bash` or `env bash`, still runs
+    # the push, so the shell is looked for anywhere in the run, and the
+    # exemption is an allow-list rather than a set of wrappers, which fails
+    # open on the first one nobody listed.
     if not body or program_name(body[0]) in DATA_ONLY_COMMANDS:
         return False
-    # `git` reads its words as a subcommand, and `bisect run` executes one.
+
+    # A reader takes a shell's name as a pattern or a file; `git` is no reader
+    # here, since `bisect run` executes its operand. A printer that formats,
+    # piped into any other run naming a shell, is still refused.
     if program_name(body[0]) in READING_COMMANDS - {"git"}:
         return False
     for position, word in enumerate(body):
@@ -2324,7 +2322,11 @@ def subcommand_of(segment):
 
 
 def push_position(segment):
-    """The index of `push` in `segment` where it is the subcommand, or None."""
+    """The index of `push` in `segment` where it is the subcommand, or None.
+
+    A flag git documents as valueless, or one carrying its value after `=`,
+    takes nothing from the next word, so `git --no-pager grep push` is a grep.
+    """
     for index, element in enumerate(segment):
         if element.startswith("-"):
             continue
@@ -2353,9 +2355,7 @@ def push_offence(segment):
     # It also keeps `git log push` — a ref that happens to be called `push` —
     # out of the push checks, because `log` is a non-flag that no flag precedes,
     # so `log` is the subcommand and `push` is one of its arguments: a guard
-    # that fires on innocent traffic is one somebody turns off. A flag git
-    # documents as valueless, or one carrying its value after `=`, precedes
-    # nothing, so `git --no-pager grep push` is a `grep`.
+    # that fires on innocent traffic is one somebody turns off.
     start = push_position(segment)
     if start is None:
         return None
