@@ -93,6 +93,15 @@ py -3.12 -m unittest discover -s measure -t .
 
 Use `py -3.12`, not `python`: CI pins 3.12 and a local default may be newer.
 
+The game day, `py -3.12 -m harness_sync.game_day`, applies the payload to a
+scratch target and causes, for real, each condition a guard or gate claims to
+catch: every guard fired through the hook command the rendered settings wire,
+a managed file edited under the drift gate, and a task list edited by hand
+under `dispatch_board.py`. It prints `FINDING:` wherever one is let through or
+refused for another reason, and for a guard the settings wire with no
+scenario; what it cannot cause offline it names, with the suite that holds it.
+`harness_sync/tests/test_game_day.py` runs it in the `sync-tool` job.
+
 To run the drift gate against a target, from this repository:
 
 ```bash
