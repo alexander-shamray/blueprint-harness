@@ -452,7 +452,7 @@ class NoCommandGrantsGhWithoutASubcommand(unittest.TestCase):
                       "Bash(gh ext:*)", "Bash(gh extensions:*)"):
             with self.subTest(entry=entry):
                 self.assertTrue(self.refused(entry))
-        # The grants the commands hold, and the helpers whose names open with `gh`, are spared.
+        # Grants that name a subcommand, ship.md's among them, and the helpers whose names open with `gh` are spared.
         for entry in ("Bash(gh pr checks:*)", "Bash(gh issue list:*)", "Bash(gh api repos:*)",
                       "Bash(bash .claude/scripts/gh-issue-list.sh)", "Bash(bash .claude/scripts/gh-pr-merge.sh:*)",
                       "Bash(git diff:*)", "Read"):
