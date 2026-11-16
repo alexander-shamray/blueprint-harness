@@ -416,3 +416,65 @@ More issues than red runs: a run its rerun turned green reads green here and
 kept its issue. So the rollout did not keep every `main` green. Of the issues
 the main-red jobs opened, only blueprint-frontend#520 is still open, and it is
 that repository's to close.
+
+## A week of frontend `/ship` sessions
+
+Measured on 2026-11-16 for #272, which read frontend's handovers on the day of
+its first sync, 2026-11-08, and was left to be read again after a week, on the
+filter *What is counted* describes. The first line is that day, the second the
+week after it:
+
+```bash
+py -3.12 measure/stops.py --project 'C--dev-ashamray-blueprint-frontend*' --since 2026-11-08 --until 2026-11-08 --command ship
+py -3.12 measure/stops.py --project 'C--dev-ashamray-blueprint-frontend*' --since 2026-11-09 --until 2026-11-15 --command ship
+```
+
+Each cell but the count of sessions is the median, then the total, then the
+largest session; the baseline row is *After #297*'s baseline window.
+
+| Frontend `ship` | Sessions | ask_user | action_required | permission_refused | user_turns |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Baseline window | 9 | 0; 3, max 3 | 2; 16, max 6 | 0; 2, max 2 | 0; 7, max 2 |
+| 2026-11-08 | 12 | 0; 0, max 0 | 1; 17, max 5 | 0; 3, max 2 | 0; 4, max 1 |
+| 2026-11-09 to 2026-11-15 | 74 | 0; 0, max 0 | 0; 45, max 4 | 0; 7, max 2 | 0; 21, max 3 |
+
+The first day reproduces *After #297*'s row since the sync. Over the week
+`action_required` falls to 45 over 74, 0.6 a session against the baseline's
+1.8 and the first day's 1.4, with the median from 2 to 0 and the largest
+session from 6 to 4. `permission_refused` falls from 2 over 9 to 7 over 74
+and `user_turns` from 7 over 9 to 21 over 74. The one cell that rises is the
+largest session's turns again, 3 against 2, a tail on a median of 0 on both
+sides, as *After plan 6* read it.
+
+### What the 45 hand over
+
+Each handover's line and the script it names were read from the transcripts
+and the scratchpads or `artifacts/handoff/` files they point to, as #272 read
+the first day's seventeen; a script's target is what its text names, not what
+running it did.
+
+| What the handover asks | Handovers | Sessions |
+| --- | ---: | ---: |
+| A script editing a path the session may not edit | 17 | 13 |
+| `/ship sync #<n>`, or `/ship` on a branch and then the sync | 7 | 4 |
+| A note or patch for a session in this repository: the change is the payload's | 7 | 7 |
+| `rmdir` and the branch drop for the worktree the session held, as step 6 hands them over on Windows | 3 | 3 |
+| A CI rerun after a GitHub DNS failure, `/ship` again in the session, `/ship` after the weekly limit, a script closing two issues | 4 | 3 |
+| Nothing: a verdict spelt `⚠️ ACTION REQUIRED — none yet` or `— none: …`, which the counter takes for a handover | 7 | 4 |
+
+The seventeen scripts by the path they edit:
+
+| The script edits | Handovers | Sessions |
+| --- | ---: | ---: |
+| `.github/workflows/`: `ci.yml`, `game-day.yml`, `main-red-rerun.yml` | 8 | 6 |
+| `.harness/sweep-rows.tsv`, once beside `.github/workflows/ci.yml` | 2 | 2 |
+| A target-local suite: `.claude/scripts/test_npm_checks.py` or `test_root_ignore_coverage.py` | 6 | 4 |
+| `.vscode/launch.json`, which frontend's `.claude/settings.json` denies | 1 | 1 |
+
+The scripts on a denied path fall from 15 over the first day's 12 sessions,
+1.25 a session, to 17 over the week's 74, 0.23, and 61 of the 74 sessions hand
+none over. Against the baseline, per session, the count has fallen back and
+below it, so by the owner's decision on #272 the issue closes with no deny and
+no suite moved. What stays is the shape it named: six of the seventeen are
+target-local suites a session's own review round wrote and could not land, and
+eight are workflow lines, at under one a day each.
