@@ -1313,8 +1313,8 @@ class ResultCommandTests(InRoot):
         self.assertTrue(group_state(RUN, "S1")["unreviewed"])
 
     def test_a_session_whose_only_refusals_are_the_index_hints_is_relaunched(self):
-        # Issue #549: blueprint-frontend's A11 was refused one grep by the index hint, which a rerun passes, ended its
-        # turn after /commit, and was handed back for the refusal: its two commits sat unpushed all night.
+        # On blueprint-frontend's night 20261114-130647, A11 was refused one grep by the index hint, which a rerun
+        # passes, ended its turn after /commit, and was handed back for the refusal: two commits sat unpushed all night.
         spec = importlib.util.spec_from_file_location("index_search_hint", HOOKS / "index-search-hint.py")
         hook = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(hook)

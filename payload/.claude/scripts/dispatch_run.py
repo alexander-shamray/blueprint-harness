@@ -1012,7 +1012,7 @@ def classify(end, result, crashes, now, hinted=False):
         return "account"
     # 2026-11-01-dispatch-spike.md, Prompts: a call the auto classifier refused is a hand-back; a relaunch would
     # meet it again. The index hint's refusal is no deny: a rerun passes it, so a session that met only that one
-    # ended for some other reason and is a crash's, relaunched once (issue #549).
+    # ended for some other reason and is a crash's, relaunched once.
     if end.denials and not hinted:
         return "handed-back"
     return "relaunch" if crashes < 1 else "crash-hand-back"
