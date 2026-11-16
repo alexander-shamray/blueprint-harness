@@ -270,7 +270,8 @@ def xdg_git_config(path, cwd=None, whole=False):
     git reads that file in place of `~/.config/git/config` when the variable is set and not empty,
     a relative value from where git runs, so it runs at login as `.gitconfig` does. `path` is
     judged as spelled and as resolved, against the variable's own spelling and resolution;
-    `whole` counts the directories holding it, which a removal takes with it.
+    `whole` counts the directories holding it below the home or the filesystem's root, which a removal
+    takes with it and a move or a copy may put in place whole.
     """
     value = os.environ.get("XDG_CONFIG_HOME")
     if not value:
@@ -283,7 +284,13 @@ def xdg_git_config(path, cwd=None, whole=False):
     config = os.path.normpath(os.path.abspath(value))
     named = [os.path.join(config, "git", "config")]
     if whole:
-        named += [config, os.path.join(config, "git")]
+        named.append(os.path.join(config, "git"))
+        homes = [os.path.abspath(home)
+                 for home in (os.environ.get("HOME"), os.path.expanduser("~")) if home]
+        place = config
+        while os.path.dirname(place) != place and not any(beneath(home, place) for home in homes):
+            named.append(place)
+            place = os.path.dirname(place)
     names = {os.path.normcase(form).lower()
              for place in named for form in (place, os.path.realpath(place))}
     for place in (os.path.abspath(path), os.path.realpath(path)):

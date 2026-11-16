@@ -4229,16 +4229,20 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
     def test_git_reads_its_xdg_config_where_the_variable_moves_it(self):
         # git reads `$XDG_CONFIG_HOME/git/config` when the variable is set, wherever it points.
         _, env = self.real_home()
-        moved = temp_root(self)
+        holder = Path(temp_root(self)).as_posix()
+        moved = os.path.join(holder, "a", "b")
         spelled = Path(moved).as_posix()
         env = {**env, "XDG_CONFIG_HOME": moved}
+        # A directory holding it, which a move or a copy puts in place whole, as `~/.config` is.
         for command in (f"ls > {spelled}/git/config", 'echo x >> "$XDG_CONFIG_HOME/git/config"',
                         "tee ${XDG_CONFIG_HOME}/git/config", f"cp a {spelled}/git/config",
-                        f"rm -rf {spelled}/git", f"rm -rf {spelled}", f"mv {spelled}/git /tmp/x"):
+                        f"rm -rf {spelled}/git", f"rm -rf {spelled}", f"mv {spelled}/git /tmp/x",
+                        f"mv staged {holder}/a", f"cp -r staged {holder}/a", f"rm -rf {holder}"):
             with self.subTest(command=command):
                 self.assertIn("$XDG_CONFIG_HOME/git/config", self.assertRefused(command, env=env))
         self.admitted(f"ls > {spelled}/git/ignore", f"ls > {spelled}/other/config",
-                      'ls > "$XDG_CONFIG_HOME/git/ignore"', f"cat {spelled}/git/config", env=env)
+                      'ls > "$XDG_CONFIG_HOME/git/ignore"', f"cat {spelled}/git/config",
+                      f"mv staged {holder}/c", env=env)
         self.admitted(f"ls > {spelled}/git/config", env={**env, "XDG_CONFIG_HOME": ""})
 
     def test_the_claude_code_user_state_is_refused_in_a_home_that_is_no_checkout(self):
