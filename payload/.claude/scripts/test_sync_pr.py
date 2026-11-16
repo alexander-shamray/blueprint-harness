@@ -413,6 +413,8 @@ class VerifyTests(SyncCase):
 
         with mock.patch.object(sync_pr, "run", racing):
             self.assertEqual((0, f"verified 7 {NEW_H}\n", ""), self.cli("verify", "7", "--head", oid))
+        # The call's own ref goes once it has been read, so no verify leaves one behind to collide with or pin commits.
+        self.assertEqual("", git(self.root, "for-each-ref", "refs/sync-pr/"))
 
     def test_an_unparseable_manifest_fails_closed(self):
         self.head_files[".harness/manifest.json"] = "{not json"
