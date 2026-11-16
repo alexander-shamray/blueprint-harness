@@ -16,8 +16,9 @@ A commit in `base..head` that:
   `Revert "Revert "<subject>""`, is judged by the innermost subject;
 - carries no `PR: #<this pull request>` trailer, carries one naming
   another pull request, or carries it more than once —
-  `git-revert-pr.sh` compares the whole parsed trailer text, so it would
-  leave a doubled one out of a revert, and git appends a second on its own
+  `git-revert-pr.sh` compares every parsed `PR:` line, joined, with the
+  one line `PR: #<n>`, so it would leave a doubled one out of a revert, and
+  git appends a second on its own
   when another trailer sits between the two.
 
 A range of no commits is refused rather than passed.
