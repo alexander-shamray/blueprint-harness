@@ -602,7 +602,7 @@ class LaunchTests(InRoot):
             run_fake_claude(stdout=json.dumps(SUCCESS).encode("utf-8"), description="Narrow")
         seen = json.loads(Path("fake/seen.json").read_text(encoding="utf-8"))
         self.assertIn(f"(relaunched: the previous session ended with no result the dispatcher accepted, and left "
-                      f"{BRANCH} 2 commits ahead of origin/main;", seen["stdin"])
+                      f"{BRANCH} 2 commits ahead of origin/main, no PR open;", seen["stdin"])
 
     def test_a_first_launch_reads_nothing_it_left(self):
         record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
@@ -628,6 +628,11 @@ class LaunchTests(InRoot):
         with mock.patch.object(dr, "git", lambda root, *a: "1\n" if a[0] == "rev-list" else ""), \
                 mock.patch.object(dr, "helper", refuse):
             self.assertIn(f"left {BRANCH} 1 commit ahead of origin/main;", dr._left_behind(".", entry))
+        # A read that answers with no open PR says so, so the relaunch resumes /ship at the push and /pr.
+        closed = json.dumps([{"number": 350, "state": "CLOSED"}])
+        with mock.patch.object(dr, "git", lambda root, *a: "2\n" if a[0] == "rev-list" else ""), \
+                mock.patch.object(dr, "helper", lambda root, *a: closed):
+            self.assertIn(f"left {BRANCH} 2 commits ahead of origin/main, no PR open;", dr._left_behind(".", entry))
         # Nothing left, or out of shape, is no clause: the relaunch reads its own state as any /ship does.
         for answer in ("0\n", "not a count"):
             with self.subTest(answer=answer), \
