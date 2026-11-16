@@ -371,6 +371,21 @@ A sync's relaunch carries none, since its tree is held to its proved head
 and never committed to, and the clause is built from the branch name, a
 commit count and a PR number, never issue text.
 
+A session that wrote no result and met a denial is a hand-back, since a
+relaunch would meet the deny again — unless every denial it met is the
+index hint's. `index-search-hint.py` refuses a session's first search for a
+named symbol once, and the same call rerun passes, so that refusal ended
+nothing: on blueprint-frontend's night 20261114-130647, A11 met it, ended
+its turn on `/commit`'s report for another reason, and was handed back with
+two commits unpushed (blueprint-harness#549). `result` matches each denial's
+`tool_use_id`, from the envelope the CLI writes, to the refused result the
+transcript the envelope's session id names holds for that id, a hook's
+refusal ending on the hint's own last sentence; where every denial matches,
+the session is a crash, relaunched once and handed back on a second, and its
+reason says the refusal was advisory. A denial with no id, a transcript
+that cannot be read or is not named, or one unmatched denial leaves the
+hand-back as it was.
+
 A `Model` cell `launch` would refuse holds its group at `board` and `wake`,
 since `launch` comes after the fork and `tasks move`, and a refusal there
 leaves an empty worktree behind.
