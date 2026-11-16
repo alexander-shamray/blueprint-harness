@@ -690,7 +690,7 @@ class LaunchTests(InRoot):
         self.assertIsNone(seen["api_key"])
 
     def test_run_starts_the_executor_with_no_working_directory_search(self):
-        # #587: the npm `claude.cmd` shim's bare `node` was looked for in the worktree, which a merged branch fills.
+        # The npm `claude.cmd` shim's bare `node` was looked for in the worktree, which a merged branch fills.
         # The parent's own value, in either case, is replaced rather than sent beside it.
         record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
         with mock.patch.dict(os.environ, {"NODEFAULTCURRENTDIRECTORYINEXEPATH": "0"}):

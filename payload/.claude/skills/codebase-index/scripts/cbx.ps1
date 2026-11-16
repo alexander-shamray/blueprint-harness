@@ -26,7 +26,7 @@ if ($allowed -notcontains $Subcommand) {
 # `finally`, and the one exit after it is the only way out: an exit inside the
 # `try` would leave them set for every later `python` the caller starts.
 # NoDefaultCurrentDirectoryInExePath keeps what the CLI starts, git first, from
-# running a planted executable in the checkout ahead of PATH (#584).
+# running a planted executable in the checkout ahead of PATH.
 $savedSafePath = $env:PYTHONSAFEPATH
 $savedAutoUpdate = $env:CBX_NO_SKILL_AUTO_UPDATE
 $savedNoCwdSearch = $env:NoDefaultCurrentDirectoryInExePath

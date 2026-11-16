@@ -4219,7 +4219,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                         "ls > $HOME/.zshrc", 'ls > "$HOME/.profile"', "ls > ~/.ssh/authorized_keys",
                         "tee ~/.gitconfig", "cp a ~/.bash_profile", "rm ~/.ssh/config",
                         f"ls > {Path(home, '.gitconfig').as_posix()}",
-                        # #585: git's XDG config runs as `.gitconfig` does, and so does its removal's parent.
+                        # git's XDG config runs as `.gitconfig` does, and so does its removal's parent.
                         "ls > ~/.config/git/config", 'echo x >> "$HOME/.config/git/config"',
                         "tee ~/.config/git/config", "cp a ~/.config/git/config", "rm -rf ~/.config/git",
                         "rm -rf ~/.config", "mv ~/.config/git /tmp/x"):
@@ -4227,7 +4227,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                 self.assertIn("No rule judges a shell write", self.assertRefused(command, env=env))
 
     def test_the_claude_code_user_state_is_refused_in_a_home_that_is_no_checkout(self):
-        # #585: `~/.claude.json` sits beside `~/.claude`, and its MCP servers start with every later session.
+        # `~/.claude.json` sits beside `~/.claude`, and its MCP servers start with every later session.
         _, env = self.real_home()
         for command in ("ls > ~/.claude.json", 'echo x > "$HOME/.claude.json"', "tee ~/.claude.json",
                         "cp a ~/.claude.json", "mv /tmp/a ~/.claude.json", "rm ~/.claude.json"):
@@ -4246,7 +4246,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                         "tee ~/.claude/output-styles/a.md", "rm ~/.claude/output-styles/a.md",
                         "rm -rf ~/.claude", "rm -rf ~/.claude/*", "mv ~/.claude /tmp/x",
                         "find ~/.claude/projects -delete",
-                        # #586: the owner's rules, which the writing commands deny their editing tools too.
+                        # The owner's rules, which the writing commands deny their editing tools too.
                         "ls > ~/.claude/CLAUDE.md", 'echo x >> "$HOME/.claude/CLAUDE.md"',
                         "tee -a ~/.claude/CLAUDE.md", "cp a ~/.claude/CLAUDE.md", "rm ~/.claude/CLAUDE.md"):
             with self.subTest(command=command):
@@ -4314,7 +4314,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                              (control, "echo x > settings.json"),
                              (control, "ls > hooks/x.py"),
                              (control, "echo x > ~/.claude/settings.local.json"),
-                             # #586: the owner's rules, by the name this checkout gives them.
+                             # The owner's rules, by the name this checkout gives them.
                              (control, "ls > CLAUDE.md"),
                              (keys, "ls >> authorized_keys")):
             with self.subTest(cwd=cwd, command=command):
