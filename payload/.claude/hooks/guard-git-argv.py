@@ -2990,7 +2990,8 @@ def destination_offence(word, cwd, command, writer, whole=False, inside=None, re
     path = written_path(word, cwd, command)
     if path is not None and inside is not None:
         path = os.path.join(path, inside)
-    if path is not None and elsewhere(path):
+    # As spelled too: `abspath` puts the cwd drive before `\??\`, which Windows then reads as the share.
+    if path is not None and (elsewhere(path) or elsewhere(target_literal(word) or "")):
         return (
             f"{writer} would write `{path}`, a share or device path that no place "
             "this session stands on holds. The guard does not open it to judge it: "

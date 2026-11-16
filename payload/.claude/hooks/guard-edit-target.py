@@ -205,8 +205,10 @@ def verified_gitdir(root):
             text = handle.read().strip()
         if not text.startswith("gitdir:"):
             return None
-        pointer = os.path.join(root, text.split(":", 1)[1].strip())
-        if GRAMMAR.foreign(pointer, root, os.getcwd(), os.environ.get("CLAUDE_PROJECT_DIR")):
+        spelled = text.split(":", 1)[1].strip()
+        pointer = os.path.join(root, spelled)
+        if any(GRAMMAR.foreign(place, root, os.getcwd(), os.environ.get("CLAUDE_PROJECT_DIR"))
+               for place in (spelled, pointer)):
             return None
         gitdir = os.path.realpath(pointer)
         with open(os.path.join(gitdir, "gitdir"), encoding="utf-8") as handle:
@@ -256,8 +258,10 @@ def common_git_dir(root):
         return None
     try:
         with open(os.path.join(gitdir, "commondir"), encoding="utf-8") as handle:
-            pointer = os.path.join(gitdir, handle.read().strip())
-        if GRAMMAR.foreign(pointer, gitdir, os.getcwd(), os.environ.get("CLAUDE_PROJECT_DIR")):
+            spelled = handle.read().strip()
+        pointer = os.path.join(gitdir, spelled)
+        if any(GRAMMAR.foreign(place, gitdir, os.getcwd(), os.environ.get("CLAUDE_PROJECT_DIR"))
+               for place in (spelled, pointer)):
             return None
         common = os.path.realpath(pointer)
     except (OSError, ValueError):
