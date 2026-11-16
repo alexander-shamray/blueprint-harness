@@ -54,7 +54,7 @@ class Judgement(unittest.TestCase):
         self.assertEqual(len(check(7, [commit(trailers=(("PR", "#7"), ("PR", "#8")))])), 1)
 
     def test_the_right_trailer_twice_fails(self) -> None:
-        # git-revert-pr.sh and git-trailer-pr.sh compare the whole parsed trailer text, so a doubled
+        # git-revert-pr.sh and git-trailer-pr.sh compare every parsed PR: line, joined, with one, so a doubled
         # trailer is left out of a revert of this pull request; git appends one on its own when another
         # trailer sits between the two.
         problems = check(7, [commit(trailers=(("PR", "#7"), ("Co-Authored-By", "Claude"), ("PR", "#7")))])
