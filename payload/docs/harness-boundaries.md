@@ -2724,7 +2724,10 @@ crash, never a success.
   access to a `PATH` directory, which already runs code.
 - A refusal at night is a hand-back. `result` classifies it, the morning
   report shows it, and the grant is never widened to get past it (the
-  spec's §2, its last anti-goal).
+  spec's §2, its last anti-goal). The index hint's refusal is the one
+  exception: a rerun of the same call passes it, so a session whose only
+  denials are that one is read as a crash (`docs/commands/dispatch.md`,
+  *Waking*).
 - No script reads the weekly figure. Token Weather's pause notice in the
   dispatcher's own session ends the night (spec §8). Whether that pause
   reaches a headless executor is untested
