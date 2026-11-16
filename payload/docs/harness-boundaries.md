@@ -956,7 +956,8 @@ command, so it sits inside the guards' threat model.
 **One predicate, `.claude/hooks/path_grammar.py`, names the paths**, and
 every hook loads it by path. It reads the grammar as the edit-target guard
 already did (*Edit guard path resolution*): any spelling opening with two
-separators, either way round — a UNC share, `\\?\` or `\\.\` — on Windows
+separators, either way round — a UNC share, `\\?\` or `\\.\` — and the
+NT namespace's `\??\`, which Win32 passes through as it is, on Windows
 alone, since `//x` on POSIX is a local path. A path beneath the home or a
 place the session stands on, its working directory or the project, is the
 user's own and is judged as before; anything else in that grammar is
@@ -967,17 +968,26 @@ foreign, compared lexically, so an alias of an own share is foreign too.
 - `guard-git-argv.py` refuses a write, a removal or a git verb whose target is
   one, as the edit-target guard refuses an edit there: it cannot judge the
   target without opening it, and a device spelling of a local file would pass
-  the denies. A `cd` or `git -C` onto one places nothing after it.
+  the denies. A relative target after a `cd` or `git -C` onto one lands on
+  the share, and is refused the same way.
 - `guard-edit-target.py` refuses an edit there, and follows no `gitdir:` or
   `commondir` pointer into one.
 - `guard-sed-crlf.py` admits an operand or a `cd` it would have to open to
-  place: a file on another machine is not a checkout's CRLF file.
+  place, since a file on another machine is not a checkout's CRLF file, and
+  runs no git in a checkout whose `.git` file points at one.
 - `index-search-hint.py` gives no hint for a search of one, and follows no
   `gitdir:` pointer into one.
 
 `test_host_paths.py` runs each hook in process with every filesystem and
 process entry point the hooks use fenced, and fails on any call that names
 its share; the grammar is switched on there, so the POSIX legs judge it too.
+
+**Residuals.** What git follows past the first pointer — a `commondir`, a
+config `include`, a link whose target is a share — is git's own reading,
+which no hook sees before it runs; reaching it takes a file the session
+wrote first, in a checkout the sed guard then runs git in. A share the
+user's `PATH` names is the user's configuration, not a call's, and the sed
+guard still resolves it.
 
 ## The guard launcher
 
@@ -2631,7 +2641,8 @@ file is opened, read-only, and nothing read leaves the hook but a path: the
 one the command spelled, or a file its brace expansion names or a glob of
 it matched. So a device, a FIFO or a directory is never opened,
 and a path outside the checkout costs a read the session could `cat`
-anyway. The one thing a path can make it run is git in that path's
+anyway; one on another machine is not opened at all (*Paths on another
+machine*). The one thing a path can make it run is git in that path's
 directory, whose checkout may be foreign: the call switches
 `core.fsmonitor` off, since `ls-files` would otherwise run the command a
 hostile config names, and sets `GIT_OPTIONAL_LOCKS=0` so the read writes no
@@ -2656,7 +2667,8 @@ only a `.cmd`, read as no git on `PATH`.
 
 **Where it fails open, by design rather than by crash.** An operand holding
 an expansion (`"$FILE"`, `$(git ls-files)`), a `cd` it cannot follow, a
-`cd` or `pushd` to a directory not there when the hook runs, a file
+`cd` or `pushd` to a directory not there when the hook runs, an operand
+or a `cd` on another machine, a file
 that does not exist or cannot be read, a command `shlex` cannot tokenise, no
 git on `PATH`, or a git that cannot answer: each is admitted, because a
 guard that refuses what it cannot resolve blocks ordinary work for want of

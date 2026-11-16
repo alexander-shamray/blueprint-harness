@@ -3928,6 +3928,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         owner = temp_root(self)
         os.makedirs(os.path.join(owner, ".claude", "hooks"))
         hook = shutil.copy(HOOK, os.path.join(owner, ".claude", "hooks"))
+        shutil.copy(HOOK.parent / "path_grammar.py", os.path.join(owner, ".claude", "hooks"))
         with open(os.path.join(owner, ".claude", "settings.json"), "w", encoding="utf-8") as handle:
             json.dump({"permissions": {"deny": [f"Edit({rule})" for rule in denies]}}, handle)
         return hook

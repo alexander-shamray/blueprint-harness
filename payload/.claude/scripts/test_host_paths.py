@@ -18,6 +18,8 @@ from unittest import mock
 HOOKS = pathlib.Path(__file__).resolve().parent.parent / "hooks"
 HOST = "guard-host.invalid"
 SHARE = f"//{HOST}/share"
+# The NT namespace opens with one separator and reaches the share all the same.
+NT_SHARE = rf"\??\UNC\{HOST}\share"
 
 
 def load(name):
@@ -38,7 +40,7 @@ def names_the_host(value):
         return False
     if isinstance(text, bytes):
         text = text.decode("utf-8", "replace")
-    return HOST in text.lower() and text[:2].replace("/", "\\") == "\\\\"
+    return HOST in text.lower() and text.replace("/", "\\").startswith(("\\\\", "\\??\\"))
 
 
 ENTRY_POINTS = [
@@ -83,6 +85,12 @@ def nothing_leaves(case):
     case.assertEqual([], reached, "a hook opened a path on another machine")
 
 
+def write(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="") as handle:
+        handle.write(text)
+
+
 class TheGrammar(unittest.TestCase):
     """The one predicate every hook asks."""
 
@@ -92,10 +100,10 @@ class TheGrammar(unittest.TestCase):
     def test_the_whole_family_is_the_other_grammar_on_windows(self):
         with mock.patch.object(self.grammar, "WINDOWS", True):
             for spelling in (SHARE, "\\\\host\\share", "/\\host\\share", "\\/host/share",
-                             "\\\\?\\C:\\x", "\\\\.\\C:\\x", "//?/UNC/host/share"):
+                             "\\\\?\\C:\\x", "\\\\.\\C:\\x", "//?/UNC/host/share", NT_SHARE):
                 with self.subTest(spelling=spelling):
                     self.assertTrue(self.grammar.other_grammar(spelling))
-            for spelling in ("/c/dev/x", "C:\\dev\\x", "C:/dev/x", "/x", "x", ""):
+            for spelling in ("/c/dev/x", "C:\\dev\\x", "C:/dev/x", "/x", "\\x", "x", ""):
                 with self.subTest(spelling=spelling):
                     self.assertFalse(self.grammar.other_grammar(spelling))
 
@@ -107,12 +115,13 @@ class TheGrammar(unittest.TestCase):
     def test_a_share_the_session_stands_on_is_its_own_and_an_alias_of_it_is_not(self):
         own = "\\\\nas\\projects\\repo"
         with mock.patch.object(self.grammar, "WINDOWS", True), mock.patch.dict(os.environ, {"HOME": "/home/x"}):
-            self.assertFalse(self.grammar.foreign(own, own))
-            self.assertFalse(self.grammar.foreign(own + "\\docs\\x.md", own))
-            # Lexical, so only a Windows host reads `\\NAS` as `\\nas`.
-            for foreign in ("\\\\nas\\projects\\repo-other\\x", "\\\\?\\UNC\\nas\\projects\\repo\\x", SHARE + "/x"):
-                with self.subTest(path=foreign):
-                    self.assertTrue(self.grammar.foreign(foreign, own))
+            for path in (own, own + "\\docs\\x.md", "//NAS/projects/repo/docs/x.md"):
+                with self.subTest(path=path):
+                    self.assertFalse(self.grammar.foreign(path, own))
+            for path in ("\\\\nas\\projects\\repo-other\\x", "\\\\?\\UNC\\nas\\projects\\repo\\x",
+                         own + "\\..\\other\\x", SHARE + "/x"):
+                with self.subTest(path=path):
+                    self.assertTrue(self.grammar.foreign(path, own))
 
     def test_a_home_on_a_share_is_the_users_own(self):
         with mock.patch.object(self.grammar, "WINDOWS", True), \
@@ -135,6 +144,7 @@ class TheGitArgvGuard(unittest.TestCase):
         for command in (f"echo x > {SHARE}/x.txt", f"cp notes.txt {SHARE}/", f"cp notes.txt {SHARE}/drop",
                         f"rm -f {SHARE}/x.txt", f"cd {SHARE} && rm -rf build",
                         f"git -C {SHARE} rm x.txt", f"git -C {SHARE} checkout other -- x.txt",
+                        f"git -C {SHARE} checkout other x.txt",
                         f"cd {SHARE} && echo x > out.txt", f"echo x | tee {SHARE}/x.txt"):
             with self.subTest(command=command), grammar_on(self.guard), nothing_leaves(self):
                 reason = self.guard.offence(command)
@@ -142,7 +152,8 @@ class TheGitArgvGuard(unittest.TestCase):
                 self.assertIn("share or device path", reason)
 
     def test_a_command_that_writes_nothing_there_is_judged_as_before(self):
-        for command in (f"ls {SHARE}", f"git -C {SHARE} status", f"cd {SHARE} && git log"):
+        for command in (f"ls {SHARE}", f"git -C {SHARE} status", f"cd {SHARE} && git log",
+                        f"git checkout {SHARE}/x.txt"):
             with self.subTest(command=command), grammar_on(self.guard), nothing_leaves(self):
                 self.assertIsNone(self.guard.offence(command))
 
@@ -157,10 +168,20 @@ class TheSedGuard(unittest.TestCase):
 
     def test_an_operand_or_a_directory_on_a_share_is_never_opened(self):
         for command in (f"sed -i s/a/b/ {SHARE}/x.cs", f"sed -i s/a/b/ {SHARE}/*.cs", f"sed -i s/a/b/ {SHARE}/{{a,b}}.cs",
-                        f"cd {SHARE} && sed -i s/a/b/ x.cs", f"pushd {SHARE} && sed -i s/a/b/ x.cs"):
+                        f"cd {SHARE} && sed -i s/a/b/ x.cs", f"pushd {SHARE} && sed -i s/a/b/ x.cs",
+                        f"sed -i s/a/b/ '{NT_SHARE}\\x.cs'"):
             event = {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": self.root}
             with self.subTest(command=command), grammar_on(self.guard), nothing_leaves(self):
                 self.assertIsNone(self.guard.offence(event, strips_cr=True))
+
+    def test_git_is_not_run_in_a_checkout_whose_gitdir_is_a_share(self):
+        # Git would follow the `.git` file's pointer itself, past every fence in this process.
+        target = os.path.join(self.root, "sub", "a.cs")
+        write(os.path.join(self.root, ".git"), f"gitdir: {SHARE}/repo/.git/worktrees/x\n")
+        write(target, "a\r\n")
+        refuse = mock.Mock(side_effect=AssertionError("git ran in the checkout"))
+        with grammar_on(self.guard), mock.patch.object(subprocess, "run", refuse):
+            self.assertFalse(self.guard.tracked(target, "git"))
 
 
 class TheSearchHint(unittest.TestCase):
@@ -182,8 +203,7 @@ class TheSearchHint(unittest.TestCase):
                 self.assertIsNone(self.hint.search(name, given, self.root))
 
     def test_a_gitdir_pointer_to_a_share_is_not_followed(self):
-        with open(os.path.join(self.root, ".git"), "w", encoding="utf-8") as handle:
-            handle.write(f"gitdir: {SHARE}/repo/.git/worktrees/x\n")
+        write(os.path.join(self.root, ".git"), f"gitdir: {SHARE}/repo/.git/worktrees/x\n")
         with grammar_on(self.hint), nothing_leaves(self):
             self.assertFalse(self.hint.in_worktree(self.root))
 
@@ -197,15 +217,26 @@ class TheEditGuard(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.root, True)
 
     def test_an_edit_on_a_share_is_refused_without_opening_it(self):
-        event = {"tool_name": "Write", "tool_input": {"file_path": SHARE + "/x.txt"}, "cwd": self.root}
-        with grammar_on(self.guard), nothing_leaves(self):
-            self.assertIn("other path grammar", self.guard.offence(event))
+        for target in (SHARE + "/x.txt", NT_SHARE + "\\x.txt"):
+            event = {"tool_name": "Write", "tool_input": {"file_path": target}, "cwd": self.root}
+            with self.subTest(target=target), grammar_on(self.guard), nothing_leaves(self):
+                self.assertIn("other path grammar", self.guard.offence(event))
 
     def test_a_gitdir_pointer_to_a_share_is_not_followed(self):
-        with open(os.path.join(self.root, ".git"), "w", encoding="utf-8") as handle:
-            handle.write(f"gitdir: {SHARE}/repo/.git/worktrees/x\n")
+        write(os.path.join(self.root, ".git"), f"gitdir: {SHARE}/repo/.git/worktrees/x\n")
         with grammar_on(self.guard), nothing_leaves(self):
             self.assertIsNone(self.guard.verified_gitdir(self.root))
+
+    def test_a_commondir_pointer_to_a_share_is_not_followed(self):
+        # A worktree whose backlink agrees, so `common_git_dir` reaches the admin directory's `commondir`.
+        admin = os.path.join(self.root, "admin")
+        checkout = os.path.join(self.root, "checkout")
+        write(os.path.join(checkout, ".git"), f"gitdir: {admin}\n")
+        write(os.path.join(admin, "gitdir"), os.path.join(checkout, ".git") + "\n")
+        write(os.path.join(admin, "commondir"), f"{SHARE}/repo/.git\n")
+        self.assertEqual(os.path.realpath(admin), self.guard.verified_gitdir(checkout))
+        with grammar_on(self.guard), nothing_leaves(self):
+            self.assertIsNone(self.guard.common_git_dir(checkout))
 
 
 if __name__ == "__main__":

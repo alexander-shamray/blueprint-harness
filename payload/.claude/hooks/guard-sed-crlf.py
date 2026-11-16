@@ -377,9 +377,32 @@ def in_place_files(arguments):
     return operands if script_given else operands[1:]
 
 
+# The event's `cwd`, an own place beside the hook's and the project; `offence` sets it.
+SESSION_CWD = None
+
+
 def elsewhere(path):
     """Whether `path` is on a share the session does not stand on, which this hook must not open."""
-    return GRAMMAR.foreign(path, os.getcwd(), os.environ.get("CLAUDE_PROJECT_DIR"))
+    return GRAMMAR.foreign(path, SESSION_CWD, os.getcwd(), os.environ.get("CLAUDE_PROJECT_DIR"))
+
+
+def pointed_elsewhere(directory):
+    """Whether the checkout holding `directory` names its git directory on such a share, which git would open."""
+    current = directory
+    while not os.path.isdir(os.path.join(current, ".git")):
+        marker = os.path.join(current, ".git")
+        if os.path.isfile(marker):
+            try:
+                with open(marker, encoding="utf-8") as handle:
+                    text = handle.read().strip()
+            except (OSError, ValueError):
+                return True
+            return text.startswith("gitdir:") and elsewhere(os.path.join(current, text[len("gitdir:"):].strip()))
+        parent = os.path.dirname(current)
+        if parent == current:
+            return False
+        current = parent
+    return False
 
 
 def native(path):
@@ -558,6 +581,8 @@ def tracked(path, git):
     names, and the path is the session's to choose; `GIT_OPTIONAL_LOCKS=0` keeps the read from refreshing the index.
     """
     directory, name = os.path.split(os.path.abspath(path))
+    if pointed_elsewhere(directory):
+        return False
     try:
         result = subprocess.run(
             # `--literal-pathspecs`, or an untracked `x[ab].txt` would match a tracked `xa.txt`.
@@ -583,8 +608,10 @@ def offence(event, strips_cr=os.name == "nt"):
     command = tool_input.get("command") if isinstance(tool_input, dict) else None
     if not isinstance(command, str) or "sed" not in command:
         return None
+    global SESSION_CWD
     cwd = event.get("cwd")
     cwd = cwd if isinstance(cwd, str) and cwd else os.getcwd()
+    SESSION_CWD = cwd
     return judge(command, cwd, git_on_path(cwd), [0], 0)
 
 
