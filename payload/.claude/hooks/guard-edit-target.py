@@ -212,8 +212,12 @@ def verified_gitdir(root):
             return None
         gitdir = os.path.realpath(pointer)
         with open(os.path.join(gitdir, "gitdir"), encoding="utf-8") as handle:
-            backlink = os.path.join(gitdir, handle.read().strip())
+            named = handle.read().strip()
+        backlink = os.path.join(gitdir, named)
     except (OSError, ValueError):
+        return None
+    if any(GRAMMAR.foreign(place, root, os.getcwd(), os.environ.get("CLAUDE_PROJECT_DIR"))
+           for place in (named, backlink)):
         return None
     if os.path.normcase(os.path.realpath(backlink)) != os.path.normcase(
             os.path.realpath(marker)):

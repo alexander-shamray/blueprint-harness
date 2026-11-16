@@ -209,7 +209,8 @@ def located(cwd: str, path: str) -> Path:
     drive = re.match(r"^/([A-Za-z])(?=/|$)", text)
     if sys.platform == "win32" and drive:
         text = f"{drive.group(1)}:/{text[3:]}"
-    return Path(cwd or ".", text)
+    # Unjoined: a join puts the cwd drive before `\??\`, and no join moves a share to another host.
+    return Path(text) if GRAMMAR.other_grammar(text) else Path(cwd or ".", text)
 
 
 def remote(paths: list[str], base: str, cwd: str) -> bool:
