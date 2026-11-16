@@ -399,6 +399,21 @@ class VerifyTests(SyncCase):
         self.start(row={"headRefOid": "b" * 40})
         self.refused("is not the listed oid")
 
+    def test_another_calls_fetch_between_the_head_fetch_and_its_read_does_not_refuse_an_unmoved_head(self):
+        # Two calls in one checkout, run-local-suites in the background while review-diff runs: the other call's main
+        # fetch lands between this call's head fetch and its read, so a read of FETCH_HEAD returns main's tip.
+        oid = self.start()
+        gh = self.gh
+
+        def racing(argv, cwd=None, timeout=60):
+            result = gh(argv, cwd, timeout)
+            if argv[:2] == ["git", "fetch"] and f"refs/heads/{HEAD_NAME}" in argv[-1]:
+                git(self.root, "fetch", "-q", "--no-tags", "origin", "main")
+            return result
+
+        with mock.patch.object(sync_pr, "run", racing):
+            self.assertEqual((0, f"verified 7 {NEW_H}\n", ""), self.cli("verify", "7", "--head", oid))
+
     def test_an_unparseable_manifest_fails_closed(self):
         self.head_files[".harness/manifest.json"] = "{not json"
         self.start()
