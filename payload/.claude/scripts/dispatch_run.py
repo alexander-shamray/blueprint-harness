@@ -789,6 +789,8 @@ class SessionEnd:
     usage_models: dict[str, dict[str, int]] = field(default_factory=dict)
     cost_usd: float | None = None
     account_refused: str | None = None
+    # Each denial's tool_use_id, in the order of `denials`; None where the envelope named none.
+    denial_ids: tuple = ()
 
 
 def _envelope(stdout):
@@ -921,8 +923,10 @@ def session_end(raw):
     is_error = code != 0 or not isinstance(flagged, bool) or flagged
     usage, source, models = _spent(envelope or {})
     listed = envelope.get("permission_denials") if envelope else None
-    denials = [one_line(d.get("tool_name") or "unknown" if isinstance(d, dict) else d, 80)
-               for d in (listed if isinstance(listed, list) else [])]
+    listed = listed if isinstance(listed, list) else []
+    denials = [one_line(d.get("tool_name") or "unknown" if isinstance(d, dict) else d, 80) for d in listed]
+    ids = tuple(d.get("tool_use_id") if isinstance(d, dict) and isinstance(d.get("tool_use_id"), str) else None
+                for d in listed)
     limited, resets = False, None
     if is_error:
         fields = list(_fields(envelope)) if envelope else []
@@ -940,7 +944,7 @@ def session_end(raw):
     session = session if isinstance(session, str) and SESSION_ID.fullmatch(session) else None
     cost = _cost((envelope or {}).get("total_cost_usd"))
     return SessionEnd(code, bool(is_error), limited, resets, usage, denials, session, source, models, cost,
-                      _account_refused(envelope) if is_error else None)
+                      _account_refused(envelope) if is_error else None, ids)
 
 
 def _account_refused(envelope):
@@ -957,7 +961,45 @@ def _account_refused(envelope):
     return one_line(f"{status} " + ": ".join(said) if said else str(status), 200)
 
 
-def classify(end, result, crashes, now):
+def advisory(end, transcript):
+    """Whether every denial the session met is the index hint's refusal, which a rerun of the same call passes.
+
+    Each is matched by its tool_use_id, from the envelope the CLI writes, to the refused result the transcript holds
+    for that id, whose text is the hook's reason; only the transcript the envelope's session id names is read. A
+    denial with no id, or no such result, is a deny."""
+    if not end.denials or len(end.denial_ids) != len(end.denials) or None in end.denial_ids or not transcript:
+        return False
+    hinted = set()
+    try:
+        with open(transcript, encoding="utf-8") as handle:
+            for line in handle:
+                try:
+                    parts = json.loads(line).get("message").get("content")
+                except (ValueError, AttributeError, RecursionError):
+                    continue
+                for part in parts if isinstance(parts, list) else []:
+                    if (isinstance(part, dict) and part.get("type") == "tool_result" and part.get("is_error") is True
+                            and part.get("tool_use_id") in end.denial_ids and _hint_refusal(part.get("content"))):
+                        hinted.add(part["tool_use_id"])
+    except (OSError, TypeError, UnicodeDecodeError):
+        return False
+    return hinted == set(end.denial_ids)
+
+
+# index-search-hint.py's reason ends on this, and the CLI renders a hook's refusal as `PreToolUse:<tool> hook error: `
+# and the reason; test_dispatch_run.py builds the result from the hook's own words, so a reworded hint fails it.
+HINT_REFUSAL = "This search is refused once per session; rerun it unchanged if you still need every occurrence."
+HOOK_REFUSAL = re.compile(r"PreToolUse:\w+ hook error: ")
+
+
+def _hint_refusal(content):
+    texts = [content] if isinstance(content, str) else [
+        part.get("text") for part in content if isinstance(part, dict)] if isinstance(content, list) else []
+    return any(isinstance(text, str) and HOOK_REFUSAL.match(text) and text.rstrip().endswith(HINT_REFUSAL)
+               for text in texts)
+
+
+def classify(end, result, crashes, now, hinted=False):
     if isinstance(result, Result):
         return {"merged": "merged-claimed", "handed-back": "handed-back", "stopped": "stopped"}[result.outcome]
     if end.rate_limited and end.resets_at is not None:
@@ -966,8 +1008,9 @@ def classify(end, result, crashes, now):
     if end.account_refused is not None:
         return "account"
     # 2026-11-01-dispatch-spike.md, Prompts: a call the auto classifier refused is a hand-back; a relaunch would
-    # meet it again.
-    if end.denials:
+    # meet it again. The index hint's refusal is no deny: a rerun passes it, so a session that met only that one
+    # ended for some other reason and is a crash's, relaunched once (issue #549).
+    if end.denials and not hinted:
         return "handed-back"
     return "relaunch" if crashes < 1 else "crash-hand-back"
 
@@ -1118,7 +1161,7 @@ def _launch_time(directory, gid, entry):
         return stamp.timestamp() if stamp else 0.0
 
 
-def _reason(decision, end, result):
+def _reason(decision, end, result, hinted=False):
     if isinstance(result, Result):
         return one_line(result.reason) if result.reason and decision != "merged-claimed" else None
     if decision in ("window", "week"):
@@ -1128,6 +1171,7 @@ def _reason(decision, end, result):
     if decision == "handed-back":
         return f"the session was refused {', '.join(sorted(set(end.denials)))} and wrote no result"
     crash = f"{'no result' if result is None else 'invalid result: ' + one_line(result.why, 200)}; exit {end.exit_code}"
+    crash += "; the index hint's refusal is advisory" if hinted and end.denials else ""
     return crash if decision == "relaunch" else f"a second crash: {crash}"
 
 
@@ -1253,11 +1297,12 @@ def absorb(root, run, gid, run_refused=None):
         result = _merged_unreported(root, gid, entry, worktree, issues) or result
     end = session_end(raw)
     crashes = _field(entry, gid, "crashes", _count, 0)
-    decision = classify(end, result, crashes, now())
-    reason = _reason(decision, end, result)
     transcript = transcript_path(str(Path(root) / worktree), end.session_id, _launch_time(directory, gid, entry))
     # Only a transcript the envelope names is this session's: the newest-file fallback may be another's.
     named = transcript if end.session_id is not None else None
+    hinted = not isinstance(result, Result) and advisory(end, named)
+    decision = classify(end, result, crashes, now(), hinted)
+    reason = _reason(decision, end, result, hinted)
     flagged = _unreviewed(entry, result, crashes)
     seen = flagged and reviewer_spawned(named)
     unreviewed = flagged and not seen
