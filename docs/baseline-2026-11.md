@@ -2,8 +2,9 @@
 
 The measuring tool for the anti-goal "agents stop more often" (spec section
 4). Every later sync is compared with these numbers, the tables under *After
-#297* being the ones the present filter can reproduce: the count per typical
-task must not rise in any repository.
+#297* being the ones the present filter can reproduce, but for the
+`action_required` #569 lowered: the count per typical task must not rise in any
+repository.
 
 ## What is counted
 
@@ -127,7 +128,7 @@ The stop count after plan 2 is the first command line above with
 or after that day. It is added here, as medians and as totals with their
 largest session, once two or more have ended; a rise against the baseline is a
 harness defect, filed in this repository. *After #297* holds that count and the
-baseline it reads against, both on the present filter.
+baseline it reads against, both on the filter as it stood before #569.
 
 ## After plans 3 and 4
 
@@ -281,8 +282,9 @@ takes for a turn.
 
 ## After #297
 
-Measured on 2026-11-09, on the filter *What is counted* describes. A later sync
-is compared with these, same command and same repository.
+Measured on 2026-11-09, on the filter *What is counted* describes as it stood
+before #569. A later sync is compared with these, same command and same
+repository.
 
 ### The baseline window
 
@@ -349,8 +351,8 @@ at 09:26 UTC on 2026-11-09, and its #657, which made its `CLAUDE.md` import
 
 ### Stop count since the move
 
-On the filter *What is counted* describes, each window closing on 2026-11-12,
-the last whole day:
+On the filter *What is counted* describes as it stood before #569, each window
+closing on 2026-11-12, the last whole day:
 
 ```bash
 py -3.12 measure/stops.py --project 'C--dev-ashamray-blueprint-backend*' --since 2026-11-06 --until 2026-11-12 --command ship
@@ -426,8 +428,8 @@ that repository's to close.
 
 Measured on 2026-11-16 for #272, which read frontend's handovers on the day of
 its first sync, 2026-11-08, and was left to be read again after a week, on the
-filter *What is counted* describes. The first line is that day, the second the
-week after it:
+filter *What is counted* describes as it stood before #569. The first line is
+that day, the second the week after it:
 
 ```bash
 py -3.12 measure/stops.py --project 'C--dev-ashamray-blueprint-frontend*' --since 2026-11-08 --until 2026-11-08 --command ship
