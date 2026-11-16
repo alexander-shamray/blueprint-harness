@@ -241,8 +241,10 @@ CONTROL_FILES = frozenset({
 })
 # Below `~/.claude`, what later sessions load as the user's own. The editing
 # tools may save there, where a command's deny judges the path; a shell write
-# meets no such rule.
+# meets no such rule. `CLAUDE.md` is the owner's rules, so it is standing and
+# not control: an editing tool outside a writing command may still save it (#586).
 STANDING_DIRECTORIES = frozenset({"output-styles", "projects"})
+STANDING_FILES = frozenset({"claude.md"})
 
 
 def home_place(parts):
@@ -2964,6 +2966,7 @@ def home_target(path, cwd, command, whole=False, removing=False):
                 continue
             if home_place(parts) is not None or (parts[0] == ".claude" and (
                     (len(parts) > 1 and parts[1] in STANDING_DIRECTORIES)
+                    or (len(parts) == 2 and parts[1] in STANDING_FILES)
                     or (whole and len(parts) == 1))) or (whole and any(
                         tuple(parts) == nested[:len(parts)] for nested in HOME_NESTED_FILES)):
                 return "~/" + "/".join(parts)
