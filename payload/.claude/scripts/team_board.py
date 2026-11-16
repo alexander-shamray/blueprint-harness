@@ -97,11 +97,12 @@ def _write(path, text):
 
 
 def save(directory, board):
-    _write(directory / "board.json", json.dumps(board, indent=2) + "\n")
     # The owner's measurements are read from the directory, so a file it writes there is on the next render.
     measured = sorted(p.relative_to(directory.parent.parent.parent).as_posix()
                       for p in (directory / "measure").glob("**/*") if p.is_file())
+    # board.json goes last, as the round's commit point: a refusal before it is a round that did not happen.
     _write(directory / "board.md", render(board, measured))
+    _write(directory / "board.json", json.dumps(board, indent=2) + "\n")
 
 
 def evidence_problem(root, cited, run):

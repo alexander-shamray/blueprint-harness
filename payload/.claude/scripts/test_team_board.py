@@ -243,6 +243,21 @@ class ARoundThatCannotBeReadDidNotHappen(Checkout):
         self.assertEqual(before, (self.run_path / "board.json").read_text(encoding="utf-8"))
         self.assertEqual([], list(self.run_path.glob("*.tmp")), "a temporary file was left behind")
 
+    def test_a_render_that_cannot_be_written_leaves_the_round_unrecorded(self):
+        # Exit 2 is a round that did not happen, so a rerun of the same round must still be the next one.
+        real = os.replace
+        self.reply(1, "p1", claims=[{"text": "two", "evidence": ["src/a.cs:2"]}])
+
+        def refuse_the_render(source, target):
+            if Path(target).name == "board.md":
+                raise OSError("held open by a viewer")
+            real(source, target)
+
+        with mock.patch.object(tb.os, "replace", side_effect=refuse_the_render), self.assertRaises(tb.Refusal):
+            self.merge(1)
+        self.assertEqual([], self.board()["rounds"], "a refused merge recorded its round")
+        self.assertEqual(1, self.merge(1)["round"])
+
     def test_a_reply_naming_another_agent_is_refused(self):
         self.reply(1, "p1", raw=json.dumps({"agent": "p2", "claims": []}))
         self.assert_refused(1, "naming agent p1")
