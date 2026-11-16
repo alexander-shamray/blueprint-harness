@@ -666,7 +666,7 @@ class LaunchTests(InRoot):
     def test_run_keeps_the_dispatchers_api_key_from_the_executor(self):
         # Inherited, the key outranked the owner's subscription login, and a drained API balance crashed every launch.
         record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
-        # Joined at run time: a key-shaped literal here failed every target's secret scan as a credential assignment.
+        # Joined at run time: a quoted literal under this name failed blueprint-backend's secret scan as a credential assignment.
         with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "-".join(("sk", "ant", "dispatcher"))}):
             run_fake_claude(stdout=json.dumps(SUCCESS).encode("utf-8"))
         seen = json.loads(Path("fake/seen.json").read_text(encoding="utf-8"))
