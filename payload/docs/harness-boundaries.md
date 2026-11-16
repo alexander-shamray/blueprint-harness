@@ -1010,7 +1010,8 @@ turns `\??\` into `C:\??\…` is exercised on Windows alone.
 
 **Residuals.** A local link whose target is a share is followed: each hook
 resolves, stats or globs the local path it was named, and the link takes
-that call to the host. Planting one takes an approved `ln -s` first.
+that call to the host. The link must be on disk first: an approved command
+that makes one (`ln -s`, `mklink`, a checkout carrying one), or the user's.
 What git follows past the first pointer — a `commondir`, a
 config `include`, a link whose target is a share — is git's own reading,
 which no hook sees before it runs; reaching it takes a file the session
