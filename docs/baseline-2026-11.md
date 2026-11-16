@@ -476,5 +476,5 @@ The scripts on a denied path fall from 15 over the first day's 12 sessions,
 none over. Against the baseline, per session, the count has fallen back and
 below it, so by the owner's decision on #272 the issue closes with no deny and
 no suite moved. What stays is the shape it named: six of the seventeen are
-target-local suites a session's own review round wrote and could not land, and
-eight are workflow lines, at under one a day each.
+target-local suites a session's own review round wrote and could not land, at
+under one a day, and eight are workflow lines, at a little over one.
