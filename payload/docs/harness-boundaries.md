@@ -367,7 +367,10 @@ tracked skill, and `-P` keeps a checkout's own `codebase_index.py` off the
 import path. The hook sets `NoDefaultCurrentDirectoryInExePath` for everything
 it starts, the worker and the CLI, and does not leave it to its launcher: the
 CLI runs in the checkout, where a branch can plant a program that Windows
-would otherwise find first for any name the CLI starts bare.
+would otherwise find first for any name the CLI starts bare. Both `cbx`
+wrappers set it too, for the CLI a session starts through them, and
+`dispatch_run.py` sets it for each executor it starts in a worktree, whose
+`claude.cmd` shim names `node` bare.
 
 **Both shell tools are in the matcher, `Bash` and `PowerShell`, because
 agents write through them more than through any edit tool** — a commit, a
