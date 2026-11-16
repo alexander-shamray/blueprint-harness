@@ -1,17 +1,7 @@
 """The harness's game day: break each guard and gate for real, in a throwaway target, and check it refuses.
 
-Each guard's own suite holds its judgement; this holds the wiring a session meets. The payload is applied to a
-scratch target as a sync applies it, every guard is fired through the hook command the rendered
-`.claude/settings.json` holds, with `CLAUDE_PROJECT_DIR` set as Claude Code sets it, and each gate is run on the
-condition it claims to catch. Where reality differs from the document a `FINDING:` line is printed, and the run
-exits 1; a clean run prints one `ok` line per scenario and exits 0.
-
-A guard wired in the settings, or named in the launcher's closed set, with no scenario here is a finding too: a
-gate that silently stops covering the newest surface is the failure this exists for (`.harness/agent-rules.md`).
-The conditions that read GitHub or a dispatch run's state are listed in `REASONS` instead, with the suite that
-holds them.
-
-    py -3.12 -m harness_sync.game_day
+Guards fire through the rendered hook commands; `FINDING:` marks a call let through, refused for another reason, or
+wired with no scenario (README.md, *Tests*). Run as `py -3.12 -m harness_sync.game_day`.
 """
 
 import json
@@ -67,7 +57,7 @@ GUARD_SCENARIOS = {
     ],
 }
 
-# The conditions issue #561 names that this run does not cause, and the suite that does.
+# The conditions a game day is asked for that this run does not cause, and the suite that does.
 REASONS = {
     "sync pull request whose proof does not match its head": "`sync_pr.py verify` reads the pull request from "
     "GitHub; `test_ship_sync.py` and `test_dispatch_sync.py` hold it with `gh` stubbed",
