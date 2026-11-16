@@ -315,7 +315,7 @@ def protected_in_worktree(path, root):
         return "this target's deny list, which cannot be read"
 
 
-def home_offence(spelled, lexical, resolved):
+def home_offence(spelled, lexical, resolved, cwd=None):
     """The reason to refuse a target the home protects, or `None`.
 
     Asked whatever checkout holds it; spelling and resolution are both judged.
@@ -355,7 +355,7 @@ def home_offence(spelled, lexical, resolved):
                     "owner's to run (docs/harness-boundaries.md)."
                 )
     try:
-        xdg = any(git_guard().xdg_git_config(path) for path in (lexical, resolved))
+        xdg = any(git_guard().xdg_git_config(path, cwd) for path in (lexical, resolved))
     except (OSError, ValueError, TypeError, AttributeError):
         if not os.environ.get("XDG_CONFIG_HOME"):
             return None
@@ -580,7 +580,7 @@ def target_offence(event, spelled):
                 )
 
     # Reached when every anchor containing the target agreed.
-    return home_offence(spelled, lexical, resolved)
+    return home_offence(spelled, lexical, resolved, cwd)
 
 
 def main():

@@ -713,6 +713,9 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
             with self.subTest(target=target):
                 self.assertAdmitted(target, env=env)
         self.assertAdmitted(os.path.join(moved, "git", "config"), env={"XDG_CONFIG_HOME": ""})
+        # A relative value is git's from where the session runs, not where the hook process does.
+        self.assertIn("what runs at login", self.assertRefused(
+            os.path.join(moved, "git", "config"), cwd=self.outside, env={"XDG_CONFIG_HOME": "xdg"}))
 
     def test_a_link_into_the_keys_is_held(self):
         for linker in linkers():
