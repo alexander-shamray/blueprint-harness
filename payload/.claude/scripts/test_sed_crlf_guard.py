@@ -212,7 +212,7 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
                 self.assertRefused(command, ".txt")
 
     def test_a_shell_option_s_value_is_not_its_operand(self):
-        # Issue 528: only `-o` and `+o` took a value, so `-O extglob` read as a script and the line went unjudged.
+        # `-O` and `+O` take a word as `-o` and `+o` do, so the `-c` line or heredoc after it is still judged.
         for command in (
             "bash -O extglob -c \"sed -i 's/one/uno/' crlf.txt\"",
             "bash +O extglob -c \"sed -i 's/one/uno/' crlf.txt\"",
