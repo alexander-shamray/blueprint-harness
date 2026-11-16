@@ -503,8 +503,8 @@ class RemoveShape(unittest.TestCase):
         self.assertFalse(pending.exists())
 
     def test_a_marker_left_after_the_wait_is_removed_with_the_worktree(self):
-        """The wait drops a marker it finds, so the case above passes on the
-        wait alone. A request the hook leaves once the wait has ended reaches
+        """The wait drops a marker it finds, so the case above's marker
+        assertion passes on the wait alone. A request the hook leaves once the wait has ended reaches
         only the removal's own cleanup: a git that writes the marker and then
         runs the real one puts it there."""
         root, native = self.fixture()
