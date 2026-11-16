@@ -265,13 +265,10 @@ def home_place(parts):
 
 
 def xdg_git_config(path, cwd=None, whole=False):
-    """`$XDG_CONFIG_HOME/git/config` when `path` names it, or `None`.
+    """`$XDG_CONFIG_HOME/git/config` when `path` names it, or `None`; git reads it for `~/.config`'s.
 
-    git reads that file in place of `~/.config/git/config` when the variable is set and not empty,
-    a relative value from where git runs, so it runs at login as `.gitconfig` does. `path` is
-    judged as spelled and as resolved, against the variable's own spelling and resolution;
-    `whole` counts the directories holding it, short of the first that also holds the home and of
-    the filesystem's root, which a removal takes with it and a move or a copy may put in place whole.
+    A relative value is from `cwd`. `whole` counts the directories holding it, short of the first
+    that also holds the home and of the filesystem's root, as a move or a copy puts them whole.
     """
     value = os.environ.get("XDG_CONFIG_HOME")
     if not value:
