@@ -417,6 +417,49 @@ class NoCommandGrantsABareBashOrALeadingWildcard(unittest.TestCase):
         self.assertIsNone(self.BROAD_BASH.fullmatch("Bash(bash .claude/scripts/gh-issue-list.sh)"))
 
 
+class NoCommandGrantsGhWithoutASubcommand(unittest.TestCase):
+    """`gh alias set --shell` or `gh extension install` and then its name runs any program, so a `gh` grant names
+    the subcommand it runs, and that subcommand is not one of those (blueprint-harness#552)."""
+
+    # The program word in any case, behind env assignments, with or without `.exe`, and what follows it.
+    GH = re.compile(r"Bash\((?:\w+=\S*\s+)*gh(?:\.exe)?(?![\w.-])(.*)\)", re.DOTALL | re.IGNORECASE)
+    # A lower-case word ending at a space, a `:` or the end: not a flag, a wildcard or a word cut by one.
+    SUBCOMMAND = re.compile(r"\s+([a-z][a-z-]*)(?=\s|:|$)")
+    EXECUTORS = {"alias", "extension", "extensions", "ext"}
+
+    def refused(self, entry):
+        grant = self.GH.fullmatch(entry)
+        if grant is None:
+            return False
+        word = self.SUBCOMMAND.match(grant.group(1))
+        return word is None or word.group(1) in self.EXECUTORS
+
+    def test_no_allowed_tools_entry_grants_gh_without_a_subcommand(self):
+        grants = 0
+        for path in sorted(COMMANDS.glob("*.md")):
+            for entry in frontmatter_list(path.read_text(encoding="utf-8"), "allowed-tools"):
+                grants += entry.startswith("Bash(")
+                with self.subTest(command=path.name, entry=entry):
+                    self.assertFalse(self.refused(entry), f"{path.name} grants `{entry}`, which runs any gh alias "
+                                     "or extension: name the subcommand it runs")
+        # A parser that found no grant would satisfy every case above.
+        self.assertGreater(grants, 20, "found almost no Bash grants, so nothing was checked")
+
+    def test_the_reader_refuses_each_spelling_of_a_free_gh(self):
+        for entry in ("Bash(gh:*)", "Bash(gh)", "Bash(gh *)", "Bash(gh*)", "Bash(GH:*)", "Bash(gh.exe:*)",
+                      "Bash(GH_TOKEN=x gh:*)", "Bash(gh -R o/r issue list:*)", "Bash(gh --repo o/r:*)",
+                      "Bash(gh pr*)", "Bash(gh alias set:*)", "Bash(gh alias:*)", "Bash(gh extension install:*)",
+                      "Bash(gh ext:*)", "Bash(gh extensions:*)"):
+            with self.subTest(entry=entry):
+                self.assertTrue(self.refused(entry))
+        # The grants the commands hold, and the helpers whose names open with `gh`, are spared.
+        for entry in ("Bash(gh pr checks:*)", "Bash(gh issue list:*)", "Bash(gh api repos:*)",
+                      "Bash(bash .claude/scripts/gh-issue-list.sh)", "Bash(bash .claude/scripts/gh-pr-merge.sh:*)",
+                      "Bash(git diff:*)", "Read"):
+            with self.subTest(entry=entry):
+                self.assertFalse(self.refused(entry))
+
+
 class ACommandThatDoesNotPublishCannotPush(unittest.TestCase):
     """The settings allow `git push origin`, so a command that neither grants nor denies it reaches the push."""
 
