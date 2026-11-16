@@ -628,11 +628,19 @@ class LaunchTests(InRoot):
         with mock.patch.object(dr, "git", lambda root, *a: "1\n" if a[0] == "rev-list" else ""), \
                 mock.patch.object(dr, "helper", refuse):
             self.assertIn(f"left {BRANCH} 1 commit ahead of origin/main;", dr._left_behind(".", entry))
-        # A read that answers with no open PR says so, so the relaunch resumes /ship at the push and /pr.
-        closed = json.dumps([{"number": 350, "state": "CLOSED"}])
+        # A read that lists no PR says so, so the relaunch resumes /ship at the push and /pr.
         with mock.patch.object(dr, "git", lambda root, *a: "2\n" if a[0] == "rev-list" else ""), \
-                mock.patch.object(dr, "helper", lambda root, *a: closed):
+                mock.patch.object(dr, "helper", lambda root, *a: "[]"):
             self.assertIn(f"left {BRANCH} 2 commits ahead of origin/main, no PR open;", dr._left_behind(".", entry))
+        # A closed or merged row, or an open one out of shape, is no "no PR": /ship's own read decides those.
+        for rows in ([{"number": 350, "state": "CLOSED"}], [{"number": 351, "state": "MERGED"}],
+                     [{"number": "352", "state": "OPEN"}]):
+            with self.subTest(rows=rows), \
+                    mock.patch.object(dr, "git", lambda root, *a: "2\n" if a[0] == "rev-list" else ""), \
+                    mock.patch.object(dr, "helper", lambda root, *a, rows=rows: json.dumps(rows)):
+                told = dr._left_behind(".", entry)
+                self.assertIn(f"left {BRANCH} 2 commits ahead of origin/main;", told)
+                self.assertNotIn("no PR open", told)
         # Nothing left, or out of shape, is no clause: the relaunch reads its own state as any /ship does.
         for answer in ("0\n", "not a count"):
             with self.subTest(answer=answer), \

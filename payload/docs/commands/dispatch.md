@@ -365,9 +365,10 @@ status is a relaunch's, reads the worktree — commits ahead of
 `origin/main`, an uncommitted tree, and an `OPEN` row from
 `pr-for-branch.sh` — and adds what it found to the task as one clause
 saying to resume from there and to end the turn only on the result. Where
-it found something and the PR read answered with no `OPEN` row, the clause
-says no PR is open, so the relaunch resumes at the push and `/pr` rather
-than reading for a review (blueprint-harness#549). Each
+it found something and the PR read lists no PR at all, the clause says no
+PR is open, so the relaunch resumes at the push and `/pr` rather than
+reading for a review (blueprint-harness#549); a `CLOSED` or `MERGED` row
+adds nothing, since `/ship`'s own read stops or hands back on it. Each
 read is best effort: one that fails drops its part, and `/ship`'s own state
 read still decides what is owed, so a missing clause costs only the hint.
 A sync's relaunch carries none, since its tree is held to its proved head
