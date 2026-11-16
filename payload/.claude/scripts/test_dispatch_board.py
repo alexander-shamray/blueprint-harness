@@ -228,14 +228,14 @@ class ReadyTests(unittest.TestCase):
         self.assertEqual((True, ""), self.ready(line(depends="#857's fix, (#1440)"), {99}))
 
     def test_a_local_issue_after_a_slash_is_still_read(self):
-        # A `/` before a #n ends no repository name, so `#1440/#1441` names two of this repository's issues.
+        # A `/` before a #n ends no repository name, so `#n/#m` names two of this repository's issues.
         for text in ("after #1440/#1441", "#1440/#1441"):
             with self.subTest(text=text):
                 self.assertEqual((False, "depends on open #1441"), self.ready(line(depends=text), {1441}))
                 self.assertEqual((True, ""), self.ready(line(depends=text), {99}))
 
     def test_a_range_of_issues_is_text_the_helper_cannot_judge(self):
-        # Its two ends are not every issue it names, so `#1440-#1442` read as two would pass with #1441 open.
+        # Its two ends are not every issue it names, so a range read as two would pass with one between them open.
         self.assertEqual((False, "depends on text the helper cannot judge"),
                          self.ready(line(depends="#1440-#1442"), {1441}))
 
@@ -522,7 +522,7 @@ class PathTests(unittest.TestCase):
         self.assertEqual(frozenset(), db.group_claim(group_of(line(conflicts="with 7 others")), {1700: "a.cs"}).issues)
 
     def test_a_conflicts_cell_naming_another_repositorys_issue_claims_no_local_one(self):
-        # `blueprint-backend#857` is no local #857, so it claims no overlap with the group that holds one.
+        # A `<repo>#n` is no local #n, so it claims no overlap with the group that holds one.
         for cell in ("with blueprint-backend#857", "with alexander-shamray/blueprint-backend#857"):
             with self.subTest(cell=cell):
                 claim = db.group_claim(group_of(line(conflicts=cell)), {1700: "a.cs"})
