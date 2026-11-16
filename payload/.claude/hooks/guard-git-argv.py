@@ -57,7 +57,6 @@ that gets worked around rather than fixed.
 
 import fnmatch
 import functools
-import importlib.util
 import json
 import os
 import re
@@ -65,15 +64,17 @@ import shlex
 import sys
 import tempfile
 import traceback
+import types
 from bisect import bisect_left
 
 
 def path_grammar():
-    """`path_grammar.py` beside this file, which names a path on another machine."""
-    spec = importlib.util.spec_from_file_location(
-        "path_grammar", os.path.join(os.path.dirname(os.path.abspath(__file__)), "path_grammar.py"))
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    """`path_grammar.py` beside this file, which names a path on another machine; compiled, so no bytecode is left."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "path_grammar.py")
+    module = types.ModuleType("path_grammar")
+    module.__file__ = path
+    with open(path, encoding="utf-8") as handle:
+        exec(compile(handle.read(), path, "exec"), module.__dict__)
     return module
 
 
