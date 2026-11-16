@@ -816,9 +816,9 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
         self.assertIn("what runs at login", self.assertRefused(
             os.path.join(keys, "authorized_keys"), project=keys, env=env))
 
-    def test_names_that_cannot_be_read_refuse_the_home_and_nothing_else(self):
-        # They live in `guard-git-argv.py`, so a guard copied without it fails
-        # closed under the home directory and leaves the rest of the outside.
+    def test_names_that_cannot_be_read_refuse_the_home_and_the_xdg_config_only(self):
+        # They live in `guard-git-argv.py`, so a guard copied without it fails closed under the
+        # home directory and at a `git/config` while `XDG_CONFIG_HOME` is set, and leaves the rest.
         alone = os.path.join(self.outside, "lone", ".claude", "hooks")
         home = os.path.join(self.outside, "home")
         os.makedirs(alone)
