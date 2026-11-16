@@ -15,6 +15,7 @@ the whole is about 46k. `Grep -n "^## <title>"` gives its first line.
 | Grant semantics | allowed-tools as auto-approval rather than whitelist, and a deny as the only refusal; where the external reviewers' machinery went. |
 | Prefix grants and wildcard denies | Table of over-wide git grants, the reset-grant lesson, mid-pattern deny wildcards, the quoting bypass and the helper argv guard. |
 | The guards' threat model | What the guard hooks are written against, which guard findings are filed, and which are recorded as out of scope. |
+| Paths on another machine | Why no hook opens a share or device path a proposed call names before the prompt, what each one does with it instead, and the places that stay the session's own. |
 | The guard launcher | run-guard.sh starting the five guards on any host's Python 3.12, exit 2 on every failure, the mark that skips the probe, run-guard.py's proof, and the residuals. |
 | Destructive classes | One table of what the harness refuses, the layer that refuses each, and the test that holds the table to the deny list and the hooks. |
 | Git argv guard hook | How guard-git-argv.py resolves the executed argv, its successive bypasses, git -c and stated residuals. |
@@ -939,6 +940,44 @@ summary as outside the guards' threat model and moves on; an issue already
 open for one is closed as not planned, with a link to this section. This
 section is the owner for all three repositories; blueprint-admin and
 blueprint-frontend cite it rather than restate it.
+
+## Paths on another machine
+
+**A hook runs before the permission prompt, so no hook opens a path on
+another machine that a proposed call names.** On Windows a stat, a
+`realpath`, an `open`, a glob or a `git -C` on `//host/share/…` connects to
+that host and offers it the user's NTLM response, and it does so whether the
+user then allows the call or denies it. A prompt-injected session that
+proposes `sed -i` on a share, a `Grep` of one or an `echo` into one would
+otherwise hand the host a hash to relay or crack, with no approval given.
+That is the hooks reaching the network, not a spelling built to hide a
+command, so it sits inside the guards' threat model.
+
+**One predicate, `.claude/hooks/path_grammar.py`, names the paths**, and
+every hook loads it by path. It reads the grammar as the edit-target guard
+already did (*Edit guard path resolution*): any spelling opening with two
+separators, either way round — a UNC share, `\\?\` or `\\.\` — on Windows
+alone, since `//x` on POSIX is a local path. A path beneath the home or a
+place the session stands on, its working directory or the project, is the
+user's own and is judged as before; anything else in that grammar is
+foreign, compared lexically, so an alias of an own share is foreign too.
+
+**What each hook does with a foreign path, before any filesystem call:**
+
+- `guard-git-argv.py` refuses a write, a removal or a git verb whose target is
+  one, as the edit-target guard refuses an edit there: it cannot judge the
+  target without opening it, and a device spelling of a local file would pass
+  the denies. A `cd` or `git -C` onto one places nothing after it.
+- `guard-edit-target.py` refuses an edit there, and follows no `gitdir:` or
+  `commondir` pointer into one.
+- `guard-sed-crlf.py` admits an operand or a `cd` it would have to open to
+  place: a file on another machine is not a checkout's CRLF file.
+- `index-search-hint.py` gives no hint for a search of one, and follows no
+  `gitdir:` pointer into one.
+
+`test_host_paths.py` runs each hook in process with every filesystem and
+process entry point the hooks use fenced, and fails on any call that names
+its share; the grammar is switched on there, so the POSIX legs judge it too.
 
 ## The guard launcher
 

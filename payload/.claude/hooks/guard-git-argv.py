@@ -57,6 +57,7 @@ that gets worked around rather than fixed.
 
 import fnmatch
 import functools
+import importlib.util
 import json
 import os
 import re
@@ -65,6 +66,18 @@ import sys
 import tempfile
 import traceback
 from bisect import bisect_left
+
+
+def path_grammar():
+    """`path_grammar.py` beside this file, which names a path on another machine."""
+    spec = importlib.util.spec_from_file_location(
+        "path_grammar", os.path.join(os.path.dirname(os.path.abspath(__file__)), "path_grammar.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+GRAMMAR = path_grammar()
 
 # Flags that write or execute rather than inspect. Matched on a prefix, so
 # `--exec-path=<dir>` — a directory of binaries for git to run — is the same act
@@ -2874,8 +2887,15 @@ def written_path(word, cwd, command):
     return os.path.normpath(os.path.abspath(literal))
 
 
+def elsewhere(path):
+    """Whether `path` is on a share the session does not stand on, which no check here may open."""
+    return GRAMMAR.foreign(path, EVENT_CWD, os.environ.get("CLAUDE_PROJECT_DIR"))
+
+
 def checkout_of(path):
-    """The root of the checkout holding `path`, or `None` outside one."""
+    """The root of the checkout holding `path`, or `None` outside one or on another machine."""
+    if elsewhere(path):
+        return None
     root = path
     while not os.path.exists(os.path.join(root, ".git")):
         parent = os.path.dirname(root)
@@ -2969,6 +2989,14 @@ def destination_offence(word, cwd, command, writer, whole=False, inside=None, re
     path = written_path(word, cwd, command)
     if path is not None and inside is not None:
         path = os.path.join(path, inside)
+    if path is not None and elsewhere(path):
+        return (
+            f"{writer} would write `{path}`, a share or device path that no place "
+            "this session stands on holds. The guard does not open it to judge it: "
+            "a share would get your Windows credentials before you answer, and a "
+            "device spelling of a local file passes the denies. Run it yourself if "
+            "it is meant (docs/harness-boundaries.md, *Paths on another machine*)."
+        )
     named = protected_target(path, whole) if path is not None else None
     if named is None:
         home = home_target(path, cwd, command, whole, removing) if path is not None else None
@@ -3221,7 +3249,8 @@ def landings(destination, sources, into, cwd, command):
     """
     literal = target_literal(destination) or ""
     path = written_path(destination, cwd, command)
-    if not (into or literal.endswith(("/", "\\")) or (path and os.path.isdir(path))):
+    if not (into or literal.endswith(("/", "\\")) or (
+            path and not elsewhere(path) and os.path.isdir(path))):
         return [None]
     names = []
     for source in sources:
@@ -3395,7 +3424,7 @@ def git_path_offence(words, cwd, command):
         source = (target_literal(before[0]) or "$") if before else None
         # As git disambiguates: with no `--`, a first word naming a path is one.
         first = written_path(before[0], cwd, command) if before and not after else None
-        if first is not None and os.path.lexists(first):
+        if first is not None and not elsewhere(first) and os.path.lexists(first):
             source = None
         paths = after or before[1:]
     elif verb == "restore":

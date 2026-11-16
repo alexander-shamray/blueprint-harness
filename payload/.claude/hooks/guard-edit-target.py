@@ -23,6 +23,19 @@ EDITING_TOOLS = ("Edit", "Write", "NotebookEdit", "MultiEdit")
 # this file cannot see is one it has established nothing about.
 PATH_KEYS = ("file_path", "notebook_path")
 
+
+def path_grammar():
+    """`path_grammar.py` beside this file, which names a path on another machine."""
+    spec = importlib.util.spec_from_file_location(
+        "path_grammar", os.path.join(os.path.dirname(os.path.abspath(__file__)), "path_grammar.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+GRAMMAR = path_grammar()
+
+
 GIT_GUARD = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                          "guard-git-argv.py")
 
@@ -42,7 +55,7 @@ GIT_GUARD = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 # ordinary path.
 def alternate_alphabet(path):
     """Whether `path` is spelled in Windows' non-drive path grammar."""
-    return os.name == "nt" and path[:2].replace("/", "\\") == "\\\\"
+    return GRAMMAR.other_grammar(path)
 
 
 def case_insensitive(path):
@@ -190,8 +203,10 @@ def verified_gitdir(root):
             text = handle.read().strip()
         if not text.startswith("gitdir:"):
             return None
-        gitdir = os.path.realpath(
-            os.path.join(root, text.split(":", 1)[1].strip()))
+        pointer = os.path.join(root, text.split(":", 1)[1].strip())
+        if GRAMMAR.foreign(pointer, root, os.getcwd(), os.environ.get("CLAUDE_PROJECT_DIR")):
+            return None
+        gitdir = os.path.realpath(pointer)
         with open(os.path.join(gitdir, "gitdir"), encoding="utf-8") as handle:
             backlink = os.path.join(gitdir, handle.read().strip())
     except (OSError, ValueError):
@@ -239,7 +254,10 @@ def common_git_dir(root):
         return None
     try:
         with open(os.path.join(gitdir, "commondir"), encoding="utf-8") as handle:
-            common = os.path.realpath(os.path.join(gitdir, handle.read().strip()))
+            pointer = os.path.join(gitdir, handle.read().strip())
+        if GRAMMAR.foreign(pointer, gitdir, os.getcwd(), os.environ.get("CLAUDE_PROJECT_DIR")):
+            return None
+        common = os.path.realpath(pointer)
     except (OSError, ValueError):
         return None
     return common if os.path.isdir(common) else None

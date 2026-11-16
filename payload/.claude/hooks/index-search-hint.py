@@ -6,6 +6,7 @@ happens."""
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import re
@@ -13,6 +14,18 @@ import shlex
 import sys
 import tempfile
 from pathlib import Path
+
+
+def path_grammar():
+    """`path_grammar.py` beside this file, which names a path on another machine."""
+    spec = importlib.util.spec_from_file_location(
+        "path_grammar", os.path.join(os.path.dirname(os.path.abspath(__file__)), "path_grammar.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+GRAMMAR = path_grammar()
 
 CBX = "bash .claude/skills/codebase-index/scripts/cbx"
 MCP = "mcp__codebase-index__"
@@ -198,6 +211,13 @@ def located(cwd: str, path: str) -> Path:
     return Path(cwd or ".", text)
 
 
+def remote(paths: list[str], base: str, cwd: str) -> bool:
+    """True when a path the search names, or where it runs, is on a share
+    the session does not stand on, which no check here may open."""
+    project = os.environ.get("CLAUDE_PROJECT_DIR")
+    return any(GRAMMAR.foreign(str(located(base, path)), cwd, project) for path in paths or ["."])
+
+
 def files_only(paths: list[str], cwd: str) -> bool:
     """True when every path the search names is one file, which a Read
     answers as well as the index would."""
@@ -307,7 +327,8 @@ def shell_search(command: str, cwd: str, escape: str = "\\") -> str | None:
         # A `-` operand with no path reads standard input, as a pipe does.
         if stdin and not paths:
             tree = recursive = False
-        if (tree or recursive) and pattern and not prose_only(shown(paths, base, cwd), filters) \
+        if (tree or recursive) and pattern and not remote(paths, base, cwd) \
+                and not prose_only(shown(paths, base, cwd), filters) \
                 and not files_only(paths, base) and not elsewhere(paths, base, cwd):
             return pattern
     return None
@@ -321,7 +342,8 @@ def search(name: str, given: dict, cwd: str) -> str | None:
             return None
         paths = [given["path"]] if isinstance(given.get("path"), str) else []
         filters = [given[key] for key in ("glob", "type") if isinstance(given.get(key), str)]
-        if prose_only(shown(paths, cwd, cwd), filters) or files_only(paths, cwd) or elsewhere(paths, cwd, cwd):
+        if remote(paths, cwd, cwd) or prose_only(shown(paths, cwd, cwd), filters) or files_only(paths, cwd) \
+                or elsewhere(paths, cwd, cwd):
             return None
         return pattern
     if name in SHELLS and isinstance(given.get("command"), str):
@@ -424,7 +446,10 @@ def in_worktree(cwd: str) -> bool:
                 text = marker.read_text(encoding="utf-8").strip()
                 if not text.startswith("gitdir:"):
                     return False
-                git_dir = (candidate / text[len("gitdir:"):].strip()).resolve()
+                pointer = candidate / text[len("gitdir:"):].strip()
+                if GRAMMAR.foreign(str(pointer), cwd, os.environ.get("CLAUDE_PROJECT_DIR")):
+                    return False
+                git_dir = pointer.resolve()
                 return (git_dir / "commondir").is_file()
     except (OSError, ValueError):
         return False
