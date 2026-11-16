@@ -72,7 +72,8 @@ work that ends with its issue open, which `/ship` step 6 runs.
   labelled `question` carries `OWNER`, in any case GitHub spells the
   label. Other free text holds the row: the board cannot judge it, and so
   does a number no issue in the list holds, such as a typo or a pull
-  request's.
+  request's, and another repository's issue, `<repo>#n`, which the list
+  never holds.
 - **`Model`** is the session's: `Opus` where an error is a silent miss (a
   test that cannot fail, harness guards, locking, erasure, cross-cutting
   CI), `Sonnet` where a gate, a test or a mutation proof catches it.

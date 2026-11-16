@@ -43,10 +43,11 @@ CLAUDE_TREE = re.compile(r"(^|[^\w])\.claude([/\\]|\b)", re.IGNORECASE)
 CLAUDE_PATH = re.compile(r"(^|[^\w])\.claude/[\w.-]", re.IGNORECASE)
 # An issue in Depends on is written #n, after n, waits on n or n's; a bare number is a count, not an issue.
 # Without a # it takes two digits, so a count of 3 is none; after an explicit # one digit names an issue.
+# A #n written straight after a name, `<repo>#n` or `<owner>/<repo>#n`, is another repository's: it is left as text.
 ISSUE_REF = re.compile(
-    r"(?:#(\d{1,6})|\b(?:after|waits on|wait on|waiting on|blocked by)\s+#?(\d{2,6}))\b"
+    r"(?:(?<![\w/#-])#(\d{1,6})|\b(?:after|waits on|wait on|waiting on|blocked by)\s+#?(\d{2,6}))\b"
     r"(?!\s*(?:day|week|hour|month|min))"
-    r"|\b(\d{2,6})'s\b", re.IGNORECASE)
+    r"|(?<![\w/#-])(\d{2,6})'s\b", re.IGNORECASE)
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 NUMBER = re.compile(r"(?<![\w-])(?:#(\d{1,6})|(\d{2,6}))(?![\w-])")
 OWNER = re.compile(r"\bOWNER\b")
