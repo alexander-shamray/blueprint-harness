@@ -227,6 +227,12 @@ HOME_FILES = frozenset({
     ".bash_login", ".bash_logout", ".bash_profile", ".bashrc", ".gitconfig",
     ".profile", ".zlogin", ".zprofile", ".zshenv", ".zshrc",
 })
+# Deeper files that run as `.gitconfig` does: git reads its XDG config beside the home one, so a
+# `core.fsmonitor` or `core.sshCommand` there runs at the next git call (#585).
+HOME_NESTED_FILES = frozenset({(".config", "git", "config")})
+# Beside `~/.claude` rather than in it: Claude Code's user state, whose MCP servers
+# and project grants every later session starts under (#585).
+HOME_CONTROL_FILES = frozenset({".claude.json"})
 CONTROL_DIRECTORIES = frozenset({
     "agents", "commands", "hooks", "plugins", "sandbox", "scripts", "skills",
 })
@@ -244,8 +250,11 @@ def home_place(parts):
 
     `parts` are folded by the caller: the edit guard as the filesystem does, this one always.
     """
-    if parts[0] in HOME_TREES or (len(parts) == 1 and parts[0] in HOME_FILES):
+    if parts[0] in HOME_TREES or (len(parts) == 1 and parts[0] in HOME_FILES) or (
+            tuple(parts) in HOME_NESTED_FILES):
         return "login"
+    if len(parts) == 1 and parts[0] in HOME_CONTROL_FILES:
+        return "control"
     if parts[0] == ".claude" and len(parts) > 1 and (
             parts[1] in CONTROL_DIRECTORIES
             or (len(parts) == 2 and parts[1] in CONTROL_FILES)):
@@ -2955,7 +2964,8 @@ def home_target(path, cwd, command, whole=False, removing=False):
                 continue
             if home_place(parts) is not None or (parts[0] == ".claude" and (
                     (len(parts) > 1 and parts[1] in STANDING_DIRECTORIES)
-                    or (whole and len(parts) == 1))):
+                    or (whole and len(parts) == 1))) or (whole and any(
+                        tuple(parts) == nested[:len(parts)] for nested in HOME_NESTED_FILES)):
                 return "~/" + "/".join(parts)
     return None
 
@@ -2976,8 +2986,8 @@ def destination_offence(word, cwd, command, writer, whole=False, inside=None, re
             return None
         return (
             f"{writer} would write `{path}`, which is `{home}`: a key, a shell "
-            "profile, git's own configuration or what `~/.claude` applies to "
-            "later sessions. No rule judges a shell write there. Use an editing "
+            "profile, git's own configuration or what `~/.claude` or "
+            "`~/.claude.json` applies to later sessions. No rule judges a shell write there. Use an editing "
             "tool, where one does, or hand it to the owner "
             "(docs/harness-boundaries.md, *The edit-target guard*)."
         )

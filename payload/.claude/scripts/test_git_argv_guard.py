@@ -4218,7 +4218,19 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         for command in ("ls > ~/.gitconfig", "git show HEAD:x > ~/.gitconfig", "echo x >> ~/.bashrc",
                         "ls > $HOME/.zshrc", 'ls > "$HOME/.profile"', "ls > ~/.ssh/authorized_keys",
                         "tee ~/.gitconfig", "cp a ~/.bash_profile", "rm ~/.ssh/config",
-                        f"ls > {Path(home, '.gitconfig').as_posix()}"):
+                        f"ls > {Path(home, '.gitconfig').as_posix()}",
+                        # #585: git's XDG config runs as `.gitconfig` does, and so does its removal's parent.
+                        "ls > ~/.config/git/config", 'echo x >> "$HOME/.config/git/config"',
+                        "tee ~/.config/git/config", "cp a ~/.config/git/config", "rm -rf ~/.config/git",
+                        "rm -rf ~/.config", "mv ~/.config/git /tmp/x"):
+            with self.subTest(command=command):
+                self.assertIn("No rule judges a shell write", self.assertRefused(command, env=env))
+
+    def test_the_claude_code_user_state_is_refused_in_a_home_that_is_no_checkout(self):
+        # #585: `~/.claude.json` sits beside `~/.claude`, and its MCP servers start with every later session.
+        _, env = self.real_home()
+        for command in ("ls > ~/.claude.json", 'echo x > "$HOME/.claude.json"', "tee ~/.claude.json",
+                        "cp a ~/.claude.json", "mv /tmp/a ~/.claude.json", "rm ~/.claude.json"):
             with self.subTest(command=command):
                 self.assertIn("No rule judges a shell write", self.assertRefused(command, env=env))
 
@@ -4263,7 +4275,8 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         self.admitted("ls > ~/notes.md", "ls > ~/projects/.bashrc", "ls > ~/.ssh-notes",
                       "ls > ~/.claude/CLAUDE.md", "ls > ~/.claude/scratch/x", "ls > ~/.claude/.last",
                       "rm ~/.claude/scratch/x", "ls > '~/.gitconfig'", "ls ~/.ssh", "cat ~/.gitconfig",
-                      "ls > $HOME/.claude/scratch/x", env=env)
+                      "ls > $HOME/.claude/scratch/x", "ls > ~/.config/other/config", "ls > ~/.config/git/ignore",
+                      "ls > ~/.claude.json.bak", "cat ~/.claude.json", "cat ~/.config/git/config", env=env)
 
     def test_a_checkout_inside_a_home_place_is_not_left_to_its_denies(self):
         # As the edit guard's `home_offence` asks it: a checkout at

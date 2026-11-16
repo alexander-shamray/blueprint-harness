@@ -695,6 +695,8 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
             os.path.join(self.HOME, ".profile"),
             os.path.join(self.HOME, ".zshrc"),
             os.path.join(self.HOME, ".gitconfig"),
+            # #585: git's XDG config runs as `.gitconfig` does.
+            os.path.join(self.HOME, ".config", "git", "config"),
         ):
             with self.subTest(target=target):
                 self.assertIn("what runs at login", self.assertRefused(target))
@@ -721,6 +723,9 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
             os.path.join(self.HOME, "notes.md"),
             os.path.join(self.HOME, "projects", ".ssh-notes.md"),
             os.path.join(self.HOME, "projects", ".bashrc"),
+            os.path.join(self.HOME, ".config", "other", "config"),
+            os.path.join(self.HOME, ".config", "git", "ignore"),
+            os.path.join(self.HOME, "projects", ".claude.json"),
         ):
             with self.subTest(target=target):
                 self.assertAdmitted(target)
@@ -734,6 +739,8 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
             os.path.join(self.CLAUDE, "commands", "anything.md"),
             os.path.join(self.CLAUDE, "agents", "anything.md"),
             os.path.join(self.CLAUDE, "plugins", "p", "skills", "s", "SKILL.md"),
+            # #585: beside `~/.claude`, the user state whose MCP servers every session starts.
+            os.path.join(self.HOME, ".claude.json"),
         ):
             with self.subTest(target=target):
                 self.assertIn("control surface", self.assertRefused(target))

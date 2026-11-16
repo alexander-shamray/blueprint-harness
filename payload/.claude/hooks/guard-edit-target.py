@@ -322,7 +322,7 @@ def home_offence(spelled, lexical, resolved):
             if place == "control":
                 return (
                     f"guard-edit-target: {spelled} resolves to {resolved}, "
-                    f"inside the harness's own control surface: `{parts[1]}` "
+                    f"inside the harness's own control surface: `{parts[1] if len(parts) > 1 else parts[0]}` "
                     "applies to every project, and a change to it is the "
                     "owner's to run (docs/harness-boundaries.md)."
                 )
