@@ -525,8 +525,6 @@ def candidates(operand, cwd):
             if cwd is None:
                 continue
             path = os.path.join(cwd, path)
-        if elsewhere(path):
-            continue
         matches = []
         if any(character in word for character in "*?["):
             # `iglob` walks lazily, so the bound stops the walk itself and not only the reads after it; it is one

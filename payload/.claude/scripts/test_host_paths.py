@@ -152,7 +152,7 @@ class TheGitArgvGuard(unittest.TestCase):
                         f"git -C {SHARE} checkout other x.txt",
                         f"cd {SHARE} && echo x > out.txt", f"echo x | tee {SHARE}/x.txt",
                         f"echo x > '{NT_SHARE}\\x.txt'", f"cd '{NT_SHARE}' && echo x > out.txt",
-                        f"git -C '{NT_SHARE}' rm x.txt"):
+                        f"git -C '{NT_SHARE}' rm x.txt", f"cd '{NT_SHARE}' && rm -rf build"):
             with self.subTest(command=command), grammar_on(self.guard), nothing_leaves(self):
                 reason = self.guard.offence(command)
                 self.assertIsNotNone(reason)

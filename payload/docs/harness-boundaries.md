@@ -938,8 +938,10 @@ holds:**
    mistake it exists to stop;
 3. the guard refuses a command it should allow, because a false refusal
    blocks work and teaches sessions to route around the hook;
-4. a hook itself opens, before the permission prompt, a path a proposed call
-   names, so the act happens whatever the user answers. That is no spelling
+4. a hook itself opens, before the permission prompt, a share or device
+   path on another machine that a proposed call names, so the act happens
+   whatever the user answers; a local path is the session's to read anyway.
+   That is no spelling
    hiding a command but the hook's own reach, and no deny or classifier
    stands before it (*Paths on another machine*).
 
@@ -965,11 +967,12 @@ however the session came to propose the call.
 
 **One predicate, `.claude/hooks/path_grammar.py`, names the paths**, and the
 four hooks that open a path a call names — the git argv, edit-target and
-sed guards and the search hint — load it by path. It reads the grammar as
-the edit-target guard already did (*Edit guard path resolution*): any
-spelling opening with two
-separators, either way round — a UNC share, `\\?\` or `\\.\` — and the
-NT namespace's `\??\`, which Win32 passes through as it is, on Windows
+sed guards and the search hint — load it by path. It is the grammar the
+edit-target guard refuses (*Edit guard path resolution*): any spelling
+opening with two
+separators, either way round — a UNC share, `\\?\` or `\\.\` — and,
+added with it, the NT namespace's `\??\`, which Win32 passes through as it
+is, on Windows
 alone, since `//x` on POSIX is a local path. A path on the share the home,
 the working directory or the project is on is the user's own and is judged
 as before; that covers a worktree on a share, whose `gitdir` sits elsewhere
@@ -1005,7 +1008,10 @@ its share, joined to a directory or not; the grammar is switched on there,
 so the POSIX legs judge every spelling too. Only the Windows join that
 turns `\??\` into `C:\??\…` is exercised on Windows alone.
 
-**Residuals.** What git follows past the first pointer — a `commondir`, a
+**Residuals.** A local link whose target is a share is followed: each hook
+resolves, stats or globs the local path it was named, and the link takes
+that call to the host. Planting one takes an approved `ln -s` first.
+What git follows past the first pointer — a `commondir`, a
 config `include`, a link whose target is a share — is git's own reading,
 which no hook sees before it runs; reaching it takes a file the session
 wrote first, in a checkout the sed guard then runs git in. A share the
@@ -2407,7 +2413,8 @@ one to `\\localhost\C$\dev\ashamray\.claude\sandbox\probe-share.txt`; the plain
 spelling of either file is refused. Both probe files were deleted.
 
 **So the guard refuses the family rather than the prefixes** — every spelling
-beginning `\\`, unless an anchor that is itself named that way **contains the
+beginning `\\`, and the NT namespace's `\??\` (*Paths on another
+machine*), unless an anchor that is itself named that way **contains the
 target**. The exemption was session-wide for one round, which reopened the
 bypass it was carved for: once any checkout was `\\`-spelled, an alias of that
 same checkout — `\\?\UNC\localhost\C$\…`, not lexically under
