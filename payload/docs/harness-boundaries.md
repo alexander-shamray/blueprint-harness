@@ -192,16 +192,18 @@ widens the next invocation's Bash surface. The deny list in
 `.claude/settings.json` is the owner of the paths; this paragraph is the
 reason `skills/` is on it.
 
-**A command that holds `Write` or `Edit` denies the user's memory and output
-styles.** `~/.claude/projects/*/memory/` is loaded into later sessions as the
-user's own standing instruction, and `~/.claude/output-styles/` shapes how they
-answer; a command that reads a branch diff and holds `Write` could otherwise
-plant one. `guard-edit-target.py` refuses only named control paths below
-`~/.claude`, and these two are not among them, since a session's own memory
-lives there and it cannot tell a save from an injection, so
-`Edit(~/.claude/projects/**)` and `Edit(~/.claude/output-styles/**)` sit in
-`disallowed-tools` of `/ship`, `/pr`, `/style-pass`, `/dispatch` and `/team`,
-and `AWritingCommandDeniesTheUsersMemoryAndOutputStyles` fails when a managed
+**A command that holds `Write` or `Edit` denies the user's memory, output
+styles and `CLAUDE.md`.** `~/.claude/projects/*/memory/` and
+`~/.claude/CLAUDE.md` are loaded into later sessions as the user's own standing
+instruction, and `~/.claude/output-styles/` shapes how they answer; a command
+that reads a branch diff and holds `Write` could otherwise plant one.
+`guard-edit-target.py` refuses only named control paths below `~/.claude`, and
+these three are not among them, since a session's own memory lives there and
+it cannot tell a save from an injection, and `CLAUDE.md` is the owner's to
+edit, so `Edit(~/.claude/projects/**)`, `Edit(~/.claude/output-styles/**)` and
+`Edit(~/.claude/CLAUDE.md)` sit in `disallowed-tools` of `/ship`, `/pr`,
+`/style-pass`, `/dispatch` and `/team`, and
+`AWritingCommandDeniesTheUsersMemoryAndOutputStyles` fails when a managed
 command that grants either tool lacks them. Like every frontmatter deny they
 last only the turn that loaded the command (*A boundary an agent must keep
 across turns*), so they cover that turn's reading of a branch and not `/ship`
@@ -2245,7 +2247,8 @@ first component only, so a name below `projects` is a session's own state. An
 allow-list of roots is the stronger form and it was measured against what
 sessions write: it refuses sibling checkouts, `run-locally.md` and the task
 list, a false refusal under *The guards' threat model*. `~/.claude/CLAUDE.md`
-stays writable because it is the owner's rules rather than a grant, and a
+stays writable by an editing tool because it is the owner's rules rather than
+a grant, and a
 change to `~/.claude/settings.json` is the owner's to run from a script.
 
 **The git guard refuses the same names for a shell write**, and reads them from
@@ -2256,10 +2259,10 @@ resolution, with `HOME` and the process's own home both read as the root,
 whatever checkout holds the target, the one the session stands in included: a
 checkout at `~/.claude` or inside a place below excuses none of these names, as
 the edit guard's does not (#512, #537).
-The shell also may not write `~/.claude/projects/` or
-`~/.claude/output-styles/`, which the edit guard
+The shell also may not write `~/.claude/projects/`,
+`~/.claude/output-styles/` or `~/.claude/CLAUDE.md`, which the edit guard
 admits: a `Write` there meets a command's deny in the turn that holds one, and a
-shell write meets none.
+shell write meets none (#586).
 
 **A replay narrowed it.** 79,469 commands of these repositories' sessions since
 2026-10-01 gave 34 new refusals, none under the login or control names. 30 wrote
