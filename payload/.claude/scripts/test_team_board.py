@@ -11,6 +11,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import team_board as tb
 
@@ -209,6 +210,30 @@ class ARoundThatCannotBeReadDidNotHappen(Checkout):
     def test_a_reply_that_is_not_json_is_refused(self):
         self.reply(1, "p1", raw="Here are my findings:")
         self.assert_refused(1, "p1.json is not JSON")
+
+    def test_a_reply_that_is_not_utf8_is_refused_and_no_peer_record_is_left(self):
+        self.reply(1, "p1", claims=[{"text": "two", "evidence": ["src/a.cs:2"]}])
+        (self.run_path / "round-01" / "p2.json").write_bytes(b'{"agent": "p2", "claims": ["\xff"]}')
+        self.assert_refused(1, "p2.json is not JSON")
+        self.assertEqual([], list((self.run_path / "round-01").glob("*.md")), "a refused round left a record")
+
+    def test_a_board_cut_short_is_a_refusal_naming_it(self):
+        (self.run_path / "board.json").write_text('{"peers": ["p1", "p2"], "cla', encoding="utf-8")
+        self.reply(1, "p1")
+        for call in (lambda: self.merge(1), lambda: tb.init(self.root, "r1", 2)):
+            with self.assertRaises(tb.Refusal) as caught:
+                call()
+            self.assertIn("board.json cannot be read as a board", str(caught.exception))
+
+    def test_a_write_that_fails_leaves_the_last_board_whole(self):
+        before = (self.run_path / "board.json").read_text(encoding="utf-8")
+        self.reply(1, "p1", claims=[{"text": "two", "evidence": ["src/a.cs:2"]}])
+        with mock.patch.object(tb.os, "replace", side_effect=OSError("held open")), \
+                self.assertRaises(tb.Refusal) as caught:
+            self.merge(1)
+        self.assertIn("could not write", str(caught.exception))
+        self.assertEqual(before, (self.run_path / "board.json").read_text(encoding="utf-8"))
+        self.assertEqual([], list(self.run_path.glob("*.tmp")), "a temporary file was left behind")
 
     def test_a_reply_naming_another_agent_is_refused(self):
         self.reply(1, "p1", raw=json.dumps({"agent": "p2", "claims": []}))
