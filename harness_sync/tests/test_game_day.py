@@ -44,10 +44,22 @@ class GameDayTests(unittest.TestCase):
 
     def test_a_command_let_through_is_a_finding(self):
         scenarios = dict(game_day.GUARD_SCENARIOS)
-        scenarios[("Bash", "guard-sed-crlf.py")] = [({"command": "git status"}, "CRLF")]
+        scenarios[("Bash", "guard-index-argv.py")] = [({"command": "git status"}, "may not share the line")]
         with mock.patch.object(game_day, "GUARD_SCENARIOS", scenarios):
             findings, _ = game_day.guard_scenarios(self.target)
-        self.assertTrue(any("guard-sed-crlf.py on Bash" in f and "let through" in f for f in findings), findings)
+        self.assertTrue(any("guard-index-argv.py on Bash" in f and "let through" in f for f in findings), findings)
+
+    def test_a_platform_guard_refusing_off_its_platform_is_a_finding(self):
+        # The sed guard refuses on Windows alone. Told it refuses on posix instead, Windows's refusal is off its
+        # platform, and posix's admission is a call let through, so each host sees the table disagree with the guard.
+        refused = {("Bash", "guard-sed-crlf.py"): "posix"}
+        with mock.patch.object(game_day, "REFUSED_ON", refused):
+            findings, oks = game_day.guard_scenarios(self.target)
+        sed = [line for line in findings + oks if "guard-sed-crlf.py" in line]
+        if game_day.os.name == "nt":
+            self.assertTrue(sed and "where it documents admitting it" in sed[0], sed)
+        else:
+            self.assertTrue(sed and "let through what it documents refusing" in sed[0], sed)
 
     def _stubbed(self, marker, answer):
         """`game_day.run` with each call whose argv holds `marker` answered by `answer`, the rest run for real."""
