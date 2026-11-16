@@ -75,6 +75,14 @@ class RenderTests(unittest.TestCase):
             render_settings(base(), cfg(env={"a": "9"}))
         self.assertIn("'a'", str(ctx.exception))
 
+    def test_two_config_keys_differing_in_case_name_the_config_not_the_base(self) -> None:
+        with self.assertRaises(RenderError) as ctx:
+            render_settings(base(), cfg(env={"Foo": "1", "FOO": "2"}))
+        self.assertEqual("config env 'FOO' is already set by the config as 'Foo'", str(ctx.exception))
+        with self.assertRaises(RenderError) as ctx:
+            render_settings(base(), cfg(env={"a": "9"}))
+        self.assertEqual("config env 'a' is already set by the base as 'A'", str(ctx.exception))
+
     def test_render_validates_settings_shape(self) -> None:
         for bad, key in (({"allow": "Bash(x)"}, "allow"), ({"ask": []}, "ask"), ({"env": {"A": 1}}, "env"),
                          ({"hooks": {"Stop": [1]}}, "hooks"), ({"hooks": {"Stop": [{"hooks": [{}]}]}}, "hooks")):
