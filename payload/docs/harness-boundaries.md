@@ -2323,7 +2323,8 @@ disagrees, as any checkout does, but excuses none of these names: containing
 a target is not owning it, and the denies of one inside a place are anchored
 at its own root and name none of them.
 `~/.ssh`, the shell profiles, `~/.gitconfig` and git's XDG
-`~/.config/git/config` run at login under every session, and `~/.claude.json`
+`~/.config/git/config`, with `$XDG_CONFIG_HOME/git/config` wherever the hook's
+environment moves it (#589), run at login under every session, and `~/.claude.json`
 and `~/.claude`'s credentials, settings, hooks, commands, agents, plugins,
 scripts, skills and sandbox apply to every project (#585), judged on the
 first component only, so a name below `projects` is a session's own state. An
@@ -2338,7 +2339,8 @@ change to `~/.claude/settings.json` is the owner's to run from a script.
 one list, `HOME_TREES` and its neighbours in `guard-git-argv.py`, which the edit
 guard loads; if it cannot load them it refuses a target under the home
 directory. A redirect and a writing verb's operand are judged by spelling and by
-resolution, with `HOME` and the process's own home both read as the root,
+resolution, with `HOME` and the process's own home both read as the root, and
+`$XDG_CONFIG_HOME` expanded as `HOME` is,
 whatever checkout holds the target, the one the session stands in included: a
 checkout at `~/.claude` or inside a place below excuses none of these names, as
 the edit guard's does not (#512, #537).

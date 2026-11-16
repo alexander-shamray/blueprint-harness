@@ -278,6 +278,34 @@ def home_place(parts):
     return None
 
 
+def xdg_git_config(path, cwd=None, whole=False):
+    """`$XDG_CONFIG_HOME/git/config` when `path` names it, or `None`.
+
+    git reads that file in place of `~/.config/git/config` when the variable is set and not empty,
+    a relative value from where git runs, so it runs at login as `.gitconfig` does. `path` is
+    judged as spelled and as resolved, against the variable's own spelling and resolution;
+    `whole` counts the directories holding it, which a removal takes with it.
+    """
+    value = os.environ.get("XDG_CONFIG_HOME")
+    if not value:
+        return None
+    if os.name == "nt":
+        value = DRIVE_SPELLING.sub(lambda match: match.group(1) + ":" + (
+            os.sep if match.end() == len(value) else ""), value)
+    if not (os.path.isabs(value) or value.startswith(("/", "\\"))):
+        value = os.path.join(cwd or os.getcwd(), value)
+    config = os.path.normpath(os.path.abspath(value))
+    named = [os.path.join(config, "git", "config")]
+    if whole:
+        named += [config, os.path.join(config, "git")]
+    names = {os.path.normcase(form).lower()
+             for place in named for form in (place, os.path.realpath(place))}
+    for place in (os.path.abspath(path), os.path.realpath(path)):
+        if os.path.normcase(os.path.normpath(place)).lower() in names:
+            return "$XDG_CONFIG_HOME/git/config"
+    return None
+
+
 # ---- the push allow-list ---------------------------------------------------
 
 # Options a push may carry. Anything else — including a spelling git invented
@@ -2781,7 +2809,7 @@ WRITING_REDIRECTION = re.compile(
 
 # Variables whose value this process shares with the session.
 EXPANDABLE_VARIABLES = frozenset({
-    "CLAUDE_PROJECT_DIR", "HOME", "TEMP", "TMP", "TMPDIR",
+    "CLAUDE_PROJECT_DIR", "HOME", "TEMP", "TMP", "TMPDIR", "XDG_CONFIG_HOME",
 })
 VARIABLE_REFERENCE = re.compile(
     r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))")
@@ -2994,7 +3022,7 @@ def home_target(path, cwd, command, whole=False, removing=False):
                     or (whole and len(parts) == 1))) or (whole and any(
                         tuple(parts) == nested[:len(parts)] for nested in HOME_NESTED_FILES)):
                 return "~/" + "/".join(parts)
-    return None
+    return xdg_git_config(path, cwd, whole)
 
 
 def destination_offence(word, cwd, command, writer, whole=False, inside=None, removing=False):
