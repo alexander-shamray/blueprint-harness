@@ -227,8 +227,9 @@ def merge(root, name, number):
         records[peer] = round_record(peer, number, accepted, rejected)
     for peer, record in records.items():
         (round_dir / f"{peer}.md").write_text(record, encoding="utf-8")
-    # docs/commands/team.md, *Rounds and convergence*: nothing new and nothing moved, whatever was refused.
-    converged = added == 0 and changed == 0
+    # docs/commands/team.md, *Rounds and convergence*: nothing new and nothing moved, whatever was refused, once
+    # the board holds a claim; refusals over an empty board are claims not yet backed, not the peers agreeing.
+    converged = added == 0 and changed == 0 and (refused == 0 or bool(board["claims"]))
     board["rounds"].append({"round": number, "added": added, "changed": changed, "refused": refused,
                             "converged": converged})
     save(directory, board)
