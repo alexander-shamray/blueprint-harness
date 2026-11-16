@@ -2936,7 +2936,7 @@ def protected_target(path, whole=False):
 def home_target(path, cwd, command, whole=False, removing=False):
     """The name below the home that shell-written `path` reaches, or `None`.
 
-    Judged as spelled and as resolved, whatever checkout holds it, since none names these. `whole`
+    Judged as spelled and as resolved, whatever checkout holds it: containing is not owning. `whole`
     counts `~/.claude` itself; `removing` frees a project's memory file, which no editing tool can remove.
     """
     if whole and os.path.basename(path) == "*":
