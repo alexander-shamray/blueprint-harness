@@ -2252,8 +2252,10 @@ change to `~/.claude/settings.json` is the owner's to run from a script.
 one list, `HOME_TREES` and its neighbours in `guard-git-argv.py`, which the edit
 guard loads; if it cannot load them it refuses a target under the home
 directory. A redirect and a writing verb's operand are judged by spelling and by
-resolution, with `HOME` and the process's own home both read as the root, and a
-checkout the session stands in is left to its denies unless it holds the home.
+resolution, with `HOME` and the process's own home both read as the root,
+whatever checkout holds the target, the one the session stands in included: a
+checkout at `~/.claude` or inside a place below excuses none of these names, as
+the edit guard's does not (#512, #537).
 The shell also may not write `~/.claude/projects/` or
 `~/.claude/output-styles/`, which the edit guard
 admits: a `Write` there meets a command's deny in the turn that holds one, and a
