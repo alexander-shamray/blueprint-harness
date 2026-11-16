@@ -23,7 +23,8 @@ _PERMISSION_REFUSAL = re.compile(
     r"|The server-side auto mode classifier gave no verdict)"
 )
 _ACTION_REQUIRED = "⚠️ ACTION REQUIRED"
-_NO_HANDOVER = _ACTION_REQUIRED + " — none"
+# A verdict naming nothing owed, however the line goes on: `— none`, `— none yet; …`, `— run: nothing yet`.
+_NO_HANDOVER = re.compile(re.escape(_ACTION_REQUIRED) + r" — (?:none|run: nothing)\b")
 _NOT_A_TURN = ("<local-command", "<bash-input>", "<bash-stdout>", "<bash-stderr>", "<task-notification>",
                "<system-reminder>", "[Request interrupted")
 _COMMAND_TAG = re.compile(r"\s*(?:<command-message>[^<]*</command-message>\s*)?<command-name>/([^<]*)</command-name>")
@@ -105,7 +106,7 @@ def count_stops(transcript):
                     counts["ask_user"] += 1
                 elif part.get("type") == "text":
                     last = [line for line in part.get("text", "").splitlines() if line.strip()][-1:]
-                    if last and last[0].startswith(_ACTION_REQUIRED) and last[0].strip() != _NO_HANDOVER:
+                    if last and last[0].startswith(_ACTION_REQUIRED) and not _NO_HANDOVER.match(last[0]):
                         counts["action_required"] += 1
         elif kind == "user":
             for part in _parts(entry):

@@ -10,7 +10,8 @@ task must not rise in any repository.
 `measure/stops.py` reads one session transcript (one `.jsonl` file under
 `~/.claude/projects/`) and counts four things: `ask_user` (AskUserQuestion
 tool uses), `action_required` (assistant messages whose last line starts
-`⚠️ ACTION REQUIRED`, except the exact `⚠️ ACTION REQUIRED — none`, which
+`⚠️ ACTION REQUIRED`, except one that opens `⚠️ ACTION REQUIRED — none` or
+`⚠️ ACTION REQUIRED — run: nothing` as whole words, however it goes on, which
 hands over nothing),
 `permission_refused` (tool errors whose text is a permission refusal, not a
 hook refusal) and `user_turns` (genuine user messages after the one that opens
@@ -44,6 +45,10 @@ across the sessions.
   session counted its `/compact` summaries. Every table those command lines
   printed ahead of *After #276* was taken that way; *After plan 5*'s count by
   start chose its own sessions and kept only the `/compact` handling.
+- Until #569 `action_required` excepted only the exact `⚠️ ACTION REQUIRED —
+  none`, so a verdict going on past it, `— none yet; …` or `— run: nothing
+  yet …`, counted as a handover. Every table in this file was taken that way;
+  *What the 45 hand over* names the seven such lines in the week's count.
 
 ## Command lines
 
@@ -462,7 +467,7 @@ running it did.
 | A note or patch for a session in this repository: the change is the payload's | 7 | 7 |
 | `rmdir` and the branch drop for the worktree the session held, as step 6 hands them over on Windows | 3 | 3 |
 | A CI rerun after a GitHub DNS failure, `/ship` again in the session, `/ship` after the weekly limit, a script closing two issues | 4 | 3 |
-| Nothing: a verdict spelt `⚠️ ACTION REQUIRED — none yet` or `— none: …`, which the counter takes for a handover | 7 | 4 |
+| Nothing: a verdict spelt `⚠️ ACTION REQUIRED — none yet` or `— none: …` or `— run: nothing yet`, which the counter took for a handover until #569 | 7 | 4 |
 
 The seventeen scripts by the path they edit:
 

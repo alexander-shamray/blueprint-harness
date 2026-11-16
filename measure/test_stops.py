@@ -90,6 +90,22 @@ class StopsTest(unittest.TestCase):
         )
         self.assertEqual(stops.count_stops(path)["action_required"], 2)
 
+    def test_a_verdict_that_hands_over_nothing_is_no_handover_however_it_goes_on(self):
+        # Spellings /ship sessions have written for a mid-chain status: each hands over nothing.
+        for line in ("⚠️ ACTION REQUIRED — none yet; the run is mid-review",
+                     "⚠️ ACTION REQUIRED — none: the session continues when the reviewer reports.",
+                     "⚠️ ACTION REQUIRED — run: nothing yet; wait for the background suites",
+                     "⚠️ ACTION REQUIRED — run: nothing",
+                     "⚠️ ACTION REQUIRED — none "):
+            with self.subTest(line):
+                path = self.transcript(user("go"), assistant(text("Status.\n" + line)))
+                self.assertEqual(stops.count_stops(path)["action_required"], 0)
+        # A word that only opens with none or nothing still names something to run.
+        for line in ("⚠️ ACTION REQUIRED — nonexistent.sh is owed", "⚠️ ACTION REQUIRED — run: nothingness.sh"):
+            with self.subTest(line):
+                path = self.transcript(user("go"), assistant(text(line)))
+                self.assertEqual(stops.count_stops(path)["action_required"], 1)
+
     def test_permission_refusal_counted(self):
         path = self.transcript(
             user("go"),
