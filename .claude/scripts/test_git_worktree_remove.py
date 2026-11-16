@@ -502,6 +502,38 @@ class RemoveShape(unittest.TestCase):
         self.assertFalse(lock.exists())
         self.assertFalse(pending.exists())
 
+    def test_a_marker_left_after_the_wait_is_removed_with_the_worktree(self):
+        """The wait drops a marker it finds, so the case above's marker
+        assertion passes on the wait alone. A request the hook leaves once the wait has ended reaches
+        only the removal's own cleanup: a git that writes the marker and then
+        runs the real one puts it there."""
+        root, native = self.fixture()
+        _, pending = self.state(native)
+        pending.parent.mkdir(parents=True, exist_ok=True)
+        shim = native / "shim"
+        shim.mkdir()
+        real = Path(shutil.which("git")).as_posix()
+        (shim / "git").write_bytes((
+            "#!/usr/bin/env bash" + chr(10)
+            + 'if [ "$3" = worktree ] && [ "$4" = remove ]; then' + chr(10)
+            + '  : > "$SHIM_PENDING" && : > "$SHIM_SAW"' + chr(10)
+            + "fi" + chr(10)
+            + f'exec "{real}" "$@"' + chr(10)
+        ).encode("utf-8"))
+        os.chmod(shim / "git", 0o755)
+        shim_dir = shim.resolve()
+        if os.name == "nt":
+            shim_dir = "/" + shim_dir.drive[0].lower() + shim_dir.as_posix()[2:]
+        saw = native / "saw"
+        self.assertFalse(pending.exists())
+        result = run_bash('cd "$WHERE" && PATH="$SHIM:$PATH" bash "$REMOVE" .claude/worktrees/probe feat/probe',
+                          WHERE=f"{root}/checkout", REMOVE=str(REMOVE), SHIM=str(shim_dir),
+                          SHIM_PENDING=pending.as_posix(), SHIM_SAW=saw.as_posix())
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertTrue(saw.exists(), "the shim never wrote the marker, so the case tests nothing")
+        self.assertFalse(self.present(root))
+        self.assertFalse(pending.exists(), "the marker written after the wait outlived the worktree")
+
     def test_a_worktree_that_never_had_a_lock_is_not_given_one(self):
         root, native = self.fixture()
         lock, _ = self.state(native)

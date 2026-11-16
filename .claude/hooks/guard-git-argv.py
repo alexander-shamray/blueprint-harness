@@ -2936,22 +2936,15 @@ def protected_target(path, whole=False):
 def home_target(path, cwd, command, whole=False, removing=False):
     """The name below the home that shell-written `path` reaches, or `None`.
 
-    Judged as spelled and as resolved, the session's own checkout left to its denies. `whole` counts
-    `~/.claude` itself; `removing` frees a project's memory file, which no editing tool can remove.
+    Judged as spelled and as resolved, whatever checkout holds it: containing is not owning. `whole`
+    counts `~/.claude` itself; `removing` frees a project's memory file, which no editing tool can remove.
     """
     if whole and os.path.basename(path) == "*":
         path = os.path.dirname(path)
-    session = checkout_of(os.path.abspath(EVENT_CWD or os.getcwd()))
-    standing = (session, os.path.realpath(session)) if session is not None else ()
     homes = [written_path("~", cwd, command), os.path.expanduser("~")]
     roots = {root for home in homes if home
              for root in (os.path.abspath(home), os.path.realpath(home))}
-    # A checkout holding the home, a dotfiles one at `~`, has no deny naming these.
-    if any(beneath(root, checkout) for checkout in standing for root in roots):
-        standing = ()
     for place in (path, os.path.realpath(path)):
-        if any(beneath(place, checkout) for checkout in standing):
-            continue
         for root in roots:
             if not beneath(place, root) or os.path.normcase(place) == os.path.normcase(root):
                 continue

@@ -337,9 +337,20 @@ class ThePatterns(unittest.TestCase):
                                  1)
                 self.assertEqual(judged("A.cs", f'x("{sample}");\n'), [])
 
+    def test_a_number_named_without_its_hash_fails(self):
+        for sample in ["Issue 528: only -o took a value", "see issues 12",
+                       "pull request 576", "PR 7", "fixed in pr 9"]:
+            with self.subTest(sample=sample):
+                self.assertEqual(
+                    [message for _, _, message
+                     in judged("A.cs", f"x(); // {sample}\n")],
+                    ["a comment names an issue or pull request number"])
+
     def test_innocent_neighbours_pass(self):
         for sample in ["refused to", "C# 14", "§13.2", "a*b*c",
-                       "the key is used for signing"]:
+                       "the key is used for signing", "an issue with 2 heads",
+                       "the pull request's 3 checks", "PRs open", "tissue 4",
+                       "sprite 12"]:
             with self.subTest(sample=sample):
                 self.assertEqual(judged("A.cs", f"// {sample}\n"), [])
 

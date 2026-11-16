@@ -336,6 +336,17 @@ class VerifyTests(SyncCase):
         out = self.refused("is older than the base's")
         self.assertIn("c" * 40, out)
 
+    def test_a_local_ref_named_origin_main_does_not_shadow_the_remote_one(self):
+        # git resolves a short origin/main to refs/heads/origin/main before refs/remotes/origin/main.
+        oid = self.start()
+        orphan = git(self.root, *SEED, "commit-tree", "-m", "orphan",
+                     git(self.root, "hash-object", "-t", "tree", "-w", "--stdin", data=b"").strip()).strip()
+        for ref in ("refs/heads/origin/main", "refs/tags/origin/main"):
+            with self.subTest(ref=ref):
+                git(self.root, "update-ref", ref, orphan)
+                self.assertEqual((0, f"verified 7 {NEW_H}\n", ""), self.cli("verify", "7", "--head", oid))
+                git(self.root, "update-ref", "-d", ref)
+
     def test_a_sync_behind_a_moved_main_that_is_still_forward_verifies(self):
         self.start()
         self.advance_main("c" * 40)
@@ -387,6 +398,23 @@ class VerifyTests(SyncCase):
     def test_a_head_that_moved_since_the_listing_is_refused(self):
         self.start(row={"headRefOid": "b" * 40})
         self.refused("is not the listed oid")
+
+    def test_another_calls_fetch_between_the_head_fetch_and_its_read_does_not_refuse_an_unmoved_head(self):
+        # Two calls in one checkout, run-local-suites in the background while review-diff runs: the other call's main
+        # fetch lands between this call's head fetch and its read, so a read of FETCH_HEAD returns main's tip.
+        oid = self.start()
+        gh = self.gh
+
+        def racing(argv, cwd=None, timeout=60):
+            result = gh(argv, cwd, timeout)
+            if argv[:2] == ["git", "fetch"] and f"refs/heads/{HEAD_NAME}" in argv[-1]:
+                git(self.root, "fetch", "-q", "--no-tags", "origin", "main")
+            return result
+
+        with mock.patch.object(sync_pr, "run", racing):
+            self.assertEqual((0, f"verified 7 {NEW_H}\n", ""), self.cli("verify", "7", "--head", oid))
+        # The call's own ref goes once it has been read, so no verify leaves one behind to collide with or pin commits.
+        self.assertEqual("", git(self.root, "for-each-ref", "refs/sync-pr/"))
 
     def test_an_unparseable_manifest_fails_closed(self):
         self.head_files[".harness/manifest.json"] = "{not json"
@@ -702,6 +730,15 @@ class ListTests(SyncCase):
             with self.subTest(body):
                 self.gh.prs = [self.row(5, body=body)]
                 self.assertEqual(5 if ok else None, (json.loads(self.cli("list")[1])["take"] or {}).get("number"))
+
+    def test_a_list_as_long_as_its_limit_is_refused_as_cut(self):
+        limit = int(sync_pr.LIST_LIMIT)
+        self.gh.prs = [self.row(n) for n in range(1, limit)]
+        self.assertEqual(0, self.cli("list")[0])
+        self.gh.prs.append(self.row(limit))
+        code, out, err = self.cli("list")
+        self.assertEqual((2, ""), (code, out))
+        self.assertIn(f"--limit {sync_pr.LIST_LIMIT}, so it may be cut", err)
 
     def test_a_gh_failure_is_exit_2_with_one_line(self):
         self.gh.fail = "pr list"
