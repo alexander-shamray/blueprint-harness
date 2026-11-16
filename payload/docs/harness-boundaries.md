@@ -981,8 +981,8 @@ drive as spelled, so an alias of an own share, `\\?\UNC\…`, is foreign too.
   target without opening it, and a device spelling of a local file would pass
   the denies. A relative target after a `cd` or `git -C` onto one lands on
   the share, and is refused the same way.
-- `guard-edit-target.py` refuses an edit there, and follows no `gitdir:` or
-  `commondir` pointer into one.
+- `guard-edit-target.py` refuses an edit there, and follows no `gitdir:`
+  pointer, backlink or `commondir` into one.
 - `guard-sed-crlf.py` admits an operand or a `cd` it would have to open to
   place, since a file on another machine is not a checkout's CRLF file, and
   runs no git in a checkout whose `.git` file points at one.

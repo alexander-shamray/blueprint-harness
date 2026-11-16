@@ -229,7 +229,8 @@ class TheSearchHint(unittest.TestCase):
                  ("Grep", {"pattern": "needle", "path": SHARE + "/src"}),
                  ("Grep", {"pattern": "needle", "path": NT_SHARE})]
         for command in (f"grep -rn needle {SHARE}", f"rg needle {SHARE}/src", f"cd {SHARE} && rg needle",
-                        f"git -C {SHARE} grep needle", f"cd {SHARE} && grep -rn needle ."):
+                        f"git -C {SHARE} grep needle", f"cd {SHARE} && grep -rn needle .",
+                        f"cd '{NT_SHARE}' && rg needle", f"git -C '{NT_SHARE}' grep needle"):
             cases.append(("Bash", {"command": command}))
         for name, given in cases:
             with self.subTest(tool=name, given=given), grammar_on(self.hint), nothing_leaves(self):
@@ -273,6 +274,16 @@ class TheEditGuard(unittest.TestCase):
             write(os.path.join(admin, "commondir"), common + "\n")
             with self.subTest(common=common), grammar_on(self.guard), nothing_leaves(self):
                 self.assertIsNone(self.guard.common_git_dir(checkout))
+
+    def test_a_backlink_to_a_share_is_not_followed(self):
+        # The admin directory is local; only git's backlink from it names the share.
+        admin = os.path.join(self.root, "admin")
+        checkout = os.path.join(self.root, "checkout")
+        write(os.path.join(checkout, ".git"), f"gitdir: {admin}\n")
+        for backlink in (f"{SHARE}/x/.git", NT_SHARE + r"\x\.git"):
+            write(os.path.join(admin, "gitdir"), backlink + "\n")
+            with self.subTest(backlink=backlink), grammar_on(self.guard), nothing_leaves(self):
+                self.assertIsNone(self.guard.verified_gitdir(checkout))
 
 
 if __name__ == "__main__":
