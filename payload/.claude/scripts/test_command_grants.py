@@ -419,7 +419,7 @@ class NoCommandGrantsABareBashOrALeadingWildcard(unittest.TestCase):
 
 class NoCommandGrantsGhWithoutASubcommand(unittest.TestCase):
     """`gh alias set --shell` or `gh extension install` and then its name runs any program, so a `gh` grant names
-    the subcommand it runs, and that subcommand is not one of those (blueprint-harness#552)."""
+    the subcommand it runs, and that subcommand is not one of those."""
 
     # The program word in any case, behind env assignments, with or without `.exe`, and what follows it.
     GH = re.compile(r"Bash\((?:\w+=\S*\s+)*gh(?:\.exe)?(?![\w.-])(.*)\)", re.DOTALL | re.IGNORECASE)
