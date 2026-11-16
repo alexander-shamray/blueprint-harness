@@ -11,8 +11,9 @@ and the shapes only, no content.
   holding `{"type": "tool_use", "name": "AskUserQuestion", "input": {...}}`.
 - **Handover**: an `assistant` line holding `{"type": "text", "text": ...}`
   whose last non-empty line starts `⚠️ ACTION REQUIRED`. The convention also
-  writes `⚠️ ACTION REQUIRED — none` when nothing is owed; that is not a stop
-  and is not counted.
+  writes `⚠️ ACTION REQUIRED — none` when nothing is owed, and sessions go on
+  past it (`— none yet; …`, `— run: nothing yet …`); that is not a stop and is
+  not counted.
 - **Tool result**: a `user` line whose `message.content` is a list holding
   `{"type": "tool_result", "is_error": true, "content": <str or list>}`. The
   line also carries `toolDenialKind` (`user-rejected`, `automode-blocked`,
