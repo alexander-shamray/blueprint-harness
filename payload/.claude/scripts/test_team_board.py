@@ -181,10 +181,18 @@ class ARoundConvergesWhenNothingIsNewAndNothingMoved(Checkout):
         result = self.merge(2)
         self.assertEqual((0, 0, True), (result["added"], result["changed"], result["converged"]))
 
-    def test_a_round_whose_every_claim_is_refused_converges(self):
+    def test_a_round_whose_every_claim_is_refused_converges_once_the_board_holds_one(self):
         # A refused claim is not on the board, so it cannot keep a run open by being repeated.
-        self.reply(1, "p1", claims=[{"text": "unbacked", "evidence": []}])
-        self.assertTrue(self.merge(1)["converged"])
+        self.reply(1, "p1", claims=[{"text": "two", "evidence": ["src/a.cs:2"]}])
+        self.merge(1)
+        self.reply(2, "p1", claims=[{"text": "unbacked", "evidence": []}])
+        self.assertEqual((1, True), (self.merge(2)["refused"], self.board()["rounds"][-1]["converged"]))
+
+    def test_a_round_that_refused_every_claim_over_an_empty_board_has_not_converged(self):
+        # A malformed citation is a claim not yet backed; ending on it would report an empty board as agreement.
+        self.reply(1, "p1", claims=[{"text": "three", "evidence": ["src/a.cs:2-3"]}])
+        result = self.merge(1)
+        self.assertEqual((0, 1, False), (result["added"], result["refused"], result["converged"]))
 
     def test_requests_are_carried_to_the_board_and_do_not_hold_a_round_open(self):
         self.reply(1, "p1", requests=["EXPLAIN the outbox DELETE"])
