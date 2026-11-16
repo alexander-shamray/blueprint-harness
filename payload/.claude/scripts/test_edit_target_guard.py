@@ -827,8 +827,10 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
         event = {"tool_name": "Write", "cwd": self.outside}
         # A Windows runner's temp root is under its real home, so this one is set.
         env = {key: value for key, value in os.environ.items() if key != "CLAUDE_PROJECT_DIR"}
-        env.update(HOME=home, USERPROFILE=home)
+        # Set as a CI runner sets it: only a file git could read there is refused.
+        env.update(HOME=home, USERPROFILE=home, XDG_CONFIG_HOME=os.path.join(self.outside, "xdg"))
         for target, reason in ((os.path.join(home, "notes.md"), "cannot be read"),
+                               (os.path.join(self.outside, "xdg", "git", "config"), "cannot be read"),
                                (os.path.join(self.outside, "loot.txt"), None)):
             with self.subTest(target=target):
                 result = subprocess.run(

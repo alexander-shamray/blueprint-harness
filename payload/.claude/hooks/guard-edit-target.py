@@ -329,7 +329,9 @@ def home_offence(spelled, lexical, resolved, cwd=None):
     try:
         xdg = any(git_guard().xdg_git_config(path, cwd) for path in (lexical, resolved))
     except (OSError, ValueError, TypeError, AttributeError):
-        if not os.environ.get("XDG_CONFIG_HOME"):
+        if not os.environ.get("XDG_CONFIG_HOME") or not any(
+                os.path.normcase(path).replace("\\", "/").lower().endswith("/git/config")
+                for path in (lexical, resolved)):
             return None
         return (
             f"guard-edit-target: {spelled} may be git's configuration at "
