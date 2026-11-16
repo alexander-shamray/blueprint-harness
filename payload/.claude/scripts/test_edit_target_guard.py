@@ -701,6 +701,19 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
             with self.subTest(target=target):
                 self.assertIn("what runs at login", self.assertRefused(target))
 
+    def test_git_reads_its_xdg_config_where_the_variable_moves_it(self):
+        # git reads `$XDG_CONFIG_HOME/git/config` when the variable is set, wherever it points.
+        moved = os.path.join(self.outside, "xdg")
+        env = {"XDG_CONFIG_HOME": moved}
+        for target in (os.path.join(moved, "git", "config"),
+                       os.path.join(moved, "other", "..", "git", "config")):
+            with self.subTest(target=target):
+                self.assertIn("what runs at login", self.assertRefused(target, env=env))
+        for target in (os.path.join(moved, "git", "ignore"), os.path.join(moved, "other", "config")):
+            with self.subTest(target=target):
+                self.assertAdmitted(target, env=env)
+        self.assertAdmitted(os.path.join(moved, "git", "config"), env={"XDG_CONFIG_HOME": ""})
+
     def test_a_link_into_the_keys_is_held(self):
         for linker in linkers():
             with self.subTest(link=linker):

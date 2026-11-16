@@ -326,6 +326,23 @@ def home_offence(spelled, lexical, resolved):
                     "applies to every project, and a change to it is the "
                     "owner's to run (docs/harness-boundaries.md)."
                 )
+    try:
+        xdg = any(git_guard().xdg_git_config(path) for path in (lexical, resolved))
+    except (OSError, ValueError, TypeError, AttributeError):
+        if not os.environ.get("XDG_CONFIG_HOME"):
+            return None
+        return (
+            f"guard-edit-target: {spelled} may be git's configuration at "
+            "`$XDG_CONFIG_HOME/git/config`, and the names that guard it "
+            f"cannot be read from {GIT_GUARD} (docs/harness-boundaries.md)."
+        )
+    if xdg:
+        return (
+            f"guard-edit-target: {spelled} resolves to {resolved}, git's own "
+            "configuration at `$XDG_CONFIG_HOME/git/config`: what runs at "
+            "login, under every session, which no checkout's rules own "
+            "(docs/harness-boundaries.md)."
+        )
     return None
 
 
