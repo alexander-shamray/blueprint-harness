@@ -442,10 +442,11 @@ The first day reproduces *After #297*'s row since the sync. Over the week
 `action_required` falls to 45 over 74, 0.6 a session against the baseline's
 1.8 and the first day's 1.4, with the median from 2 to 0 and the largest
 session from 6 to 4. `permission_refused` falls from 2 over 9 to 7 over 74
-and `user_turns` from 7 over 9 to 21 over 74. The totals rise with a window
-eight times the sessions; of the rates per session, the medians and the
-largest sessions, the one that rises is the largest session's turns again, 3
-against 2, a tail on a median of 0 on both sides, as *After plan 6* read it.
+and `user_turns` from 7 over 9 to 21 over 74. Those three totals rise with a
+window eight times the sessions, while `ask_user`'s falls from 3 to 0. Of the
+rates per session, the medians and the largest sessions, the one that rises is
+the largest session's turns again, 3 against 2, a tail on a median of 0 on both
+sides, as *After plan 6* read it.
 
 ### What the 45 hand over
 
