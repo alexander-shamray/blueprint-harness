@@ -5,6 +5,7 @@ Git Bash's sed drops the CR from every line it writes in place; the argument, wh
 open are `docs/harness-boundaries.md`'s (*The sed line-ending guard*)."""
 
 import glob
+import importlib.util
 import itertools
 import json
 import os
@@ -13,6 +14,18 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
+
+
+def path_grammar():
+    """`path_grammar.py` beside this file, which names a path on another machine."""
+    spec = importlib.util.spec_from_file_location(
+        "path_grammar", os.path.join(os.path.dirname(os.path.abspath(__file__)), "path_grammar.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+GRAMMAR = path_grammar()
 
 # What a refusal names as the forms that keep the file's endings. `--binary` is admitted: measured under Git Bash's
 # GNU sed 4.9, `sed --binary -i` writes the CR back where a plain `-i` drops it.
@@ -364,6 +377,11 @@ def in_place_files(arguments):
     return operands if script_given else operands[1:]
 
 
+def elsewhere(path):
+    """Whether `path` is on a share the session does not stand on, which this hook must not open."""
+    return GRAMMAR.foreign(path, os.getcwd(), os.environ.get("CLAUDE_PROJECT_DIR"))
+
+
 def native(path):
     """`path` as this platform's Python opens it: Git Bash's `/c/...` is `C:/...` on Windows."""
     if os.name == "nt":
@@ -479,6 +497,8 @@ def candidates(operand, cwd):
             if cwd is None:
                 continue
             path = os.path.join(cwd, path)
+        if elsewhere(path):
+            continue
         matches = []
         if any(character in word for character in "*?["):
             # `iglob` walks lazily, so the bound stops the walk itself and not only the reads after it; it is one
@@ -611,7 +631,7 @@ def judge(command, cwd, git, checked, depth):
                 target = target if os.path.isabs(target) else (os.path.join(cwd, target) if cwd else None)
                 # Bash refuses a directory that is not there and stays put, and a failed `pushd` pushes nothing; one an
                 # earlier command on the line makes is not there yet either. Either way the move is not followed.
-                if target is not None and not os.path.isdir(target):
+                if target is not None and (elsewhere(target) or not os.path.isdir(target)):
                     plain, target = False, None
             else:
                 target = None
