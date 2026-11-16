@@ -958,15 +958,19 @@ every hook loads it by path. It reads the grammar as the edit-target guard
 already did (*Edit guard path resolution*): any spelling opening with two
 separators, either way round — a UNC share, `\\?\` or `\\.\` — and the
 NT namespace's `\??\`, which Win32 passes through as it is, on Windows
-alone, since `//x` on POSIX is a local path. A path beneath the home or a
-place the session stands on, its working directory or the project, is the
-user's own and is judged as before; anything else in that grammar is
-foreign, compared lexically, so an alias of an own share is foreign too.
+alone, since `//x` on POSIX is a local path. A path on the share the home
+or a place the session stands on is on — its working directory or the
+project — is the user's own, since the session reaches that share already,
+and is judged as before; a worktree's `gitdir` sits elsewhere on it, in the
+main checkout. Anything else in that grammar is foreign, compared by the
+drive as spelled, so an alias of an own share, `\\?\UNC\…`, is foreign too.
 
 **What each hook does with a foreign path, before any filesystem call:**
 
-- `guard-git-argv.py` refuses a write, a removal or a git verb whose target is
-  one, as the edit-target guard refuses an edit there: it cannot judge the
+- `guard-git-argv.py` refuses a write, a removal, or a `git rm`, `git mv` or
+  checkout or restore from another source — the git writes it judges at
+  all — whose target is one, as the edit-target guard refuses an edit
+  there: it cannot judge the
   target without opening it, and a device spelling of a local file would pass
   the denies. A relative target after a `cd` or `git -C` onto one lands on
   the share, and is refused the same way.
@@ -980,7 +984,8 @@ foreign, compared lexically, so an alias of an own share is foreign too.
 
 `test_host_paths.py` runs each hook in process with every filesystem and
 process entry point the hooks use fenced, and fails on any call that names
-its share; the grammar is switched on there, so the POSIX legs judge it too.
+its share; the grammar is switched on there, so the POSIX legs judge it
+too, all but a `\??\` operand, which only Windows reads as absolute.
 
 **Residuals.** What git follows past the first pointer — a `commondir`, a
 config `include`, a link whose target is a share — is git's own reading,

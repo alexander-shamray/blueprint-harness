@@ -21,18 +21,16 @@ def other_grammar(path):
 
 
 def foreign(path, *own):
-    r"""Whether `path` is in the other grammar and beneath none of the home and `own`, the places the session stands.
+    r"""Whether `path` is in the other grammar and on none of the shares the home and `own` stand on.
 
-    A home or a checkout on a share is the user's own, which the session reaches already; a model can name any
-    other. Compared lexically and as Windows compares, so an alias of an own place, `\\?\UNC\host\…`, is foreign.
+    A share the session already reaches is the user's own, worktrees and main checkout alike; a model can name any
+    other. Compared by drive as Windows spells it, so an alias of an own share, `\\?\UNC\host\…`, is foreign.
     """
     if not other_grammar(path):
         return False
-    placed = ntpath.normcase(ntpath.normpath(os.fspath(path)))
+    drive = ntpath.normcase(ntpath.splitdrive(ntpath.normpath(os.fspath(path)))[0])
     for root in (os.path.expanduser("~"), os.environ.get("HOME"), *own):
-        if not root or not other_grammar(root):
-            continue
-        base = ntpath.normcase(ntpath.normpath(os.fspath(root)))
-        if placed == base or placed.startswith(base.rstrip("\\") + "\\"):
+        if root and other_grammar(root) and drive and drive == ntpath.normcase(
+                ntpath.splitdrive(ntpath.normpath(os.fspath(root)))[0]):
             return False
     return True

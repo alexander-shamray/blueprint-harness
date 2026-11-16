@@ -113,13 +113,14 @@ class TheGrammar(unittest.TestCase):
             self.assertFalse(self.grammar.foreign(SHARE))
 
     def test_a_share_the_session_stands_on_is_its_own_and_an_alias_of_it_is_not(self):
-        own = "\\\\nas\\projects\\repo"
+        # The whole share: a worktree's `gitdir` sits beside it, in the main checkout on the same share.
+        own = "\\\\nas\\projects\\main\\.claude\\worktrees\\x"
         with mock.patch.object(self.grammar, "WINDOWS", True), mock.patch.dict(os.environ, {"HOME": "/home/x"}):
-            for path in (own, own + "\\docs\\x.md", "//NAS/projects/repo/docs/x.md"):
+            for path in (own, own + "\\docs\\x.md", "//NAS/projects/main/.git/worktrees/x", own + "\\..\\..\\..\\.."):
                 with self.subTest(path=path):
                     self.assertFalse(self.grammar.foreign(path, own))
-            for path in ("\\\\nas\\projects\\repo-other\\x", "\\\\?\\UNC\\nas\\projects\\repo\\x",
-                         own + "\\..\\other\\x", SHARE + "/x"):
+            for path in ("\\\\nas\\other\\x", "\\\\?\\UNC\\nas\\projects\\main\\x", "\\??\\UNC\\nas\\projects\\x",
+                         "\\\\?\\C:\\x", SHARE + "/x"):
                 with self.subTest(path=path):
                     self.assertTrue(self.grammar.foreign(path, own))
 
@@ -127,7 +128,7 @@ class TheGrammar(unittest.TestCase):
         with mock.patch.object(self.grammar, "WINDOWS", True), \
                 mock.patch.dict(os.environ, {"HOME": "\\\\nas\\home\\x"}):
             self.assertFalse(self.grammar.foreign("\\\\nas\\home\\x\\.ssh\\config"))
-            self.assertTrue(self.grammar.foreign("\\\\nas\\home\\y\\.ssh\\config"))
+            self.assertTrue(self.grammar.foreign("\\\\nas\\other\\.ssh\\config"))
 
 
 class TheGitArgvGuard(unittest.TestCase):
@@ -151,11 +152,21 @@ class TheGitArgvGuard(unittest.TestCase):
                 self.assertIsNotNone(reason)
                 self.assertIn("share or device path", reason)
 
-    def test_a_command_that_writes_nothing_there_is_judged_as_before(self):
+    def test_what_the_guard_judges_as_no_write_is_admitted_unopened(self):
+        # An index checkout writes the file, but this guard judges only `rm`, `mv` and a checkout from another source.
         for command in (f"ls {SHARE}", f"git -C {SHARE} status", f"cd {SHARE} && git log",
                         f"git checkout {SHARE}/x.txt"):
             with self.subTest(command=command), grammar_on(self.guard), nothing_leaves(self):
                 self.assertIsNone(self.guard.offence(command))
+
+    def test_a_write_on_the_share_the_session_stands_on_is_judged_as_any_write(self):
+        # A missing share on `localhost` answers in milliseconds, where an unknown host waits on name resolution.
+        own = "//localhost/guard-no-share/repo"
+        for cwd, project, command in ((own, None, "echo x > out.txt"), (self.root, own, f"echo x > {own}/out.txt")):
+            self.guard.EVENT_CWD = cwd
+            env = {"CLAUDE_PROJECT_DIR": project} if project else {}
+            with self.subTest(cwd=cwd, project=project), grammar_on(self.guard), mock.patch.dict(os.environ, env):
+                self.assertNotIn("share or device path", self.guard.offence(command) or "")
 
 
 class TheSedGuard(unittest.TestCase):
@@ -167,12 +178,23 @@ class TheSedGuard(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.root, True)
 
     def test_an_operand_or_a_directory_on_a_share_is_never_opened(self):
-        for command in (f"sed -i s/a/b/ {SHARE}/x.cs", f"sed -i s/a/b/ {SHARE}/*.cs", f"sed -i s/a/b/ {SHARE}/{{a,b}}.cs",
-                        f"cd {SHARE} && sed -i s/a/b/ x.cs", f"pushd {SHARE} && sed -i s/a/b/ x.cs",
-                        f"sed -i s/a/b/ '{NT_SHARE}\\x.cs'"):
+        for command in (f"sed -i s/a/b/ {SHARE}/x.cs", f"sed -i s/a/b/ {SHARE}/*.cs",
+                        f"sed -i s/a/b/ {SHARE}/{{a,b}}.cs", f"cd {SHARE} && sed -i s/a/b/ x.cs",
+                        f"pushd {SHARE} && sed -i s/a/b/ x.cs",
+                        # Only Windows reads `\??\` as absolute; elsewhere it joins the cwd and names no share.
+                        *([f"sed -i s/a/b/ '{NT_SHARE}\\x.cs'"] if os.name == "nt" else [])):
             event = {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": self.root}
             with self.subTest(command=command), grammar_on(self.guard), nothing_leaves(self):
                 self.assertIsNone(self.guard.offence(event, strips_cr=True))
+
+    def test_the_share_the_event_stands_on_is_its_own(self):
+        own = "//localhost/guard-no-share/repo"
+        event = {"tool_name": "Bash", "tool_input": {"command": "sed -i s/a/b/ x.cs"}, "cwd": own}
+        with grammar_on(self.guard), mock.patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": self.root}), \
+                mock.patch.object(self.guard, "git_on_path", return_value=None):
+            self.guard.offence(event, strips_cr=True)
+            self.assertFalse(self.guard.elsewhere(own + "/x.cs"))
+            self.assertTrue(self.guard.elsewhere(SHARE + "/x.cs"))
 
     def test_git_is_not_run_in_a_checkout_whose_gitdir_is_a_share(self):
         # Git would follow the `.git` file's pointer itself, past every fence in this process.
