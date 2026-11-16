@@ -182,21 +182,28 @@ def drift_scenario(target):
     return [], ["the drift gate refused a managed file edited in the target"]
 
 
+# What `dispatch_board.py`'s section scan refuses a list missing a section with.
+SHAPE = r"section '[^']+' is missing"
+
+
 def task_list_scenario(target):
     config = json.loads((target / ".harness" / "config.json").read_text(encoding="utf-8"))
     listed = target.parent / config["task_list"]
     listed.parent.mkdir(parents=True, exist_ok=True)
     listed.write_text("# Tasks\n\n- [ ] something written by hand\n", encoding="utf-8")
     before = listed.read_bytes()
+    # An executor's environment would refuse every write for another cause, so the scenario runs outside one.
+    env = {k: v for k, v in os.environ.items() if k != "HARNESS_DISPATCHED"}
     done = run([sys.executable, ".claude/scripts/dispatch_board.py", "tasks", "start", "owed", "--branch",
-                "feat/game-day", "--worktree", ".", "--what", "game day"], target)
+                "feat/game-day", "--worktree", ".", "--what", "game day"], target, env=env)
     if done.returncode == 0:
-        return ["dispatch_board.py wrote over a task list edited by hand"], []
+        return [f"dispatch_board.py wrote over a task list in a shape `board` refuses ({SHAPE})"], []
     if listed.read_bytes() != before:
-        return ["dispatch_board.py refused a task list edited by hand but changed it anyway"], []
-    if "refused:" not in done.stderr:
-        return [f"dispatch_board.py failed on a hand-edited list without its refusal: {done.stderr.strip()[:300]}"], []
-    return [], ["dispatch_board.py refused a task list edited by hand"]
+        return ["dispatch_board.py refused a task list in a shape `board` refuses but changed it anyway"], []
+    if not re.search(rf"refused: .*{SHAPE}", done.stderr):
+        return [f"dispatch_board.py refused a task list in a shape `board` refuses, but not with its documented reason "
+                f"({SHAPE!r}): {done.stderr.strip()[:300]}"], []
+    return [], ["dispatch_board.py refused a task list in a shape `board` refuses"]
 
 
 def main():
