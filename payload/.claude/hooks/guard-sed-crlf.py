@@ -5,7 +5,6 @@ Git Bash's sed drops the CR from every line it writes in place; the argument, wh
 open are `docs/harness-boundaries.md`'s (*The sed line-ending guard*)."""
 
 import glob
-import importlib.util
 import itertools
 import json
 import os
@@ -13,15 +12,17 @@ import re
 import shlex
 import subprocess
 import sys
+import types
 from pathlib import Path
 
 
 def path_grammar():
-    """`path_grammar.py` beside this file, which names a path on another machine."""
-    spec = importlib.util.spec_from_file_location(
-        "path_grammar", os.path.join(os.path.dirname(os.path.abspath(__file__)), "path_grammar.py"))
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    """`path_grammar.py` beside this file, which names a path on another machine; compiled, so no bytecode is left."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "path_grammar.py")
+    module = types.ModuleType("path_grammar")
+    module.__file__ = path
+    with open(path, encoding="utf-8") as handle:
+        exec(compile(handle.read(), path, "exec"), module.__dict__)
     return module
 
 
