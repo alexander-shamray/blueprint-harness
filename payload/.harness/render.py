@@ -112,12 +112,12 @@ def render_settings(base: dict, cfg: object) -> dict:
             raise RenderError(f"config allow {entry!r} is denied by the base")
 
     env = dict(base.get("env", {}))
-    # Windows environment names are case-insensitive, so compare casefolded.
-    taken = {key.casefold() for key in env}
+    # Windows environment names are case-insensitive, so compare casefolded, and name whichever key took the name.
+    taken = {key.casefold(): f"set by the base as {key!r}" for key in env}
     for key, value in extra.get("env", {}).items():
         if key.casefold() in taken:
-            raise RenderError(f"config env {key!r} is already set by the base")
-        taken.add(key.casefold())
+            raise RenderError(f"config env {key!r} is already {taken[key.casefold()]}")
+        taken[key.casefold()] = f"set by the config as {key!r}"
         env[key] = value
 
     hooks = copy.deepcopy(base.get("hooks", {}))
