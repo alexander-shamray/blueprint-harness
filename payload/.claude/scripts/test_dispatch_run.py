@@ -79,7 +79,8 @@ here = os.path.dirname(os.path.abspath(__file__))
 seen = {"argv": sys.argv[1:], "cwd": os.getcwd(), "stdin": sys.stdin.buffer.read().decode("utf-8"),
         "temp": {name: os.environ.get(name) for name in ("TMP", "TEMP", "TMPDIR")},
         "dispatched": os.environ.get("HARNESS_DISPATCHED"), "api_key": os.environ.get("ANTHROPIC_API_KEY"),
-        "no_cwd_search": os.environ.get("NoDefaultCurrentDirectoryInExePath")}
+        "no_cwd_search": [value for name, value in os.environ.items()
+                          if name.upper() == "NODEFAULTCURRENTDIRECTORYINEXEPATH"]}
 with open(os.path.join(here, "seen.json"), "w", encoding="utf-8") as handle:
     json.dump(seen, handle)
 with open(os.path.join(here, "reply.bin"), "rb") as handle:
@@ -695,7 +696,9 @@ class LaunchTests(InRoot):
         with mock.patch.dict(os.environ, {"NODEFAULTCURRENTDIRECTORYINEXEPATH": "0"}):
             run_fake_claude(stdout=json.dumps(SUCCESS).encode("utf-8"))
         seen = json.loads(Path("fake/seen.json").read_text(encoding="utf-8"))
-        self.assertEqual("1", seen["no_cwd_search"])
+        # Every spelling the executor received, so a parent's copy sent beside the new one fails where names are
+        # case-sensitive; Windows keeps one name per variable whatever was sent.
+        self.assertEqual(["1"], seen["no_cwd_search"])
 
     def test_run_removes_the_executors_temp_directory_once_it_exits(self):
         # Each launch's mkdtemp directory outlived its executor and piled up under the system temp root.
