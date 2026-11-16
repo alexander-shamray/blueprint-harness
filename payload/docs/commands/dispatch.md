@@ -377,8 +377,9 @@ commit count and a PR number, never issue text.
 
 A session that wrote no result, met a denial, and was refused neither by a
 limit nor by the API's account check is a hand-back, since a relaunch would
-meet the deny again — unless every denial it met is the index hint's. `index-search-hint.py` refuses a session's first search for a
-named symbol once, and the same call rerun passes, so that refusal ended
+meet the deny again — unless every denial it met is the index hint's.
+`index-search-hint.py` refuses a session's first search for a named symbol
+once, and the same call rerun passes, so that refusal ended
 nothing: on blueprint-frontend's night 20261114-130647, A11 met it, ended
 its turn on `/commit`'s report for another reason, and was handed back with
 two commits unpushed (blueprint-harness#549). `result` matches each denial's
