@@ -808,6 +808,7 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
         os.makedirs(alone)
         os.makedirs(home)
         guard = shutil.copy(HOOK, alone)
+        shutil.copy(HOOK.parent / "path_grammar.py", alone)
         event = {"tool_name": "Write", "cwd": self.outside}
         # A Windows runner's temp root is under its real home, so this one is set.
         env = {key: value for key, value in os.environ.items() if key != "CLAUDE_PROJECT_DIR"}
@@ -876,7 +877,7 @@ class AWorktreeTheSessionHasNotEntered(GuardCase):
         root = os.path.join(self.outside, "owner")
         hooks = os.path.join(root, ".claude", "hooks")
         os.makedirs(hooks, exist_ok=True)
-        for name in ("guard-edit-target.py", "guard-git-argv.py"):
+        for name in ("guard-edit-target.py", "guard-git-argv.py", "path_grammar.py"):
             shutil.copy(HOOK.parent / name, hooks)
         self.write(os.path.join(root, ".claude", "settings.json"), json.dumps(
             {"permissions": {"deny": [f"Edit({rule})" for rule in denies]}}))
