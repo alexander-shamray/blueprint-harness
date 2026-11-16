@@ -695,7 +695,7 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
             os.path.join(self.HOME, ".profile"),
             os.path.join(self.HOME, ".zshrc"),
             os.path.join(self.HOME, ".gitconfig"),
-            # #585: git's XDG config runs as `.gitconfig` does.
+            # git's XDG config runs as `.gitconfig` does.
             os.path.join(self.HOME, ".config", "git", "config"),
         ):
             with self.subTest(target=target):
@@ -739,7 +739,7 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
             os.path.join(self.CLAUDE, "commands", "anything.md"),
             os.path.join(self.CLAUDE, "agents", "anything.md"),
             os.path.join(self.CLAUDE, "plugins", "p", "skills", "s", "SKILL.md"),
-            # #585: beside `~/.claude`, the user state whose MCP servers every session starts.
+            # Beside `~/.claude`, the user state whose MCP servers every session starts.
             os.path.join(self.HOME, ".claude.json"),
         ):
             with self.subTest(target=target):

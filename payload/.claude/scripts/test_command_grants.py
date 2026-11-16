@@ -551,7 +551,7 @@ class AWritingCommandDeniesTheUsersMemoryAndOutputStyles(unittest.TestCase):
     The managed commands are the subject: a target's own are its to hold (`docs/harness-boundaries.md`).
     """
 
-    # `~/.claude/CLAUDE.md` is loaded into every later session as the owner's own rules (#586).
+    # `~/.claude/CLAUDE.md` is loaded into every later session as the owner's own rules.
     REQUIRED = ("Edit(~/.claude/projects/**)", "Edit(~/.claude/output-styles/**)", "Edit(~/.claude/CLAUDE.md)")
     MANIFEST = COMMANDS.parent.parent / ".harness" / "manifest.json"
 

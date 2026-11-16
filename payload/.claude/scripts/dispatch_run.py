@@ -619,7 +619,7 @@ def _start(root, directory, run, gid, entry, flag, pid_file, earlier=False):
     # task-list helper refuse the executor's writes: the dispatcher is the list's one writer while it runs.
     # An inherited ANTHROPIC_API_KEY outranks the owner's subscription login in a headless claude, so it is dropped.
     # The npm `claude.cmd` shim runs a bare `node`, which Windows looks for in the worktree before PATH, and any
-    # merged branch can put one there (#587): NO_CWD_SEARCH turns that search off, set once whatever case it came in.
+    # merged branch can put one there: NO_CWD_SEARCH turns that search off, set once whatever case it came in.
     env = {name: value for name, value in os.environ.items()
            if name != "ANTHROPIC_API_KEY" and name.upper() != NO_CWD_SEARCH.upper()}
     env.update({"TMP": str(scratch), "TEMP": str(scratch), "TMPDIR": str(scratch), DISPATCHED: "1",

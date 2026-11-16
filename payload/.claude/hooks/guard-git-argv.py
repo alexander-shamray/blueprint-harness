@@ -228,10 +228,10 @@ HOME_FILES = frozenset({
     ".profile", ".zlogin", ".zprofile", ".zshenv", ".zshrc",
 })
 # Deeper files that run as `.gitconfig` does: git reads its XDG config beside the home one, so a
-# `core.fsmonitor` or `core.sshCommand` there runs at the next git call (#585).
+# `core.fsmonitor` or `core.sshCommand` there runs at the next git call.
 HOME_NESTED_FILES = frozenset({(".config", "git", "config")})
 # Beside `~/.claude` rather than in it: Claude Code's user state, whose MCP servers
-# and project grants every later session starts under (#585).
+# and project grants every later session starts under.
 HOME_CONTROL_FILES = frozenset({".claude.json"})
 CONTROL_DIRECTORIES = frozenset({
     "agents", "commands", "hooks", "plugins", "sandbox", "scripts", "skills",
@@ -242,7 +242,7 @@ CONTROL_FILES = frozenset({
 # Below `~/.claude`, what later sessions load as the user's own. The editing
 # tools may save there, where a command's deny judges the path; a shell write
 # meets no such rule. `CLAUDE.md` is the owner's rules, so it is standing and
-# not control: an editing tool outside a writing command may still save it (#586).
+# not control: an editing tool outside a writing command may still save it.
 STANDING_DIRECTORIES = frozenset({"output-styles", "projects"})
 STANDING_FILES = frozenset({"claude.md"})
 

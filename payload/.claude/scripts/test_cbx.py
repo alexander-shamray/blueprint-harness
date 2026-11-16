@@ -711,7 +711,7 @@ class CbxWrapper(unittest.TestCase):
             self.assertIn("code=3 safe=[] auto=[] nocwd=[]", out.stdout, out.stdout + out.stderr)
 
     def test_the_bash_wrapper_starts_the_cli_with_no_working_directory_search(self):
-        """#584: Windows runs a bare `git` from the working directory before PATH, and the CLI calls git from the
+        """Windows runs a bare `git` from the working directory before PATH, and the CLI calls git from the
         checkout, which any merged branch can plant a `git.exe` in. The variable is what turns that search off."""
         with tempfile.TemporaryDirectory(prefix="cbx-nocwd-") as fake:
             stub = Path(fake) / "codebase-index"
@@ -725,7 +725,7 @@ class CbxWrapper(unittest.TestCase):
             self.assertIn("NOCWD=[1]", out.stdout)
 
     def test_the_powershell_wrapper_starts_the_cli_with_no_working_directory_search(self):
-        """#584, as the bash case has it; the restore cases above hold it put back afterwards."""
+        """As the bash case has it; the restore cases above hold it put back afterwards."""
         with tempfile.TemporaryDirectory(prefix="cbx-ps-nocwd-") as fake:
             if os.name == "nt":
                 stub = Path(fake) / "codebase-index.cmd"
