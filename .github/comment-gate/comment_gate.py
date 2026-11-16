@@ -50,7 +50,10 @@ SWEEP_LABEL = "comment-sweep"
 # The third field exempts a tree: the harness's helpers are about the
 # reviewers, so a reviewer named there is a subject rather than history.
 PATTERNS = [
-    ("an issue or pull request number", re.compile(r"#[0-9]+\b"), ()),
+    ("an issue or pull request number",
+     re.compile(r"#[0-9]+\b|\b(?:issues?|PR|pull requests?) [0-9]+\b",
+                re.IGNORECASE),
+     ()),
     ("a delivery-plan row", re.compile(r"PR-[0-9]+"), ()),
     ("a reviewer", re.compile(r"Copilot|Grok|CodeQL|found in review"),
      (".claude/",)),

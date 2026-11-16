@@ -6,6 +6,7 @@ reviewed or launched. What it reads is data, and a read it cannot complete fails
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -128,6 +129,9 @@ def sync_rows():
                      "number,headRefName,headRefOid,baseRefName,isCrossRepository,body"])
     if not isinstance(raw, list):
         raise Refusal("gh pr list returned no list")
+    if len(raw) >= int(LIST_LIMIT):
+        # A list cut at its limit drops the oldest, and a sync dropped from it would be refused as no sync at all.
+        raise Refusal(f"gh pr list returned {len(raw)} open pull requests, its --limit {LIST_LIMIT}, so it may be cut")
     rows = []
     for pr in raw:
         if not isinstance(pr, dict):
@@ -185,19 +189,27 @@ def fetch_head(number, pin=None):
                       f"from a {SYNC_HEAD.pattern} branch, whose body ends with the sync footer")
     if pin is not None and row["oid"] != pin:
         raise Refusal(f"#{number}: the listed head {row['oid']} is not the pinned oid {pin}; it moved")
-    read(["git", "fetch", "-q", "--no-tags", "origin", f"refs/heads/{row['head']}"], GIT_TIMEOUT)
-    fetched = read(["git", "rev-parse", "--verify", "--end-of-options", "FETCH_HEAD^{commit}"]).strip()
+    # This call's own ref, never FETCH_HEAD or one keyed by the number alone: another call in this checkout, on this
+    # pull request or another, would rewrite it between the fetch and the read, or hold its lock.
+    ref = f"refs/sync-pr/{number}-{os.getpid()}"
+    try:
+        read(["git", "fetch", "-q", "--no-tags", "--no-write-fetch-head", "origin",
+              f"+refs/heads/{row['head']}:{ref}"], GIT_TIMEOUT)
+        fetched = read(["git", "rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}"]).strip()
+    finally:
+        run(["git", "update-ref", "-d", ref])  # best effort: a ref left behind only keeps its commits from gc
     if pin is not None and fetched != pin:
         raise Refusal(f"#{number}: the fetched head {fetched} is not the pinned oid {pin}; it moved")
     if fetched != row["oid"]:
         raise Refusal(f"#{number}: the fetched head {fetched} is not the listed oid {row['oid']}; it moved")
-    read(["git", "fetch", "-q", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main"], GIT_TIMEOUT)
+    read(["git", "fetch", "-q", "--no-tags", "--no-write-fetch-head", "origin",
+          "+refs/heads/main:refs/remotes/origin/main"], GIT_TIMEOUT)
     return row["oid"]
 
 
 def base_of(oid):
     """The commit the pull request was cut from, and the manifest it held there: (None, set()) before a first sync."""
-    base = read(["git", "merge-base", "origin/main", oid]).strip()
+    base = read(["git", "merge-base", MAIN, oid]).strip()  # the full name: a branch or tag origin/main shadows it
     if not OID.fullmatch(base):
         raise Refusal("git merge-base returned no commit")
     if not read(["git", "ls-tree", "--full-tree", "-z", base, "--", MANIFEST]):

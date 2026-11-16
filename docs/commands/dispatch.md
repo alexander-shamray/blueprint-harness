@@ -364,12 +364,32 @@ on a group whose
 status is a relaunch's, reads the worktree — commits ahead of
 `origin/main`, an uncommitted tree, and an `OPEN` row from
 `pr-for-branch.sh` — and adds what it found to the task as one clause
-saying to resume from there and to end the turn only on the result. Each
+saying to resume from there and to end the turn only on the result. Where
+it found something and the PR read lists no PR at all, the clause says no
+PR is open, so the relaunch resumes at the push and `/pr` rather than
+reading for a review (blueprint-harness#549); a `CLOSED` or `MERGED` row
+adds nothing, since `/ship`'s own read stops or hands back on it. Each
 read is best effort: one that fails drops its part, and `/ship`'s own state
 read still decides what is owed, so a missing clause costs only the hint.
 A sync's relaunch carries none, since its tree is held to its proved head
 and never committed to, and the clause is built from the branch name, a
 commit count and a PR number, never issue text.
+
+A session that wrote no result, met a denial, and was refused neither by a
+limit nor by the API's account check is a hand-back, since a relaunch would
+meet the deny again — unless every denial it met is the index hint's.
+`index-search-hint.py` refuses a session's first search for a named symbol
+once, and the same call rerun passes, so that refusal ended
+nothing: on blueprint-frontend's night 20261114-130647, A11 met it, ended
+its turn on `/commit`'s report for another reason, and was handed back with
+two commits unpushed (blueprint-harness#549). `result` matches each denial's
+`tool_use_id`, from the envelope the CLI writes, to the refused result the
+transcript the envelope's session id names holds for that id, a hook's
+refusal ending on the hint's own last sentence; where every denial matches,
+the session is a crash, relaunched once and handed back on a second, and its
+reason says the refusal was advisory. A denial with no id, a transcript
+that cannot be read or is not named, or one unmatched denial leaves the
+hand-back as it was.
 
 A `Model` cell `launch` would refuse holds its group at `board` and `wake`,
 since `launch` comes after the fork and `tasks move`, and a refusal there

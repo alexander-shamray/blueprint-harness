@@ -4265,19 +4265,43 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                       "rm ~/.claude/scratch/x", "ls > '~/.gitconfig'", "ls ~/.ssh", "cat ~/.gitconfig",
                       "ls > $HOME/.claude/scratch/x", env=env)
 
-    def test_a_home_the_session_stands_in_is_left_to_its_denies(self):
-        # As the edit guard's anchors leave it: a checkout at `~/.claude/plugins/p`
-        # is the project there, and its own files are not the control surface.
+    def test_a_checkout_inside_a_home_place_is_not_left_to_its_denies(self):
+        # As the edit guard's `home_offence` asks it: a checkout at
+        # `~/.claude/plugins/p` contains its files without owning them, and its
+        # denies, anchored at its own root, name nothing the home protects.
         home, env = self.real_home()
         plugin = os.path.join(home, ".claude", "plugins", "p")
         os.makedirs(os.path.join(plugin, ".git"))
-        self.assertAdmitted("ls > notes.md", cwd=plugin, env=env)
-        self.assertIn("No rule judges a shell write", self.assertRefused("ls > ~/.gitconfig", cwd=plugin, env=env))
-        # Reached through a link, as macOS's `/var` is `/private/var`, it is still
-        # the session's: the write's resolution is judged, so the checkout's is too.
+        for command in ("ls > notes.md", "ls > ~/.gitconfig"):
+            with self.subTest(command=command):
+                self.assertIn("No rule judges a shell write",
+                              self.assertRefused(command, cwd=plugin, env=env))
+        # Reached through a link, as macOS's `/var` is `/private/var`, the
+        # write's resolution is judged, and it lands in the same place.
         reached = os.path.join(self.root, "notes", "plugin")
         self.link(plugin, reached)
-        self.assertAdmitted("ls > notes.md", cwd=reached, env=env)
+        self.assertIn("No rule judges a shell write",
+                      self.assertRefused("ls > notes.md", cwd=reached, env=env))
+
+    def test_a_dotfiles_checkout_at_the_home_claude_is_not_left_to_its_denies(self):
+        # No anchor holds the home, so a skip that cleared only for one at `~`
+        # would admit a write to the settings this checkout applies.
+        home, env = self.real_home()
+        control = os.path.join(home, ".claude")
+        os.makedirs(os.path.join(control, ".git"))
+        os.makedirs(os.path.join(control, "notes"))
+        keys = os.path.join(home, ".ssh")
+        os.makedirs(os.path.join(keys, ".git"))
+        settings = Path(control, "settings.json").as_posix()
+        for cwd, command in ((os.path.join(control, "notes"), f"echo x > {settings}"),
+                             (control, "echo x > settings.json"),
+                             (control, "ls > hooks/x.py"),
+                             (control, "echo x > ~/.claude/settings.local.json"),
+                             (keys, "ls >> authorized_keys")):
+            with self.subTest(cwd=cwd, command=command):
+                self.assertIn("No rule judges a shell write",
+                              self.assertRefused(command, cwd=cwd, env=env))
+        self.admitted("ls > notes/todo.md", "ls > CLAUDE.md", cwd=control, env=env)
 
     def test_a_dotfiles_checkout_at_the_home_is_not_left_to_its_denies(self):
         # Its denies name none of these, as the edit guard's home anchor does not.
