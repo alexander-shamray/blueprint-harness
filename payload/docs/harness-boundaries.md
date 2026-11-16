@@ -987,6 +987,11 @@ drive as spelled, so an alias of an own share, `\\?\UNC\…`, is foreign too.
 - `index-search-hint.py` gives no hint for a search of one, and follows no
   `gitdir:` pointer into one.
 
+Each judges a pointer or an operand as spelled as well as where it lands,
+because a join or `abspath` puts the working directory's drive before
+`\??\`: `C:\??\UNC\host\…` is not the grammar, yet git and Windows read the
+`\??\UNC\host\…` that was written.
+
 `test_host_paths.py` runs each hook in process with every filesystem and
 process entry point the hooks use fenced, and fails on any call that names
 its share; the grammar is switched on there, so the POSIX legs judge it

@@ -216,7 +216,9 @@ def remote(paths: list[str], base: str, cwd: str) -> bool:
     """True when a path the search names, or where it runs, is on a share
     the session does not stand on, which no check here may open."""
     project = os.environ.get("CLAUDE_PROJECT_DIR")
-    return any(GRAMMAR.foreign(str(located(base, path)), cwd, project) for path in paths or ["."])
+    # As spelled too: a join puts the cwd drive before `\??\`, which Windows then reads as the share.
+    return any(GRAMMAR.foreign(place, cwd, project) for path in paths or ["."]
+               for place in (path.strip("'\""), str(located(base, path))))
 
 
 def files_only(paths: list[str], cwd: str) -> bool:
@@ -447,8 +449,10 @@ def in_worktree(cwd: str) -> bool:
                 text = marker.read_text(encoding="utf-8").strip()
                 if not text.startswith("gitdir:"):
                     return False
-                pointer = candidate / text[len("gitdir:"):].strip()
-                if GRAMMAR.foreign(str(pointer), cwd, os.environ.get("CLAUDE_PROJECT_DIR")):
+                spelled = text[len("gitdir:"):].strip()
+                pointer = candidate / spelled
+                if any(GRAMMAR.foreign(place, cwd, os.environ.get("CLAUDE_PROJECT_DIR"))
+                       for place in (spelled, str(pointer))):
                     return False
                 git_dir = pointer.resolve()
                 return (git_dir / "commondir").is_file()

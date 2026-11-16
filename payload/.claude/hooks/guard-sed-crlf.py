@@ -398,7 +398,9 @@ def pointed_elsewhere(directory):
                     text = handle.read().strip()
             except (OSError, ValueError):
                 return True
-            return text.startswith("gitdir:") and elsewhere(os.path.join(current, text[len("gitdir:"):].strip()))
+            pointer = text[len("gitdir:"):].strip()
+            # As spelled too: a join puts the cwd drive before `\??\`, and git reads it unjoined.
+            return text.startswith("gitdir:") and (elsewhere(pointer) or elsewhere(os.path.join(current, pointer)))
         parent = os.path.dirname(current)
         if parent == current:
             return False
@@ -517,6 +519,8 @@ def candidates(operand, cwd):
     walked = 0
     for word in words:
         path = native(word)
+        if elsewhere(path):
+            continue
         if not os.path.isabs(path):
             if cwd is None:
                 continue
@@ -656,7 +660,8 @@ def judge(command, cwd, git, checked, depth):
                 name == "pushd" and arguments[0][:1] in ("+", "-")))
             if plain:
                 target = native(arguments[0])
-                target = target if os.path.isabs(target) else (os.path.join(cwd, target) if cwd else None)
+                if not (os.path.isabs(target) or elsewhere(target)):
+                    target = os.path.join(cwd, target) if cwd else None
                 # Bash refuses a directory that is not there and stays put, and a failed `pushd` pushes nothing; one an
                 # earlier command on the line makes is not there yet either. Either way the move is not followed.
                 if target is not None and (elsewhere(target) or not os.path.isdir(target)):
