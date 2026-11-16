@@ -359,6 +359,9 @@ def _left_behind(root, entry, earlier=False):
                        and _number(r.get("number"))), None)
         if opened:
             parts.append(f"PR #{opened} open")
+        elif parts and isinstance(rows, list):
+            # Said only beside something left, so the relaunch resumes /ship at the push and /pr, not at the branch.
+            parts.append("no PR open")
     except (Refusal, ValueError, TypeError):
         pass
     if not parts:
