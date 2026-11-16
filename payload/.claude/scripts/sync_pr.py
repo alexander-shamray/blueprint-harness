@@ -128,6 +128,9 @@ def sync_rows():
                      "number,headRefName,headRefOid,baseRefName,isCrossRepository,body"])
     if not isinstance(raw, list):
         raise Refusal("gh pr list returned no list")
+    if len(raw) >= int(LIST_LIMIT):
+        # A list cut at its limit drops the oldest, and a sync dropped from it would be refused as no sync at all.
+        raise Refusal(f"gh pr list returned {len(raw)} open pull requests, its --limit {LIST_LIMIT}, so it may be cut")
     rows = []
     for pr in raw:
         if not isinstance(pr, dict):
@@ -197,7 +200,7 @@ def fetch_head(number, pin=None):
 
 def base_of(oid):
     """The commit the pull request was cut from, and the manifest it held there: (None, set()) before a first sync."""
-    base = read(["git", "merge-base", "origin/main", oid]).strip()
+    base = read(["git", "merge-base", MAIN, oid]).strip()  # the full name: a branch or tag origin/main shadows it
     if not OID.fullmatch(base):
         raise Refusal("git merge-base returned no commit")
     if not read(["git", "ls-tree", "--full-tree", "-z", base, "--", MANIFEST]):
