@@ -188,13 +188,17 @@ def fetch_head(number, pin=None):
                       f"from a {SYNC_HEAD.pattern} branch, whose body ends with the sync footer")
     if pin is not None and row["oid"] != pin:
         raise Refusal(f"#{number}: the listed head {row['oid']} is not the pinned oid {pin}; it moved")
-    read(["git", "fetch", "-q", "--no-tags", "origin", f"refs/heads/{row['head']}"], GIT_TIMEOUT)
-    fetched = read(["git", "rev-parse", "--verify", "--end-of-options", "FETCH_HEAD^{commit}"]).strip()
+    # A ref of its own, never FETCH_HEAD: another call in this checkout rewrites that between the fetch and the read.
+    ref = f"refs/sync-pr/{number}"
+    read(["git", "fetch", "-q", "--no-tags", "--no-write-fetch-head", "origin",
+          f"+refs/heads/{row['head']}:{ref}"], GIT_TIMEOUT)
+    fetched = read(["git", "rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}"]).strip()
     if pin is not None and fetched != pin:
         raise Refusal(f"#{number}: the fetched head {fetched} is not the pinned oid {pin}; it moved")
     if fetched != row["oid"]:
         raise Refusal(f"#{number}: the fetched head {fetched} is not the listed oid {row['oid']}; it moved")
-    read(["git", "fetch", "-q", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main"], GIT_TIMEOUT)
+    read(["git", "fetch", "-q", "--no-tags", "--no-write-fetch-head", "origin",
+          "+refs/heads/main:refs/remotes/origin/main"], GIT_TIMEOUT)
     return row["oid"]
 
 
