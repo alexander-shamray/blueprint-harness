@@ -937,7 +937,11 @@ holds:**
    error or a timeout on ordinary input, because then it admits the honest
    mistake it exists to stop;
 3. the guard refuses a command it should allow, because a false refusal
-   blocks work and teaches sessions to route around the hook.
+   blocks work and teaches sessions to route around the hook;
+4. a hook itself opens, before the permission prompt, a path a proposed call
+   names, so the act happens whatever the user answers. That is no spelling
+   hiding a command but the hook's own reach, and no deny or classifier
+   stands before it (*Paths on another machine*).
 
 **Out of scope, and not filed:** a spelling whose only purpose is to hide a
 command from the hook. A review or a sweep that finds one records it in its
@@ -956,11 +960,14 @@ user then allows the call or denies it. A prompt-injected session that
 proposes `sed -i` on a share, a `Grep` of one or an `echo` into one would
 otherwise hand the host a hash to relay or crack, with no approval given.
 That is the hooks reaching the network, not a spelling built to hide a
-command, so it sits inside the guards' threat model.
+command: the fourth in-scope case of *The guards' threat model*, which holds
+however the session came to propose the call.
 
-**One predicate, `.claude/hooks/path_grammar.py`, names the paths**, and
-every hook loads it by path. It reads the grammar as the edit-target guard
-already did (*Edit guard path resolution*): any spelling opening with two
+**One predicate, `.claude/hooks/path_grammar.py`, names the paths**, and the
+four hooks that open a path a call names — the git argv, edit-target and
+sed guards and the search hint — load it by path. It reads the grammar as
+the edit-target guard already did (*Edit guard path resolution*): any
+spelling opening with two
 separators, either way round — a UNC share, `\\?\` or `\\.\` — and the
 NT namespace's `\??\`, which Win32 passes through as it is, on Windows
 alone, since `//x` on POSIX is a local path. A path on the share the home
@@ -994,8 +1001,9 @@ because a join or `abspath` puts the working directory's drive before
 
 `test_host_paths.py` runs each hook in process with every filesystem and
 process entry point the hooks use fenced, and fails on any call that names
-its share; the grammar is switched on there, so the POSIX legs judge it
-too, all but a `\??\` operand, which only Windows reads as absolute.
+its share, joined to a directory or not; the grammar is switched on there,
+so the POSIX legs judge every spelling too. Only the Windows join that
+turns `\??\` into `C:\??\…` is exercised on Windows alone.
 
 **Residuals.** What git follows past the first pointer — a `commondir`, a
 config `include`, a link whose target is a share — is git's own reading,
