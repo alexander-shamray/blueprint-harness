@@ -44,7 +44,7 @@ CLAUDE_PATH = re.compile(r"(^|[^\w])\.claude/[\w.-]", re.IGNORECASE)
 # An issue in Depends on is written #n, after n, waits on n or n's; a bare number is a count, not an issue.
 # Without a # it takes two digits, so a count of 3 is none; after an explicit # one digit names an issue.
 # A #n written straight after a name, `<repo>#n` or `<owner>/<repo>#n`, is another repository's: it is left as text,
-# and so is the far end of a range, `#1440-#1442`, whose two ends are not every issue it names.
+# and so is the far end of a range, `#n-#m`, whose two ends are not every issue it names.
 ISSUE_REF = re.compile(
     r"(?:(?<![\w-])#(\d{1,6})|\b(?:after|waits on|wait on|waiting on|blocked by)\s+#?(\d{2,6}))\b"
     r"(?!\s*(?:day|week|hour|month|min))"
