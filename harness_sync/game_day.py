@@ -57,6 +57,10 @@ GUARD_SCENARIOS = {
     ],
 }
 
+# A guard whose refusal is one platform's, as `os.name` names it: elsewhere it documents admitting the call, and a
+# refusal there is the finding. Only Git Bash's sed drops the CR (*The sed line-ending guard*).
+REFUSED_ON = {("Bash", "guard-sed-crlf.py"): "nt"}
+
 # The conditions a game day is asked for that this run does not cause, and the suite that does.
 REASONS = {
     "sync pull request whose proof does not match its head": "`sync_pr.py verify` reads the pull request from "
@@ -149,7 +153,13 @@ def guard_scenarios(target):
             tool_input = {k: v.replace("{home}", home) if isinstance(v, str) else v for k, v in tool_input.items()}
             reason = refusal(fire(target, tool, command, tool_input))
             name = f"{guard} on {tool} for {tool_input}"
-            if reason is None:
+            if (tool, guard) in REFUSED_ON and os.name != REFUSED_ON[(tool, guard)]:
+                if reason is None:
+                    oks.append(f"{name} let through, as it documents off {REFUSED_ON[(tool, guard)]}")
+                else:
+                    findings.append(f"{name} refused off {REFUSED_ON[(tool, guard)]}, where it documents admitting it: "
+                                    f"{reason[:300]}")
+            elif reason is None:
                 findings.append(f"{name} let through what it documents refusing")
             elif fragment not in reason:
                 findings.append(f"{name} refused, but not with its documented reason ({fragment!r}): {reason[:300]}")
