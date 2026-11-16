@@ -151,7 +151,8 @@ class TheGitArgvGuard(unittest.TestCase):
                         f"git -C {SHARE} rm x.txt", f"git -C {SHARE} checkout other -- x.txt",
                         f"git -C {SHARE} checkout other x.txt",
                         f"cd {SHARE} && echo x > out.txt", f"echo x | tee {SHARE}/x.txt",
-                        f"echo x > '{NT_SHARE}\\x.txt'"):
+                        f"echo x > '{NT_SHARE}\\x.txt'", f"cd '{NT_SHARE}' && echo x > out.txt",
+                        f"git -C '{NT_SHARE}' rm x.txt"):
             with self.subTest(command=command), grammar_on(self.guard), nothing_leaves(self):
                 reason = self.guard.offence(command)
                 self.assertIsNotNone(reason)
@@ -172,6 +173,10 @@ class TheGitArgvGuard(unittest.TestCase):
             env = {"CLAUDE_PROJECT_DIR": project} if project else {}
             with self.subTest(cwd=cwd, project=project), grammar_on(self.guard), mock.patch.dict(os.environ, env):
                 self.assertNotIn("share or device path", self.guard.offence(command) or "")
+        # An event with no `cwd` falls back to the hook's own, which is as much the session's.
+        self.guard.EVENT_CWD = None
+        with grammar_on(self.guard), mock.patch.object(os, "getcwd", return_value=own):
+            self.assertNotIn("share or device path", self.guard.offence("echo x > out.txt") or "")
 
 
 class TheSedGuard(unittest.TestCase):

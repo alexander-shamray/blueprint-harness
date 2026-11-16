@@ -2885,12 +2885,15 @@ def written_path(word, cwd, command):
         if cwd is None:
             return None
         literal = os.path.join(cwd, literal)
+    if elsewhere(literal):
+        # As spelled: `abspath` puts the cwd's drive before `\??\`, which Windows reads as the share all the same.
+        return os.path.normpath(literal)
     return os.path.normpath(os.path.abspath(literal))
 
 
 def elsewhere(path):
     """Whether `path` is on a share the session does not stand on, which no check here may open."""
-    return GRAMMAR.foreign(path, EVENT_CWD, os.environ.get("CLAUDE_PROJECT_DIR"))
+    return GRAMMAR.foreign(path, EVENT_CWD, os.getcwd(), os.environ.get("CLAUDE_PROJECT_DIR"))
 
 
 def checkout_of(path):
@@ -3037,7 +3040,7 @@ def removal_offence(word, cwd, command, writer):
     elif os.path.normcase(path) == os.path.normcase(written_path("~", cwd, command) or ""):
         place = "the home directory"
     for start in (EVENT_CWD or os.getcwd(), cwd):
-        root = checkout_of(os.path.abspath(start)) if start else None
+        root = checkout_of(os.path.abspath(start)) if start and not elsewhere(start) else None
         if place is None and root is not None and beneath(root, path) and (
                 os.path.normcase(root) != os.path.normcase(path)):
             place = f"a parent of the checkout `{root}`"
@@ -3409,7 +3412,8 @@ def git_path_offence(words, cwd, command):
         if literals[position] == "-C" and position + 1 < len(words):
             cwd = written_path(words[position + 1], cwd, command)
         position += 2 if literals[position] in GLOBAL_VALUE_FLAGS else 1
-    if position >= len(words) or cwd is None or in_linked_worktree(os.path.abspath(cwd)):
+    if position >= len(words) or cwd is None or (
+            not elsewhere(cwd) and in_linked_worktree(os.path.abspath(cwd))):
         return None
     verb, words, literals = literals[position], words[position + 1:], literals[position + 1:]
     if verb in ("rm", "mv"):
