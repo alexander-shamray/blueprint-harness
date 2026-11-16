@@ -47,9 +47,10 @@ across the sessions.
   printed ahead of *After #276* was taken that way; *After plan 5*'s count by
   start chose its own sessions and kept only the `/compact` handling.
 - Until #569 `action_required` excepted only the exact `⚠️ ACTION REQUIRED —
-  none`, so a verdict going on past it, `— none yet; …` or `— run: nothing
-  yet …`, counted as a handover. Every table in this file was taken that way;
-  *What the 45 hand over* names the seven such lines in the week's count.
+  none`, so a verdict going on past it, `— none yet; …`, or spelt `— run:
+  nothing yet …`, counted as a handover. Every `action_required` count in this
+  file was taken that way, so one taken since can only be lower for it; *What
+  the 45 hand over* names the seven such lines in the week's count.
 
 ## Command lines
 
