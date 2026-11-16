@@ -23,8 +23,8 @@ def other_grammar(path):
 def foreign(path, *own):
     r"""Whether `path` is in the other grammar and on none of the shares the home and `own` stand on.
 
-    A share the session already reaches is the user's own, worktrees and main checkout alike; a model can name any
-    other. Compared by drive as Windows spells it, so an alias of an own share, `\\?\UNC\host\…`, is foreign.
+    A share the home, the cwd or the project stands on is the user's own, a worktree's main checkout there included;
+    a model can name any other. Compared by drive as Windows spells it, so `\\?\UNC\host\…` is foreign.
     """
     if not other_grammar(path):
         return False

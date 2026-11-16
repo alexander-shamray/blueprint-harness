@@ -970,12 +970,12 @@ the edit-target guard already did (*Edit guard path resolution*): any
 spelling opening with two
 separators, either way round — a UNC share, `\\?\` or `\\.\` — and the
 NT namespace's `\??\`, which Win32 passes through as it is, on Windows
-alone, since `//x` on POSIX is a local path. A path on the share the home
-or a place the session stands on is on — its working directory or the
-project — is the user's own, since the session reaches that share already,
-and is judged as before; a worktree's `gitdir` sits elsewhere on it, in the
-main checkout. Anything else in that grammar is foreign, compared by the
-drive as spelled, so an alias of an own share, `\\?\UNC\…`, is foreign too.
+alone, since `//x` on POSIX is a local path. A path on the share the home,
+the working directory or the project is on is the user's own and is judged
+as before; that covers a worktree on a share, whose `gitdir` sits elsewhere
+on it, in the main checkout. Anything else in that grammar is foreign,
+compared by the drive as spelled, so an alias of an own share, `\\?\UNC\…`,
+is foreign too.
 
 **What each hook does with a foreign path, before any filesystem call:**
 
@@ -1010,7 +1010,12 @@ config `include`, a link whose target is a share — is git's own reading,
 which no hook sees before it runs; reaching it takes a file the session
 wrote first, in a checkout the sed guard then runs git in. A share the
 user's `PATH` names is the user's configuration, not a call's, and the sed
-guard still resolves it.
+guard still resolves it. A worktree on a local drive whose main checkout is
+on a share points at that share, which none of the session's own places
+stands on, so its pointer reads as foreign: the sed guard runs no git there
+and admits its files, and the edit-target guard does not recognise it as a
+worktree of the main checkout. Trusting the pointer would trust the file
+the fence exists to doubt.
 
 ## The guard launcher
 
@@ -2693,8 +2698,9 @@ only a `.cmd`, read as no git on `PATH`.
 **Where it fails open, by design rather than by crash.** An operand holding
 an expansion (`"$FILE"`, `$(git ls-files)`), a `cd` it cannot follow, a
 `cd` or `pushd` to a directory not there when the hook runs, an operand
-or a `cd` on another machine, a file
-that does not exist or cannot be read, a command `shlex` cannot tokenise, no
+or a `cd` on another machine, a file in a checkout whose `.git` file points
+at one (*Paths on another machine*), a file that does not exist or cannot
+be read, a command `shlex` cannot tokenise, no
 git on `PATH`, or a git that cannot answer: each is admitted, because a
 guard that refuses what it cannot resolve blocks ordinary work for want of
 a resolution. An unreadable event is admitted, as in the other guards.
