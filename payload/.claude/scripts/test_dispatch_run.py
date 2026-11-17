@@ -2630,9 +2630,25 @@ class ResumeTests(InRoot):
     def test_an_owners_question_the_flag_lifted_holds_again_on_a_plain_night(self):
         self.back("OWNER")
         self.owner_runs_the_script()
-        self.assertIn("not ready: waits on a human", self.board()[0])
+        lines = self.board()
+        self.assertIn("not ready: waits on a human", lines[0])
+        self.assertEqual(f"resume held {RESUMED_TREE}: Z1 is not ready: waits on a human", lines[-1])
         self.assertEqual("end: drained", self.wake(flag=False)[-1])
         self.assertEqual("launch: Z1", self.wake(flag=True)[-1])
+
+    def test_an_answer_given_since_the_back_is_what_a_second_back_records(self):
+        self.back("OWNER")
+        self.owner_runs_the_script()
+        # The interview answered the restored question, so the rebuild took OWNER out of the cell.
+        with open("todo.md", "w", encoding="utf-8", newline="") as handle:
+            handle.write(tasks_of(self.row(db.SENT_BACK)))
+        self.assertEqual("", self.relaunch("--resumed"))
+        self.assertEqual({"#1700": "none"}, group_state(NEXT, "Z1")["restored"])
+        self.head, self.status = OID, ""
+        self.write_record(head=OID)
+        with mock.patch.object(dr, "git", self.git):
+            self.assertIn("resume recorded Z1", run_cli(["tasks", "back", "--tasks", "todo.md", "--run", NEXT, "Z1"]))
+        self.assertEqual("none", self.store()[RESUMED_TREE]["rows"]["#1700"]["before"])
 
     def test_a_row_edited_since_the_back_keeps_the_editors_word_less_the_flagged_words(self):
         self.back()

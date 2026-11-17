@@ -1185,8 +1185,9 @@ def _held(tasks, bodies, branch_source):
 
 def board(text, today, bodies, open_issues, branch_source=lambda _branch: frozenset(), berserk=False,
           kept=frozenset(), *, owned, resumed=None, restored=None):
-    """One line per Remaining group, then `resumed` (group id to its line) for each resumed group that is ready: one
-    a restored question still holds is the interview's, as any row waiting on a human is."""
+    """One line per Remaining group, then, from `resumed` (group id to its line and its worktree), a `resumed` line
+    for each resumed group that is ready and a `resume held` line for each that is not: one a restored question
+    still holds is the interview's, as any row waiting on a human is."""
     tasks = parse_tasks(text)
     held = _held(tasks, bodies, branch_source)
     out, resumed, ready_resumed = [], resumed or {}, []
@@ -1200,8 +1201,9 @@ def board(text, today, bodies, open_issues, branch_source=lambda _branch: frozen
                      else "ready" if ok else f"not ready: {why}")
         out.append(" | ".join((group.id, f"wave {group.wave}", readiness,
                                "free" if by is None else f"taken by {by}", f"{len(claim.paths)} paths")))
-        if ok and group.id in resumed:
-            ready_resumed.append(resumed[group.id])
+        if group.id in resumed:
+            line, worktree = resumed[group.id]
+            ready_resumed.append(line if ok else f"resume held {worktree}: {group.id} is not ready: {why}")
     return (out or ["no groups in Remaining"]) + ready_resumed
 
 
@@ -1711,7 +1713,7 @@ def main(argv=None, body_source=None, open_source=None, branch_source=None, week
             bodies = _bodies(tasks, directory, bodies_from)
             listed = OpenIssues.of(open_from())
             found, holds = dispatch_run.resumes(root, groups(tasks))
-            lines = {gid: dispatch_run.resumed_line(gid, r) for gid, r in found.items()}
+            lines = {gid: (dispatch_run.resumed_line(gid, r), r.worktree) for gid, r in found.items()}
             print("\n".join(board(text, today, bodies, listed, branch_from, *flag, owned=owned_from(),
                                   resumed=lines, restored=dispatch_run.restored(found)) + holds))
         elif args.command == "tasks" and getattr(args, "run", None) is None:
