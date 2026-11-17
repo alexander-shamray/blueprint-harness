@@ -487,21 +487,30 @@ servers the main checkout approves and does not disable, with an
 `enableAllProjectMcpServers` expanded to the servers `.mcp.json` defines at
 the fork, and nothing else. The rest of that file is the main checkout's own
 `permissions` rows, and copying it would widen every worktree by them; the
-approve-all itself would approve servers defined after the fork. `.mcp.json`
-is gitignored and not copied: the session finds the main checkout's by
-walking up, because the helper forks only under `.claude/worktrees/` and the
-worktree has none of its own. Two residuals stand. The helper writes a file
+approve-all itself would approve servers defined after the fork. The helper
+copies no `.mcp.json`: where a target gitignores it, the session finds the
+main checkout's by walking up, because the helper forks only under
+`.claude/worktrees/` and the worktree has none of its own; where a target
+tracks it, so that every clone shares one server map, the worktree checks out
+the branch's own. Two residuals stand. The helper writes a file
 the session's `Edit` is denied, and what it writes is one key read from a
 file the session is denied too, or, under an approve-all, from `.mcp.json`,
 which the session's `Edit` is denied as well and whose servers the main
 checkout's approve-all already approves. And the approval names servers
 rather than definitions, so a `.mcp.json` that reaches a worktree through
-git, force-added past the ignore, is found before the main checkout's and
-approved under the same name without a prompt. The fork writes nothing at a
-`settings.local.json` the branch already carries, a dangling link included,
-and the locality gate refuses a pull request that leaves an ignored path in
-the tree, so neither file reaches `main`; a branch checked out before its
-pull request is judged still can carry a `.mcp.json`.
+git is found before the main checkout's and approved under the same name
+without a prompt: whatever `command`, `args` or `env` the branch gave a server
+the approval names runs at session start, before any hook. Where the target
+gitignores `.mcp.json` that takes a force-add past the ignore; the fork writes
+nothing at a `settings.local.json` the branch already carries, a dangling link
+included, and the locality gate refuses a pull request that leaves an ignored
+path in the tree, so neither file reaches `main`, and a branch checked out
+before its pull request is judged still can carry a `.mcp.json`. **A target
+may track `.mcp.json`, and its residual is then the wider one**: any branch,
+not only a force-add, carries its own server definitions under the by-name
+approval, and the locality gate's ignored-path refusal does not reach a
+tracked file. Such a target records it in its own `docs/harness-local.md`
+*Residuals*, with whatever its locality gate refuses of a change to the file.
 
 **`SessionStart` runs the same script, for the moves no tool call makes.** A
 merge, a switch or a pull made outside the session rewrites the tree with no
