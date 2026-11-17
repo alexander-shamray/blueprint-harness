@@ -1130,7 +1130,10 @@ class ABuildLoadsNothingPlantedAboveTheCheckout(GuardCase):
         for target in (os.path.join(self.checkout, "Directory.Build.props"),
                        os.path.join(self.checkout, "src", "nuget.config"),
                        os.path.join(self.parent, "sibling", "NuGet.Config"),
-                       os.path.join(self.parent, "notes.md")):
+                       os.path.join(self.parent, "notes.md"),
+                       # No shell expands an editing tool's path, so a brace or a class is its own name.
+                       os.path.join(self.parent, "a{b}.md"),
+                       os.path.join(self.parent, "[n]uget.config")):
             with self.subTest(target=target):
                 self.assertAdmitted(target, tool="Write", **self.inside)
 

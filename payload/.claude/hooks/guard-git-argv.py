@@ -348,10 +348,16 @@ def build_named(last):
                for form in (last, last.split(":")[0].rstrip(". ")))
 
 
-def build_ancestor(places, roots):
-    """The checkout of `roots` whose build loads one of `places` from a directory above it, or `None`."""
+def build_ancestor(places, roots, shell=False):
+    """The checkout of `roots` whose build loads one of `places` from a directory above it, or `None`.
+
+    `shell` reads a name as bash expands it; an editing tool's is literal, a stream and trailing dots dropped.
+    """
+    def named(last):
+        return build_named(last) if shell else last.split(":")[0].rstrip(". ") in BUILD_ANCESTOR_FILES
+
     return above_checkout([os.path.dirname(folded_place(place)) for place in places
-                           if place and build_named(os.path.basename(folded_place(place)))], roots)
+                           if place and named(os.path.basename(folded_place(place)))], roots)
 
 
 def unknown_landing_offence(word, sources, cwd, command, writer):
@@ -3159,7 +3165,7 @@ def destination_offence(word, cwd, command, writer, whole=False, inside=None, re
             "state, which decides what it launches, and a dispatched session writes none of it. The result goes "
             "in this worktree's `artifacts/dispatch/` (docs/harness-boundaries.md, *Headless dispatched sessions*)."
         )
-    above = build_ancestor((path, os.path.realpath(path)), known_checkouts(cwd)) if path is not None else None
+    above = build_ancestor((path, os.path.realpath(path)), known_checkouts(cwd), True) if path is not None else None
     if above is not None:
         return (
             f"{writer} would write `{path}`, a file MSBuild, the .NET SDK or NuGet loads from a directory above "
