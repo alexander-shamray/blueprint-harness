@@ -338,7 +338,8 @@ balance is too low*.
 On every wake it absorbs the result, verifies a merge, places what was
 filed, then asks `wake` what to launch; the outcome table is the spec's
 §6.4. A hand-back or a stop goes back into its wave marked `OWNER` and is
-not retried (spec §2); a crash is relaunched once (spec §6.4).
+not retried (spec §2), but once the owner has run its script (*Resume*); a
+crash is relaunched once (spec §6.4).
 
 A crash that merged is not one. An executor that wrote no result, or none
 valid, and whose worktree meets `/ship` step 0's finished predicate — clean,
@@ -710,15 +711,25 @@ of these hold, and otherwise `board` prints `resume held <worktree>:
 - the worktree is on the recorded branch at that head, and `git status`
   names exactly the script's paths, outside `artifacts/handoff/`: the
   tree was clean when the executor exited, so these edits came after it;
-- one group in *Remaining* holds exactly the recorded issues, each row's
-  *Depends on* still as `tasks back` wrote it.
+- one group in *Remaining* holds exactly the recorded issues.
 
 The lift puts *Depends on* back as it read before the marks, on either
-kind of night, and changes nothing else: a date, an open issue, a label,
-the `.claude/` reach and the owner's authorship gate hold as they did, and
-so does an `OWNER` the row carried before it launched, which a flagged
-night lifted and a plain night asks about again. The owner's script
-answers the question the hand-back asked and no other.
+kind of night, while the row still reads as `tasks back` wrote it; once
+someone has edited it, their cell stands, less only the words a flagged
+back added, so an `OWNER` written after the back is a new question and an
+answer that removed one is kept. It changes nothing else: a date, an open
+issue, a label, the `.claude/` reach and the owner's authorship gate hold
+as they did, and so does an `OWNER` the row carried before it launched,
+which a flagged night lifted and a plain night asks about again: `board`
+prints the `resumed` line only for a group that is ready, so the interview
+asks about one a restored question holds. The owner's script answers the
+question the hand-back asked and no other.
+
+The record outlives a move of its group in the same run, since `tasks
+move` keeps where a back sent the group from, so a script the owner runs
+mid-night resumes at the next wake. A resumed group handed back again is
+recorded against each row's cell before the first back, which its launch
+carried, not the marked rows it was moved with.
 
 `launch --resumed` reuses the worktree rather than forking one from
 `main`, which would stand beside the applied edit, and checks the record
