@@ -409,8 +409,8 @@ def _worktree_on(root, worktree, branch):
 
 
 # What `/ship --dispatched` leaves in its worktree when it hands a group back with a script for the owner, and the
-# dispatcher's own record of it, kept in the main checkout: the executor can write the first, never the second, and
-# the record is made only by `tasks back`, after the executor has exited, from what this run's state.json names.
+# dispatcher's own record of it, kept in the main checkout and made only by `tasks back`, after the executor has
+# exited, from what this run's state.json names: a forged record must forge that run's state.json beside it too.
 HANDOFF = "artifacts/handoff"
 RESUME_RECORD = f"{HANDOFF}/resume.json"
 RESUME_KEYS = ("group", "issues", "branch", "head", "script", "receipt", "paths")
@@ -641,8 +641,8 @@ def resumes(root, candidates):
 
 def _lifted(cells, current):
     """*Depends on* with the owner's script answering what `tasks back` asked: the cell before the back while the row
-    reads as the back wrote it; once someone has edited it, their cell, less only the words a flagged back added,
-    so an `OWNER` written after the back stands and an answer that removed one is kept."""
+    reads as the back wrote it; once someone has edited it, their cell, less only the `sent back under --berserk`
+    words, so any `OWNER` the edit left stands and an answer that removed one is kept."""
     if current == cells.get("marked"):
         return cells.get("before", current)
     if SENT_BACK in cells.get("marked", "") and SENT_BACK not in cells.get("before", ""):
@@ -746,7 +746,9 @@ def launch(root, run, gid, tasks_path, branch, worktree, owned_source, red_sourc
         if found:
             raise Refusal(f"{gid} is not launched: {refused}") from None
     if found:
-        entry.update(resumed=found.script, restored={key: cells["before"] for key, cells in found.rows.items()})
+        # The cell the lift left on each moved row, an answer given since the back included, for a later back.
+        entry.update(resumed=found.script,
+                     restored={r.key: _lifted(found.rows.get(r.key, {}), r.cells[DEPENDS]) for r in group.rows})
     save_state(directory, state)
 
 
