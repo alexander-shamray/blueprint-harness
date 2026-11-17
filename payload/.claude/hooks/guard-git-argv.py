@@ -2988,6 +2988,27 @@ def scratch_checkout(path):
     return session is None or not beneath(path, os.path.realpath(session))
 
 
+# `dispatch_run.py` sets it in each `/dispatch` executor's environment; set at all is the test, as the task list's.
+DISPATCHED = "HARNESS_DISPATCHED"
+# Below a main checkout, the dispatcher's own state: each run's `state.json` and `handbacks.json` decide what it
+# launches (#604). An executor's result goes under its own worktree's copy, which a `.git` file marks.
+DISPATCH_STATE = ("artifacts", "dispatch")
+
+
+def dispatcher_state(path, whole=False):
+    """Whether a dispatched session's write to `path` reaches a main checkout's `artifacts/dispatch/`.
+
+    A main checkout is one whose `.git` is a directory. Folded, as `denied_path` folds; `whole` counts a parent.
+    """
+    if DISPATCHED not in os.environ:
+        return False
+    root = checkout_of(path)
+    if root is None or not os.path.isdir(os.path.join(root, ".git")):
+        return False
+    parts = [part.lower() for part in re.split(r"[\\/]+", os.path.relpath(path, root)) if part not in ("", ".")]
+    return parts[:2] == list(DISPATCH_STATE) or (whole and list(DISPATCH_STATE[:len(parts)]) == parts)
+
+
 def protected_target(path, whole=False):
     """The deny holding `path`, as spelled or where its links land, or `None`."""
     if scratch_checkout(os.path.realpath(path)):
@@ -3046,6 +3067,12 @@ def destination_offence(word, cwd, command, writer, whole=False, inside=None, re
             "a share would get your Windows credentials before you answer, and a "
             "device spelling of a local file passes the denies. Run it yourself if "
             "it is meant (docs/harness-boundaries.md, *Paths on another machine*)."
+        )
+    if path is not None and any(dispatcher_state(place, whole) for place in (path, os.path.realpath(path))):
+        return (
+            f"{writer} would write `{path}`, under a main checkout's `artifacts/dispatch/`: the dispatcher's own "
+            "state, which decides what it launches, and a dispatched session writes none of it. The result goes "
+            "in this worktree's `artifacts/dispatch/` (docs/harness-boundaries.md, *Headless dispatched sessions*)."
         )
     named = protected_target(path, whole) if path is not None else None
     if named is None:

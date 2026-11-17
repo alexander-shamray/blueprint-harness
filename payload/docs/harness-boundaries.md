@@ -2379,6 +2379,10 @@ The shell also may not write `~/.claude/projects/`,
 admits: a `Write` there meets a command's deny in the turn that holds one, and a
 shell write meets none (#586).
 
+**Under `HARNESS_DISPATCHED`, both guards also refuse a main checkout's
+`artifacts/dispatch/`**, the dispatcher's own state; *Headless dispatched
+sessions* has the rule and its reason (#604).
+
 **A replay narrowed it.** 79,469 commands of these repositories' sessions since
 2026-10-01 gave 34 new refusals, none under the login or control names. 30 wrote
 a memory or an output style with a redirect or `sed -i`, most appending a line
@@ -2833,6 +2837,20 @@ against `dispatch_run.py`'s schema by `result`, and a claimed merge is read
 from GitHub by `verify` before it counts; a missing or mis-shaped file is a
 crash, never a success.
 
+**An executor writes none of the dispatcher's state.** Each run's
+`state.json` and `handbacks.json`, under the main checkout's
+`artifacts/dispatch/`, decide what the dispatcher launches, so a forged pair
+could relaunch a group every wake (#604). With `HARNESS_DISPATCHED` set, set
+at all being the test, both guards refuse a write under a main checkout's
+`artifacts/dispatch/`, one whose `.git` is a directory, as spelled and as
+resolved and folded for case: `guard-edit-target.py` an editing tool's, and
+`guard-git-argv.py`, which owns the predicate `dispatcher_state`, a
+redirection's or a writing verb's, a parent `rm -r` names included. The
+executor's result goes under its own worktree's `artifacts/dispatch/`, which
+a `.git` file marks, and stays writable. No settings deny states it: a rule
+cannot read the environment, and one anchored at the worktree would refuse
+that result.
+
 **Residuals.**
 
 - The dispatcher's and `issue_decisions.py`'s `path_which` take a `.bat` or
@@ -2856,9 +2874,12 @@ crash, never a success.
   (`docs/superpowers/plans/2026-11-01-dispatch-spike.md`), so an executor
   may run on past the limit.
 - The `Edit(artifacts/dispatch/**)` grant also reaches the helper-owned
-  `state.json`. No step edits it, so an honest mistake does not reach it,
+  `state.json` in the dispatcher's own session, which `HARNESS_DISPATCHED`
+  does not mark. No step edits it, so an honest mistake does not reach it,
   and a session setting out to defeat the helper's checks is what *The
-  guards' threat model* puts outside what the guards defend.
+  guards' threat model* puts outside what the guards defend. An executor's
+  write there by a path no guard reads, an interpreter's own file call or a
+  computed word, is the same residual.
 - A stranger's issue still reaches the dispatcher as data: its row is added
   and held, and the rebuild and the interview read its text. A collaborator's
   is held like a stranger's, and under a repository an organisation owns every

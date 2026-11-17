@@ -158,7 +158,8 @@ class GuardCase(unittest.TestCase):
             [sys.executable, str(hook)],
             input=json.dumps(event), capture_output=True, text=True, encoding="utf-8",
             cwd=process_cwd,
-            env={**os.environ,
+            # A `/dispatch` executor runs this suite with the variable set, which only `env` may set here.
+            env={**{name: value for name, value in os.environ.items() if name != "HARNESS_DISPATCHED"},
                  "CLAUDE_PROJECT_DIR": self.root if project is None else project,
                  **(env or {})},
         )
@@ -1038,6 +1039,56 @@ class AWorktreeTheSessionHasNotEntered(GuardCase):
                     JUNCTIONS(real, link)
                 reason = self.assertRefused(os.path.join(link, "note.md"))
                 self.assertIn("resolves outside the checkout", reason)
+
+
+class ADispatchedSessionLeavesTheDispatchersState(GuardCase):
+    """Under `HARNESS_DISPATCHED`, the main checkout's `artifacts/dispatch/` is refused (#604)."""
+
+    DISPATCHED = {"HARNESS_DISPATCHED": "1"}
+
+    def setUp(self):
+        super().setUp()
+        beside = os.path.join(self.root, ".claude", "worktrees")
+        os.makedirs(beside, exist_ok=True)
+        self.worktree = AWorktreeTheSessionHasNotEntered.linked(self, "executor", beside=beside)
+
+    def from_worktree(self, **kwargs):
+        return {"cwd": self.worktree, "project": self.worktree} | kwargs
+
+    def test_the_main_checkouts_dispatch_state_is_refused(self):
+        for parts in (("artifacts", "dispatch", "handbacks.json"),
+                      ("artifacts", "dispatch", "20261117-152904", "state.json"),
+                      ("artifacts", "dispatch", "20261117-152904", "G1.json"),
+                      ("artifacts", "dispatch")):
+            with self.subTest(parts=parts):
+                reason = self.assertRefused(os.path.join(self.root, *parts),
+                                            **self.from_worktree(env=self.DISPATCHED))
+                self.assertIn("dispatcher's own state", reason)
+        self.assertRefused(os.path.join(self.worktree, "..", "..", "..", "artifacts", "dispatch", "x.json"),
+                           **self.from_worktree(env=self.DISPATCHED))
+        # Set at all is the test, as the task list's.
+        self.assertRefused(os.path.join(self.root, "artifacts", "dispatch", "handbacks.json"),
+                           **self.from_worktree(env={"HARNESS_DISPATCHED": ""}))
+
+    def test_a_case_folded_spelling_is_refused_where_the_filesystem_folds(self):
+        if not self.guard_module().case_insensitive(self.root):
+            self.skipTest("this filesystem tells the two spellings apart")
+        self.assertRefused(os.path.join(self.root, "Artifacts", "DISPATCH", "handbacks.json"),
+                           **self.from_worktree(env=self.DISPATCHED))
+
+    def test_the_executors_own_result_and_the_rest_of_main_are_admitted(self):
+        for path in (os.path.join(self.worktree, "artifacts", "dispatch", "20261117-152904", "G1.json"),
+                     os.path.join("artifacts", "dispatch", "20261117-152904", "G1.json"),
+                     os.path.join(self.root, "artifacts", "review", "x-r1.diff"),
+                     os.path.join(self.root, "artifacts", "dispatched", "x.json"),
+                     os.path.join(self.root, "docs", "note.md")):
+            with self.subTest(path=path):
+                self.assertAdmitted(path, **self.from_worktree(env=self.DISPATCHED))
+
+    def test_a_session_not_dispatched_is_not_this_rule(self):
+        self.assertAdmitted(os.path.join(self.root, "artifacts", "dispatch", "handbacks.json"),
+                            **self.from_worktree())
+        self.assertAdmitted(os.path.join(self.root, "artifacts", "dispatch", "20261117-152904", "state.json"))
 
 
 class WhatThisGuardIsNotTheSubjectOf(GuardCase):
