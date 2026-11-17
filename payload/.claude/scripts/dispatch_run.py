@@ -503,10 +503,11 @@ def record_handback(root, run, gid, entry, text):
         return None
     tree = Path(root) / worktree
     try:
+        # An earlier record goes first, so a back that records nothing new leaves nothing old to resume on.
         store = _handbacks(root)
+        if store.pop(_slash(worktree), None) is not None:
+            _save_handbacks(root, store)
         if not (tree / RESUME_RECORD).is_file():
-            if store.pop(_slash(worktree), None) is not None:
-                _save_handbacks(root, store)
             return None
         try:
             data = _resume_fields(json.loads(_read(tree / RESUME_RECORD)))
@@ -545,6 +546,19 @@ def _rows_field(rows):
         and all(isinstance(cell, str) for cell in cells.values()) for key, cells in rows.items())
 
 
+def _returned_by(root, worktree, data):
+    """Refuse a record its own run's state does not bear out: that run sent this group back from this worktree."""
+    run, gid = data["run"], data["group"]
+    try:
+        entry = load_state(run_dir(root, run if isinstance(run, str) else "")).get("groups", {}).get(gid)
+    except Refusal as why:
+        raise Refusal(f"its run cannot be read: {why}") from None
+    if not (isinstance(entry, dict) and entry.get("status") == "returned"
+            and _slash(entry.get("worktree", "")) == worktree and entry.get("branch") == data["branch"]
+            and sorted(entry.get("issues") or []) == sorted(data["issues"])):
+        raise Refusal(f"run {run} does not record {gid} sent back from {worktree} on {data['branch']}")
+
+
 def read_resume(root, worktree, record):
     """The recorded hand-back of `worktree`, once its receipt reads applied and the tree holds exactly its edits.
 
@@ -554,6 +568,7 @@ def read_resume(root, worktree, record):
     data = _resume_fields(record, HANDBACK_KEYS, f"{HANDBACKS}'s {worktree}")
     if not (isinstance(data["sha256"], str) and SHA256.fullmatch(data["sha256"]) and _rows_field(data["rows"])):
         raise Refusal(f"{HANDBACKS}'s {worktree} has no script digest or rows")
+    _returned_by(root, worktree, data)
     tree = Path(root) / worktree
     head, script, receipt = data["head"], data["script"], data["receipt"]
     try:
@@ -690,15 +705,17 @@ def launch(root, run, gid, tasks_path, branch, worktree, owned_source, red_sourc
     _remove_stale(*(directory / f"{gid}{suffix}" for suffix in (".refused.json", ".json", ".session.json", ".pid")))
     entry.update(status="running", model=group.model, issues=[r.number for r in group.rows], branch=branch,
                  worktree=worktree, launched=now().isoformat(), crashes=0)
-    if found:
-        # Spent last but for the state, so a launch refused before here leaves the owner's answer unspent; spent at
-        # all, so an executor that ends again with the tree as the script left it is not resumed on every wake.
+    # Spent last but for the state, so a launch refused before here leaves the owner's answer unspent; spent by any
+    # launch of the worktree, so an executor that ends again with the tree as the script left it is not resumed on
+    # every wake. A plain launch meets an unreadable store as one that records nothing, which resumes nothing either.
+    try:
         store = _handbacks(root)
-        store.pop(found.worktree, None)
-        try:
+        if store.pop(_slash(worktree), None) is not None:
             _save_handbacks(root, store)
-        except Refusal as refused:
+    except Refusal as refused:
+        if found:
             raise Refusal(f"{gid} is not launched: {refused}") from None
+    if found:
         entry["resumed"] = found.script
     save_state(directory, state)
 

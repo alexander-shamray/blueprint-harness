@@ -2476,6 +2476,8 @@ RESUMED_BRANCH = "chore/game-day-workflow"
 SCRIPT = "artifacts/handoff/apply-game-day.py"
 EDITED = ".github/workflows/game-day.yml"
 MARKED = f"OWNER; {db.SENT_BACK}"
+# The later night that resumes the group RUN sent back.
+NEXT = "20261102-220000"
 
 
 class ResumeTests(InRoot):
@@ -2535,11 +2537,11 @@ class ResumeTests(InRoot):
 
     def wake(self, text=None, pairs=2, flag=True):
         text = self.listed() if text is None else text
-        dr.save_state(state_dir(), {"run": RUN, "pairs": pairs, "lang": "en", "berserk": flag, "groups": {}})
+        dr.save_state(state_dir(NEXT), {"run": NEXT, "pairs": pairs, "lang": "en", "berserk": flag, "groups": {}})
         with open("todo.md", "w", encoding="utf-8", newline="") as handle:
             handle.write(text)
         with mock.patch.object(dr, "PROJECTS", self.root / "projects"), mock.patch.object(dr, "git", self.git):
-            return run_cli(["wake", RUN, "--tasks", "todo.md", "--today", "2026-11-01"],
+            return run_cli(["wake", NEXT, "--tasks", "todo.md", "--today", "2026-11-01"],
                            body_source=lambda n: "", open_source=lambda: {1440}, branch_source=NO_BRANCH).splitlines()
 
     def board(self, text=None):
@@ -2651,7 +2653,7 @@ class ResumeTests(InRoot):
         lines = self.wake(text, pairs=3)
         self.assertEqual("launch: Z1 A1 A2", lines[-1])
         self.assertIn("released A2: waits on a human", lines)
-        self.assertNotIn("Z1", dr.load_state(state_dir())["released"], "a resume is the owner's, not the flag's")
+        self.assertNotIn("Z1", dr.load_state(state_dir(NEXT))["released"], "a resume is the owner's, not the flag's")
 
     def test_each_miss_keeps_the_hold_and_names_why(self):
         script = self.root / RESUMED_TREE / SCRIPT
@@ -2691,26 +2693,51 @@ class ResumeTests(InRoot):
 
     def relaunch(self, *extra, red=list):
         """A later night's move and launch of the group `back` returned; the move only once."""
-        if group_state(RUN, "Z1").get("status") == "returned":
-            dr.save_state(state_dir(), {"run": RUN, "pairs": 2, "lang": "en", "berserk": True, "groups": {}})
-            self.assertEqual("", run_cli(["tasks", "move", "--tasks", "todo.md", "--run", RUN, "Z1",
+        state = state_dir(NEXT) / "state.json"
+        if not state.is_file() or "Z1" not in dr.load_state(state_dir(NEXT))["groups"]:
+            dr.save_state(state_dir(NEXT), {"run": NEXT, "pairs": 2, "lang": "en", "berserk": True, "groups": {}})
+            self.assertEqual("", run_cli(["tasks", "move", "--tasks", "todo.md", "--run", NEXT, "Z1",
                                           "--branch", RESUMED_BRANCH, "--worktree", RESUMED_TREE]))
         with mock.patch.object(dr, "git", self.git):
-            return run_cli(["launch", RUN, "Z1", "--tasks", "todo.md", "--branch", RESUMED_BRANCH,
+            return run_cli(["launch", NEXT, "Z1", "--tasks", "todo.md", "--branch", RESUMED_BRANCH,
                             "--worktree", RESUMED_TREE, *extra], red_source=red)
 
     def test_launch_resumed_reuses_the_worktree_spends_the_record_and_tells_the_executor(self):
         self.back()
         self.owner_runs_the_script()
         self.assertEqual("", self.relaunch("--resumed"))
-        entry = group_state(RUN, "Z1")
+        entry = group_state(NEXT, "Z1")
         self.assertEqual(("running", SCRIPT, RESUMED_TREE), (entry["status"], entry["resumed"], entry["worktree"]))
         self.assertEqual({}, self.store(), "the same answer would resume an executor that ended again uncommitted")
-        task_text("Z1", "Add the game-day workflow")
+        (state_dir(NEXT) / "Z1.task.txt").write_text("Add the game-day workflow\n", encoding="utf-8")
         self.assertEqual(f"/ship #Z1-1700 Add the game-day workflow (resumed: the owner ran {SCRIPT} in this "
                          "worktree and its edits are uncommitted here; commit them, the body saying the owner "
                          f"applied them from that script, and carry on to the merge) --dispatched "
-                         f"artifacts/dispatch/{RUN} --berserk", dr._prompt_for(state_dir(), "Z1", entry, RUN, True))
+                         f"artifacts/dispatch/{NEXT} --berserk",
+                         dr._prompt_for(state_dir(NEXT), "Z1", entry, NEXT, True))
+
+    def test_a_refused_back_or_any_launch_of_the_worktree_leaves_no_record(self):
+        self.back()
+        self.status = f" M {EDITED}\0"
+        self.assertIn("resume not recorded Z1", self.back())
+        self.assertEqual({}, self.store(), "a refused back kept the earlier record to resume on")
+        self.status = ""
+        self.back()
+        self.assertEqual("", self.relaunch())
+        self.assertEqual({}, self.store(), "a plain launch of the worktree kept its record")
+
+    def test_a_record_its_own_run_does_not_bear_out_is_held(self):
+        self.back()
+        self.owner_runs_the_script()
+        store = self.store()
+        store[RESUMED_TREE]["branch"] = "fix/forged"
+        (self.root / dr.HANDBACKS).write_text(json.dumps(store), encoding="utf-8")
+        self.assertIn(f"run {RUN} does not record Z1 sent back from {RESUMED_TREE} on fix/forged", self.held())
+        store[RESUMED_TREE].update(branch=RESUMED_BRANCH, run="20261103-220000")
+        (self.root / dr.HANDBACKS).write_text(json.dumps(store), encoding="utf-8")
+        self.assertIn("its run cannot be read", self.held())
+        self.assertEqual("end: drained", self.wake()[-1])
+
 
     def test_launch_resumed_checks_the_record_in_code_and_spends_nothing_on_a_refusal(self):
         self.back()
@@ -2718,7 +2745,7 @@ class ResumeTests(InRoot):
         self.status = f" M {EDITED}\0"
         self.assertIn("refused: ", self.relaunch("--resumed"))
         self.assertIn("not applied", self.relaunch("--resumed"))
-        self.assertIsNone(group_state(RUN, "Z1").get("status"))
+        self.assertIsNone(group_state(NEXT, "Z1").get("status"))
         self.receipt(f"head {HEAD}\napplied\n")
         self.assertIn("refused: Z1 is not launched: main is red",
                       self.relaunch("--resumed", red=lambda: ["main is red: #9 u"]))
@@ -2726,7 +2753,8 @@ class ResumeTests(InRoot):
         (self.root / dr.HANDBACKS).unlink()
         self.assertIn(f"refused: {dr.HANDBACKS} records no hand-back for {RESUMED_TREE}", self.relaunch("--resumed"))
         self.assertEqual("", self.relaunch())
-        self.assertNotIn("resumed", group_state(RUN, "Z1"), "a plain launch is told of no resume")
+        self.assertNotIn("resumed", group_state(NEXT, "Z1"), "a plain launch is told of no resume")
+
 
 if __name__ == "__main__":
     unittest.main()
