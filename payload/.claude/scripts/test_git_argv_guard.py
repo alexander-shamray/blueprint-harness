@@ -4288,7 +4288,10 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                         "ln -s staged ~/.config/git", "ln -s staged ~/.config", "ln -sfn staged ~/.config/git",
                         "ln -sfh staged ~/.config/git",
                         # `-n` links inside a real directory still, so what lands there is judged too.
-                        "ln -sn /tmp/evil/.bashrc ~/", "ln --no-dereference -s /tmp/evil/.gitconfig ~"):
+                        "ln -sn /tmp/evil/.bashrc ~/", "ln --no-dereference -s /tmp/evil/.gitconfig ~",
+                        # npm's user config: its `script-shell` and `node-options` run at every npm call.
+                        "echo script-shell=/tmp/x >> ~/.npmrc", 'ls > "$HOME/.npmrc"', "tee ~/.npmrc",
+                        "cp a ~/.npmrc", "mv /tmp/a ~/.npmrc", "rm ~/.npmrc", "ln -s /tmp/a ~/.npmrc"):
             with self.subTest(command=command):
                 self.assertIn("No rule judges a shell write", self.assertRefused(command, env=env))
 
@@ -4367,7 +4370,8 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                       "cat ~/.claude/CLAUDE.md",
                       "rm ~/.claude/scratch/x", "ls > '~/.gitconfig'", "ls ~/.ssh", "cat ~/.gitconfig",
                       "ls > $HOME/.claude/scratch/x", "ls > ~/.config/other/config", "ls > ~/.config/git/ignore",
-                      "ls > ~/.claude.json.bak", "cat ~/.claude.json", "cat ~/.config/git/config", env=env)
+                      "ls > ~/.claude.json.bak", "cat ~/.claude.json", "cat ~/.config/git/config",
+                      "cat ~/.npmrc", "ls > ~/projects/.npmrc", "ls > ~/.npmrc.bak", env=env)
 
     def test_a_checkout_inside_a_home_place_is_not_left_to_its_denies(self):
         # As the edit guard's `home_offence` asks it: a checkout at
