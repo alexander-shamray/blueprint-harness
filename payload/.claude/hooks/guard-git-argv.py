@@ -2998,15 +2998,22 @@ DISPATCH_STATE = ("artifacts", "dispatch")
 def dispatcher_state(path, whole=False):
     """Whether a dispatched session's write to `path` reaches a main checkout's `artifacts/dispatch/`.
 
-    A main checkout is one whose `.git` is a directory. Folded, as `denied_path` folds; `whole` counts a parent.
+    A main checkout is one whose `.git` is a directory. Every such ancestor is asked, not the nearest, so a `.git`
+    made below one hides nothing. Folded, as `denied_path` folds; `whole` counts a parent.
     """
-    if DISPATCHED not in os.environ:
+    if DISPATCHED not in os.environ or elsewhere(path):
         return False
-    root = checkout_of(path)
-    if root is None or not os.path.isdir(os.path.join(root, ".git")):
-        return False
-    parts = [part.lower() for part in re.split(r"[\\/]+", os.path.relpath(path, root)) if part not in ("", ".")]
-    return parts[:2] == list(DISPATCH_STATE) or (whole and list(DISPATCH_STATE[:len(parts)]) == parts)
+    root = os.path.abspath(path)
+    while True:
+        if os.path.isdir(os.path.join(root, ".git")):
+            parts = [part.lower() for part in re.split(r"[\\/]+", os.path.relpath(path, root))
+                     if part not in ("", ".")]
+            if parts[:2] == list(DISPATCH_STATE) or (whole and list(DISPATCH_STATE[:len(parts)]) == parts):
+                return True
+        parent = os.path.dirname(root)
+        if parent == root:
+            return False
+        root = parent
 
 
 def protected_target(path, whole=False):

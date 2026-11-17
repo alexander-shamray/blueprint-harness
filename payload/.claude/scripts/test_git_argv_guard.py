@@ -3914,6 +3914,11 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                   f"mv {state}/handbacks.json /tmp/b")
         self.refused(*writes, cwd=worktree, env=dispatched)
         self.assertIn("dispatcher's own state", self.assertRefused(writes[0], cwd=worktree, env=dispatched))
+        # A `.git` made inside the state is not a checkout of its own that hides it.
+        os.makedirs(os.path.join(self.root, "artifacts", "dispatch", "r", ".git"))
+        with open(os.path.join(self.root, "artifacts", ".git"), "w", encoding="utf-8") as handle:
+            handle.write("gitdir: /elsewhere\n")
+        self.refused(f"ls > {state}/r/state.json", f"ls > {state}/handbacks.json", cwd=worktree, env=dispatched)
         self.admitted("ls > artifacts/dispatch/20261117-152904/G1.json",
                       f"ls > {self.spelled('artifacts', 'review', 'x.diff')}",
                       f"ls > {self.spelled('artifacts', 'dispatched')}/x", cwd=worktree, env=dispatched)

@@ -1066,6 +1066,11 @@ class ADispatchedSessionLeavesTheDispatchersState(GuardCase):
                 self.assertIn("dispatcher's own state", reason)
         self.assertRefused(os.path.join(self.worktree, "..", "..", "..", "artifacts", "dispatch", "x.json"),
                            **self.from_worktree(env=self.DISPATCHED))
+        # A `.git` made inside the state is not a checkout of its own that hides it.
+        planted = os.path.join(self.root, "artifacts", "dispatch", "20261117-152904")
+        for name in (".git", os.path.join("..", ".git")):
+            os.makedirs(os.path.join(planted, name), exist_ok=True)
+        self.assertRefused(os.path.join(planted, "state.json"), **self.from_worktree(env=self.DISPATCHED))
         # Set at all is the test, as the task list's.
         self.assertRefused(os.path.join(self.root, "artifacts", "dispatch", "handbacks.json"),
                            **self.from_worktree(env={"HARNESS_DISPATCHED": ""}))
