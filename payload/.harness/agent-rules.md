@@ -105,9 +105,12 @@ loads*).
   `! py -3.12 <script>`. A `!` line runs in Git Bash, so a Windows path
   with backslashes loses them and the line dies on its first word with no
   output: give the script's path with forward slashes.
-- **The script writes a receipt beside itself**, so a script that never ran
-  can be told from one that ran and failed; read the receipt before
-  reading the files.
+- **The script writes a receipt beside itself**, `<script>.receipt`, so a
+  script that never ran can be told from one that ran and failed: a
+  `head <oid>` line, the checkout's `HEAD` when it ran, and a last line of
+  exactly `applied`, `failed` or `dry-run`
+  (`docs/harness/working-rules.md`, *Hand-back scripts*). Read the receipt
+  before reading the files.
 - **After the owner runs it, verify by reading the files**, then commit
   and carry on; the commit body says the owner applied it from a script.
 
