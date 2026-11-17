@@ -3912,13 +3912,17 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                   "cp /tmp/a ../../../artifacts/dispatch/handbacks.json",
                   f"touch {state}/handbacks.json", f"rm -rf {self.spelled('artifacts')}",
                   f"mv {state}/handbacks.json /tmp/b")
-        self.refused(*writes, cwd=worktree, env=dispatched)
-        self.assertIn("dispatcher's own state", self.assertRefused(writes[0], cwd=worktree, env=dispatched))
+        # Each by this rule's message, not another layer's refusal.
+        def this_rule(*commands):
+            for command in commands:
+                with self.subTest(command=command):
+                    self.assertIn("dispatcher's own state", self.assertRefused(command, cwd=worktree, env=dispatched))
+        this_rule(*writes)
         # A `.git` made inside the state is not a checkout of its own that hides it.
         os.makedirs(os.path.join(self.root, "artifacts", "dispatch", "r", ".git"))
         with open(os.path.join(self.root, "artifacts", ".git"), "w", encoding="utf-8") as handle:
             handle.write("gitdir: /elsewhere\n")
-        self.refused(f"ls > {state}/r/state.json", f"ls > {state}/handbacks.json", cwd=worktree, env=dispatched)
+        this_rule(f"ls > {state}/r/state.json", f"ls > {state}/handbacks.json")
         self.admitted("ls > artifacts/dispatch/20261117-152904/G1.json",
                       f"ls > {self.spelled('artifacts', 'review', 'x.diff')}",
                       f"ls > {self.spelled('artifacts', 'dispatched')}/x", cwd=worktree, env=dispatched)
