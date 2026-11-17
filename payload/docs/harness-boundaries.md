@@ -2399,13 +2399,12 @@ A glob, a brace, a `.` or a `-T` copy or move into such a directory lands
 under names the shell guard cannot know, so it is refused where it can match
 one of these, `mv * ..`, `cp -r x/. ..` or `cp -rT x ..`, with a bash `[^...]`
 read as bash reads it and a `[:alpha:]` class as any name, and `mv *.md ..`
-stays admitted. An extended glob, and
-a `$` inside single quotes such as `'NuGet.Config::$DATA'`, are not read as
-bash reads them, so they are spellings built to hide a name, outside *The
-guards' threat model*; the edit guard has no shell to misread and refuses the
-stream.
-`BUILD_ANCESTOR_FILES` in `guard-git-argv.py` is the one list; if the edit
-guard cannot load it, it refuses a name of that shape anywhere.
+stays admitted. An extended glob, and a `$` inside single quotes such as
+`'NuGet.Config::$DATA'`, are not read as bash reads them, so they are
+spellings built to hide a name, outside *The guards' threat model*; the edit
+guard has no shell to misread and refuses the stream. `BUILD_ANCESTOR_FILES`
+in `guard-git-argv.py` is the one list; if the edit guard cannot load it, it
+refuses a name of that shape anywhere.
 
 **A replay narrowed it.** 79,469 commands of these repositories' sessions since
 2026-10-01 gave 34 new refusals, none under the login or control names. 30 wrote
