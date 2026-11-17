@@ -535,7 +535,7 @@ def record_handback(root, run, gid, entry, text):
         changed = _changed_paths(tree)
         if changed:
             raise Refusal(f"{worktree} is not clean: {one_line(', '.join(sorted(changed)), 200)}")
-        # A resumed launch moved rows already marked, so their cell before the first back is the one it restored.
+        # A resumed launch moved rows already marked, so their cell before is the one the lift left at that launch.
         carried = entry.get("restored") if isinstance(entry.get("restored"), dict) else {}
         before = {r.key: carried.get(r.key) if isinstance(carried.get(r.key), str) else r.cells[DEPENDS]
                   for r in (_row("Remaining", line) for line in _field(entry, gid, "rows", _texts))}
