@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Refuse a code-index MCP call over an index the refresh hook would not open,
-in the checkout the server reads or the one the session works in, as the `cbx`
-route's gate does; and refuse one made from another checkout than the one the
-server reads, which is where the session started, naming the `cbx` command that
-reads this one. Openability judged nothing is a refusal; any other call it
-cannot judge goes through, and it returns 0."""
+as the `cbx` gate does, unjudged included; and one made from another checkout
+than the server reads, naming the `cbx` line that reads this one. Any other
+call it cannot judge goes through, and it returns 0."""
 
 from __future__ import annotations
 
