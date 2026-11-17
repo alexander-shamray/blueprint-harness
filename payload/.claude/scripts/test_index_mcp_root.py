@@ -15,6 +15,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from test_link_skips import skip_only_without_links
+
 SCRIPTS = Path(__file__).resolve().parent
 CLAUDE = SCRIPTS.parent
 HOOK = CLAUDE / "hooks" / "index-mcp-root.py"
@@ -195,8 +197,8 @@ class WhenTheIndexIsNotOpenable(Checkouts):
         cache.mkdir(parents=True)
         try:
             os.symlink(target, cache / "index.sqlite")
-        except (OSError, NotImplementedError) as error:
-            self.skipTest(f"no symbolic link here: {error}")
+        except (OSError, NotImplementedError) as refused:
+            skip_only_without_links(refused, "symbolic link")
 
         self.assertIn(self.SENTENCE, self.ask("find_symbol", {"name": "X"}, cwd=self.main))
 
