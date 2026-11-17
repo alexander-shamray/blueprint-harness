@@ -1120,6 +1120,11 @@ class ABuildLoadsNothingPlantedAboveTheCheckout(GuardCase):
                         os.path.join(directory, name), tool="Write", **self.inside))
         self.assertIn("loads from a directory above", self.assertRefused(
             os.path.join("..", "Directory.Build.targets"), **self.inside))
+        # Windows opens the same file through its default stream and with trailing dots or spaces.
+        for name in ("NuGet.Config::$DATA", "global.json.", "NuGet.Config "):
+            with self.subTest(name=name):
+                self.assertIn("loads from a directory above", self.assertRefused(
+                    os.path.join(self.parent, name), tool="Write", **self.inside))
 
     def test_the_checkout_root_a_sibling_and_other_names_stay_admitted(self):
         for target in (os.path.join(self.checkout, "Directory.Build.props"),

@@ -2386,17 +2386,23 @@ sessions* has the rule and its reason (#604).
 **Above a checkout, both guards refuse the names a build loads from there**
 (#596): `Directory.Build.props`, `.targets` and `.rsp`,
 `Directory.Solution.props` and `.targets`, `Directory.Packages.props`,
-`NuGet.Config` and `global.json`, folded, in any directory above a checkout
-the session stands in, a worktree's main checkout root included. MSBuild
-and the SDK take the nearest above a project, which an empty file at the
-root stops, but NuGet merges every `NuGet.Config` from the drive root down,
-so a key the root's leaves unset falls through to the planted one, and no
-deny, anchored at a root, reaches above it. The checkouts are the
+`NuGet.Config` and `global.json`, folded, with a `:` stream and trailing
+dots and spaces dropped as Windows drops them, in any directory above a
+checkout the session stands in, a worktree's main checkout root included.
+MSBuild and the SDK take the nearest above a project, which an empty file at
+the root stops, but NuGet merges every `NuGet.Config` from the drive root
+down, so a key the root's leaves unset falls through to the planted one, and
+no deny, anchored at a root, reaches above it. The checkouts are the
 project's, the session's, the command's and the guard's own; one in the
 checkout's own root, below it or in a sibling is the checkout's to judge.
-A glob, a brace or a `.` copied or moved into such a directory lands under
-names the shell guard cannot know, so it is refused where it can match one of
-these, `mv * ..` or `cp -r x/. ..`, and `mv *.md ..` stays admitted.
+A glob, a brace, a `.` or a `-T` copy or move into such a directory lands
+under names the shell guard cannot know, so it is refused where it can match
+one of these, `mv * ..`, `cp -r x/. ..` or `cp -rT x ..`, with a bash `[^...]`
+read as bash reads it, and `mv *.md ..` stays admitted. An extended glob, and
+a `$` inside single quotes such as `'NuGet.Config::$DATA'`, are not read as
+bash reads them, so they are spellings built to hide a name, outside *The
+guards' threat model*; the edit guard has no shell to misread and refuses the
+stream.
 `BUILD_ANCESTOR_FILES` in `guard-git-argv.py` is the one list; if the edit
 guard cannot load it, it refuses a name of that shape anywhere.
 

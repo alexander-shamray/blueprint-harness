@@ -3934,7 +3934,8 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                   "echo x | tee ../NUGET.CONFIG", "cp /tmp/a ../global.json", "ln -s /tmp/a ../Directory.Build.rsp",
                   "touch ../../Directory.Packages.props", "mv /tmp/a ../Directory.Solution.props",
                   f"echo x > {self.spelled('..')}/Directory.Solution.targets",
-                  "cp /tmp/Directory.Build.props ..")
+                  "cp /tmp/Directory.Build.props ..", "echo x > '../global.json.'",
+                  "echo x > '../NuGet.Config '", "echo x > ../NuGet.Config:x")
         for command in writes:
             with self.subTest(command=command):
                 self.assertIn("loads from a directory above", self.assertRefused(command))
@@ -3942,7 +3943,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                       "echo x > ../sibling/NuGet.Config", "echo x > ../notes.md")
         # A glob, a brace or a `.` lands under names not known: refused where it can be a build's.
         for command in ("mv * ..", "cp /tmp/x/*.config ..", "cp -r /tmp/x/. ..", "cp /tmp/{a,b} ..",
-                        "mv /tmp/x/?uget.config ../"):
+                        "mv /tmp/x/?uget.config ../", "cp -rT /tmp/x ..", "cp /tmp/x/[^x]uget.config .."):
             with self.subTest(command=command):
                 self.assertIn("may be one MSBuild", self.assertRefused(command))
         self.admitted("mv *.md ..", "cp /tmp/x/*.txt ..", "cp -r /tmp/x/. notes", "mv * ../sibling")
