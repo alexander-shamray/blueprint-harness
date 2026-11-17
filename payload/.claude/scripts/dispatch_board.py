@@ -376,20 +376,33 @@ def model_problem(model):
     return None if model in MODELS else f"model {model!r} is not one of {', '.join(MODELS)}"
 
 
-def _blocker(row, open_issues, today, bodies, berserk=False):
-    """Why a row cannot launch, or None. `berserk` lifts the human wait and the .claude/ reach and nothing else."""
+def sent_back(row):
+    """Whether *Depends on* carries a mark `tasks back` writes: OWNER on any night, and the words on a flagged one."""
+    return bool(OWNER.search(row.cells[DEPENDS])) or SENT_BACK in row.cells[DEPENDS]
+
+
+def _resumed_depends(depends):
+    """*Depends on* with `tasks back`'s marks gone: the owner's applied script is the answer both of them wait for."""
+    rest = _without_owner(depends.replace(SENT_BACK, " "))
+    return rest.strip(" ;,:.—–-") or "none"
+
+
+def _blocker(row, open_issues, today, bodies, berserk=False, resumed=False):
+    """Why a row cannot launch, or None. `berserk` lifts the human wait and the .claude/ reach and nothing else;
+    `resumed`, a group whose owner ran its hand-back script, lifts only the marks `tasks back` wrote."""
     if row.number is None:
         return "owed, not filed"
+    cell = _resumed_depends(row.cells[DEPENDS]) if resumed else row.cells[DEPENDS]
     # GitHub's label names are case-insensitive: `Question` asks as `question` does.
     labels = {label.strip().casefold() for label in row.cells[LABELS].split(",")}
-    if not berserk and ("question" in labels or OWNER.search(f"{row.cells[TASK]} {row.cells[DEPENDS]}")):
+    if not berserk and ("question" in labels or OWNER.search(f"{row.cells[TASK]} {cell}")):
         return "waits on a human"
     for label in ("paused", "tracking"):
         if label in labels:
             return f"labelled {label}"
-    if berserk and SENT_BACK in row.cells[DEPENDS]:
+    if berserk and SENT_BACK in cell:
         return SENT_BACK
-    depends = _without_owner(row.cells[DEPENDS]) if berserk else row.cells[DEPENDS]
+    depends = _without_owner(cell) if berserk else cell
     if UNPLACED in depends:
         return "unplaced: no session has chosen its wave and group"
     if depends.strip().casefold() != "none":
@@ -422,10 +435,10 @@ def _blocker(row, open_issues, today, bodies, berserk=False):
     return model_problem(row.cells[MODEL])
 
 
-def ready(group, open_issues, today, bodies=None, berserk=False, kept=frozenset()):
+def ready(group, open_issues, today, bodies=None, berserk=False, kept=frozenset(), resumed=False):
     """Whether every row may launch, and the first that may not. A row in `kept` is one the flag does not lift."""
     for row in group.rows:
-        why = _blocker(row, open_issues, today, bodies or {}, berserk and row.key not in kept)
+        why = _blocker(row, open_issues, today, bodies or {}, berserk and row.key not in kept, resumed)
         if why:
             return False, why
     return True, ""
@@ -436,17 +449,19 @@ def strangers(group, owned):
     return [row.key for row in group.rows if row.number is not None and row.number not in owned]
 
 
-def runnable(group, owned, open_issues, today, bodies=None, berserk=False, kept=frozenset()):
+def runnable(group, owned, open_issues, today, bodies=None, berserk=False, kept=frozenset(), resumed=False):
     """`ready`, behind the gate no flag lifts: on a public repository an issue is a work order only from the owner."""
     held = strangers(group, owned)
     if held:
         return False, f"{NOT_OWNERS}: {', '.join(held)}"
-    return ready(group, open_issues, today, bodies, berserk, kept)
+    return ready(group, open_issues, today, bodies, berserk, kept, resumed)
 
 
-def released(candidates, ready_map, open_issues, today, bodies):
-    """Each group `ready_map` holds ready that would not be without the flag, with what the flag lifted."""
-    plain = ((g.id, ready(g, open_issues, today, bodies)) for g in candidates if ready_map[g.id][0])
+def released(candidates, ready_map, open_issues, today, bodies, resumed=frozenset()):
+    """Each group `ready_map` holds ready that would not be without the flag, with what the flag lifted; a group in
+    `resumed` is judged with its resume, since that lift is the owner's own and not the flag's."""
+    plain = ((g.id, ready(g, open_issues, today, bodies, resumed=g.id in resumed))
+             for g in candidates if ready_map[g.id][0])
     return {gid: why for gid, (ok, why) in plain if not ok}
 
 
@@ -454,15 +469,17 @@ def _own_issues(group):
     return {r.number for r in group.rows if r.number is not None}
 
 
-def pick(candidates, ready_map, claims, running, taken, slots, lifted=()):
+def pick(candidates, ready_map, claims, running, taken, slots, lifted=(), first=()):
     """Up to `slots` group ids to launch. `candidates` is every group, running ones included, so a running
-    group's issues are known; the earliest wave goes first, within it a group in `lifted` after the rest, so a limit
-    ends the night on the riskier work, and table order breaks a tie."""
+    group's issues are known; a group in `first`, one the owner's script resumed, goes before every other, its work
+    all but done; then the earliest wave, within it a group in `lifted` after the rest, so a limit ends the night on
+    the riskier work, and table order breaks a tie."""
     held = [(claims[g.id], g.id, _own_issues(g)) for g in candidates if g.id in running and g.id in claims]
     held += [(claim, claim.ident, set(claim.issues)) for claim in taken]
     unknown = Claim(frozenset(), frozenset(), frozenset(), True)
     chosen = []
-    order = sorted(range(len(candidates)), key=lambda i: (candidates[i].wave, candidates[i].id in lifted, i))
+    order = sorted(range(len(candidates)),
+                   key=lambda i: (candidates[i].id not in first, candidates[i].wave, candidates[i].id in lifted, i))
     for i in order:
         group = candidates[i]
         if len(chosen) >= slots:
@@ -1175,17 +1192,18 @@ def _held(tasks, bodies, branch_source):
 
 
 def board(text, today, bodies, open_issues, branch_source=lambda _branch: frozenset(), berserk=False,
-          kept=frozenset(), *, owned):
+          kept=frozenset(), *, owned, resumed=frozenset()):
     tasks = parse_tasks(text)
     held = _held(tasks, bodies, branch_source)
     out = []
     for group in groups(tasks):
         claim = group_claim(group, bodies)
-        ok, why = runnable(group, owned, open_issues, today, bodies, berserk, kept)
-        lifted = released([group], {group.id: (ok, why)}, open_issues, today, bodies).get(group.id)
+        ok, why = runnable(group, owned, open_issues, today, bodies, berserk, kept, group.id in resumed)
+        lifted = released([group], {group.id: (ok, why)}, open_issues, today, bodies, resumed).get(group.id)
         by = next((c.ident or r.key for c, r in held
                    if overlaps(claim, group.id, _own_issues(group), c, c.ident or r.key, set(c.issues))), None)
-        readiness = f"released: {lifted}" if lifted else "ready" if ok else f"not ready: {why}"
+        readiness = (f"released: {lifted}" if lifted else "resumed" if ok and group.id in resumed
+                     else "ready" if ok else f"not ready: {why}")
         out.append(" | ".join((group.id, f"wave {group.wave}", readiness,
                                "free" if by is None else f"taken by {by}", f"{len(claim.paths)} paths")))
     return out or ["no groups in Remaining"]
@@ -1686,9 +1704,13 @@ def main(argv=None, body_source=None, open_source=None, branch_source=None, week
                 # What this board read is the only base `tasks rewrite` accepts a rebuild from, so it is kept
                 # before anything below can refuse: a list the board refuses is the one a rebuild must repair.
                 _write(directory / READ_COPY, text)
-            bodies = _bodies(parse_tasks(text), directory, bodies_from)
+            tasks = parse_tasks(text)
+            bodies = _bodies(tasks, directory, bodies_from)
             listed = OpenIssues.of(open_from())
-            print("\n".join(board(text, today, bodies, listed, branch_from, *flag, owned=owned_from())))
+            found, holds = dispatch_run.resumes(root, groups(tasks))
+            print("\n".join(board(text, today, bodies, listed, branch_from, *flag, owned=owned_from(),
+                                  resumed=frozenset(found))
+                            + [dispatch_run.resumed_line(gid, r) for gid, r in found.items()] + holds))
         elif args.command == "tasks" and getattr(args, "run", None) is None:
             _day_command(args, issues_from_, merged_from, owned_from)
         elif args.command == "tasks":

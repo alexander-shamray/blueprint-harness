@@ -203,7 +203,10 @@ is the anti-goal it prevents (spec §2).
 
 The earliest wave goes first and table order breaks a tie; a later wave's
 group runs beside an earlier one when it is ready and free, since the wave
-is an order and the dependency is the rule (spec §6.1).
+is an order and the dependency is the rule (spec §6.1). A group the
+owner's script resumed (*Resume*) goes before every other, whatever its
+wave: its work is all but done, and its worktree holds an uncommitted edit
+that only its own executor can carry to a merge.
 
 ## The berserk token
 
@@ -675,6 +678,37 @@ its rows are listed, the report naming it under *Needs a human* so the
 owner can clear them. A list `start` cannot read keeps the run open and
 says why, since closing on a guess could leave rows to no run. The resumed
 night writes `report.md` again, over the first.
+
+**A group handed back on a denied edit resumes once the owner has run its
+script**, so the script is the owner's only step (blueprint-harness#602).
+The executor leaves `artifacts/handoff/resume.json` in its worktree beside
+the script (`docs/commands/ship.md`, *Dispatched: the one token /dispatch
+passes*), and `board` and every `wake` read each one under
+`.claude/worktrees/`. A record lifts its group's hold only when all of
+these hold, and otherwise `board` prints `resume held <worktree>: <why>`:
+
+- the receipt's last line is `applied`, and its `head` line is the
+  record's (`docs/harness/working-rules.md`, *Hand-back scripts*);
+- the worktree is on the recorded branch at that head, and `git status`
+  names exactly the script's paths, outside `artifacts/handoff/`;
+- one group in *Remaining* holds exactly the recorded issues, every row
+  marked as `tasks back` marks it;
+- no earlier launch has spent the script.
+
+What it lifts is those marks, `OWNER` and `sent back under --berserk`, on
+either kind of night, and nothing else: a date, an open issue, a label,
+the `.claude/` reach and the owner's authorship gate hold as they did, so
+the owner's script answers the question the hand-back asked and no other.
+`launch --resumed` reuses the worktree rather than forking one from `main`,
+which would stand beside the applied edit, and checks the record again in
+code whatever `wake` printed, as it re-reads a red `main`. It then writes
+`<script>.taken` beside the script and tells the executor in its prompt
+that the edits are the owner's to commit: an executor that ends again
+before committing leaves the tree as the script left it, which the same
+receipt would otherwise resume on every wake, so a second hand-back must
+write a second script. Nothing loops: a review finding that lands in a
+denied path again is a fresh hand-back with a fresh script, sent back as
+any other.
 
 ## Grants
 
