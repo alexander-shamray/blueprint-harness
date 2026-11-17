@@ -1610,10 +1610,11 @@ is not, so the record goes there, under the gitignored
 `artifacts/handoff/`, with the script itself: the scratchpad is the
 executor's temp directory, which `dispatch_run.py` removes when it exits.
 The tree is committed clean first and the record names the `head` and the
-`paths`, because the dispatcher resumes only a tree that is exactly that
-head plus exactly those edits; anything else is work it cannot account
-for. A fresh hand-back takes a fresh script name, since `launch` spends a
-script's receipt the first time it resumes on it
+`paths`, because the dispatcher records the hand-back only from a clean
+tree at that head and resumes only that head plus exactly those edits;
+anything else is work it cannot account for. The record is the
+executor's word and lifts nothing alone: `tasks back` keeps its own copy,
+checked against the run's state, and that is what a later night reads
 (`docs/commands/dispatch.md`, *Resume*).
 
 **The path comes from the prompt, not from a convention.** The group is the
