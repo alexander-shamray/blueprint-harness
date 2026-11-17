@@ -21,7 +21,7 @@ GUARD_COMMAND = re.compile(r'^sh "\$\{CLAUDE_PROJECT_DIR\}/\.claude/hooks/run-gu
 # is the guard's documented reason, so a refusal for some other cause, a crash's included, is a finding too. Nothing
 # here runs: the guard judges the event and the tool never starts. `{home}` is the home directory, whose keys the
 # edit guard refuses by name.
-LOGIN = "a key, a shell profile or git's own configuration below the home"
+LOGIN = "a key, a shell profile or git's or npm's own configuration below the home"
 GUARD_SCENARIOS = {
     ("Bash", "guard-git-argv.py"): [
         ({"command": "git filter-branch --tree-filter 'touch x' HEAD"},

@@ -237,9 +237,11 @@ def denied_path(relative, whole=False):
 # checkouts and the task list. `CLAUDE.md` and `AGENTS.md` stay out of the
 # control set: they are the owner's rules, not a grant. Both guards read these.
 HOME_TREES = frozenset({".ssh"})
+# `.npmrc` is npm's user config, read on every npm call: its `script-shell` and
+# `node-options` run a program under each granted `npm ci`, `npm test` and build.
 HOME_FILES = frozenset({
     ".bash_login", ".bash_logout", ".bash_profile", ".bashrc", ".gitconfig",
-    ".profile", ".zlogin", ".zprofile", ".zshenv", ".zshrc",
+    ".npmrc", ".profile", ".zlogin", ".zprofile", ".zshenv", ".zshrc",
 })
 # Deeper files that run as `.gitconfig` does: git reads its XDG config beside the home one, so a
 # `core.fsmonitor` or `core.sshCommand` there runs at the next git call.
@@ -3179,7 +3181,7 @@ def destination_offence(word, cwd, command, writer, whole=False, inside=None, re
             return None
         return (
             f"{writer} would write `{path}`, which is `{home}`: a key, a shell "
-            "profile, git's own configuration or what `~/.claude` or "
+            "profile, git's or npm's own configuration or what `~/.claude` or "
             "`~/.claude.json` applies to later sessions. No rule judges a shell write there. Use an editing "
             "tool, where one does, or hand it to the owner "
             "(docs/harness-boundaries.md, *The edit-target guard*)."

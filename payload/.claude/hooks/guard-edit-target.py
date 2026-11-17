@@ -340,8 +340,8 @@ def home_offence(spelled, lexical, resolved, cwd=None):
             if place == "login":
                 return (
                     f"guard-edit-target: {spelled} resolves to {resolved}, "
-                    "a key, a shell profile or git's own configuration below "
-                    "the home: what runs at login, under every session, which "
+                    "a key, a shell profile or git's or npm's own configuration "
+                    "below the home: what runs at login, under every session, which "
                     "no checkout's rules own (docs/harness-boundaries.md)."
                 )
             if place == "control":

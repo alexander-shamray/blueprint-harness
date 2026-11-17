@@ -698,6 +698,9 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
             os.path.join(self.HOME, ".gitconfig"),
             # git's XDG config runs as `.gitconfig` does.
             os.path.join(self.HOME, ".config", "git", "config"),
+            # npm's user config: its `script-shell` and `node-options` run at every npm call.
+            os.path.join(self.HOME, ".npmrc"),
+            *self.recased(os.path.join(self.HOME, ".NPMRC")),
         ):
             with self.subTest(target=target):
                 self.assertIn("what runs at login", self.assertRefused(target))
@@ -743,6 +746,7 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
             os.path.join(self.HOME, ".config", "other", "config"),
             os.path.join(self.HOME, ".config", "git", "ignore"),
             os.path.join(self.HOME, "projects", ".claude.json"),
+            os.path.join(self.HOME, "projects", ".npmrc"),
         ):
             with self.subTest(target=target):
                 self.assertAdmitted(target)
