@@ -351,8 +351,8 @@ def build_ancestor(places, roots):
 def unknown_landing_offence(word, sources, cwd, command, writer):
     """The reason to refuse `sources` landing under names not known in a directory above a checkout, or `None`.
 
-    A glob is asked, `[^` read as bash reads it, whether it can match a build's name; a brace, `.`, `..` or a
-    word not read can be any name.
+    A glob is asked, `[^` read as bash reads it, whether it can match a build's name; a brace, a bracket class
+    `fnmatch` does not read, `.`, `..` or a word not read can be any name.
     """
     path = written_path(word, cwd, command)
     if path is None or elsewhere(path):
@@ -362,7 +362,7 @@ def unknown_landing_offence(word, sources, cwd, command, writer):
         return None
     for source in sources:
         last = re.split(r"[\\/]", (target_literal(source) or "").rstrip("/\\"))[-1].lower()
-        if last in ("", ".", "..") or "{" in last or any(
+        if last in ("", ".", "..") or any(mark in last for mark in ("{", "[:", "[=", "[.")) or any(
                 fnmatch.fnmatchcase(name, last.replace("[^", "[!")) for name in BUILD_ANCESTOR_FILES):
             return (
                 f"{writer} would put `{source}` in `{path}`, above the checkout `{above}`, under a name that may be "

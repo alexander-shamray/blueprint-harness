@@ -2398,7 +2398,8 @@ checkout's own root, below it or in a sibling is the checkout's to judge.
 A glob, a brace, a `.` or a `-T` copy or move into such a directory lands
 under names the shell guard cannot know, so it is refused where it can match
 one of these, `mv * ..`, `cp -r x/. ..` or `cp -rT x ..`, with a bash `[^...]`
-read as bash reads it, and `mv *.md ..` stays admitted. An extended glob, and
+read as bash reads it and a `[:alpha:]` class as any name, and `mv *.md ..`
+stays admitted. An extended glob, and
 a `$` inside single quotes such as `'NuGet.Config::$DATA'`, are not read as
 bash reads them, so they are spellings built to hide a name, outside *The
 guards' threat model*; the edit guard has no shell to misread and refuses the
