@@ -473,6 +473,8 @@ the `finally` still holds. `test_cbx.py`'s launcher stubs answer the gate's
 `-I` call with the exit `CBX_STUB_GATE_EXIT` names; the bash wrapper's
 stubs always pass it. The window between the
 gate's look and the CLI's own open is the one every check here leaves.
+The MCP route asks it too, per call: `index-mcp-root.py`, below, refuses
+every `codebase-index` MCP tool over an index this judgement would not open.
 
 **The approval of `.mcp.json`'s servers belongs to a directory, so the fork
 carries it.** A session started in a worktree reads that worktree's own
@@ -621,11 +623,26 @@ command to run alone from the session's checkout: the whole line, arguments
 quoted for the shell, where it can carry every argument the call holds, and
 otherwise the subcommand alone, since a line that dropped an option such as
 a depth or a limit would answer another question. `healthcheck` is never
-refused, since its `root` is how a session sees which tree the server reads,
-and a session started in a worktree is let through, since its server reads
-that worktree. `test_index_mcp_root.py` holds the wiring, the map from tool
-to command against `index-query-hint.py`'s and the wrapper's whitelist, and
-every command it emits to `guard-index-argv.py`.
+refused for a mismatch, since its `root` is how a session sees which tree the
+server reads, and a session started in a worktree is let through, since its
+server reads that worktree.
+
+**It refuses every `codebase-index` MCP tool, `healthcheck` included, over an
+index that is not openable**, before it compares roots: it loads
+`refresh-index.py` and asks `index_openable` of the checkout the server reads
+and of the one the session works in, as `gate-index.py` asks it for `cbx`,
+and refuses with that gate's sentence. Without it a branch that force-tracks
+a `-journal` or a link under `.claude/cache/codebase-index/` is refused on
+the CLI route and opened on this one. It asks on every call, so a journal a
+checkout plants after the server started is caught too, which a launch-time
+gate in `.mcp.json` would miss, and it needs no change to a `.mcp.json` a
+branch can rewrite. A question it could not ask, the hook failing to load,
+is a refusal, as the gate's is; its residuals are the gate's window between
+the look and the server's open, and a hook that did not start at all (*The
+guard launcher*). `test_index_mcp_root.py` holds the wiring, the map from
+tool to command against `index-query-hint.py`'s and the wrapper's whitelist,
+every command it emits to `guard-index-argv.py`, and the refusal over a
+planted journal, link or rollback header against the gate's own.
 
 **The two hint hooks run under `.claude/hooks/hint-bound.sh`, because a hook
 the harness kills leaves nothing to say it did not run.** Raising their
@@ -643,8 +660,9 @@ and `index-mcp-root` and `refresh-index` print nothing a session reads as
 advice. Those two run under `.claude/hooks/index-hook.sh` instead, which
 takes the interpreter as this wrapper does and leaves the same way, with 0
 and a line naming the hook on any non-zero exit, but holds no bound: the
-root check reads two paths, and the refresh hands its work to a detached
-worker inside a 3 s git budget, so once started neither waits long. Its
+root check reads two paths and asks `index_openable` of each, and the
+refresh hands its work to a detached worker inside a 3 s git budget, so
+once started neither waits long. Its
 residual is the one this wrapper closes: an interpreter start that stalls
 past the settings timeout is killed by the harness and leaves no line, so
 a root check or refresh that did not run then looks like one with nothing
@@ -1080,10 +1098,12 @@ command through its config. It runs the five guards and nothing else.
 The hints keep `hint-bound.sh`, which bounds them, and the root check and
 the refresh take `index-hook.sh`, and both leave with 0 (*Index hint hooks
 and hook wiring*): this launcher's exit 2 would erase a prompt or block
-every index call. `index-mcp-root.py` does refuse calls, but it fails open
-by design, letting through every call it cannot judge, so a check that did
-not start gives the answer it gives on any failure, and says so in a line;
-the refresh refuses nothing.
+every index call. `index-mcp-root.py` does refuse calls, but its root
+comparison fails open by design, letting through every call it cannot judge,
+so a check that did not start gives the answer that comparison gives on any
+failure, and says so in a line; its openability question, which refuses what
+it cannot ask, is then not asked at all, which is that hook's residual. The
+refresh refuses nothing.
 
 **Residuals.** A machine without Git Bash runs a hook command under
 PowerShell, which has no `sh`: the command fails with a status that is not
