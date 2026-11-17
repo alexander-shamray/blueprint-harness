@@ -1099,7 +1099,7 @@ class ADispatchedSessionLeavesTheDispatchersState(GuardCase):
 
 
 class ABuildLoadsNothingPlantedAboveTheCheckout(GuardCase):
-    """MSBuild, the SDK and NuGet read these names from every directory above a project."""
+    """The .NET SDK and NuGet read these names from every directory above a project."""
 
     NAMES = ("Directory.Build.props", "Directory.Build.targets", "Directory.Build.rsp",
              "Directory.Solution.props", "Directory.Solution.targets", "Directory.Packages.props",

@@ -512,7 +512,7 @@ def target_offence(event, spelled):
     if above is not None:
         return (
             f"guard-edit-target: {spelled} resolves to {resolved}, a file "
-            "MSBuild, the .NET SDK or NuGet loads from a directory above the "
+            "the .NET SDK or NuGet loads from a directory above the "
             f"checkout {above} into its next build, and no deny reaches above "
             "a checkout's root. Hand it to the owner "
             "(docs/harness-boundaries.md, *The edit-target guard*)."

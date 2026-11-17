@@ -312,7 +312,7 @@ def xdg_git_config(path, cwd=None, whole=False):
 
 # ---- what a build loads from above a checkout --------------------------------
 
-# MSBuild imports the nearest `Directory.Build.*`, `Directory.Solution.*` and `Directory.Packages.props` above a
+# The SDK's build imports the nearest `Directory.Build.*`, `Directory.Solution.*` and `Directory.Packages.props` above a
 # project, the SDK the nearest `global.json`, and NuGet merges every `NuGet.Config` from the drive root down: one
 # planted above a checkout loads at its next build, where none of its denies reach. Folded; both guards read it.
 BUILD_ANCESTOR_FILES = frozenset({
@@ -376,7 +376,7 @@ def unknown_landing_offence(word, sources, cwd, command, writer):
         if last in ("", ".", "..") or "$" in last or build_named(last):
             return (
                 f"{writer} would put `{source}` in `{path}`, above the checkout `{above}`, under a name that may be "
-                "one MSBuild, the .NET SDK or NuGet loads from there into its next build, and no deny reaches "
+                "one the .NET SDK or NuGet loads from there into its next build, and no deny reaches "
                 "above a checkout's root. Name each file, or hand it to the owner "
                 "(docs/harness-boundaries.md, *The edit-target guard*)."
             )
@@ -3168,7 +3168,7 @@ def destination_offence(word, cwd, command, writer, whole=False, inside=None, re
     above = build_ancestor((path, os.path.realpath(path)), known_checkouts(cwd), True) if path is not None else None
     if above is not None:
         return (
-            f"{writer} would write `{path}`, a file MSBuild, the .NET SDK or NuGet loads from a directory above "
+            f"{writer} would write `{path}`, a file the .NET SDK or NuGet loads from a directory above "
             f"the checkout `{above}` into its next build, and no deny reaches above a checkout's root. Hand it to "
             "the owner (docs/harness-boundaries.md, *The edit-target guard*)."
         )
