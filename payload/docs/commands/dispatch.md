@@ -694,7 +694,8 @@ exited, reads `resume.json` and keeps it in
 the ones this run's `state.json` gave the group and the tree is clean at
 the recorded head; it keeps the script's digest and each row's *Depends
 on* before and after its marks. Otherwise it prints `resume not recorded
-<g>: <why>`, and the group waits on the owner as any hand-back does.
+<g>: <why>`, and the group waits on the owner as any hand-back does; a
+back drops the worktree's earlier record first, so a refusal leaves none.
 
 `board` and every `wake` then lift a recorded group's hold only when all
 of these hold, and otherwise `board` prints `resume held <worktree>:
@@ -702,6 +703,9 @@ of these hold, and otherwise `board` prints `resume held <worktree>:
 
 - the receipt's last line is `applied`, and its `head` line is the
   record's (`docs/harness/working-rules.md`, *Hand-back scripts*);
+- the record's own run still holds the group as sent back from that
+  worktree on that branch, so a record written beside the run's
+  `state.json` has to forge both;
 - the script is the one recorded, by digest;
 - the worktree is on the recorded branch at that head, and `git status`
   names exactly the script's paths, outside `artifacts/handoff/`: the
@@ -718,13 +722,13 @@ answers the question the hand-back asked and no other.
 
 `launch --resumed` reuses the worktree rather than forking one from
 `main`, which would stand beside the applied edit, and checks the record
-again in code whatever `wake` printed, as it re-reads a red `main`. It
-then removes the record and tells the executor in its prompt that the
-edits are the owner's to commit: an executor that ends again before
-committing leaves the tree as the script left it, which a kept record
-would resume on every wake. Nothing loops: a review finding that lands in
-a denied path again is a fresh hand-back with a fresh record, sent back as
-any other.
+again in code whatever `wake` printed, as it re-reads a red `main`. Any
+launch of the worktree removes the record, and a resumed one tells the
+executor in its prompt that the edits are the owner's to commit: an
+executor that ends again before committing leaves the tree as the script
+left it, which a kept record would resume on every wake. Nothing loops:
+a review finding that lands in a denied path again is a fresh hand-back
+with a fresh record, sent back as any other.
 
 ## Grants
 
