@@ -715,21 +715,23 @@ of these hold, and otherwise `board` prints `resume held <worktree>:
 
 The lift puts *Depends on* back as it read before the marks, on either
 kind of night, while the row still reads as `tasks back` wrote it; once
-someone has edited it, their cell stands, less only the words a flagged
-back added, so an `OWNER` written after the back is a new question and an
-answer that removed one is kept. It changes nothing else: a date, an open
+someone has edited it, their cell stands, less only the `sent back under
+--berserk` words, so any `OWNER` the edit left is a question still open
+and an answer that removed one is kept. It changes nothing else: a date, an open
 issue, a label, the `.claude/` reach and the owner's authorship gate hold
 as they did, and so does an `OWNER` the row carried before it launched,
 which a flagged night lifted and a plain night asks about again: `board`
-prints the `resumed` line only for a group that is ready, so the interview
+prints the `resumed` line only for a group that is ready, and `resume held
+<worktree>: <g> is not ready: <why>` for one that is not, so the interview
 asks about one a restored question holds. The owner's script answers the
 question the hand-back asked and no other.
 
 The record outlives a move of its group in the same run, since `tasks
 move` keeps where a back sent the group from, so a script the owner runs
 mid-night resumes at the next wake. A resumed group handed back again is
-recorded against each row's cell before the first back, which its launch
-carried, not the marked rows it was moved with.
+recorded against the cell the lift left on each row, an answer given since
+the first back included, which its launch carried, not the marked rows it
+was moved with.
 
 `launch --resumed` reuses the worktree rather than forking one from
 `main`, which would stand beside the applied edit, and checks the record
