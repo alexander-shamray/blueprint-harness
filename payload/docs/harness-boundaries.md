@@ -2849,9 +2849,9 @@ redirection's or a writing verb's, a parent `rm -r` names included. The
 executor's result goes under its own worktree's `artifacts/dispatch/`, which
 a `.git` file marks, and stays writable. The granted `tasks` prefixes reach
 `--run`, whose `--root` could name the main checkout, so `dispatch_board.py`
-refuses every `tasks --run` while `HARNESS_DISPATCHED` is set. No settings deny states it: a rule
-cannot read the environment, and one anchored at the worktree would refuse
-that result.
+refuses every `tasks --run` while `HARNESS_DISPATCHED` is set. No settings
+deny states it: a rule cannot read the environment, and one anchored at the
+worktree would refuse that result.
 
 **Residuals.**
 

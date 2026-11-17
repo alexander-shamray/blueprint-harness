@@ -1612,7 +1612,7 @@ class EventTests(unittest.TestCase):
                 self.assertIn("names no issue number", out)
 
     def test_a_dispatched_executor_writes_no_run(self):
-        # #604: `--root` could name the main checkout, whose run state decides what the dispatcher launches.
+        # `--root` could name the main checkout, whose run state decides what the dispatcher launches.
         run = self.dir / "artifacts" / "dispatch" / RUN
         run.mkdir(parents=True)
         (run / "state.json").write_text("{}", encoding="utf-8")

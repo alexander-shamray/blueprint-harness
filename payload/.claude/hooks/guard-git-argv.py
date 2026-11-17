@@ -2992,7 +2992,7 @@ def scratch_checkout(path):
 # `dispatch_run.py` sets it in each `/dispatch` executor's environment; set at all is the test, as the task list's.
 DISPATCHED = "HARNESS_DISPATCHED"
 # Below a main checkout, the dispatcher's own state: each run's `state.json` and `handbacks.json` decide what it
-# launches (#604). An executor's result goes under its own worktree's copy, which a `.git` file marks.
+# launches. An executor's result goes under its own worktree's copy, which a `.git` file marks.
 DISPATCH_STATE = ("artifacts", "dispatch")
 
 

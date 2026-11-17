@@ -3901,7 +3901,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         return reason
 
     def test_a_dispatched_session_writes_no_dispatch_state_in_main(self):
-        # #604: each run's `state.json` and `handbacks.json` decide what the dispatcher launches.
+        # Each run's `state.json` and `handbacks.json` decide what the dispatcher launches.
         worktree = os.path.join(self.root, ".claude", "worktrees", "executor")
         os.makedirs(worktree)
         with open(os.path.join(worktree, ".git"), "w", encoding="utf-8") as handle:

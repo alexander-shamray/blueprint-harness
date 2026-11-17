@@ -24,7 +24,7 @@ from test_dispatch_board import FIXTURE, OWNED, NO_BRANCH, REMAINING_ROWS, line,
 
 HOOKS = Path(__file__).resolve().parent.parent / "hooks"
 RUN = "20261101-220000"
-# A dispatched executor runs this suite too, and its marker would refuse every `tasks --run` written here (#604).
+# A dispatched executor runs this suite too, and its marker would refuse every `tasks --run` written here.
 _ENVIRONMENT = mock.patch.dict(os.environ)
 
 

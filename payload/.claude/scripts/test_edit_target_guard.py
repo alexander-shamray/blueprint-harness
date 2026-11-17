@@ -1042,7 +1042,7 @@ class AWorktreeTheSessionHasNotEntered(GuardCase):
 
 
 class ADispatchedSessionLeavesTheDispatchersState(GuardCase):
-    """Under `HARNESS_DISPATCHED`, the main checkout's `artifacts/dispatch/` is refused (#604)."""
+    """Under `HARNESS_DISPATCHED`, the main checkout's `artifacts/dispatch/` is refused."""
 
     DISPATCHED = {"HARNESS_DISPATCHED": "1"}
 

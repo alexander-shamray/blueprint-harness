@@ -482,7 +482,7 @@ def target_offence(event, spelled):
     resolved = os.path.realpath(joined)
 
     # A dispatched executor's `Write` reaches the main checkout's `artifacts/dispatch/`, the dispatcher's state, and no
-    # rule refuses it (#604). `guard-git-argv.py` owns the predicate; unreadable, a write naming that tree is refused.
+    # rule refuses it. `guard-git-argv.py` owns the predicate; unreadable, a write naming that tree is refused.
     try:
         state = any(git_guard().dispatcher_state(place) for place in (lexical, resolved))
     except (OSError, ValueError, TypeError, AttributeError):
