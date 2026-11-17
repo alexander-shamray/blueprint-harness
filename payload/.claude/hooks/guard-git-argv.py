@@ -3192,7 +3192,7 @@ def verb_destinations(verb, words):
 
     operands, targets, suffixes = [], [], []
     in_place = script_given = directory_mode = options_done = False
-    symbolic = hard_link = no_target = False
+    symbolic = hard_link = no_target = no_dereference = False
     short_values = SHORT_VALUE_OPTIONS.get(verb, "")
     long_values = LONG_VALUE_OPTIONS.get(verb, ())
     position = 0
@@ -3226,6 +3226,8 @@ def verb_destinations(verb, words):
                     suffixes.append(literal[len(name) + 1:])
             elif verb == "ln" and abbreviates("--symbolic") and not abbreviates("--suffix"):
                 symbolic = True
+            elif verb == "ln" and abbreviates("--no-dereference"):
+                no_dereference = True
             elif verb == "cp" and abbreviates("--link"):
                 hard_link = True
             elif verb == "install" and abbreviates("--directory"):
@@ -3246,6 +3248,9 @@ def verb_destinations(verb, words):
                 break
             if verb == "ln" and letter == "s":
                 symbolic = True
+                continue
+            if verb == "ln" and letter == "n":
+                no_dereference = True
                 continue
             if verb == "cp" and letter == "l":
                 hard_link = True
@@ -3283,6 +3288,10 @@ def verb_destinations(verb, words):
             landed = [(word, None if no_target else sources,
                        bool(targets) or len(sources) > 1)
                       for word in (targets or operands[-1:])]
+            # `ln -n` replaces a link to a directory, which `landings` reads as the
+            # directory and links inside, so the destination is judged itself as well.
+            landed += [(word, None, False) for word in operands[-1:]
+                       if no_dereference and not (no_target or targets)]
             return [(word, None, False) for word in sources] * whole_list + landed
         return [(word, None, False) for word in operands + targets] * whole_list
     if not in_place:
