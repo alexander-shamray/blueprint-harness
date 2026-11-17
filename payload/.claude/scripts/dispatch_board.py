@@ -1719,6 +1719,11 @@ def main(argv=None, body_source=None, open_source=None, branch_source=None, week
         elif args.command == "tasks" and getattr(args, "run", None) is None:
             _day_command(args, issues_from_, merged_from, owned_from)
         elif args.command == "tasks":
+            # The granted `tasks` prefixes reach --run, whose state.json and handbacks.json decide what the
+            # dispatcher launches; an executor's `--root` could name the main checkout's (#604).
+            if DISPATCHED in os.environ:
+                raise Refusal("a /dispatch executor writes no run: the dispatcher alone writes its state.json and "
+                              "handbacks.json")
             if not args.tasks:
                 raise Refusal(f"tasks {args.action} --run takes --tasks")
             _tasks_command(args, today)
