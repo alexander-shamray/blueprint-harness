@@ -19,7 +19,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from dispatch_board import (BRANCH_NAME, DEPENDS, DISPATCHED, MODEL, MODELS, NOT_OWNERS, ROW_GROUP, Group, OpenIssues,
+from dispatch_board import (BRANCH_NAME, DEPENDS, DISPATCHED, MODEL, MODELS, NOT_OWNERS, ROW_GROUP, SENT_BACK, Group,
+                            OpenIssues,
                             Refusal, _blocker, _bodies, _held, _number, _own_issues,
                             _read, _row, _write, git, group_claim, groups, helper, model_problem, one_line,
                             parse_tasks, path_which, pick, released, row_branch, runnable, strangers)
@@ -75,7 +76,13 @@ def _record_move(directory, gid, moved):
     path = Path(directory) / "state.json"
     state = load_state(directory)
     before = _read(path)
-    # A new move starts the group afresh: what an earlier launch recorded no longer describes it.
+    # A new move starts the group afresh: what an earlier launch recorded no longer describes it, but for where a
+    # back sent it from, which a hand-back's record is checked against when the owner's script resumes it tonight.
+    old = state.get("groups", {}).get(gid)
+    if isinstance(old, dict) and old.get("status") == "returned":
+        sent = {key: old.get(key) for key in SENT_FROM} if old.get("worktree") else old.get("sent_back")
+        if isinstance(sent, dict):
+            moved = {**moved, "sent_back": sent}
     state.setdefault("groups", {})[gid] = moved
     save_state(directory, state)
 
@@ -409,6 +416,8 @@ RESUME_RECORD = f"{HANDOFF}/resume.json"
 RESUME_KEYS = ("group", "issues", "branch", "head", "script", "receipt", "paths")
 HANDBACKS = "artifacts/dispatch/handbacks.json"
 HANDBACK_KEYS = ("run", "group", "issues", "branch", "head", "script", "receipt", "paths", "sha256", "rows")
+# What a move keeps of a returned entry, so its hand-back is still borne out once the group launches again.
+SENT_FROM = ("worktree", "branch", "issues")
 # The script's own name, one file under HANDOFF, so the receipt beside it is read from nowhere else.
 HANDOFF_SCRIPT = re.compile(rf"{HANDOFF}/[A-Za-z0-9][A-Za-z0-9.-]*")
 SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -423,8 +432,10 @@ class Resumed:
     branch: str
     script: str
     issues: frozenset
-    # Each row's key, with *Depends on* as `tasks back` wrote it and as it read before: the lift restores the second.
+    # Each row's key, with *Depends on* as `tasks back` wrote it and as it read before.
     rows: dict
+    # Each row's key, with *Depends on* as the lift leaves it, once `resumes` has matched the record to its group.
+    cells: dict = field(default_factory=dict)
 
 
 def _changed_paths(tree):
@@ -524,8 +535,10 @@ def record_handback(root, run, gid, entry, text):
         changed = _changed_paths(tree)
         if changed:
             raise Refusal(f"{worktree} is not clean: {one_line(', '.join(sorted(changed)), 200)}")
-        before = {r.key: r.cells[DEPENDS] for r in (_row("Remaining", line)
-                                                    for line in _field(entry, gid, "rows", _texts))}
+        # A resumed launch moved rows already marked, so their cell before the first back is the one it restored.
+        carried = entry.get("restored") if isinstance(entry.get("restored"), dict) else {}
+        before = {r.key: carried.get(r.key) if isinstance(carried.get(r.key), str) else r.cells[DEPENDS]
+                  for r in (_row("Remaining", line) for line in _field(entry, gid, "rows", _texts))}
         after = {r.key: r.cells[DEPENDS] for r in parse_tasks(text).remaining if r.key in before}
         if set(after) != set(before):
             raise Refusal("Remaining does not hold every row the back returned")
@@ -546,16 +559,21 @@ def _rows_field(rows):
         and all(isinstance(cell, str) for cell in cells.values()) for key, cells in rows.items())
 
 
+def _sent_from(entry, worktree, data):
+    return (isinstance(entry, dict) and _slash(entry.get("worktree") or "") == worktree
+            and entry.get("branch") == data["branch"] and sorted(entry.get("issues") or []) == sorted(data["issues"]))
+
+
 def _returned_by(root, worktree, data):
-    """Refuse a record its own run's state does not bear out: that run sent this group back from this worktree."""
+    """Refuse a record its own run's state does not bear out: that run sent this group back from this worktree, as
+    its entry says, or as the snapshot a later move of the group in that run kept."""
     run, gid = data["run"], data["group"]
     try:
         entry = load_state(run_dir(root, run if isinstance(run, str) else "")).get("groups", {}).get(gid)
     except Refusal as why:
         raise Refusal(f"its run cannot be read: {why}") from None
-    if not (isinstance(entry, dict) and entry.get("status") == "returned"
-            and _slash(entry.get("worktree", "")) == worktree and entry.get("branch") == data["branch"]
-            and sorted(entry.get("issues") or []) == sorted(data["issues"])):
+    returned = isinstance(entry, dict) and entry.get("status") == "returned" and _sent_from(entry, worktree, data)
+    if not returned and not (isinstance(entry, dict) and _sent_from(entry.get("sent_back"), worktree, data)):
         raise Refusal(f"run {run} does not record {gid} sent back from {worktree} on {data['branch']}")
 
 
@@ -612,18 +630,30 @@ def resumes(root, candidates):
         group = next((g for g in candidates if _own_issues(g) == set(resumed.issues)), None)
         if group is None:
             holds.append(f"resume held {worktree}: no group in Remaining holds exactly {named}")
-        elif any(resumed.rows.get(row.key, {}).get("marked") != row.cells[DEPENDS] for row in group.rows):
-            holds.append(f"resume held {worktree}: {group.id}'s Depends on is not what tasks back wrote")
         elif group.id in found:
             holds.append(f"resume held {worktree}: {found[group.id].worktree} already resumes {group.id}")
         else:
-            found[group.id] = resumed
+            cells = {row.key: _lifted(resumed.rows.get(row.key, {}), row.cells[DEPENDS]) for row in group.rows}
+            found[group.id] = Resumed(*(getattr(resumed, name) for name in ("worktree", "branch", "script",
+                                                                             "issues", "rows")), cells)
     return found, holds
 
 
+def _lifted(cells, current):
+    """*Depends on* with the owner's script answering what `tasks back` asked: the cell before the back while the row
+    reads as the back wrote it; once someone has edited it, their cell, less only the words a flagged back added,
+    so an `OWNER` written after the back stands and an answer that removed one is kept."""
+    if current == cells.get("marked"):
+        return cells.get("before", current)
+    if SENT_BACK in cells.get("marked", "") and SENT_BACK not in cells.get("before", ""):
+        parts = [part.strip() for part in current.replace(SENT_BACK, "").split(";")]
+        return "; ".join(part for part in parts if part) or "none"
+    return current
+
+
 def restored(found):
-    """Each resumed row's key with *Depends on* as it read before `tasks back` marked it."""
-    return {key: cells["before"] for resumed in found.values() for key, cells in resumed.rows.items()}
+    """Each resumed row's key with *Depends on* as the lift leaves it."""
+    return {key: cell for resumed in found.values() for key, cell in resumed.cells.items()}
 
 
 def resumed_line(gid, resumed):
@@ -716,7 +746,7 @@ def launch(root, run, gid, tasks_path, branch, worktree, owned_source, red_sourc
         if found:
             raise Refusal(f"{gid} is not launched: {refused}") from None
     if found:
-        entry["resumed"] = found.script
+        entry.update(resumed=found.script, restored={key: cells["before"] for key, cells in found.rows.items()})
     save_state(directory, state)
 
 

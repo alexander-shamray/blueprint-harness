@@ -2634,11 +2634,44 @@ class ResumeTests(InRoot):
         self.assertEqual("end: drained", self.wake(flag=False)[-1])
         self.assertEqual("launch: Z1", self.wake(flag=True)[-1])
 
-    def test_a_row_edited_since_the_back_is_not_resumed(self):
+    def test_a_row_edited_since_the_back_keeps_the_editors_word_less_the_flagged_words(self):
         self.back()
         self.owner_runs_the_script()
-        self.assertIn("Z1's Depends on is not what tasks back wrote", self.held_for(tasks_of(self.row("OWNER"))))
         self.assertIn("no group in Remaining holds exactly #1700", self.held_for(tasks_of(line(number=5))))
+        # An OWNER written after the back where none stood before is a new question: it holds on a plain night.
+        self.assertEqual("end: drained", self.wake(tasks_of(self.row("OWNER")), flag=False)[-1])
+        lines = self.board(tasks_of(self.row(f"OWNER; {db.SENT_BACK}; after #1440")))
+        self.assertIn("not ready: waits on a human", lines[0])
+        self.assertFalse(any(t.startswith("resumed ") for t in lines), "a group not ready is the interview's")
+        # An answer that took the OWNER out leaves only the flagged words, which the owner's script answers.
+        self.assertEqual("launch: Z1", self.wake(tasks_of(self.row(db.SENT_BACK)), flag=False)[-1])
+        self.assertIn("depends on open #1440", self.board(tasks_of(self.row(f"{db.SENT_BACK}; after #1440")))[0])
+
+    def test_the_owner_resumes_the_same_night_the_group_was_sent_back(self):
+        # The move resets the run's entry for Z1, which the record is checked against.
+        self.back()
+        self.owner_runs_the_script()
+        self.assertEqual("", run_cli(["tasks", "move", "--tasks", "todo.md", "--run", RUN, "Z1",
+                                      "--branch", RESUMED_BRANCH, "--worktree", RESUMED_TREE]))
+        with mock.patch.object(dr, "git", self.git):
+            self.assertEqual("", run_cli(["launch", RUN, "Z1", "--tasks", "todo.md", "--branch", RESUMED_BRANCH,
+                                          "--worktree", RESUMED_TREE, "--resumed"]))
+        self.assertEqual(SCRIPT, group_state(RUN, "Z1")["resumed"])
+
+    def test_a_resumed_group_handed_back_again_is_recorded_against_its_first_cell(self):
+        self.back("after #9")
+        self.owner_runs_the_script()
+        self.assertEqual("", self.relaunch("--resumed"))
+        # The executor commits the owner's edit and hands back again, with a new script, from a clean tree.
+        self.head, self.status = OID, ""
+        self.write_record(head=OID, script="artifacts/handoff/apply-again.py",
+                          receipt="artifacts/handoff/apply-again.py.receipt")
+        (self.root / RESUMED_TREE / "artifacts/handoff/apply-again.py").write_text("print(2)\n", encoding="utf-8")
+        with mock.patch.object(dr, "git", self.git):
+            out = run_cli(["tasks", "back", "--tasks", "todo.md", "--run", NEXT, "Z1"])
+        self.assertEqual(f"resume recorded Z1: artifacts/handoff/apply-again.py in {RESUMED_TREE}\n", out)
+        rows = self.store()[RESUMED_TREE]["rows"]
+        self.assertEqual("after #9", rows["#1700"]["before"], "the second back restored the first back's marks")
 
     def held_for(self, text):
         return next(t for t in self.board(text) if t.startswith("resume held "))

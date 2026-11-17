@@ -1184,10 +1184,12 @@ def _held(tasks, bodies, branch_source):
 
 
 def board(text, today, bodies, open_issues, branch_source=lambda _branch: frozenset(), berserk=False,
-          kept=frozenset(), *, owned, resumed=frozenset(), restored=None):
+          kept=frozenset(), *, owned, resumed=None, restored=None):
+    """One line per Remaining group, then `resumed` (group id to its line) for each resumed group that is ready: one
+    a restored question still holds is the interview's, as any row waiting on a human is."""
     tasks = parse_tasks(text)
     held = _held(tasks, bodies, branch_source)
-    out = []
+    out, resumed, ready_resumed = [], resumed or {}, []
     for group in groups(tasks):
         claim = group_claim(group, bodies)
         ok, why = runnable(group, owned, open_issues, today, bodies, berserk, kept, restored)
@@ -1198,7 +1200,9 @@ def board(text, today, bodies, open_issues, branch_source=lambda _branch: frozen
                      else "ready" if ok else f"not ready: {why}")
         out.append(" | ".join((group.id, f"wave {group.wave}", readiness,
                                "free" if by is None else f"taken by {by}", f"{len(claim.paths)} paths")))
-    return out or ["no groups in Remaining"]
+        if ok and group.id in resumed:
+            ready_resumed.append(resumed[group.id])
+    return (out or ["no groups in Remaining"]) + ready_resumed
 
 
 READ_COPY = "tasks.read.md"
@@ -1707,9 +1711,9 @@ def main(argv=None, body_source=None, open_source=None, branch_source=None, week
             bodies = _bodies(tasks, directory, bodies_from)
             listed = OpenIssues.of(open_from())
             found, holds = dispatch_run.resumes(root, groups(tasks))
+            lines = {gid: dispatch_run.resumed_line(gid, r) for gid, r in found.items()}
             print("\n".join(board(text, today, bodies, listed, branch_from, *flag, owned=owned_from(),
-                                  resumed=frozenset(found), restored=dispatch_run.restored(found))
-                            + [dispatch_run.resumed_line(gid, r) for gid, r in found.items()] + holds))
+                                  resumed=lines, restored=dispatch_run.restored(found)) + holds))
         elif args.command == "tasks" and getattr(args, "run", None) is None:
             _day_command(args, issues_from_, merged_from, owned_from)
         elif args.command == "tasks":
