@@ -605,8 +605,8 @@ def target_offence(event, spelled):
     # A spelling no anchor recognises, naming a file inside one, is refused, such
     # as an 8.3 alias of the whole prefix: if it resolves into a checkout that
     # did not recognise it, the matcher judged a string that is not this file.
-    # A target outside every anchor is asked only for the build names above and
-    # what `home_offence` names, which keeps memory and scratch writes working.
+    # A target outside every anchor is asked only for the checks above and what
+    # `home_offence` names, which keeps memory and scratch writes working.
     if not judged:
         for _, real_root, traits in checkouts:
             if under(resolved, real_root, traits):
