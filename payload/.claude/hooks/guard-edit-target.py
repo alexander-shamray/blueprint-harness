@@ -47,20 +47,11 @@ GIT_GUARD = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 BUILD_SHAPE = re.compile(
     r"(?i)^(?:directory\.(?:build|solution|packages)\..+|nuget\.config|global\.json)$")
 
-# Windows names the same file in more than one alphabet, and a permission rule
-# reads only one of them. Every spelling beginning `\\` is the other: the
-# extended-length prefix `\\?\` and the device prefix `\\.\`, which skip the
-# normalisation a matcher depends on, and the UNC form `\\server\share\...`,
-# which can reach the local disk through an administrative share such as
-# `\\localhost\C$` — so a write spelled either way can land in a directory
-# whose plain spelling is denied.
-#
-# The whole family is refused rather than a list of prefixes, which would miss
-# a spelling, and refused rather than resolved, because a hook can only allow
-# or deny: it cannot hand the matcher the plain spelling. A repository on a
-# network share is the one legitimate case, and the caller exempts a target
-# such a checkout contains. Scoped to Windows because `//x` on POSIX is an
-# ordinary path.
+# Windows' other alphabet, which a permission rule does not read: `\\?\`, `\\.\`
+# and the NT prefix `\??\` skip a matcher's normalisation, and `\\server\share`
+# reaches the local disk through `\\localhost\C$`. The family is refused, not
+# resolved, since a hook cannot hand the matcher the plain spelling; the caller
+# exempts a checkout on a share. Windows only: `//x` on POSIX is ordinary.
 def alternate_alphabet(path):
     """Whether `path` is spelled in Windows' non-drive path grammar."""
     return GRAMMAR.other_grammar(path)
