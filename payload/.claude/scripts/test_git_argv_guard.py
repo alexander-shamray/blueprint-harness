@@ -4223,7 +4223,9 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                         # git's XDG config runs as `.gitconfig` does, and so does its removal's parent.
                         "ls > ~/.config/git/config", 'echo x >> "$HOME/.config/git/config"',
                         "tee ~/.config/git/config", "cp a ~/.config/git/config", "rm -rf ~/.config/git",
-                        "rm -rf ~/.config", "mv ~/.config/git /tmp/x"):
+                        "rm -rf ~/.config", "mv ~/.config/git /tmp/x",
+                        # A link where the directory goes puts the link's `config` where git reads it.
+                        "ln -s staged ~/.config/git", "ln -s staged ~/.config", "ln -sfn staged ~/.config/git"):
             with self.subTest(command=command):
                 self.assertIn("No rule judges a shell write", self.assertRefused(command, env=env))
 
@@ -4238,12 +4240,14 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         for command in (f"ls > {spelled}/git/config", 'echo x >> "$XDG_CONFIG_HOME/git/config"',
                         "tee ${XDG_CONFIG_HOME}/git/config", f"cp a {spelled}/git/config",
                         f"rm -rf {spelled}/git", f"rm -rf {spelled}", f"mv {spelled}/git /tmp/x",
-                        f"mv staged {holder}/a", f"cp -r staged {holder}/a", f"rm -rf {holder}"):
+                        f"mv staged {holder}/a", f"cp -r staged {holder}/a", f"rm -rf {holder}",
+                        f"ln -s staged {spelled}/git", f"ln -s staged {spelled}", 'ln -s staged "$XDG_CONFIG_HOME"',
+                        f"ln -s staged {holder}/a"):
             with self.subTest(command=command):
                 self.assertIn("$XDG_CONFIG_HOME/git/config", self.assertRefused(command, env=env))
         self.admitted(f"ls > {spelled}/git/ignore", f"ls > {spelled}/other/config",
                       'ls > "$XDG_CONFIG_HOME/git/ignore"', f"cat {spelled}/git/config",
-                      f"mv staged {holder}/c", env=env)
+                      f"mv staged {holder}/c", f"ln -s staged {holder}/c", env=env)
         self.admitted(f"ls > {spelled}/git/config", env={**env, "XDG_CONFIG_HOME": ""})
 
     def test_the_claude_code_user_state_is_refused_in_a_home_that_is_no_checkout(self):
@@ -4430,8 +4434,9 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         self.refused("rm -rf .claude", "rm -r ./.claude/", "mv .claude /tmp/x",
                      "cp -r /tmp/hooks .claude/", "rmdir .claude", "shred -u .claude",
                      "install -d /tmp/a .claude", "cp -rt .claude /tmp/hooks",
-                     "mv /tmp/hooks .CLAUDE")
+                     "mv /tmp/hooks .CLAUDE", "ln -sT /tmp/evil .claude", "ln -s /tmp/hooks .claude/")
         self.admitted("rm -rf .claude/worktrees/x", "rm -rf artifacts", "rm -rf .",
+                      "ln -s /tmp/notes.md .claude/", "ln -s .claude notes/alias",
                       "rm -rf .claude/cache", "cp -r .claude /tmp/backup",
                       "ls > .claude/notes.md", "touch .claude/notes.md",
                       "rm -rf notes", "mv notes /tmp/x")
