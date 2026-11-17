@@ -18,10 +18,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from dispatch_board import (BRANCH_NAME, DISPATCHED, MODEL, MODELS, NOT_OWNERS, Group, OpenIssues, Refusal, _blocker,
-                            _bodies, _held, _number,
+from dispatch_board import (BRANCH_NAME, DISPATCHED, MODEL, MODELS, NOT_OWNERS, ROW_GROUP, Group, OpenIssues, Refusal,
+                            _blocker, _bodies, _held, _number, _own_issues,
                             _read, _row, _write, git, group_claim, groups, helper, model_problem, one_line,
-                            parse_tasks, path_which, pick, released, row_branch, runnable, strangers)
+                            parse_tasks, path_which, pick, released, row_branch, runnable, sent_back, strangers)
 from sync_pr import SYNC_HEAD
 
 RUN_NAME = re.compile(r"\d{8}-\d{6}")
@@ -316,6 +316,10 @@ def _task_text(directory, gid):
 def _prompt_for(directory, gid, entry, run, flag=False, left=""):
     if entry.get("kind") == "sync":
         return sync_prompt(_field(entry, gid, "pr", _number), run)
+    script = entry.get("resumed")
+    if isinstance(script, str) and HANDOFF_SCRIPT.fullmatch(script):
+        left = (f" (resumed: the owner ran {script} in this worktree and its edits are uncommitted here; commit them, "
+                f"the body saying the owner applied them from that script, and carry on to the merge){left}")
     return prompt(_entry_group(gid, entry), _task_text(directory, gid) + left, run, flag)
 
 
@@ -396,6 +400,128 @@ def _worktree_on(root, worktree, branch):
         raise Refusal(f"{worktree} is not a worktree on {branch}")
 
 
+# What `/ship --dispatched` leaves in its worktree when it hands a group back with a script for the owner: the
+# worktree is what survives into a later night, and the run's state.json does not.
+HANDOFF = "artifacts/handoff"
+RESUME_RECORD = f"{HANDOFF}/resume.json"
+RESUME_KEYS = ("group", "issues", "branch", "head", "script", "receipt", "paths")
+# The script's own name, one file under HANDOFF, so the receipt beside it is read from nowhere else.
+HANDOFF_SCRIPT = re.compile(rf"{HANDOFF}/[A-Za-z0-9][A-Za-z0-9.-]*")
+RECEIPT_HEAD = re.compile(r"head ([0-9a-f]{40})")
+APPLIED = "applied"
+
+
+@dataclass(frozen=True)
+class Resumed:
+    """A hand-back the owner's script has answered, read and checked from its worktree."""
+    worktree: str
+    branch: str
+    script: str
+    issues: frozenset
+
+
+def _changed_paths(tree):
+    """Each path `git status` names in `tree`, every untracked file and both ends of a rename, outside HANDOFF."""
+    fields = git(tree, "status", "--porcelain", "-z", "--untracked-files=all").split("\0")
+    paths, i = set(), 0
+    while i < len(fields):
+        entry, i = fields[i], i + 1
+        if len(entry) < 4:
+            continue
+        paths.add(entry[3:])
+        if entry[0] in "RC" and i < len(fields):
+            paths.add(fields[i])
+            i += 1
+    # The record, the script and its receipt live there; a target that does not ignore artifacts/ still resumes.
+    return {path for path in paths if not path.startswith(f"{HANDOFF}/")}
+
+
+def _resume_fields(data):
+    if not isinstance(data, dict) or sorted(data) != sorted(RESUME_KEYS):
+        raise Refusal(f"{RESUME_RECORD} does not hold exactly {', '.join(RESUME_KEYS)}")
+    group, issues, branch, head, script, receipt, paths = (data[key] for key in RESUME_KEYS)
+    checks = (
+        (isinstance(group, str) and ROW_GROUP.fullmatch(group), "group is not a group id"),
+        (isinstance(issues, list) and issues and all(_number(n) for n in issues), "issues is not a list of issues"),
+        (isinstance(branch, str) and BRANCH_NAME.fullmatch(branch), "branch is not a branch name"),
+        (isinstance(head, str) and OID.fullmatch(head), "head is not a whole oid"),
+        (isinstance(script, str) and HANDOFF_SCRIPT.fullmatch(script) and ".." not in script,
+         f"script is not a file under {HANDOFF}"),
+        (receipt == f"{script}.receipt", "receipt is not the script's name with .receipt"),
+        (isinstance(paths, list) and paths and all(isinstance(p, str) and p.strip() for p in paths),
+         "paths is not a list of the paths the script edits"),
+    )
+    for ok, why in checks:
+        if not ok:
+            raise Refusal(f"{RESUME_RECORD}'s {why}")
+    return branch, head, script, receipt, set(paths), frozenset(issues)
+
+
+def read_resume(root, worktree):
+    """The hand-back `worktree` records, once its receipt reads applied and the tree holds exactly its edits.
+
+    Every miss is a Refusal naming it, which keeps the group held: the receipt's word is the owner's, the record's
+    head and paths are what the script was written against, and the tree must still be what both describe.
+    """
+    tree = Path(root) / worktree
+    try:
+        data = json.loads(_read(tree / RESUME_RECORD))
+    except (OSError, ValueError) as error:
+        raise Refusal(f"{RESUME_RECORD} could not be read: {one_line(error, 200)}") from None
+    branch, head, script, receipt, paths, issues = _resume_fields(data)
+    # `launch --resumed` leaves this, so an executor that ends again before committing anything, its tree as the
+    # script left it, is not resumed by the same receipt on every wake: a new hand-back writes a new script.
+    if (tree / f"{script}.taken").exists():
+        raise Refusal(f"{script} already resumed this group once; a new hand-back names a new script")
+    try:
+        lines = _read(tree / receipt).rstrip("\r\n").splitlines()
+    except (OSError, ValueError):
+        raise Refusal(f"no {receipt}: the owner has not run {script}") from None
+    verdict = lines[-1] if lines else ""
+    if verdict != APPLIED:
+        raise Refusal(f"{receipt}'s last line is {one_line(verdict, 60)!r}, not {APPLIED}")
+    recorded = {m.group(1) for m in (RECEIPT_HEAD.fullmatch(line.strip()) for line in lines) if m}
+    if recorded != {head}:
+        raise Refusal(f"{receipt} does not record the head {head} the hand-back left")
+    _worktree_on(root, worktree, branch)
+    at = git(tree, "rev-parse", "HEAD").strip()
+    if at != head:
+        raise Refusal(f"{worktree} is at {one_line(at, 60)}, not the hand-back's {head}")
+    changed = _changed_paths(tree)
+    if changed != paths:
+        raise Refusal(f"{worktree} changes {', '.join(sorted(changed)) or 'nothing'}, not exactly the script's "
+                      f"{', '.join(sorted(paths))}")
+    return Resumed(worktree, branch, script, issues)
+
+
+def resumes(root, candidates):
+    """Each Remaining group an owner's applied script resumes, by id, and a `resume held` line for every other
+    record under .claude/worktrees/, saying why it holds."""
+    found, holds = {}, []
+    for record in sorted((Path(root) / ".claude" / "worktrees").glob(f"*/{RESUME_RECORD}")):
+        worktree = f".claude/worktrees/{record.parents[2].name}"
+        try:
+            resumed = read_resume(root, worktree)
+        except Refusal as why:
+            holds.append(f"resume held {worktree}: {why}")
+            continue
+        named = ", ".join(f"#{n}" for n in sorted(resumed.issues))
+        group = next((g for g in candidates if _own_issues(g) == set(resumed.issues)), None)
+        if group is None:
+            holds.append(f"resume held {worktree}: no group in Remaining holds exactly {named}")
+        elif not all(sent_back(row) for row in group.rows):
+            holds.append(f"resume held {worktree}: {group.id}'s rows are not all held as sent back")
+        elif group.id in found:
+            holds.append(f"resume held {worktree}: {found[group.id].worktree} already resumes {group.id}")
+        else:
+            found[group.id] = resumed
+    return found, holds
+
+
+def resumed_line(gid, resumed):
+    return f"resumed {gid}: owner applied {resumed.script} in {resumed.worktree} on {resumed.branch}"
+
+
 class Moved(Refusal):
     """A sync's tree is at another head than the proved one."""
 
@@ -434,7 +560,7 @@ def _claimed(entries):
             if isinstance(entry, dict) and entry.get("kind") == "sync" and entry.get("status") == "merged-claimed"]
 
 
-def launch(root, run, gid, tasks_path, branch, worktree, owned_source, red_source):
+def launch(root, run, gid, tasks_path, branch, worktree, owned_source, red_source, resumed=False):
     directory = run_dir(root, run)
     state = load_state(directory)
     entry = _entry(state, gid)
@@ -464,13 +590,30 @@ def launch(root, run, gid, tasks_path, branch, worktree, owned_source, red_sourc
     red = red_source()
     if red:
         raise Refusal(f"{gid} is not launched: {'; '.join(red)}")
+    found = _resume_of(root, gid, group, branch, worktree) if resumed else None
     # A group sent back and launched again starts afresh, as its move did: its state no longer names the earlier
     # launch's session as read, so that launch's marker, result copy, record and pid go now, or this launch is
     # refused, rather than a later run meeting them beside its own and _refused holding the slot all night.
     _remove_stale(*(directory / f"{gid}{suffix}" for suffix in (".refused.json", ".json", ".session.json", ".pid")))
     entry.update(status="running", model=group.model, issues=[r.number for r in group.rows], branch=branch,
                  worktree=worktree, launched=now().isoformat(), crashes=0)
+    if found:
+        # Marked last but for the record, so a launch refused before here leaves the owner's receipt unspent.
+        try:
+            _write(Path(root) / worktree / f"{found.script}.taken", f"{gid} {now().isoformat()}\n")
+        except Refusal as refused:
+            raise Refusal(f"{gid} is not launched: {refused}") from None
+        entry["resumed"] = found.script
     save_state(directory, state)
+
+
+def _resume_of(root, gid, group, branch, worktree):
+    """The hand-back a resumed launch runs on, checked here again in code, whatever `wake` printed."""
+    found = read_resume(root, worktree)
+    if found.branch != branch or set(found.issues) != _own_issues(group):
+        raise Refusal(f"{worktree}'s hand-back is {found.branch} for "
+                      f"{', '.join(f'#{n}' for n in sorted(found.issues))}, not {gid} on {branch}")
+    return found
 
 
 def sync_ready(root, run, pr, red_source):
@@ -1624,8 +1767,10 @@ def wake(root, run, tasks_path, today, body_source, open_source, branch_source, 
     candidates = groups(tasks)
     flag, kept = berserk(state)
     owned = owned_source()
-    ready_map = {g.id: runnable(g, owned, open_set, today, bodies, flag, kept) for g in candidates}
-    lifted = released(candidates, ready_map, open_set, today, bodies)
+    # A script the owner ran mid-night counts at the next wake, as one run before the night counted at `board`.
+    resumed = resumes(root, candidates)[0]
+    ready_map = {g.id: runnable(g, owned, open_set, today, bodies, flag, kept, g.id in resumed) for g in candidates}
+    lifted = released(candidates, ready_map, open_set, today, bodies, resumed)
     claims = {g.id: group_claim(g, bodies) for g in candidates}
     # A moved group's In progress row has lost its conflicts cell, so the claim its Remaining rows made is kept.
     held_keys = {r.key for r in tasks.in_progress}
@@ -1633,7 +1778,7 @@ def wake(root, run, tasks_path, today, body_source, open_source, branch_source, 
                if "rows" in entry and set(_field(entry, gid, "keys", _texts)) & held_keys]
     claims.update({g.id: group_claim(g, bodies) for g in running})
     taken = [claim for claim, _ in _held(tasks, bodies, branch_source)]
-    chosen = pick(candidates + running, ready_map, claims, [g.id for g in running], taken, slots, lifted)
+    chosen = pick(candidates + running, ready_map, claims, [g.id for g in running], taken, slots, lifted, resumed)
     if chosen:
         # An executor launched now would spend its session and stop at `/ship` step 6 on that issue.
         red = red_source()
@@ -1642,7 +1787,8 @@ def wake(root, run, tasks_path, today, body_source, open_source, branch_source, 
         named = {gid: lifted[gid] for gid in chosen if gid in lifted}
         # The report names what the flag released, so it is recorded from the one read that launched it.
         _note_released(directory, named)
-        return out + [f"released {gid}: {why}" for gid, why in named.items()] + [f"launch: {' '.join(chosen)}"]
+        return (out + [resumed_line(gid, resumed[gid]) for gid in chosen if gid in resumed]
+                + [f"released {gid}: {why}" for gid, why in named.items()] + [f"launch: {' '.join(chosen)}"])
     if active:
         return out + ["launch: none"]
     # With nothing running every slot is free, so a ready group left unchosen is held by an In progress row.
@@ -1939,6 +2085,7 @@ def add_commands(sub):
         if name == "launch":
             for option in ("tasks", "branch", "worktree"):
                 s.add_argument(f"--{option}", required=True)
+            s.add_argument("--resumed", action="store_true")
         if name == "result":
             s.add_argument("--refused")
     s = sub.add_parser("sync-launch")
@@ -1987,7 +2134,8 @@ def command(args: argparse.Namespace, today, bodies_from, open_from, branch_from
             return 3
         print(new_run(root, args.pairs, args.lang, now(), args.berserk))
     elif args.command == "launch":
-        launch(root, args.run, args.group, args.tasks, args.branch, args.worktree, owned_from, red_from)
+        launch(root, args.run, args.group, args.tasks, args.branch, args.worktree, owned_from, red_from,
+               args.resumed)
     elif args.command == "sync-launch":
         sync_launch(root, args.run, args.pr, args.branch, args.worktree, args.oid, red_from)
     elif args.command == "sync-ready":
