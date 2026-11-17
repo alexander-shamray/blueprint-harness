@@ -283,9 +283,10 @@ has one shape everywhere, so a helper can read it rather than a person:
 
 A `/ship --dispatched` executor writes its script under
 `artifacts/handoff/` in its own worktree, since the dispatcher removes the
-executor's temp directory when it exits, and records the hand-back beside
-it in `artifacts/handoff/resume.json`; once the owner has run the script,
-a later `/dispatch` resumes the group in that worktree
+executor's temp directory when it exits, and describes the hand-back
+beside it in `artifacts/handoff/resume.json`; the dispatcher's `tasks
+back` records it, and once the owner has run the script a later
+`/dispatch` resumes the group in that worktree
 (`docs/commands/dispatch.md`, *Resume*).
 
 ## Managed files

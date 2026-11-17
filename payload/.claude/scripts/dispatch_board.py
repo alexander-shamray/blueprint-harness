@@ -376,23 +376,13 @@ def model_problem(model):
     return None if model in MODELS else f"model {model!r} is not one of {', '.join(MODELS)}"
 
 
-def sent_back(row):
-    """Whether *Depends on* carries a mark `tasks back` writes: OWNER on any night, and the words on a flagged one."""
-    return bool(OWNER.search(row.cells[DEPENDS])) or SENT_BACK in row.cells[DEPENDS]
-
-
-def _resumed_depends(depends):
-    """*Depends on* with `tasks back`'s marks gone: the owner's applied script is the answer both of them wait for."""
-    rest = _without_owner(depends.replace(SENT_BACK, " "))
-    return rest.strip(" ;,:.—–-") or "none"
-
-
-def _blocker(row, open_issues, today, bodies, berserk=False, resumed=False):
+def _blocker(row, open_issues, today, bodies, berserk=False, restored=None):
     """Why a row cannot launch, or None. `berserk` lifts the human wait and the .claude/ reach and nothing else;
-    `resumed`, a group whose owner ran its hand-back script, lifts only the marks `tasks back` wrote."""
+    `restored`, for a row whose owner ran its hand-back script, is *Depends on* as it read before `tasks back`
+    marked it, so the lift is those marks and nothing a human wrote."""
     if row.number is None:
         return "owed, not filed"
-    cell = _resumed_depends(row.cells[DEPENDS]) if resumed else row.cells[DEPENDS]
+    cell = row.cells[DEPENDS] if restored is None else restored
     # GitHub's label names are case-insensitive: `Question` asks as `question` does.
     labels = {label.strip().casefold() for label in row.cells[LABELS].split(",")}
     if not berserk and ("question" in labels or OWNER.search(f"{row.cells[TASK]} {cell}")):
@@ -435,10 +425,12 @@ def _blocker(row, open_issues, today, bodies, berserk=False, resumed=False):
     return model_problem(row.cells[MODEL])
 
 
-def ready(group, open_issues, today, bodies=None, berserk=False, kept=frozenset(), resumed=False):
-    """Whether every row may launch, and the first that may not. A row in `kept` is one the flag does not lift."""
+def ready(group, open_issues, today, bodies=None, berserk=False, kept=frozenset(), restored=None):
+    """Whether every row may launch, and the first that may not. A row in `kept` is one the flag does not lift;
+    `restored` maps a resumed row's key to its *Depends on* before `tasks back`."""
     for row in group.rows:
-        why = _blocker(row, open_issues, today, bodies or {}, berserk and row.key not in kept, resumed)
+        why = _blocker(row, open_issues, today, bodies or {}, berserk and row.key not in kept,
+                       (restored or {}).get(row.key))
         if why:
             return False, why
     return True, ""
@@ -449,18 +441,18 @@ def strangers(group, owned):
     return [row.key for row in group.rows if row.number is not None and row.number not in owned]
 
 
-def runnable(group, owned, open_issues, today, bodies=None, berserk=False, kept=frozenset(), resumed=False):
+def runnable(group, owned, open_issues, today, bodies=None, berserk=False, kept=frozenset(), restored=None):
     """`ready`, behind the gate no flag lifts: on a public repository an issue is a work order only from the owner."""
     held = strangers(group, owned)
     if held:
         return False, f"{NOT_OWNERS}: {', '.join(held)}"
-    return ready(group, open_issues, today, bodies, berserk, kept, resumed)
+    return ready(group, open_issues, today, bodies, berserk, kept, restored)
 
 
-def released(candidates, ready_map, open_issues, today, bodies, resumed=frozenset()):
-    """Each group `ready_map` holds ready that would not be without the flag, with what the flag lifted; a group in
-    `resumed` is judged with its resume, since that lift is the owner's own and not the flag's."""
-    plain = ((g.id, ready(g, open_issues, today, bodies, resumed=g.id in resumed))
+def released(candidates, ready_map, open_issues, today, bodies, restored=None):
+    """Each group `ready_map` holds ready that would not be without the flag, with what the flag lifted; a resumed
+    row is judged with its resume, since that lift is the owner's own and not the flag's."""
+    plain = ((g.id, ready(g, open_issues, today, bodies, restored=restored))
              for g in candidates if ready_map[g.id][0])
     return {gid: why for gid, (ok, why) in plain if not ok}
 
@@ -1192,14 +1184,14 @@ def _held(tasks, bodies, branch_source):
 
 
 def board(text, today, bodies, open_issues, branch_source=lambda _branch: frozenset(), berserk=False,
-          kept=frozenset(), *, owned, resumed=frozenset()):
+          kept=frozenset(), *, owned, resumed=frozenset(), restored=None):
     tasks = parse_tasks(text)
     held = _held(tasks, bodies, branch_source)
     out = []
     for group in groups(tasks):
         claim = group_claim(group, bodies)
-        ok, why = runnable(group, owned, open_issues, today, bodies, berserk, kept, group.id in resumed)
-        lifted = released([group], {group.id: (ok, why)}, open_issues, today, bodies, resumed).get(group.id)
+        ok, why = runnable(group, owned, open_issues, today, bodies, berserk, kept, restored)
+        lifted = released([group], {group.id: (ok, why)}, open_issues, today, bodies, restored).get(group.id)
         by = next((c.ident or r.key for c, r in held
                    if overlaps(claim, group.id, _own_issues(group), c, c.ident or r.key, set(c.issues))), None)
         readiness = (f"released: {lifted}" if lifted else "resumed" if ok and group.id in resumed
@@ -1252,11 +1244,12 @@ def _placement(directory, issue):
 
 def _tasks_command(args, today):
     # The run's state.json is dispatch_run's, which imports this module, so it is reached at call time.
-    from dispatch_run import _close, _field, _note_placed, _record_move, _texts, berserk, load_state, run_dir
+    from dispatch_run import (_close, _field, _note_placed, _record_move, _texts, berserk, load_state,
+                              record_handback, run_dir)
     directory = run_dir(args.root, args.run)
     # Only a run `start` opened is written to, so a mistyped name leaves no phantom state.json behind.
     state = load_state(directory)
-    after, undo = [], []
+    after, undo, returned = [], [], []
 
     def update(text):
         if args.action == "rewrite":
@@ -1302,6 +1295,7 @@ def _tasks_command(args, today):
             raise Refusal(f"{args.group} is {status}: a claimed merge is verified and done, never sent back")
         # The In progress row no longer holds the wave, labels, depends, model or conflicts, so `back` needs these.
         after.append(lambda: _close(directory, args.group, "returned"))
+        returned.append(entry)
         return return_to_remaining(text, rows, keys, berserk(state)[0])
 
     # The file is read here, at the moment of the write, so another session's edit since `board` is kept. A move's
@@ -1323,6 +1317,11 @@ def _tasks_command(args, today):
         raise
     for step in after:
         step()
+    for entry in returned:
+        # Made here, by the list's one writer and after the executor exited, never from what the executor wrote alone.
+        line = record_handback(args.root, args.run, args.group, entry, text)
+        if line:
+            print(line)
 
 
 # The helpers both halves read GitHub and git through
@@ -1709,7 +1708,7 @@ def main(argv=None, body_source=None, open_source=None, branch_source=None, week
             listed = OpenIssues.of(open_from())
             found, holds = dispatch_run.resumes(root, groups(tasks))
             print("\n".join(board(text, today, bodies, listed, branch_from, *flag, owned=owned_from(),
-                                  resumed=frozenset(found))
+                                  resumed=frozenset(found), restored=dispatch_run.restored(found))
                             + [dispatch_run.resumed_line(gid, r) for gid, r in found.items()] + holds))
         elif args.command == "tasks" and getattr(args, "run", None) is None:
             _day_command(args, issues_from_, merged_from, owned_from)

@@ -683,31 +683,47 @@ night writes `report.md` again, over the first.
 script**, so the script is the owner's only step (blueprint-harness#602).
 The executor leaves `artifacts/handoff/resume.json` in its worktree beside
 the script (`docs/commands/ship.md`, *Dispatched: the one token /dispatch
-passes*), and `board` and every `wake` read each one under
-`.claude/worktrees/`. A record lifts its group's hold only when all of
-these hold, and otherwise `board` prints `resume held <worktree>: <why>`:
+passes*), but nothing the executor writes lifts a hold by itself: an
+executor can write a record, a receipt reading `applied` and an edit of
+its own, so trusting them would let a session release its own hand-back
+and relaunch itself every wake. The record that counts is the
+dispatcher's. `tasks back`, the list's one writer, run after the executor
+exited, reads `resume.json` and keeps it in
+`artifacts/dispatch/handbacks.json` in the main checkout, printing
+`resume recorded <g>: …`, only when the worktree, branch and issues are
+the ones this run's `state.json` gave the group and the tree is clean at
+the recorded head; it keeps the script's digest and each row's *Depends
+on* before and after its marks. Otherwise it prints `resume not recorded
+<g>: <why>`, and the group waits on the owner as any hand-back does.
+
+`board` and every `wake` then lift a recorded group's hold only when all
+of these hold, and otherwise `board` prints `resume held <worktree>:
+<why>`:
 
 - the receipt's last line is `applied`, and its `head` line is the
   record's (`docs/harness/working-rules.md`, *Hand-back scripts*);
+- the script is the one recorded, by digest;
 - the worktree is on the recorded branch at that head, and `git status`
-  names exactly the script's paths, outside `artifacts/handoff/`;
-- one group in *Remaining* holds exactly the recorded issues, every row
-  marked as `tasks back` marks it;
-- no earlier launch has spent the script.
+  names exactly the script's paths, outside `artifacts/handoff/`: the
+  tree was clean when the executor exited, so these edits came after it;
+- one group in *Remaining* holds exactly the recorded issues, each row's
+  *Depends on* still as `tasks back` wrote it.
 
-What it lifts is those marks, `OWNER` and `sent back under --berserk`, on
-either kind of night, and nothing else: a date, an open issue, a label,
-the `.claude/` reach and the owner's authorship gate hold as they did, so
-the owner's script answers the question the hand-back asked and no other.
-`launch --resumed` reuses the worktree rather than forking one from `main`,
-which would stand beside the applied edit, and checks the record again in
-code whatever `wake` printed, as it re-reads a red `main`. It then writes
-`<script>.taken` beside the script and tells the executor in its prompt
-that the edits are the owner's to commit: an executor that ends again
-before committing leaves the tree as the script left it, which the same
-receipt would otherwise resume on every wake, so a second hand-back must
-write a second script. Nothing loops: a review finding that lands in a
-denied path again is a fresh hand-back with a fresh script, sent back as
+The lift puts *Depends on* back as it read before the marks, on either
+kind of night, and changes nothing else: a date, an open issue, a label,
+the `.claude/` reach and the owner's authorship gate hold as they did, and
+so does an `OWNER` the row carried before it launched, which a flagged
+night lifted and a plain night asks about again. The owner's script
+answers the question the hand-back asked and no other.
+
+`launch --resumed` reuses the worktree rather than forking one from
+`main`, which would stand beside the applied edit, and checks the record
+again in code whatever `wake` printed, as it re-reads a red `main`. It
+then removes the record and tells the executor in its prompt that the
+edits are the owner's to commit: an executor that ends again before
+committing leaves the tree as the script left it, which a kept record
+would resume on every wake. Nothing loops: a review finding that lands in
+a denied path again is a fresh hand-back with a fresh record, sent back as
 any other.
 
 ## Grants

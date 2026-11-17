@@ -2475,20 +2475,19 @@ RESUMED_TREE = ".claude/worktrees/game-day"
 RESUMED_BRANCH = "chore/game-day-workflow"
 SCRIPT = "artifacts/handoff/apply-game-day.py"
 EDITED = ".github/workflows/game-day.yml"
+MARKED = f"OWNER; {db.SENT_BACK}"
 
 
 class ResumeTests(InRoot):
     """A group handed back on a denied edit, resumed once the owner has run its script."""
 
-    BODIES = {}
-
     def setUp(self):
         super().setUp()
-        self.head, self.branch, self.status = HEAD, RESUMED_BRANCH, f" M {EDITED}\0"
+        self.head, self.branch, self.status = HEAD, RESUMED_BRANCH, ""
         self.handoff = self.root / RESUMED_TREE / "artifacts" / "handoff"
         self.handoff.mkdir(parents=True)
+        (self.root / RESUMED_TREE / SCRIPT).write_text("print('apply')\n", encoding="utf-8")
         self.write_record()
-        self.receipt(f"head {HEAD}\n{EDITED} written\napplied\n")
 
     def write_record(self, **fields):
         record = {"group": "Z1", "issues": [1700], "branch": RESUMED_BRANCH, "head": HEAD, "script": SCRIPT,
@@ -2510,10 +2509,32 @@ class ResumeTests(InRoot):
             return self.status
         raise AssertionError(f"an unexpected git read: {args}")
 
-    def tasks(self, depends=f"OWNER; {db.SENT_BACK}", *more):
-        return tasks_of(line(depends=depends, task=f"Add `{EDITED}`"), *more)
+    def row(self, depends="none", **cells):
+        return line(depends=depends, task=f"Add `{EDITED}`", **cells)
 
-    def wake(self, text, pairs=2, flag=True):
+    def back(self, depends="none", flag=True, **cells):
+        """Launch Z1 as a night would, then send it back the way the dispatcher does; returns what `back` printed."""
+        dr.save_state(state_dir(), {"run": RUN, "pairs": 2, "lang": "en", "berserk": flag, "groups": {}})
+        with open("todo.md", "w", encoding="utf-8", newline="") as handle:
+            handle.write(tasks_of(self.row(depends, **cells)))
+        self.assertEqual("", run_cli(["tasks", "move", "--tasks", "todo.md", "--run", RUN, "Z1",
+                                      "--branch", RESUMED_BRANCH, "--worktree", RESUMED_TREE]))
+        with mock.patch.object(dr, "git", self.git):
+            self.assertEqual("", run_cli(["launch", RUN, "Z1", "--tasks", "todo.md", "--branch", RESUMED_BRANCH,
+                                          "--worktree", RESUMED_TREE]))
+            out = run_cli(["tasks", "back", "--tasks", "todo.md", "--run", RUN, "Z1"])
+        return out
+
+    def owner_runs_the_script(self):
+        self.status = f" M {EDITED}\0"
+        self.receipt(f"head {HEAD}\n{EDITED} written\napplied\n")
+
+    def listed(self):
+        with open("todo.md", encoding="utf-8", newline="") as handle:
+            return handle.read()
+
+    def wake(self, text=None, pairs=2, flag=True):
+        text = self.listed() if text is None else text
         dr.save_state(state_dir(), {"run": RUN, "pairs": pairs, "lang": "en", "berserk": flag, "groups": {}})
         with open("todo.md", "w", encoding="utf-8", newline="") as handle:
             handle.write(text)
@@ -2521,46 +2542,111 @@ class ResumeTests(InRoot):
             return run_cli(["wake", RUN, "--tasks", "todo.md", "--today", "2026-11-01"],
                            body_source=lambda n: "", open_source=lambda: {1440}, branch_source=NO_BRANCH).splitlines()
 
-    def board(self, text):
-        with open("todo.md", "w", encoding="utf-8", newline="") as handle:
-            handle.write(text)
+    def board(self, text=None):
+        if text is not None:
+            with open("todo.md", "w", encoding="utf-8", newline="") as handle:
+                handle.write(text)
         with mock.patch.object(dr, "git", self.git):
             return run_cli(["board", "--tasks", "todo.md", "--today", "2026-11-01"],
                            body_source=lambda n: "", open_source=lambda: {1440}, branch_source=NO_BRANCH).splitlines()
 
     def held(self):
-        """The one `resume held` line board prints, or a failure naming what it printed instead."""
-        lines = [text for text in self.board(self.tasks()) if text.startswith("resume held ")]
+        lines = [text for text in self.board() if text.startswith("resume held ")]
         self.assertEqual(1, len(lines), lines)
         return lines[0]
 
-    def test_an_applied_receipt_lifts_the_sent_back_hold_on_either_night(self):
+    def store(self):
+        return json.loads((self.root / dr.HANDBACKS).read_text(encoding="utf-8"))
+
+    def test_back_records_the_hand_back_from_the_runs_state_and_the_clean_tree(self):
+        self.assertEqual(f"resume recorded Z1: {SCRIPT} in {RESUMED_TREE}\n", self.back())
+        record = self.store()[RESUMED_TREE]
+        self.assertEqual((RUN, "Z1", [1700], RESUMED_BRANCH, HEAD, [EDITED]),
+                         (record["run"], record["group"], record["issues"], record["branch"], record["head"],
+                          record["paths"]))
+        self.assertEqual({"#1700": {"marked": MARKED, "before": "none"}}, record["rows"])
+        self.assertIn(f"| {MARKED} |", self.listed())
+
+    def test_an_applied_receipt_lifts_the_hold_on_either_night(self):
         resumed = f"resumed Z1: owner applied {SCRIPT} in {RESUMED_TREE} on {RESUMED_BRANCH}"
-        for flag, depends in ((True, f"OWNER; {db.SENT_BACK}"), (False, "OWNER")):
+        for flag in (True, False):
             with self.subTest(flag=flag):
-                self.assertEqual([resumed, "launch: Z1"], self.wake(self.tasks(depends), flag=flag)[-2:])
-        lines = self.board(self.tasks())
+                (self.root / dr.HANDBACKS).unlink(missing_ok=True)
+                self.status = ""
+                self.assertIn("resume recorded", self.back(flag=flag))
+                self.assertEqual("end: drained", self.wake(flag=flag)[-1], "held until the owner runs the script")
+                self.owner_runs_the_script()
+                self.assertEqual([resumed, "launch: Z1"], self.wake(flag=flag)[-2:])
+        lines = self.board()
         self.assertTrue(lines[0].startswith("Z1 | wave 1 | resumed | free"), lines)
         self.assertEqual(resumed, lines[-1])
 
-    def test_without_the_record_the_hold_stands(self):
-        (self.handoff / "resume.json").unlink()
-        self.assertEqual("end: drained", self.wake(self.tasks())[-1])
-        self.assertIn("not ready: waits on a human", self.board(self.tasks())[0])
+    def test_what_the_executor_writes_alone_resumes_nothing(self):
+        # A resume.json, an applied receipt and a dirty tree in the worktree, but no back recorded them.
+        self.owner_runs_the_script()
+        text = tasks_of(self.row(MARKED))
+        self.assertEqual("end: drained", self.wake(text)[-1])
+        self.assertFalse(any(t.startswith(("resumed ", "resume held ")) for t in self.board(text)))
 
-    def test_the_lift_is_the_marks_alone_and_every_other_hold_stands(self):
-        for depends, why in ((f"OWNER; {db.SENT_BACK}; after #1440", "depends on open #1440"),
-                             (f"OWNER; {db.SENT_BACK}; 2026-12-01", "waits until 2026-12-01")):
-            with self.subTest(depends=depends):
-                self.assertIn(f"not ready: {why}", self.board(self.tasks(depends))[0])
-        self.assertIn("not ready: labelled paused", self.board(tasks_of(
-            line(depends=f"OWNER; {db.SENT_BACK}", labels="code, paused")))[0])
-        self.assertEqual("end: drained", self.wake(self.tasks(f"OWNER; {db.SENT_BACK}; after #1440"))[-1])
+    def test_back_records_nothing_the_tree_or_the_run_does_not_bear_out(self):
+        cases = [
+            (lambda: setattr(self, "status", f" M {EDITED}\0"), f"{RESUMED_TREE} is not clean: {EDITED}"),
+            (lambda: setattr(self, "head", OID), f"is at {OID}, not the recorded head {HEAD}"),
+            (lambda: self.write_record(branch="fix/other"), "names fix/other for [1700], not this run's"),
+            (lambda: self.write_record(issues=[1701]), "for [1701], not this run's"),
+            (lambda: self.write_record(paths=[f"{SCRIPT}.receipt"]), "paths is not a list of the paths"),
+            (lambda: (self.root / RESUMED_TREE / SCRIPT).unlink(), "could not read apply-game-day.py"),
+        ]
+        for spoil, why in cases:
+            with self.subTest(why=why):
+                self.head, self.status = HEAD, ""
+                (self.root / dr.HANDBACKS).unlink(missing_ok=True)
+                (self.root / RESUMED_TREE / SCRIPT).write_text("print('apply')\n", encoding="utf-8")
+                self.write_record()
+                spoil()
+                out = self.back()
+                self.assertTrue(out.startswith("resume not recorded Z1: "), out)
+                self.assertIn(why, out)
+                self.assertFalse((self.root / dr.HANDBACKS).exists())
+
+    def test_a_back_with_no_record_drops_the_earlier_one(self):
+        self.back()
+        (self.handoff / "resume.json").unlink()
+        self.assertEqual("", self.back())
+        self.assertEqual({}, self.store())
+
+    def test_the_lift_restores_depends_on_as_it_read_before_the_back(self):
+        for before, why in (("after #1440", "depends on open #1440"), ("2026-12-01", "waits until 2026-12-01")):
+            with self.subTest(before=before):
+                (self.root / dr.HANDBACKS).unlink(missing_ok=True)
+                self.status = ""
+                self.back(before)
+                self.owner_runs_the_script()
+                self.assertIn(f"not ready: {why}", self.board()[0])
+                self.assertEqual("end: drained", self.wake()[-1])
+
+    def test_an_owners_question_the_flag_lifted_holds_again_on_a_plain_night(self):
+        self.back("OWNER")
+        self.owner_runs_the_script()
+        self.assertIn("not ready: waits on a human", self.board()[0])
+        self.assertEqual("end: drained", self.wake(flag=False)[-1])
+        self.assertEqual("launch: Z1", self.wake(flag=True)[-1])
+
+    def test_a_row_edited_since_the_back_is_not_resumed(self):
+        self.back()
+        self.owner_runs_the_script()
+        self.assertIn("Z1's Depends on is not what tasks back wrote", self.held_for(tasks_of(self.row("OWNER"))))
+        self.assertIn("no group in Remaining holds exactly #1700", self.held_for(tasks_of(line(number=5))))
+
+    def held_for(self, text):
+        return next(t for t in self.board(text) if t.startswith("resume held "))
 
     def test_a_resumed_group_goes_before_an_earlier_wave_and_a_released_one(self):
-        text = tasks_of(line(number=1, gid="A1", task="Do `a.cs`"), line(number=2, gid="A2", depends="OWNER",
-                                                                          task="Do `b.cs`"),
-                        line(gid="Z1", wave=3, depends=f"OWNER; {db.SENT_BACK}", task=f"Add `{EDITED}`"))
+        self.back(wave=3)
+        self.owner_runs_the_script()
+        marked = next(t for t in self.listed().splitlines() if "| Z1 |" in t)
+        text = tasks_of(line(number=1, gid="A1", task="Do `a.cs`"),
+                        line(number=2, gid="A2", depends="OWNER", task="Do `b.cs`"), marked)
         self.assertEqual("launch: Z1", self.wake(text, pairs=1)[-1])
         lines = self.wake(text, pairs=3)
         self.assertEqual("launch: Z1 A1 A2", lines[-1])
@@ -2568,99 +2654,79 @@ class ResumeTests(InRoot):
         self.assertNotIn("Z1", dr.load_state(state_dir())["released"], "a resume is the owner's, not the flag's")
 
     def test_each_miss_keeps_the_hold_and_names_why(self):
+        script = self.root / RESUMED_TREE / SCRIPT
         misses = [
-            (lambda: (self.handoff.parent.parent / f"{SCRIPT}.receipt").unlink(),
+            (lambda: (self.root / RESUMED_TREE / f"{SCRIPT}.receipt").unlink(),
              f"no {SCRIPT}.receipt: the owner has not run {SCRIPT}"),
             (lambda: self.receipt(f"head {HEAD}\nfailed\n"), "last line is 'failed', not applied"),
             (lambda: self.receipt(f"head {HEAD}\ndry-run\n"), "last line is 'dry-run', not applied"),
             (lambda: self.receipt(f"head {OID}\napplied\n"), f"does not record the head {HEAD}"),
             (lambda: self.receipt("applied\n"), f"does not record the head {HEAD}"),
+            (lambda: script.write_text("print('other')\n", encoding="utf-8"),
+             f"{SCRIPT} is not the script the hand-back recorded"),
             (lambda: setattr(self, "branch", "fix/other"), f"{RESUMED_TREE} is not a worktree on {RESUMED_BRANCH}"),
             (lambda: setattr(self, "head", OID), f"{RESUMED_TREE} is at {OID}, not the hand-back's {HEAD}"),
             (lambda: setattr(self, "status", f" M {EDITED}\0?? payload/stray.py\0"),
              f"changes {EDITED}, payload/stray.py, not exactly the script's {EDITED}"),
             (lambda: setattr(self, "status", ""), f"changes nothing, not exactly the script's {EDITED}"),
-            (lambda: (self.handoff / "apply-game-day.py.taken").write_text("Z1\n", encoding="utf-8"),
-             "already resumed this group once"),
-            (lambda: self.write_record(issues=[1700, 1701]), "no group in Remaining holds exactly #1700, #1701"),
-            (lambda: self.write_record(script="../escape.py", receipt="../escape.py.receipt"),
-             "script is not a file under artifacts/handoff"),
-            (lambda: self.write_record(head="HEAD"), "head is not a whole oid"),
-            (lambda: (self.handoff / "resume.json").write_text("{", encoding="utf-8"), "could not be read"),
         ]
+        self.back()
+        listed = self.listed()
         for spoil, why in misses:
             with self.subTest(why=why):
-                self.reset()
+                self.head, self.branch = HEAD, RESUMED_BRANCH
+                script.write_text("print('apply')\n", encoding="utf-8")
+                self.owner_runs_the_script()
                 spoil()
-                self.assertIn(why, self.held())
                 self.assertTrue(self.held().startswith(f"resume held {RESUMED_TREE}: "))
-                self.assertEqual("end: drained", self.wake(self.tasks())[-1])
+                self.assertIn(why, self.held())
+                self.assertEqual("end: drained", self.wake(listed)[-1])
 
-    def reset(self):
-        self.head, self.branch, self.status = HEAD, RESUMED_BRANCH, f" M {EDITED}\0"
-        for stale in self.handoff.glob("*.taken"):
-            stale.unlink()
-        self.write_record()
-        self.receipt(f"head {HEAD}\n{EDITED} written\napplied\n")
-
-    def test_a_crlf_receipt_and_an_ignored_handoff_still_resume(self):
+    def test_a_crlf_receipt_and_an_unignored_handoff_still_resume(self):
+        self.back()
+        self.owner_runs_the_script()
         self.receipt(f"head {HEAD}\r\nAPPLIED to {EDITED}\r\napplied\r\n")
         self.status = f" M {EDITED}\0?? {SCRIPT}\0?? artifacts/handoff/resume.json\0"
-        self.assertEqual("launch: Z1", self.wake(self.tasks())[-1])
+        self.assertEqual("launch: Z1", self.wake()[-1])
 
-    def test_rows_not_held_as_sent_back_are_not_resumed(self):
-        self.assertIn("Z1's rows are not all held as sent back", self.held_for(self.tasks("none")))
-
-    def held_for(self, text):
-        return next(t for t in self.board(text) if t.startswith("resume held "))
-
-    def move(self):
-        dr.save_state(state_dir(), {"run": RUN, "pairs": 2, "lang": "en", "berserk": True, "groups": {}})
-        with open("todo.md", "w", encoding="utf-8", newline="") as handle:
-            handle.write(self.tasks())
-        self.assertEqual("", run_cli(["tasks", "move", "--tasks", "todo.md", "--run", RUN, "Z1",
-                                      "--branch", RESUMED_BRANCH, "--worktree", RESUMED_TREE]))
-
-    def launch(self, *extra, branch=RESUMED_BRANCH):
+    def relaunch(self, *extra, red=list):
+        """A later night's move and launch of the group `back` returned; the move only once."""
+        if group_state(RUN, "Z1").get("status") == "returned":
+            dr.save_state(state_dir(), {"run": RUN, "pairs": 2, "lang": "en", "berserk": True, "groups": {}})
+            self.assertEqual("", run_cli(["tasks", "move", "--tasks", "todo.md", "--run", RUN, "Z1",
+                                          "--branch", RESUMED_BRANCH, "--worktree", RESUMED_TREE]))
         with mock.patch.object(dr, "git", self.git):
-            return run_cli(["launch", RUN, "Z1", "--tasks", "todo.md", "--branch", branch,
-                            "--worktree", RESUMED_TREE, *extra])
+            return run_cli(["launch", RUN, "Z1", "--tasks", "todo.md", "--branch", RESUMED_BRANCH,
+                            "--worktree", RESUMED_TREE, *extra], red_source=red)
 
-    def test_launch_resumed_reuses_the_worktree_spends_the_receipt_and_tells_the_executor(self):
-        self.move()
-        self.assertEqual("", self.launch("--resumed"))
+    def test_launch_resumed_reuses_the_worktree_spends_the_record_and_tells_the_executor(self):
+        self.back()
+        self.owner_runs_the_script()
+        self.assertEqual("", self.relaunch("--resumed"))
         entry = group_state(RUN, "Z1")
         self.assertEqual(("running", SCRIPT, RESUMED_TREE), (entry["status"], entry["resumed"], entry["worktree"]))
-        self.assertTrue((self.handoff / "apply-game-day.py.taken").is_file())
-        self.assertIn("already resumed this group once", self.held())
+        self.assertEqual({}, self.store(), "the same answer would resume an executor that ended again uncommitted")
         task_text("Z1", "Add the game-day workflow")
-        text = dr._prompt_for(state_dir(), "Z1", entry, RUN, True)
         self.assertEqual(f"/ship #Z1-1700 Add the game-day workflow (resumed: the owner ran {SCRIPT} in this "
                          "worktree and its edits are uncommitted here; commit them, the body saying the owner "
                          f"applied them from that script, and carry on to the merge) --dispatched "
-                         f"artifacts/dispatch/{RUN} --berserk", text)
+                         f"artifacts/dispatch/{RUN} --berserk", dr._prompt_for(state_dir(), "Z1", entry, RUN, True))
 
     def test_launch_resumed_checks_the_record_in_code_and_spends_nothing_on_a_refusal(self):
-        self.move()
+        self.back()
         self.receipt(f"head {HEAD}\nfailed\n")
-        self.assertIn("refused: ", self.launch("--resumed"))
-        self.assertIn("not applied", self.launch("--resumed"))
+        self.status = f" M {EDITED}\0"
+        self.assertIn("refused: ", self.relaunch("--resumed"))
+        self.assertIn("not applied", self.relaunch("--resumed"))
         self.assertIsNone(group_state(RUN, "Z1").get("status"))
         self.receipt(f"head {HEAD}\napplied\n")
-        self.write_record(issues=[1701])
-        self.assertIn(f"refused: {RESUMED_TREE}'s hand-back is {RESUMED_BRANCH} for #1701, not Z1 on "
-                      f"{RESUMED_BRANCH}", self.launch("--resumed"))
-        self.write_record()
-        self.assertIn("refused: Z1 is not launched: main is red", self.launch_red())
-        self.assertFalse((self.handoff / "apply-game-day.py.taken").exists(), "a refused launch spent the receipt")
-        self.assertEqual("", self.launch())
+        self.assertIn("refused: Z1 is not launched: main is red",
+                      self.relaunch("--resumed", red=lambda: ["main is red: #9 u"]))
+        self.assertIn(RESUMED_TREE, self.store(), "a refused launch spent the owner's answer")
+        (self.root / dr.HANDBACKS).unlink()
+        self.assertIn(f"refused: {dr.HANDBACKS} records no hand-back for {RESUMED_TREE}", self.relaunch("--resumed"))
+        self.assertEqual("", self.relaunch())
         self.assertNotIn("resumed", group_state(RUN, "Z1"), "a plain launch is told of no resume")
-
-    def launch_red(self):
-        with mock.patch.object(dr, "git", self.git):
-            return run_cli(["launch", RUN, "Z1", "--tasks", "todo.md", "--branch", RESUMED_BRANCH,
-                            "--worktree", RESUMED_TREE, "--resumed"], red_source=lambda: ["main is red: #9 u"])
-
 
 if __name__ == "__main__":
     unittest.main()
