@@ -3928,6 +3928,32 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                       f"ls > {self.spelled('artifacts', 'dispatched')}/x", cwd=worktree, env=dispatched)
         self.admitted(*writes[:4], cwd=worktree)
 
+    def test_a_build_loads_nothing_written_above_the_checkout(self):
+        # MSBuild, the SDK and NuGet read these names from every directory above a project.
+        writes = ("echo x > ../Directory.Build.targets", "ls > ../NuGet.Config", "ls >> ../nuget.config",
+                  "echo x | tee ../NUGET.CONFIG", "cp /tmp/a ../global.json", "ln -s /tmp/a ../Directory.Build.rsp",
+                  "touch ../../Directory.Packages.props", "mv /tmp/a ../Directory.Solution.props",
+                  f"echo x > {self.spelled('..')}/Directory.Solution.targets",
+                  "cp /tmp/Directory.Build.props ..")
+        for command in writes:
+            with self.subTest(command=command):
+                self.assertIn("loads from a directory above", self.assertRefused(command))
+        self.admitted("echo x > Directory.Build.props", "echo x > notes/nuget.config",
+                      "echo x > ../sibling/NuGet.Config", "echo x > ../notes.md")
+        # A glob, a brace or a `.` lands under names not known: refused where it can be a build's.
+        for command in ("mv * ..", "cp /tmp/x/*.config ..", "cp -r /tmp/x/. ..", "cp /tmp/{a,b} ..",
+                        "mv /tmp/x/?uget.config ../"):
+            with self.subTest(command=command):
+                self.assertIn("may be one MSBuild", self.assertRefused(command))
+        self.admitted("mv *.md ..", "cp /tmp/x/*.txt ..", "cp -r /tmp/x/. notes", "mv * ../sibling")
+        # A worktree's build walks up through its main checkout, whose root is above it.
+        worktree = os.path.join(self.root, ".claude", "worktrees", "w")
+        os.makedirs(worktree)
+        with open(os.path.join(worktree, ".git"), "w", encoding="utf-8") as handle:
+            handle.write("gitdir: elsewhere\n")
+        self.assertIn("loads from a directory above", self.assertRefused(
+            "echo x > ../../../Directory.Build.props", cwd=worktree))
+
     def assertAdmitted(self, command, **kwargs):
         self.assertIsNone(self.judge(command, **kwargs), f"refused: {command}")
 

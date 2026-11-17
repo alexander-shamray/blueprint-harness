@@ -2383,6 +2383,23 @@ shell write meets none (#586).
 `artifacts/dispatch/`**, the dispatcher's own state; *Headless dispatched
 sessions* has the rule and its reason (#604).
 
+**Above a checkout, both guards refuse the names a build loads from there**
+(#596): `Directory.Build.props`, `.targets` and `.rsp`,
+`Directory.Solution.props` and `.targets`, `Directory.Packages.props`,
+`NuGet.Config` and `global.json`, folded, in any directory above a checkout
+the session stands in, a worktree's main checkout root included. MSBuild
+and the SDK take the nearest above a project, which an empty file at the
+root stops, but NuGet merges every `NuGet.Config` from the drive root down,
+so a key the root's leaves unset falls through to the planted one, and no
+deny, anchored at a root, reaches above it. The checkouts are the
+project's, the session's, the command's and the guard's own; one in the
+checkout's own root, below it or in a sibling is the checkout's to judge.
+A glob, a brace or a `.` copied or moved into such a directory lands under
+names the shell guard cannot know, so it is refused where it can match one of
+these, `mv * ..` or `cp -r x/. ..`, and `mv *.md ..` stays admitted.
+`BUILD_ANCESTOR_FILES` in `guard-git-argv.py` is the one list; if the edit
+guard cannot load it, it refuses a name of that shape anywhere.
+
 **A replay narrowed it.** 79,469 commands of these repositories' sessions since
 2026-10-01 gave 34 new refusals, none under the login or control names. 30 wrote
 a memory or an output style with a redirect or `sed -i`, most appending a line
