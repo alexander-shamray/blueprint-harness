@@ -3883,7 +3883,9 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         result = subprocess.run(
             [sys.executable, str(hook)], input=json.dumps(event),
             capture_output=True, text=True, encoding="utf-8",
-            timeout=HOOK_TIMEOUT, env={**os.environ, **(env or {})},
+            # A `/dispatch` executor runs this suite with the variable set, which only `env` may set here.
+            timeout=HOOK_TIMEOUT, env={**{name: value for name, value in os.environ.items()
+                                          if name != "HARNESS_DISPATCHED"}, **(env or {})},
         )
         self.assertEqual(0, result.returncode, result.stderr)
         if not result.stdout.strip():
@@ -3897,6 +3899,25 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         self.assertIsNotNone(reason, f"admitted: {command}")
         self.assertNotIn("crashed the guard", reason)
         return reason
+
+    def test_a_dispatched_session_writes_no_dispatch_state_in_main(self):
+        # #604: each run's `state.json` and `handbacks.json` decide what the dispatcher launches.
+        worktree = os.path.join(self.root, ".claude", "worktrees", "executor")
+        os.makedirs(worktree)
+        with open(os.path.join(worktree, ".git"), "w", encoding="utf-8") as handle:
+            handle.write("gitdir: " + os.path.join(self.root, ".git", "worktrees", "executor") + "\n")
+        state = self.spelled("artifacts", "dispatch")
+        dispatched = {"HARNESS_DISPATCHED": "1"}
+        writes = (f"ls > {state}/handbacks.json", f"echo x | tee {state}/20261117-152904/state.json",
+                  "cp /tmp/a ../../../artifacts/dispatch/handbacks.json",
+                  f"touch {state}/handbacks.json", f"rm -rf {self.spelled('artifacts')}",
+                  f"mv {state}/handbacks.json /tmp/b")
+        self.refused(*writes, cwd=worktree, env=dispatched)
+        self.assertIn("dispatcher's own state", self.assertRefused(writes[0], cwd=worktree, env=dispatched))
+        self.admitted("ls > artifacts/dispatch/20261117-152904/G1.json",
+                      f"ls > {self.spelled('artifacts', 'review', 'x.diff')}",
+                      f"ls > {self.spelled('artifacts', 'dispatched')}/x", cwd=worktree, env=dispatched)
+        self.admitted(*writes[:4], cwd=worktree)
 
     def assertAdmitted(self, command, **kwargs):
         self.assertIsNone(self.judge(command, **kwargs), f"refused: {command}")

@@ -481,6 +481,23 @@ def target_offence(event, spelled):
     lexical = os.path.normpath(os.path.abspath(joined))
     resolved = os.path.realpath(joined)
 
+    # A dispatched executor's rules grant `artifacts/dispatch/**`, and the main checkout's is the dispatcher's state
+    # (#604). `guard-git-argv.py` owns the predicate; unreadable, a dispatched write naming that tree is refused.
+    try:
+        state = any(git_guard().dispatcher_state(place) for place in (lexical, resolved))
+    except (OSError, ValueError, TypeError, AttributeError):
+        state = "HARNESS_DISPATCHED" in os.environ and any(
+            "/artifacts/dispatch" in os.path.normcase(place).replace("\\", "/").lower()
+            for place in (lexical, resolved))
+    if state:
+        return (
+            f"guard-edit-target: {spelled} is under a main checkout's "
+            "`artifacts/dispatch/`, the dispatcher's own state, which decides "
+            "what it launches; a dispatched session writes none of it. The "
+            "result goes in this worktree's `artifacts/dispatch/` "
+            "(docs/harness-boundaries.md, *Headless dispatched sessions*)."
+        )
+
     # A rule anchored at the session's root misses a worktree it has not entered,
     # so the target's denies judge it, and it becomes an anchor so that a link
     # inside it is judged. The one the session stands in is the project.
