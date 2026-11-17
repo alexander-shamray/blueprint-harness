@@ -4289,7 +4289,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                         "ln -sfh staged ~/.config/git",
                         # `-n` links inside a real directory still, so what lands there is judged too.
                         "ln -sn /tmp/evil/.bashrc ~/", "ln --no-dereference -s /tmp/evil/.gitconfig ~",
-                        # npm's user config: its `script-shell` and `node-options` run at every npm call.
+                        # npm's user config: its `script-shell` and `node-options` run under each npm script.
                         "echo script-shell=/tmp/x >> ~/.npmrc", 'ls > "$HOME/.npmrc"', "tee ~/.npmrc",
                         "cp a ~/.npmrc", "mv /tmp/a ~/.npmrc", "rm ~/.npmrc", "ln -s /tmp/a ~/.npmrc"):
             with self.subTest(command=command):

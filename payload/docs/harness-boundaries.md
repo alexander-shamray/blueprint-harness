@@ -2353,9 +2353,9 @@ a target is not owning it, and the denies of one inside a place are anchored
 at its own root and name none of them.
 `~/.ssh`, the shell profiles, `~/.gitconfig` and git's XDG
 `~/.config/git/config`, with `$XDG_CONFIG_HOME/git/config` wherever the hook's
-environment moves it (#589), and `~/.npmrc`, whose `script-shell` and
-`node-options` run a program on every npm call (#597), run at login under
-every session, and
+environment moves it (#589), and `~/.npmrc`, read on every npm call, whose
+`script-shell` and `node-options` run a program under each one that runs a
+script (#597), run at login under every session, and
 `~/.claude.json` and `~/.claude`'s credentials, settings, hooks, commands,
 agents, plugins, scripts, skills and sandbox apply to every project (#585),
 judged on the first component only, so a name below `projects` is a session's

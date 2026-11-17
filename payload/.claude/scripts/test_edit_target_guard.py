@@ -698,7 +698,7 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
             os.path.join(self.HOME, ".gitconfig"),
             # git's XDG config runs as `.gitconfig` does.
             os.path.join(self.HOME, ".config", "git", "config"),
-            # npm's user config: its `script-shell` and `node-options` run at every npm call.
+            # npm's user config: its `script-shell` and `node-options` run under each npm script.
             os.path.join(self.HOME, ".npmrc"),
             *self.recased(os.path.join(self.HOME, ".NPMRC")),
         ):
