@@ -3929,7 +3929,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         self.admitted(*writes[:4], cwd=worktree)
 
     def test_a_build_loads_nothing_written_above_the_checkout(self):
-        # MSBuild, the SDK and NuGet read these names from every directory above a project.
+        # The .NET SDK and NuGet read these names from every directory above a project.
         writes = ("echo x > ../Directory.Build.targets", "ls > ../NuGet.Config", "ls >> ../nuget.config",
                   "echo x | tee ../NUGET.CONFIG", "cp /tmp/a ../global.json", "ln -s /tmp/a ../Directory.Build.rsp",
                   "touch ../../Directory.Packages.props", "mv /tmp/a ../Directory.Solution.props",
@@ -3948,7 +3948,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                         "cp /tmp/x/[[:alpha:]]uget.config ..", "cp $X ..", "cp /tmp/x/nuget.c*:s ..",
                         "cp /tmp/x/nuget.confi[g]. .."):
             with self.subTest(command=command):
-                self.assertIn("may be one MSBuild", self.assertRefused(command))
+                self.assertIn("may be one the .NET SDK", self.assertRefused(command))
         self.admitted("mv *.md ..", "cp /tmp/x/*.txt ..", "cp -r /tmp/x/. notes", "mv * ../sibling")
         # A worktree's build walks up through its main checkout, whose root is above it.
         worktree = os.path.join(self.root, ".claude", "worktrees", "w")
