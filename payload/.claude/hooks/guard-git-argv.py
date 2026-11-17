@@ -282,7 +282,7 @@ def xdg_git_config(path, cwd=None, whole=False):
     """`$XDG_CONFIG_HOME/git/config` when `path` names it, or `None`; git reads it for `~/.config`'s.
 
     A relative value is from `cwd`. `whole` counts the directories holding it, short of the first
-    that also holds the home and of the filesystem's root, as a move or a copy puts them whole.
+    that also holds the home and of the filesystem's root, as a move, a copy or a link puts them whole.
     """
     value = os.environ.get("XDG_CONFIG_HOME")
     if not value:
@@ -2838,8 +2838,9 @@ WRITING_VERBS = {
     "dd": "of",
 }
 TARGET_OPTION_VERBS = frozenset({"cp", "install", "ln", "mv"})
-# Verbs that remove, move or fill a directory whole, so its parent is a write.
-TREE_VERBS = frozenset({"cp", "install", "mv", "rm", "rmdir", "shred"})
+# Verbs that remove, move, fill or link a directory whole, so its parent is a write:
+# a link where a directory goes puts the files below its target where that directory's are read.
+TREE_VERBS = frozenset({"cp", "install", "ln", "mv", "rm", "rmdir", "shred"})
 # Verbs whose operand goes away, so a parent of the checkout goes with it.
 REMOVING_VERBS = frozenset({"mv", "rm", "rmdir", "shred", "unlink"})
 
