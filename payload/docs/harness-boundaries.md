@@ -2788,7 +2788,7 @@ It also changes the executor: it never tears down its workspace, step 6 runs
 only lines 1 and 8, step 0's finished teardown is skipped, and it never
 writes the task list, not even for an issue it files or closes, which goes
 only in its result's `filed`: `dispatch_run.py` sets `HARNESS_DISPATCHED` in
-its environment, under which every run-less `tasks` write refuses and the
+its environment, under which every `tasks` write refuses, `--run` too, and the
 filing helper places no row. The dispatcher grants no agent type and
 denies every one, because it spawns sessions.
 
@@ -2847,7 +2847,9 @@ resolved and folded for case: `guard-edit-target.py` an editing tool's, and
 `guard-git-argv.py`, which owns the predicate `dispatcher_state`, a
 redirection's or a writing verb's, a parent `rm -r` names included. The
 executor's result goes under its own worktree's `artifacts/dispatch/`, which
-a `.git` file marks, and stays writable. No settings deny states it: a rule
+a `.git` file marks, and stays writable. The granted `tasks` prefixes reach
+`--run`, whose `--root` could name the main checkout, so `dispatch_board.py`
+refuses every `tasks --run` under the same mark. No settings deny states it: a rule
 cannot read the environment, and one anchored at the worktree would refuse
 that result.
 

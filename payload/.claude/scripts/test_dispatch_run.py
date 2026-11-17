@@ -24,6 +24,18 @@ from test_dispatch_board import FIXTURE, OWNED, NO_BRANCH, REMAINING_ROWS, line,
 
 HOOKS = Path(__file__).resolve().parent.parent / "hooks"
 RUN = "20261101-220000"
+# A dispatched executor runs this suite too, and its marker would refuse every `tasks --run` written here (#604).
+_ENVIRONMENT = mock.patch.dict(os.environ)
+
+
+def setUpModule():
+    _ENVIRONMENT.start()
+    os.environ.pop(db.DISPATCHED, None)
+
+
+def tearDownModule():
+    _ENVIRONMENT.stop()
+
 NOW = datetime(2026, 11, 1, 22, 0, tzinfo=timezone.utc)
 OID = "89994113e5f0c1d2a3b4c5d6e7f8091a2b3c4d5e"
 OTHER_OID = "d84f1368f0000000000000000000000000000000"
