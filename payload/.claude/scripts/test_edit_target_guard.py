@@ -1055,31 +1055,32 @@ class ADispatchedSessionLeavesTheDispatchersState(GuardCase):
     def from_worktree(self, **kwargs):
         return {"cwd": self.worktree, "project": self.worktree} | kwargs
 
+    def assertThisRule(self, path, env=None):
+        """Refused by this rule rather than by another layer, which its message tells apart."""
+        reason = self.assertRefused(path, **self.from_worktree(env=self.DISPATCHED if env is None else env))
+        self.assertIn("dispatcher's own state", reason)
+
     def test_the_main_checkouts_dispatch_state_is_refused(self):
         for parts in (("artifacts", "dispatch", "handbacks.json"),
                       ("artifacts", "dispatch", "20261117-152904", "state.json"),
                       ("artifacts", "dispatch", "20261117-152904", "G1.json"),
                       ("artifacts", "dispatch")):
             with self.subTest(parts=parts):
-                reason = self.assertRefused(os.path.join(self.root, *parts),
-                                            **self.from_worktree(env=self.DISPATCHED))
-                self.assertIn("dispatcher's own state", reason)
-        self.assertRefused(os.path.join(self.worktree, "..", "..", "..", "artifacts", "dispatch", "x.json"),
-                           **self.from_worktree(env=self.DISPATCHED))
+                self.assertThisRule(os.path.join(self.root, *parts))
+        self.assertThisRule(os.path.join(self.worktree, "..", "..", "..", "artifacts", "dispatch", "x.json"))
         # A `.git` made inside the state is not a checkout of its own that hides it.
         planted = os.path.join(self.root, "artifacts", "dispatch", "20261117-152904")
         for name in (".git", os.path.join("..", ".git")):
             os.makedirs(os.path.join(planted, name), exist_ok=True)
-        self.assertRefused(os.path.join(planted, "state.json"), **self.from_worktree(env=self.DISPATCHED))
+        self.assertThisRule(os.path.join(planted, "state.json"))
         # Set at all is the test, as the task list's.
-        self.assertRefused(os.path.join(self.root, "artifacts", "dispatch", "handbacks.json"),
-                           **self.from_worktree(env={"HARNESS_DISPATCHED": ""}))
+        self.assertThisRule(os.path.join(self.root, "artifacts", "dispatch", "handbacks.json"),
+                            env={"HARNESS_DISPATCHED": ""})
 
     def test_a_case_folded_spelling_is_refused_where_the_filesystem_folds(self):
         if not self.guard_module().case_insensitive(self.root):
             self.skipTest("this filesystem tells the two spellings apart")
-        self.assertRefused(os.path.join(self.root, "Artifacts", "DISPATCH", "handbacks.json"),
-                           **self.from_worktree(env=self.DISPATCHED))
+        self.assertThisRule(os.path.join(self.root, "Artifacts", "DISPATCH", "handbacks.json"))
 
     def test_the_executors_own_result_and_the_rest_of_main_are_admitted(self):
         for path in (os.path.join(self.worktree, "artifacts", "dispatch", "20261117-152904", "G1.json"),
