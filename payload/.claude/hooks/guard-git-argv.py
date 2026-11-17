@@ -3249,7 +3249,8 @@ def verb_destinations(verb, words):
             if verb == "ln" and letter == "s":
                 symbolic = True
                 continue
-            if verb == "ln" and letter == "n":
+            # BSD's `-h` is GNU's `-n`; GNU has no `-h`.
+            if verb == "ln" and letter in "hn":
                 no_dereference = True
                 continue
             if verb == "cp" and letter == "l":

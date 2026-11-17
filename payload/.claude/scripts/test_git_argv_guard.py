@@ -4226,6 +4226,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                         "rm -rf ~/.config", "mv ~/.config/git /tmp/x",
                         # A link where the directory goes puts the link's `config` where git reads it.
                         "ln -s staged ~/.config/git", "ln -s staged ~/.config", "ln -sfn staged ~/.config/git",
+                        "ln -sfh staged ~/.config/git",
                         # `-n` links inside a real directory still, so what lands there is judged too.
                         "ln -sn /tmp/evil/.bashrc ~/", "ln --no-dereference -s /tmp/evil/.gitconfig ~"):
             with self.subTest(command=command):
@@ -4438,7 +4439,8 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                      "install -d /tmp/a .claude", "cp -rt .claude /tmp/hooks",
                      "mv /tmp/hooks .CLAUDE", "ln -sT /tmp/evil .claude", "ln -s /tmp/hooks .claude/",
                      # `-n` replaces a link to a directory, which reads as the directory.
-                     "ln -sfn /tmp/evil .claude", "ln --no-dereference -sf /tmp/evil .claude")
+                     "ln -sfn /tmp/evil .claude", "ln --no-dereference -sf /tmp/evil .claude",
+                     "ln -sfh /tmp/evil .claude")
         self.admitted("rm -rf .claude/worktrees/x", "rm -rf artifacts", "rm -rf .",
                       "ln -s /tmp/notes.md .claude/", "ln -s .claude notes/alias",
                       "rm -rf .claude/cache", "cp -r .claude /tmp/backup",
