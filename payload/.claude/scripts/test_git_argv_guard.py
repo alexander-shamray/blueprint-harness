@@ -3944,7 +3944,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         # A glob, a brace or a `.` lands under names not known: refused where it can be a build's.
         for command in ("mv * ..", "cp /tmp/x/*.config ..", "cp -r /tmp/x/. ..", "cp /tmp/{a,b} ..",
                         "mv /tmp/x/?uget.config ../", "cp -rT /tmp/x ..", "cp /tmp/x/[^x]uget.config ..",
-                        "cp /tmp/x/[[:alpha:]]uget.config .."):
+                        "cp /tmp/x/[[:alpha:]]uget.config ..", "cp $X ..", "cp /tmp/x/nuget.c*:s .."):
             with self.subTest(command=command):
                 self.assertIn("may be one MSBuild", self.assertRefused(command))
         self.admitted("mv *.md ..", "cp /tmp/x/*.txt ..", "cp -r /tmp/x/. notes", "mv * ../sibling")
