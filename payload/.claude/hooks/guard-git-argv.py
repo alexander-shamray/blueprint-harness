@@ -337,16 +337,22 @@ def above_checkout(directories, roots):
     return None
 
 
+def build_name(place):
+    """The file `place` names, folded, as Windows opens it: a `:` stream and trailing dots and spaces dropped."""
+    return os.path.basename(folded_place(place)).split(":")[0].rstrip(". ")
+
+
 def build_ancestor(places, roots):
     """The checkout of `roots` whose build loads one of `places` from a directory above it, or `None`."""
-    return above_checkout([os.path.dirname(folded_place(place)) for place in places if place
-                           and os.path.basename(folded_place(place)) in BUILD_ANCESTOR_FILES], roots)
+    return above_checkout([os.path.dirname(folded_place(place)) for place in places
+                           if place and build_name(place) in BUILD_ANCESTOR_FILES], roots)
 
 
 def unknown_landing_offence(word, sources, cwd, command, writer):
     """The reason to refuse `sources` landing under names not known in a directory above a checkout, or `None`.
 
-    A glob is asked whether it can match a build's name; a brace, `.`, `..` or a word not read can be any name.
+    A glob is asked, `[^` read as bash reads it, whether it can match a build's name; a brace, `.`, `..` or a
+    word not read can be any name.
     """
     path = written_path(word, cwd, command)
     if path is None or elsewhere(path):
@@ -357,7 +363,7 @@ def unknown_landing_offence(word, sources, cwd, command, writer):
     for source in sources:
         last = re.split(r"[\\/]", (target_literal(source) or "").rstrip("/\\"))[-1].lower()
         if last in ("", ".", "..") or "{" in last or any(
-                fnmatch.fnmatchcase(name, last) for name in BUILD_ANCESTOR_FILES):
+                fnmatch.fnmatchcase(name, last.replace("[^", "[!")) for name in BUILD_ANCESTOR_FILES):
             return (
                 f"{writer} would put `{source}` in `{path}`, above the checkout `{above}`, under a name that may be "
                 "one MSBuild, the .NET SDK or NuGet loads from there into its next build, and no deny reaches "
@@ -2906,6 +2912,8 @@ TARGET_OPTION_VERBS = frozenset({"cp", "install", "ln", "mv"})
 # Verbs that remove, move, fill or link a directory whole, so its parent is a write:
 # a link where a directory goes puts the files below its target where that directory's are read.
 TREE_VERBS = frozenset({"cp", "install", "ln", "mv", "rm", "rmdir", "shred"})
+# The sources of a `-T` copy or move, which fill the destination under names not known, as a `.` would.
+FILLED = (".",)
 # Verbs whose operand goes away, so a parent of the checkout goes with it.
 REMOVING_VERBS = frozenset({"mv", "rm", "rmdir", "shred", "unlink"})
 
@@ -3392,7 +3400,7 @@ def verb_destinations(verb, words):
         if verb in TARGET_OPTION_VERBS and not directory_mode and (
                 targets or len(operands) > 1):
             sources = operands if targets else operands[:-1]
-            landed = [(word, None if no_target else sources,
+            landed = [(word, FILLED if no_target else sources,
                        bool(targets) or len(sources) > 1)
                       for word in (targets or operands[-1:])]
             # `ln -n` replaces a link to a directory, which `landings` reads as the
@@ -3474,7 +3482,7 @@ def verb_offence(verb, operands, cwd, command, writer):
     """The reason to refuse writing verb `verb` with `operands`, or `None`."""
     for word, sources, into in verb_destinations(verb, operands):
         refusal = removal_offence(word, cwd, command, writer) if (
-            sources is None and verb in REMOVING_VERBS) else None
+            (sources is None or sources is FILLED) and verb in REMOVING_VERBS) else None
         if refusal is not None:
             return refusal
         names = [None] if sources is None or verb not in TREE_VERBS else (

@@ -501,7 +501,8 @@ def target_offence(event, spelled):
         above = git_guard().build_ancestor(
             (lexical, resolved), [form for root, real, _ in checkouts for form in (root, real)])
     except (OSError, ValueError, TypeError, AttributeError):
-        if any(BUILD_SHAPE.match(os.path.basename(place)) for place in (lexical, resolved)):
+        if any(BUILD_SHAPE.match(os.path.basename(place).split(":")[0].rstrip(". "))
+               for place in (lexical, resolved)):
             return (
                 f"guard-edit-target: {spelled} may be a file a build loads "
                 "from above a checkout, and the names that guard it cannot be "
