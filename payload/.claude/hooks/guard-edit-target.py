@@ -8,6 +8,7 @@ import functools
 import importlib.util
 import json
 import os
+import re
 import sys
 import types
 import unicodedata
@@ -40,6 +41,11 @@ GRAMMAR = path_grammar()
 
 GIT_GUARD = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                          "guard-git-argv.py")
+
+# The shape of the names a build loads from above a checkout, which `GIT_GUARD`
+# lists; read only when that list cannot be, so the guard fails closed.
+BUILD_SHAPE = re.compile(
+    r"(?i)^(?:directory\.(?:build|solution|packages)\..+|nuget\.config|global\.json)$")
 
 # Windows names the same file in more than one alphabet, and a permission rule
 # reads only one of them. Every spelling beginning `\\` is the other: the
@@ -498,6 +504,28 @@ def target_offence(event, spelled):
             "(docs/harness-boundaries.md, *Headless dispatched sessions*)."
         )
 
+    # A build loads these names from every directory above a checkout, where none of its denies reach.
+    # `guard-git-argv.py` owns the names; unreadable, a target named in their shape is refused anywhere.
+    try:
+        above = git_guard().build_ancestor(
+            (lexical, resolved), [form for root, real, _ in checkouts for form in (root, real)])
+    except (OSError, ValueError, TypeError, AttributeError):
+        if any(BUILD_SHAPE.match(os.path.basename(place)) for place in (lexical, resolved)):
+            return (
+                f"guard-edit-target: {spelled} may be a file a build loads "
+                "from above a checkout, and the names that guard it cannot be "
+                f"read from {GIT_GUARD} (docs/harness-boundaries.md)."
+            )
+        above = None
+    if above is not None:
+        return (
+            f"guard-edit-target: {spelled} resolves to {resolved}, a file "
+            "MSBuild, the .NET SDK or NuGet loads from a directory above the "
+            f"checkout {above} into its next build, and no deny reaches above "
+            "a checkout's root. Hand it to the owner "
+            "(docs/harness-boundaries.md, *The edit-target guard*)."
+        )
+
     # A rule anchored at the session's root misses a worktree it has not entered,
     # so the target's denies judge it, and it becomes an anchor so that a link
     # inside it is judged. The one the session stands in is the project.
@@ -585,8 +613,8 @@ def target_offence(event, spelled):
     # A spelling no anchor recognises, naming a file inside one, is refused, such
     # as an 8.3 alias of the whole prefix: if it resolves into a checkout that
     # did not recognise it, the matcher judged a string that is not this file.
-    # A target outside every anchor is asked only for what `home_offence` names,
-    # which keeps memory and scratch writes working.
+    # A target outside every anchor is asked only for the build names above and
+    # what `home_offence` names, which keeps memory and scratch writes working.
     if not judged:
         for _, real_root, traits in checkouts:
             if under(resolved, real_root, traits):

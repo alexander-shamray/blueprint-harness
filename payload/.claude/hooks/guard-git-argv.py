@@ -310,6 +310,71 @@ def xdg_git_config(path, cwd=None, whole=False):
     return None
 
 
+# ---- what a build loads from above a checkout --------------------------------
+
+# MSBuild imports the nearest `Directory.Build.*`, `Directory.Solution.*` and `Directory.Packages.props` above a
+# project, the SDK the nearest `global.json`, and NuGet merges every `NuGet.Config` from the drive root down: one
+# planted above a checkout loads at its next build, where none of its denies reach. Folded; both guards read it.
+BUILD_ANCESTOR_FILES = frozenset({
+    "directory.build.props", "directory.build.targets", "directory.build.rsp",
+    "directory.solution.props", "directory.solution.targets", "directory.packages.props",
+    "nuget.config", "global.json",
+})
+
+
+def folded_place(place):
+    """`place` absolute, normalised and folded, as both build-name readers compare it."""
+    return os.path.normcase(os.path.normpath(os.path.abspath(place))).lower()
+
+
+def above_checkout(directories, roots):
+    """The checkout of `roots` one of `directories` sits strictly above, or `None`; a root's own is its denies'."""
+    checkouts = {folded_place(root): root for root in roots if root}
+    for directory in {folded_place(place) for place in directories if place}:
+        for root, spelled in checkouts.items():
+            if root != directory and beneath(root, directory):
+                return spelled
+    return None
+
+
+def build_ancestor(places, roots):
+    """The checkout of `roots` whose build loads one of `places` from a directory above it, or `None`."""
+    return above_checkout([os.path.dirname(folded_place(place)) for place in places if place
+                           and os.path.basename(folded_place(place)) in BUILD_ANCESTOR_FILES], roots)
+
+
+def unknown_landing_offence(word, sources, cwd, command, writer):
+    """The reason to refuse `sources` landing under names not known in a directory above a checkout, or `None`.
+
+    A glob is asked whether it can match a build's name; a brace, `.`, `..` or a word not read can be any name.
+    """
+    path = written_path(word, cwd, command)
+    if path is None or elsewhere(path):
+        return None
+    above = above_checkout((path, os.path.realpath(path)), known_checkouts(cwd))
+    if above is None:
+        return None
+    for source in sources:
+        last = re.split(r"[\\/]", (target_literal(source) or "").rstrip("/\\"))[-1].lower()
+        if last in ("", ".", "..") or "{" in last or any(
+                fnmatch.fnmatchcase(name, last) for name in BUILD_ANCESTOR_FILES):
+            return (
+                f"{writer} would put `{source}` in `{path}`, above the checkout `{above}`, under a name that may be "
+                "one MSBuild, the .NET SDK or NuGet loads from there into its next build, and no deny reaches "
+                "above a checkout's root. Name each file, or hand it to the owner "
+                "(docs/harness-boundaries.md, *The edit-target guard*)."
+            )
+    return None
+
+
+def known_checkouts(cwd):
+    """The roots of the checkouts this session stands in: the event's, the command's, the project's and this guard's."""
+    starts = (EVENT_CWD or os.getcwd(), cwd, os.environ.get("CLAUDE_PROJECT_DIR"),
+              os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    roots = (checkout_of(os.path.abspath(start)) for start in starts if start and not elsewhere(start))
+    return [form for root in roots if root for form in (root, os.path.realpath(root))]
+
+
 # ---- the push allow-list ---------------------------------------------------
 
 # Options a push may carry. Anything else — including a spelling git invented
@@ -3082,6 +3147,13 @@ def destination_offence(word, cwd, command, writer, whole=False, inside=None, re
             "state, which decides what it launches, and a dispatched session writes none of it. The result goes "
             "in this worktree's `artifacts/dispatch/` (docs/harness-boundaries.md, *Headless dispatched sessions*)."
         )
+    above = build_ancestor((path, os.path.realpath(path)), known_checkouts(cwd)) if path is not None else None
+    if above is not None:
+        return (
+            f"{writer} would write `{path}`, a file MSBuild, the .NET SDK or NuGet loads from a directory above "
+            f"the checkout `{above}` into its next build, and no deny reaches above a checkout's root. Hand it to "
+            "the owner (docs/harness-boundaries.md, *The edit-target guard*)."
+        )
     named = protected_target(path, whole) if path is not None else None
     if named is None:
         home = home_target(path, cwd, command, whole, removing) if path is not None else None
@@ -3407,6 +3479,10 @@ def verb_offence(verb, operands, cwd, command, writer):
             return refusal
         names = [None] if sources is None or verb not in TREE_VERBS else (
             landings(word, sources, into, cwd, command))
+        if names == [None] and sources and verb in TREE_VERBS:
+            refusal = unknown_landing_offence(word, sources, cwd, command, writer)
+            if refusal is not None:
+                return refusal
         for name in names:
             refusal = destination_offence(word, cwd, command, writer, verb in TREE_VERBS, name,
                                           verb in ("rm", "unlink"))
