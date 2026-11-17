@@ -148,7 +148,7 @@ def answer(event: dict) -> str | None:
         roots = roots[:1]
     refused = unopenable(roots)
     if refused:
-        return f"The codebase-index MCP server is {refused}"
+        return f"index-mcp-root: {refused}"
     if name[len(MCP):] not in COMMANDS or here is None or served is None or same(here, served):
         return None
     run = command(name[len(MCP):], given if isinstance(given, dict) else {})

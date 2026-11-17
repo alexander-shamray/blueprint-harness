@@ -178,7 +178,7 @@ class WhenTheIndexIsNotOpenable(Checkouts):
 
         text = self.ask("find_refs", {"symbol": "X"})
 
-        self.assertIn(f"refusing to open the index under {self.tree}", text)
+        self.assertIn(f"index-mcp-root: refusing to open the index under {self.tree}", text)
         self.assertNotIn("where it now works", text)
 
     def test_a_header_not_in_wal_mode_refuses_the_call(self):
