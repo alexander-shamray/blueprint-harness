@@ -3935,7 +3935,8 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                   "touch ../../Directory.Packages.props", "mv /tmp/a ../Directory.Solution.props",
                   f"echo x > {self.spelled('..')}/Directory.Solution.targets",
                   "cp /tmp/Directory.Build.props ..", "echo x > '../global.json.'",
-                  "echo x > '../NuGet.Config '", "echo x > ../NuGet.Config:x")
+                  "echo x > '../NuGet.Config '", "echo x > ../NuGet.Config:x",
+                  "echo x >> ../nuget.conf?g", "sed -i s/a/b/ ../NuGet.Conf*")
         for command in writes:
             with self.subTest(command=command):
                 self.assertIn("loads from a directory above", self.assertRefused(command))

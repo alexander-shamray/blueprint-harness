@@ -337,22 +337,27 @@ def above_checkout(directories, roots):
     return None
 
 
-def build_name(place):
-    """The file `place` names, folded, as Windows opens it: a `:` stream and trailing dots and spaces dropped."""
-    return os.path.basename(folded_place(place)).split(":")[0].rstrip(". ")
+def build_named(last):
+    """Whether folded last component `last` can name a build's file, as Windows opens it and bash expands it.
+
+    A `:` stream and trailing dots and spaces are dropped; `[^` is bash's `[!`; a brace or a class is any name.
+    """
+    if any(mark in last for mark in ("{", "[:", "[=", "[.", "`")):
+        return True
+    return any(fnmatch.fnmatchcase(name, form.replace("[^", "[!")) for name in BUILD_ANCESTOR_FILES
+               for form in (last, last.split(":")[0].rstrip(". ")))
 
 
 def build_ancestor(places, roots):
     """The checkout of `roots` whose build loads one of `places` from a directory above it, or `None`."""
     return above_checkout([os.path.dirname(folded_place(place)) for place in places
-                           if place and build_name(place) in BUILD_ANCESTOR_FILES], roots)
+                           if place and build_named(os.path.basename(folded_place(place)))], roots)
 
 
 def unknown_landing_offence(word, sources, cwd, command, writer):
     """The reason to refuse `sources` landing under names not known in a directory above a checkout, or `None`.
 
-    A glob is asked, `[^` read as bash reads it, whether it can match a build's name; a brace, a bracket class
-    `fnmatch` does not read, an expansion, `.`, `..` or a word not read can be any name. Asked as `build_name` reads.
+    Each is asked as `build_named` asks a name; an expansion, `.`, `..` or a word not read can be any name.
     """
     path = written_path(word, cwd, command)
     if path is None or elsewhere(path):
@@ -362,9 +367,7 @@ def unknown_landing_offence(word, sources, cwd, command, writer):
         return None
     for source in sources:
         last = re.split(r"[\\/]", (target_literal(source) or "").rstrip("/\\"))[-1].lower()
-        if last in ("", ".", "..") or any(mark in last for mark in ("{", "[:", "[=", "[.", "$", "`")) or any(
-                fnmatch.fnmatchcase(name, form.replace("[^", "[!")) for name in BUILD_ANCESTOR_FILES
-                for form in (last, last.split(":")[0].rstrip(". "))):
+        if last in ("", ".", "..") or "$" in last or build_named(last):
             return (
                 f"{writer} would put `{source}` in `{path}`, above the checkout `{above}`, under a name that may be "
                 "one MSBuild, the .NET SDK or NuGet loads from there into its next build, and no deny reaches "
