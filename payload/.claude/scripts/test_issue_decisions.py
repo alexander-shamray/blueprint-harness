@@ -189,8 +189,15 @@ class Shapes(unittest.TestCase):
                          f"Intro\n{example}\n## Owner decisions\n\n{line}\n")
         self.assertEqual(ID.append_decision(f"{example}\n## Owner decisions\n\n- a\n", line),
                          f"{example}\n## Owner decisions\n\n- a\n{line}\n")
-        with self.assertRaises(ID.Refusal):
-            ID.append_decision("Intro\n```\n## Owner decisions\n", line)
+        for body in ("Intro\n```\n## Owner decisions\n", "## Owner decisions\n\n- a\n```\nx\n"):
+            with self.subTest(body=body), self.assertRaisesRegex(ID.Refusal, "ends inside a fence"):
+                ID.append_decision(body, line)
+        # An unclosed fence after the section's end leaves the section alone.
+        self.assertEqual(ID.append_decision("## Owner decisions\n\n- a\n\n## Notes\n```\n", line),
+                         f"## Owner decisions\n\n- a\n{line}\n\n## Notes\n```\n")
+        # A backtick run whose info string holds a backtick is inline code, so the heading below it counts.
+        self.assertEqual(ID.append_decision("```js```\n\n## Owner decisions\n\n- a\n", line),
+                         f"```js```\n\n## Owner decisions\n\n- a\n{line}\n")
 
     def test_an_empty_section_gets_its_first_entry(self):
         self.assertEqual(

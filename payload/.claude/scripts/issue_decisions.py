@@ -68,8 +68,8 @@ def entry(day, question, answer):
 
 
 def fenced(lines):
-    """The indexes of the lines a CommonMark fence holds, its opener and closer included, and whether one is open."""
-    inside, fence = set(), ""
+    """The indexes of the lines a CommonMark fence holds, closer included, and where one left open starts, or None."""
+    inside, fence, opened = set(), "", None
     for i, text in enumerate(lines):
         mark = FENCE.match(text)
         if fence:
@@ -78,10 +78,11 @@ def fenced(lines):
             if mark and mark.group(1)[0] == fence[0] and len(mark.group(1)) >= len(fence) \
                     and not text[mark.end():].strip():
                 fence = ""
-        elif mark:
+        # A backtick run whose info string holds a backtick is inline code, not an opener.
+        elif mark and not (mark.group(1)[0] == "`" and "`" in text[mark.end():]):
             inside.add(i)
-            fence = mark.group(1)
-    return inside, bool(fence)
+            fence, opened = mark.group(1), i
+    return inside, opened if fence else None
 
 
 def append_decision(body, line):
@@ -96,10 +97,11 @@ def append_decision(body, line):
     if not body.strip():
         # Nothing to separate the section from, so it opens the body rather than following blank lines.
         return f"{HEADING}\n\n{line}\n"
+    # An entry written after an unclosed fence's opener would be code, and no decision would be read from it.
+    inside = Refusal("the issue body ends inside a fence, so an entry written there would be code")
     if not at:
-        if unclosed:
-            # A section appended after an unclosed fence would be code, and no decision would be read from it.
-            raise Refusal("the issue body ends inside a fence, so a section appended to it would be code")
+        if unclosed is not None:
+            raise inside
         return body.rstrip("\r\n") + f"{eol}\n{eol}\n{HEADING}{eol}\n{eol}\n{line}{eol}\n"
     start = at[0]
     end = next((i for i in range(start + 1, len(lines)) if i not in code and ANY_HEADING.match(lines[i])),
@@ -108,6 +110,8 @@ def append_decision(body, line):
     for i in range(start + 1, end):
         if lines[i].strip():
             last = i
+    if unclosed is not None and last >= unclosed:
+        raise inside
     if last == start:
         lines[start + 1:start + 1] = [eol, line + eol]
     else:
