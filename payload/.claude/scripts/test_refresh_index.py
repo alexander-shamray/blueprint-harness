@@ -4,6 +4,7 @@ The hook suppresses every failure, so its exit status says nothing. The tree
 refreshed is the one the edit landed in, exactly one refresh owns it, or none.
 """
 
+import ast
 import errno
 import importlib.util
 import io
@@ -28,9 +29,15 @@ from test_link_skips import skip_only_without_links
 # Captured at import, before any case patches them, for the canary at the end: any stand-in is not these.
 ORIGINAL_POPEN = subprocess.Popen
 ORIGINAL_RUN = subprocess.run
+ORIGINAL_ENVIRON = os.environ
 
 SCRIPTS = Path(__file__).resolve().parent
 NO_CWD_SEARCH = "NoDefaultCurrentDirectoryInExePath"
+# Every variable a case here sets or pops, for the canary to compare at the end. Only these: another suite's
+# module fixture pops its own, so a whole-environment compare would blame this file for them.
+PATCHED_VARIABLES = ("CBX_NO_SKILL_AUTO_UPDATE", "CLAUDE_PROJECT_DIR", "GIT_DIR", "GIT_WORK_TREE", NO_CWD_SEARCH,
+                     "PATH", "PATHEXT", "PYTHONPATH")
+ORIGINAL_VARIABLES = {name: os.environ.get(name) for name in PATCHED_VARIABLES}
 HOOK = SCRIPTS.parent / "hooks" / "refresh-index.py"
 WRAPPER = SCRIPTS.parent / "hooks" / "index-hook.sh"
 SETTINGS = SCRIPTS.parent / "settings.json"
@@ -2606,8 +2613,41 @@ class WhatWasPatchedIsRestored(unittest.TestCase):
 
         self.assertIs(ORIGINAL_POPEN, real_subprocess.Popen)
         self.assertIs(ORIGINAL_RUN, real_subprocess.run)
-        self.assertNotIsInstance(real_os.environ, dict)
+        # Not assertIs: its message would print every variable, a token among them, into the CI log.
+        self.assertTrue(ORIGINAL_ENVIRON is real_os.environ, "os.environ was replaced and not put back")
+        self.assertEqual(ORIGINAL_VARIABLES, {name: real_os.environ.get(name) for name in PATCHED_VARIABLES})
         self.assertTrue(hasattr(real_sys.stdin, "fileno"))
+
+    def test_every_variable_a_case_patches_is_compared(self):
+        # The comparison above covers only the names it lists, so a case patching a new one would leak unseen.
+        tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+        names = {target.id: node.value.value for node in tree.body if isinstance(node, ast.Assign)
+                 for target in node.targets if isinstance(target, ast.Name)
+                 and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)}
+
+        def spelled(node):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                return node.value
+            if isinstance(node, ast.Name) and node.id in names:
+                return names[node.id]
+            return f"<unreadable at line {node.lineno}>"
+
+        def environ(node):
+            return (isinstance(node, ast.Attribute) and node.attr == "environ"
+                    or isinstance(node, ast.Name) and node.id == "environ")
+
+        patched = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                if node.func.attr == "pop" and environ(node.func.value) and node.args:
+                    patched.add(spelled(node.args[0]))
+                elif node.func.attr == "dict" and node.args and environ(node.args[0]) and len(node.args) > 1:
+                    if isinstance(node.args[1], ast.Dict):
+                        patched.update(spelled(key) for key in node.args[1].keys)
+            elif isinstance(node, ast.Subscript) and isinstance(node.ctx, ast.Store) and environ(node.value):
+                patched.add(spelled(node.slice))
+        self.assertTrue(patched, "the scan found no patched variable, so it is reading nothing")
+        self.assertLessEqual(patched, set(PATCHED_VARIABLES))
 
 
 if __name__ == "__main__":
