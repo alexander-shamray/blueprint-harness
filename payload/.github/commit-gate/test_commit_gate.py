@@ -339,27 +339,36 @@ def command_words(script: str) -> list[str]:
     frames: list[dict] = [{"kind": "code", "closer": "", "word": "", "head": True, "depth": 0, "target": False}]
 
     def end_word(frame: dict) -> None:
-        word, frame["word"], frame["started"] = frame["word"], "", False
+        word, quoted = frame["word"], frame.get("started")
+        frame["word"], frame["started"] = "", False
         if not word:
             return
         if frame["target"]:
             frame["target"] = False
         elif frame["head"]:
-            # How deep the compound commands around the next command run, so a definition inside one is refused.
-            frame["compound"] = frame.get("compound", 0) + (word in COMPOUNDS) - (word in CLOSERS)
-            if re.match(r"[A-Za-z_]\w*=", word) or word in OPENERS:
+            # A command follows any `&&`, `||` or `|` before it. A quoted or escaped word is no reserved word, so
+            # only a bare one moves how deep the compound commands around the next command run, and only a bare `}`
+            # back at a definition's own depth closes its body.
+            frame["pending"] = False
+            reserved = not quoted
+            if reserved:
+                frame["compound"] = frame.get("compound", 0) + (word in COMPOUNDS) - (word in CLOSERS)
+                if word == "}" and frame.get("body") == frame["compound"]:
+                    frame["closed"] = True
+                    del frame["body"]
+            if re.match(r"[A-Za-z_]\w*=", word) or (reserved and word in OPENERS):
                 return
             frame["head"] = False
-            if word not in CLOSERS and word not in HEADERS:
+            if not reserved or (word not in CLOSERS and word not in HEADERS):
                 words.append(word)
 
     def defines_at_top(at: int) -> bool:
-        """Whether the name ending at `at` starts a line of the script itself, run by its own shell after a plain
-        line: not in a substitution, a subshell, a compound or a list continued from the line before."""
+        """Whether the name ending at `at` starts a line of the script itself, run by its own shell: not in a
+        substitution, a subshell or a compound, and no `&&`, `||` or `|` still waiting for its command."""
         start = at - len(frames[0]["word"])
         line = script.rfind("\n", 0, start) + 1
         return (len(frames) == 1 and not frames[0]["depth"] and not frames[0].get("compound")
-                and not script[line:start].strip() and not script[:line].rstrip().endswith(("&", "|", "\\")))
+                and not frames[0].get("pending") and not script[line:start].strip())
 
     def skip_braces(at: int) -> int:
         depth, start = 0, at
@@ -435,6 +444,13 @@ def command_words(script: str) -> list[str]:
             end_word(frame)
         elif char in "\n;&|":
             end_word(frame)
+            # A definition sent to the background or into a pipe runs in a subshell, which its callers never see.
+            if frame.pop("closed", False) and char in "&|":
+                raise ValueError("a function defined in a subshell in a run script")
+            if char in "&|":
+                frame["pending"] = True
+            elif char == ";":
+                frame["pending"] = False
             frame["head"] = True
         elif char in "<>":
             if ahead == "(":
@@ -453,10 +469,12 @@ def command_words(script: str) -> list[str]:
                 and not frame.get("started"):
             # A bare name straight before `()` defines a function; a quoted or spaced one reads as a call. Only
             # one on a line of its own at the top is known to reach the calls after it, so any other is refused.
-            if not defines_at_top(at):
+            # Its body must be a `{` group, which runs in the caller's shell; the depth it opens at marks its close.
+            body = len(script[at + 2:]) - len(script[at + 2:].lstrip(" \t"))
+            if not defines_at_top(at) or script[at + 2 + body:at + 3 + body] != "{":
                 raise ValueError("a function defined inside a command, compound or list in a run script")
             words.append(frame["word"] + "()")
-            frame["word"], at = "", at + 2
+            frame["word"], frame["body"], at = "", frame.get("compound", 0), at + 2
             continue
         elif char == "(":
             end_word(frame)
@@ -812,8 +830,15 @@ class TheReader(unittest.TestCase):
                          "        run: x=$(npm() { :; }); npm test",
                          "        run: false && npm() { :; }; npm test",
                          "        run: if false; then npm() { :; }; fi; npm test",
-                         "        run: |\n          if false; then\n            npm() { :; }\n          fi\n          npm test",
-                         "        run: |\n          false &&\n          npm() { :; }\n          npm test"):
+                         "        run: |\n          if false; then\n            npm() { :; }\n          fi\n"
+                         "          npm test",
+                         "        run: |\n          false &&\n          npm() { :; }\n          npm test",
+                         "        run: |\n          npm() { :; } &\n          npm test",
+                         "        run: |\n          npm() { :; } | cat\n          npm test",
+                         "        run: |\n          false && # why\n          npm() { :; }\n          npm test",
+                         "        run: |\n          if false; then\n            \"fi\"\n"
+                         "            npm() { :; }\n          fi\n          npm test",
+                         "        run: |\n          npm() ( : )\n          npm test"):
             with self.subTest(spelling=spelling), self.assertRaises(ValueError):
                 head_code_before_the_verdicts(workflow(spelling, JUDGES, REPORTS))
 
