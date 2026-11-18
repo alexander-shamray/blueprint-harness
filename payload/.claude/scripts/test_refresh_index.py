@@ -2662,6 +2662,8 @@ class WhatWasPatchedIsRestored(unittest.TestCase):
             elif (isinstance(node, ast.Subscript) and isinstance(node.ctx, (ast.Store, ast.Del))
                   and environ(node.value)):
                 patched.add(spelled(node.slice, node.lineno))
+            elif isinstance(node, ast.AugAssign) and environ(node.target):
+                patched.add(spelled(None, node.lineno))
         self.assertTrue(patched, "the scan found no patched variable, so it is reading nothing")
         self.assertLessEqual(patched, set(PATCHED_VARIABLES))
 
