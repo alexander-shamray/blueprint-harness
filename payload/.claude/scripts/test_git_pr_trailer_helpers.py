@@ -161,8 +161,9 @@ class TrailerHelper(Fixture):
 
     def test_a_remote_with_the_same_trees_under_another_message_or_author_refuses(self):
         # Equal trees are not equal commits: the lease would replace origin's message or author with the local one.
-        for change in (("--message", "docs: two, reworded"), ("--author", "Other <other@example.com>")):
-            with self.subTest(change=change[0]):
+        for change in (("--message", "docs: two, reworded"), ("--author", "Other <other@example.com>"),
+                       ("--message", "docs: two\n\nPR: #99")):
+            with self.subTest(change=change):
                 self.git("checkout", "-q", "main")
                 self.git("branch", "-q", "-D", "feat/x", check=False)
                 self.git("push", "-q", "origin", "--delete", "feat/x", check=False)
