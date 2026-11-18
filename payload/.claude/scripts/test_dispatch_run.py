@@ -226,6 +226,13 @@ class PathWhichTests(InRoot):
             with self.assertRaisesRegex(db.Refusal, "^no Git bash found beside the git on PATH$"):
                 db.git_bash()
 
+    def test_no_git_on_path_is_refused_on_windows_before_any_walk_for_bash(self):
+        # With no git, `_bash_beside("")` walked up from the working directory, which the checkout controls.
+        with mock.patch.object(db.os, "name", "nt"), mock.patch.object(db, "path_which", return_value=None), \
+                mock.patch.object(db, "_bash_beside", side_effect=AssertionError("walked")):
+            with self.assertRaisesRegex(db.Refusal, "^no Git bash found beside the git on PATH$"):
+                db.git_bash()
+
     def test_a_path_entry_that_is_the_cwd_is_skipped(self):
         name = "claude.cmd" if os.name == "nt" else "claude"
         (self.root / name).write_text("x", encoding="ascii")

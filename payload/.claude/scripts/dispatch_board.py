@@ -31,7 +31,9 @@ TASK_AT = {"In progress": 2, "Remaining": 3, "Tracking": 3, "Paused": 1}
 NUMBER_AT = {"In progress": 1, "Remaining": 2, "Tracking": 2, "Paused": 0}
 WAVE, GROUP, TASK, LABELS, DEPENDS, MODEL, CONFLICTS = 0, 1, 3, 4, 5, 6, 7
 MODELS = {"Opus": "opus", "Sonnet": "sonnet"}
-EXTENSIONS = "cs|csproj|py|sh|md|json|ya?ml|sql|ps1|props|slnx|toml"
+# Every target's file types, frontend's and its native shells' among them: a path this misses narrows a claim.
+EXTENSIONS = ("cs|csproj|py|sh|md|json|ya?ml|sql|ps1|props|slnx|toml|tsx?|[mc]?js|html|s?css|xml|gradle|kts?|java|"
+              "swift|plist")
 BARE_PATH = re.compile(rf"(?<![\w./\\-])([\w.\\/-]+\.(?:{EXTENSIONS}))(?!\w)", re.IGNORECASE)
 KNOWN_FILE = re.compile(rf"\.(?:{EXTENSIONS})$", re.IGNORECASE)
 # A code span may cross a line break inside a paragraph, but no block boundary: a fence's delimiter line, a blank
@@ -296,8 +298,10 @@ def extract_paths(text):
     for quoted in (span for block in blocks for span in re.findall(r"`([^`]+)`", block)):
         for piece in quoted.split():
             path = _normalise(piece)
-            # A slash command or a dotted identifier is not a file: it would make an empty claim look known.
-            if KNOWN_FILE.search(path) or _slash_path(path):
+            # A slash command or a dotted identifier is not a file: it would make an empty claim look known. A trailing
+            # slash names a directory, top-level ones included, which `_normalise` has stripped.
+            directory = _normalise(piece + "x").endswith("/x")
+            if KNOWN_FILE.search(path) or _slash_path(path + "/" if directory else path):
                 found.add(path)
     found.update(_normalise(m) for m in BARE_PATH.findall(text))
     found.discard("")
@@ -350,9 +354,10 @@ def _touch(a, b):
     if "/" in a and "/" in b:
         # Either may be partial, named from below the root, so one matches the other at any run of whole segments.
         return f"/{b}/" in f"/{a}/" or f"/{a}/" in f"/{b}/"
+    # A slash-free name is a file or a directory, so it touches a path holding it as any whole segment.
     if "/" in b:
-        return b.endswith("/" + a)
-    return "/" in a and a.endswith("/" + b)
+        return a in b.split("/")
+    return "/" in a and b in a.split("/")
 
 
 def overlaps(a, a_id, a_issues, b, b_id, b_issues):
@@ -1387,7 +1392,13 @@ def path_which(name):
 
 
 def git_bash():
-    return _no_relay(_bash_beside(path_which("git") or "") if os.name == "nt" else path_which("bash"))
+    if os.name != "nt":
+        return _no_relay(path_which("bash"))
+    git = path_which("git")
+    # `_bash_beside("")` would walk up from the working directory, which the checkout controls.
+    if git is None:
+        raise Refusal("no Git bash found beside the git on PATH")
+    return _no_relay(_bash_beside(git))
 
 
 @functools.cache
