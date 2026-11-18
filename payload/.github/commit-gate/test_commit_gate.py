@@ -279,23 +279,26 @@ USES = re.compile(r"^\s*(?:- )?uses:(.*)$", re.M)
 SAFE_ACTIONS = re.compile(r"actions/(?:checkout|setup-python)@[\w.-]+")
 SHELL = re.compile(r"^\s*(?:- )?shell: *(.*)$", re.M)
 SAFE_SHELLS = frozenset({"bash", "sh"})
-RUN = re.compile(r"^( *)(- )?run:(.*)$", re.M)
+# The step's own key, at the column steps_of splits on, so a `run:` inside an env or with block is not it.
+RUN = re.compile(r"^(?:      - |        )run:(.*)$", re.M)
+# A write to either file reaches every later step's environment or PATH, the head's code at one remove.
+RUNNER_FILES = re.compile(r"GITHUB_(?:ENV|PATH)\b")
 
 
 def run_script(step: str) -> str | None:
-    """The step's `run`, a block scalar's lines dedented or the one line as written."""
+    """The step's own `run`: a block scalar's lines dedented, or a plain one folded as YAML folds it."""
     found = RUN.search(step)
     if not found:
         return None
-    value = found.group(3).strip()
-    if not value or value[0] not in "|>":
-        return value + "\n"
-    indent = len(found.group(1)) + len(found.group(2) or "")
+    value = found.group(1).strip()
     lines = []
     for line in step[found.end() + 1:].split("\n"):
-        if line.strip() and len(line) - len(line.lstrip(" ")) <= indent:
+        if line.strip() and len(line) - len(line.lstrip(" ")) <= 8:
             break
         lines.append(line)
+    if not value or value[0] not in "|>":
+        # A plain scalar's deeper lines fold into it, one space each.
+        return " ".join([value, *(line.strip() for line in lines if line.strip())]) + "\n"
     width = min((len(line) - len(line.lstrip(" ")) for line in lines if line.strip()), default=0)
     return "\n".join(line[width:] for line in lines) + "\n"
 
@@ -443,7 +446,7 @@ def runs_head_code(step: str) -> bool:
     shell, uses = SHELL.search(step), USES.search(step)
     if STEP_HEAD_CODE.search(step) or (shell and shell.group(1).strip() not in SAFE_SHELLS):
         return True
-    if uses and not SAFE_ACTIONS.fullmatch(uses.group(1).strip()):
+    if uses and not SAFE_ACTIONS.fullmatch(uses.group(1).strip()) or RUNNER_FILES.search(step):
         return True
     script = run_script(step)
     if script is None:
@@ -629,7 +632,11 @@ class TheReader(unittest.TestCase):
                          "        shell: pwsh\n        run: true",
                          "        uses: './.github/actions/suite'",
                          "        uses: actions/github-script@v7\n        with:\n          script: require('./x.js')()",
-                         '        run: echo ""# ; npm test'):
+                         '        run: echo ""# ; npm test',
+                         "        run: git log -1 &&\n          npm test",
+                         '        run: cp .github/gate/env "$GITHUB_ENV"',
+                         '        run: echo "$GITHUB_WORKSPACE/bin" >> "$GITHUB_PATH"',
+                         "        env:\n          NOTE: |\n            run: true\n        run: npm test"):
             with self.subTest(spelling=spelling):
                 self.assertEqual(["step 1"], head_code_before_the_verdicts(workflow(JUDGES, spelling, REPORTS)))
 
