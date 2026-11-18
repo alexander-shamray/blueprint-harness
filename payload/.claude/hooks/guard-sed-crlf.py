@@ -12,6 +12,7 @@ import re
 import shlex
 import subprocess
 import sys
+import traceback
 import types
 from pathlib import Path
 
@@ -740,7 +741,14 @@ def main():
         print("guard-sed-crlf: hook event is not an object; not judging", file=sys.stderr)
         return 0
 
-    reason = offence(event)
+    # A crash here would be empty stdout, which PreToolUse reads as admitted: the argv guards' fail-open, refused as
+    # they refuse it (`docs/harness-boundaries.md`, *The sed line-ending guard*).
+    try:
+        reason = offence(event)
+    except Exception:  # noqa: BLE001
+        traceback.print_exc(file=sys.stderr)
+        reason = ("guard-sed-crlf: this command crashed the sed line-ending guard, so nothing about it is "
+                  "established; refusing rather than admitting what nothing judged. The traceback is on stderr.")
     if reason is None:
         return 0
     return deny(reason)
