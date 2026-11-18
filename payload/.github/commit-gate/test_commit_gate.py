@@ -333,10 +333,11 @@ def command_words(script: str) -> list[str]:
     """The first word of every command in a shell script, `$(...)` and backticks included.
 
     Quotes and escapes are followed, and what it cannot place, a heredoc, an unclosed quote, a backtick nested in
-    another or a function defined anywhere but on a line of its own at the top, it refuses. A function's definition
+    another or a function defined anywhere but at the start of a line at the top, it refuses. A function's definition
     is listed as its name and `()`, where it falls in the script."""
     words: list[str] = []
-    frames: list[dict] = [{"kind": "code", "closer": "", "word": "", "head": True, "depth": 0, "target": False}]
+    frames: list[dict] = [{"kind": "code", "closer": "", "word": "", "head": True, "depth": 0, "target": False,
+                            "prefixed": False}]
 
     def end_word(frame: dict) -> None:
         word, quoted = frame["word"], frame.get("started")
@@ -345,18 +346,22 @@ def command_words(script: str) -> list[str]:
             return
         if frame["target"]:
             frame["target"] = False
+            frame["prefixed"] = frame["prefixed"] or frame["head"]
         elif frame["head"]:
-            # A command follows any `&&`, `||` or `|` before it. A quoted or escaped word is no reserved word, so
-            # only a bare one moves how deep the compound commands around the next command run, and only a bare `}`
-            # back at a definition's own depth closes its body.
+            # A command follows any `&&`, `||` or `|` before it. A quoted or escaped word, or one after an assignment
+            # or a redirection, is no reserved word, so only a bare first word moves how deep the compound commands
+            # around the next command run, and only a bare `}` back at a definition's own depth closes its body.
             frame["pending"] = False
-            reserved = not quoted
+            reserved = not quoted and not frame["prefixed"]
             if reserved:
                 frame["compound"] = frame.get("compound", 0) + (word in COMPOUNDS) - (word in CLOSERS)
                 if word == "}" and frame.get("body") == frame["compound"]:
                     frame["closed"] = True
                     del frame["body"]
-            if re.match(r"[A-Za-z_]\w*=", word) or (reserved and word in OPENERS):
+            if re.match(r"[A-Za-z_]\w*=", word):
+                frame["prefixed"] = True
+                return
+            if reserved and word in OPENERS:
                 return
             frame["head"] = False
             if not reserved or (word not in CLOSERS and word not in HEADERS):
@@ -389,8 +394,10 @@ def command_words(script: str) -> list[str]:
         if char == "\\":
             # An escaped character quotes the word, as a quote would: bash takes no quoted word for a name.
             word["started"] = True
-            if ahead == "`" and any(f["kind"] == "code" and f["closer"] == "`" for f in frames):
-                raise ValueError("a backtick nested in another in a run script")
+            # Inside backticks the shell strips a backslash before `\``, `\\` or `$` ahead of parsing, so any there
+            # is refused.
+            if any(f["kind"] == "code" and f["closer"] == "`" for f in frames):
+                raise ValueError("a backslash inside backticks in a run script")
             if ahead != "\n":
                 word["word"] += ahead
             elif frame["kind"] == "code":
@@ -406,7 +413,8 @@ def command_words(script: str) -> list[str]:
             if script[at + 2:at + 3] == "(":
                 raise ValueError("arithmetic $(( in a run script")
             word["word"] += "$"
-            frames.append({"kind": "code", "closer": ")", "word": "", "head": True, "depth": 0, "target": False})
+            frames.append({"kind": "code", "closer": ")", "word": "", "head": True, "depth": 0, "target": False,
+                            "prefixed": False})
             at += 2
             continue
         if char == "`":
@@ -415,7 +423,8 @@ def command_words(script: str) -> list[str]:
                 frames.pop()
             else:
                 word["word"] += "$"
-                frames.append({"kind": "code", "closer": "`", "word": "", "head": True, "depth": 0, "target": False})
+                frames.append({"kind": "code", "closer": "`", "word": "", "head": True, "depth": 0, "target": False,
+                            "prefixed": False})
             at += 1
             continue
         if frame["kind"] == "quote":
@@ -444,14 +453,15 @@ def command_words(script: str) -> list[str]:
             end_word(frame)
         elif char in "\n;&|":
             end_word(frame)
-            # A definition sent to the background or into a pipe runs in a subshell, which its callers never see.
+            # A definition sent to the background or into a pipe runs in a subshell, which its callers never see;
+            # one in a list is refused with them.
             if frame.pop("closed", False) and char in "&|":
-                raise ValueError("a function defined in a subshell in a run script")
+                raise ValueError("a function definition followed by &, | or a list in a run script")
             if char in "&|":
                 frame["pending"] = True
             elif char == ";":
                 frame["pending"] = False
-            frame["head"] = True
+            frame["head"], frame["prefixed"] = True, False
         elif char in "<>":
             if ahead == "(":
                 raise ValueError("a process substitution in a run script")
@@ -468,7 +478,7 @@ def command_words(script: str) -> list[str]:
         elif char == "(" and ahead == ")" and frame["head"] and re.fullmatch(r"[A-Za-z_][\w-]*", frame["word"]) \
                 and not frame.get("started"):
             # A bare name straight before `()` defines a function; a quoted or spaced one reads as a call. Only
-            # one on a line of its own at the top is known to reach the calls after it, so any other is refused.
+            # one starting a line at the top is known to reach the calls after it, so any other is refused.
             # Its body must be a `{` group, which runs in the caller's shell; the depth it opens at marks its close.
             body = len(script[at + 2:]) - len(script[at + 2:].lstrip(" \t"))
             if not defines_at_top(at) or script[at + 2 + body:at + 3 + body] != "{":
@@ -479,12 +489,12 @@ def command_words(script: str) -> list[str]:
         elif char == "(":
             end_word(frame)
             frame["depth"] += 1
-            frame["head"] = True
+            frame["head"], frame["prefixed"] = True, False
         elif char == ")":
             end_word(frame)
             if frame["depth"]:
                 frame["depth"] -= 1
-                frame["head"] = True
+                frame["head"], frame["prefixed"] = True, False
             elif frame["closer"] == ")":
                 frames.pop()
             else:
@@ -838,7 +848,12 @@ class TheReader(unittest.TestCase):
                          "        run: |\n          false && # why\n          npm() { :; }\n          npm test",
                          "        run: |\n          if false; then\n            \"fi\"\n"
                          "            npm() { :; }\n          fi\n          npm test",
-                         "        run: |\n          npm() ( : )\n          npm test"):
+                         "        run: |\n          npm() ( : )\n          npm test",
+                         "        run: |\n          if false; then\n            x=1 fi\n            npm() { :; }\n"
+                         "          fi\n          npm test",
+                         "        run: |\n          if false; then\n            >/dev/null fi\n"
+                         "            npm() { :; }\n          fi\n          npm test",
+                         "        run: echo `echo \\\\'; npm test; echo \\\\'`"):
             with self.subTest(spelling=spelling), self.assertRaises(ValueError):
                 head_code_before_the_verdicts(workflow(spelling, JUDGES, REPORTS))
 
