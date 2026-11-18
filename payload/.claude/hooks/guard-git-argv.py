@@ -243,9 +243,12 @@ HOME_FILES = frozenset({
     ".bash_login", ".bash_logout", ".bash_profile", ".bashrc", ".gitconfig",
     ".npmrc", ".profile", ".zlogin", ".zprofile", ".zshenv", ".zshrc",
 })
-# Deeper files that run as `.gitconfig` does: git reads its XDG config beside the home one, so a
-# `core.fsmonitor` or `core.sshCommand` there runs at the next git call.
-HOME_NESTED_FILES = frozenset({(".config", "git", "config")})
+# Deeper files that run as `.gitconfig` and `.npmrc` do: git reads its XDG config beside the home one,
+# so a `core.fsmonitor` or `core.sshCommand` there runs at the next git call; and npm reads its global
+# config from its prefix, which on Windows is `%APPDATA%\npm`, below the home and the session's to write.
+HOME_NESTED_FILES = frozenset({(".config", "git", "config"), ("appdata", "roaming", "npm", "etc", "npmrc")})
+# npm reads its user config from this variable in place of `~/.npmrc`, in either spelling.
+NPM_USERCONFIG_VARIABLES = ("NPM_CONFIG_USERCONFIG", "npm_config_userconfig")
 # Beside `~/.claude` rather than in it: Claude Code's user state, whose MCP servers
 # and project grants every later session starts under.
 HOME_CONTROL_FILES = frozenset({".claude.json"})
@@ -280,36 +283,52 @@ def home_place(parts):
     return None
 
 
-def xdg_git_config(path, cwd=None, whole=False):
-    """`$XDG_CONFIG_HOME/git/config` when `path` names it, or `None`; git reads it for `~/.config`'s.
+def moved_file(value, tail, path, cwd=None, whole=False):
+    """Whether `path` names `value` joined with `tail`, a file an environment variable moved.
 
     A relative value is from `cwd`. `whole` counts the directories holding it, short of the first
     that also holds the home and of the filesystem's root, as a move, a copy or a link puts them whole.
     """
-    value = os.environ.get("XDG_CONFIG_HOME")
-    if not value:
-        return None
     if os.name == "nt":
         value = DRIVE_SPELLING.sub(lambda match: match.group(1) + ":" + (
             os.sep if match.end() == len(value) else ""), value)
     if not (os.path.isabs(value) or value.startswith(("/", "\\"))):
         value = os.path.join(cwd or os.getcwd(), value)
-    config = os.path.normpath(os.path.abspath(value))
-    named = [os.path.join(config, "git", "config")]
+    target = os.path.normpath(os.path.join(os.path.abspath(value), *tail))
+    named = [target]
     if whole:
-        named.append(os.path.join(config, "git"))
         homes = [os.path.abspath(home)
                  for home in (os.environ.get("HOME"), os.path.expanduser("~")) if home]
-        place = config
+        place = os.path.dirname(target)
         while os.path.dirname(place) != place and not any(beneath(home, place) for home in homes):
             named.append(place)
             place = os.path.dirname(place)
     names = {os.path.normcase(form).lower()
              for place in named for form in (place, os.path.realpath(place))}
-    for place in (os.path.abspath(path), os.path.realpath(path)):
-        if os.path.normcase(os.path.normpath(place)).lower() in names:
-            return "$XDG_CONFIG_HOME/git/config"
+    return any(os.path.normcase(os.path.normpath(place)).lower() in names
+               for place in (os.path.abspath(path), os.path.realpath(path)))
+
+
+def xdg_git_config(path, cwd=None, whole=False):
+    """`$XDG_CONFIG_HOME/git/config` when `path` names it, or `None`; git reads it for `~/.config`'s."""
+    value = os.environ.get("XDG_CONFIG_HOME")
+    if value and moved_file(value, ("git", "config"), path, cwd, whole):
+        return "$XDG_CONFIG_HOME/git/config"
     return None
+
+
+def npm_userconfig(path, cwd=None, whole=False):
+    """`$NPM_CONFIG_USERCONFIG` when `path` names it, or `None`; npm reads it for `~/.npmrc`."""
+    for name in NPM_USERCONFIG_VARIABLES:
+        value = os.environ.get(name)
+        if value and moved_file(value, (), path, cwd, whole):
+            return f"${name}"
+    return None
+
+
+def moved_config(path, cwd=None, whole=False):
+    """The variable naming the git or npm config `path` is where the environment moved it, or `None`."""
+    return xdg_git_config(path, cwd, whole) or npm_userconfig(path, cwd, whole)
 
 
 # ---- what a build loads from above a checkout --------------------------------
@@ -2897,6 +2916,7 @@ WRITING_REDIRECTION = re.compile(
 # Variables whose value this process shares with the session.
 EXPANDABLE_VARIABLES = frozenset({
     "CLAUDE_PROJECT_DIR", "HOME", "TEMP", "TMP", "TMPDIR", "XDG_CONFIG_HOME",
+    *NPM_USERCONFIG_VARIABLES,
 })
 VARIABLE_REFERENCE = re.compile(
     r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))")
@@ -3140,7 +3160,7 @@ def home_target(path, cwd, command, whole=False, removing=False):
                     or (whole and len(parts) == 1))) or (whole and any(
                         tuple(parts) == nested[:len(parts)] for nested in HOME_NESTED_FILES)):
                 return "~/" + "/".join(parts)
-    return xdg_git_config(path, cwd, whole)
+    return moved_config(path, cwd, whole)
 
 
 def destination_offence(word, cwd, command, writer, whole=False, inside=None, removing=False):

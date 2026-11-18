@@ -721,6 +721,26 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
         self.assertIn("what runs at login", self.assertRefused(
             os.path.join(moved, "git", "config"), cwd=self.outside, env={"XDG_CONFIG_HOME": "xdg"}))
 
+    def test_npm_reads_its_user_config_where_the_variable_moves_it(self):
+        # npm reads `$NPM_CONFIG_USERCONFIG`, in either spelling, in place of `~/.npmrc`.
+        moved = os.path.join(self.outside, "npm", "userrc")
+        for name in ("NPM_CONFIG_USERCONFIG", "npm_config_userconfig"):
+            env = {"NPM_CONFIG_USERCONFIG": "", "npm_config_userconfig": "", name: moved}
+            with self.subTest(variable=name):
+                reason = self.assertRefused(moved, env=env)
+                self.assertIn("what runs at login", reason)
+                self.assertIn(f"${name}", reason)
+                self.assertAdmitted(os.path.join(self.outside, "npm", "other"), env=env)
+        self.assertAdmitted(moved, env={"NPM_CONFIG_USERCONFIG": "", "npm_config_userconfig": ""})
+
+    def test_npms_windows_global_config_below_the_home_is_refused(self):
+        # npm's default prefix on Windows is `%APPDATA%\npm`, so its global config sits below the home.
+        target = os.path.join(self.HOME, "AppData", "Roaming", "npm", "etc", "npmrc")
+        if os.name == "nt":
+            self.assertIn("what runs at login", self.assertRefused(target))
+        self.assertIn("what runs at login", self.assertRefused(target.lower()))
+        self.assertAdmitted(os.path.join(self.HOME, "appdata", "roaming", "npm", "etc", "other"))
+
     def test_a_link_into_the_keys_is_held(self):
         for linker in linkers():
             with self.subTest(link=linker):
