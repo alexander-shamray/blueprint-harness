@@ -70,6 +70,8 @@ BODY = "\x00"
 SUBSTITUTION = "\x01"
 # Numbered across every line judged, so a placeholder carried into a shell's line names no substitution of that line.
 LIFTED = itertools.count(1)
+# How deep substitutions nest before the rest is read as before they were lifted, which bounds the recursion.
+LIFT_DEPTH = 16
 # Bash's long options, which it reads before any cluster with one dash or two, and those that take the next word as
 # their value; a short option's value is the next word for each `o` and `O` in its cluster.
 SHELL_LONG = {"debug", "debugger", "dump-po-strings", "dump-strings", "help", "login", "noediting", "noprofile", "norc",
@@ -254,10 +256,10 @@ class Segment:
         self.lift = ()
 
 
-def segments(command):
+def segments(command, depth=0):
     """The command's simple commands as `Segment`s, or `None` where `shlex` cannot read it."""
     lifted = {}
-    text, bodies = prepared(command, lifted)
+    text, bodies = prepared(command, lifted if depth < LIFT_DEPTH else None)
     lexer = shlex.shlex(text, posix=True, punctuation_chars=PUNCTUATION)
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
@@ -274,7 +276,7 @@ def segments(command):
     def lift(token):
         # A substitution runs before the command whose word holds it, in a subshell of its own.
         for number in re.findall(rf"\${SUBSTITUTION}(\d+)\$", token):
-            inner = segments(lifted.get(int(number), "")) or []
+            inner = segments(lifted.get(int(number), ""), depth + 1) or []
             for segment in inner:
                 segment.scope = scope + ((SUBSTITUTION, number),) + segment.scope
                 segment.lift = (number,) + segment.lift
@@ -339,7 +341,8 @@ def command_word(words):
     index = 0
     while index < len(words):
         word = words[index]
-        if ASSIGNMENT.match(word) or word in PREFIXES:
+        # A lifted substitution may expand to nothing or to assignments, as in `env $(cat .env) sed …`.
+        if ASSIGNMENT.match(word) or word in PREFIXES or re.fullmatch(rf"\${SUBSTITUTION}\d*\$", word):
             index += 1
         elif word in WRAPPERS:
             index += 1

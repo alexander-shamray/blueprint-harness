@@ -146,6 +146,12 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             "sed -i s/one/`date`/ crlf.txt",
             "sed -i s/one/$(echo $(date))/ crlf.txt",
             "sed -i s/one/$(echo ')')/ crlf.txt",
+            # Review R1 of round 2: a placeholder where the command word stands may expand to nothing.
+            "env $(cat .env) sed -i 's/one/uno/' crlf.txt",
+            "$(true) sed -i 's/one/uno/' crlf.txt",
+            "$(true) bash -c \"sed -i 's/one/uno/' crlf.txt\"",
+            # Review R2 of round 2: nesting deep enough to exhaust the recursion is read as before, not raised.
+            "$(" * 500 + "true" + ")" * 500 + "; sed -i 's/one/uno/' crlf.txt",
         ):
             with self.subTest(command=command):
                 self.assertRefused(command, "crlf.txt")
