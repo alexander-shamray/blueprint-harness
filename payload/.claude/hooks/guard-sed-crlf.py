@@ -66,8 +66,9 @@ SHELLS = {"bash", "sh", "bash.exe", "sh.exe"}
 # Stands for a heredoc body in the line `prepared` returns: a NUL, which no bash command line can carry.
 BODY = "\x00"
 # Stands for a command substitution inside the word `prepared` leaves around it, as `$<SUBSTITUTION><n>$`: the `$`
-# keeps an operand holding one unplaceable, and the byte, like BODY's, is one no command line carries.
+# keeps an operand holding one unplaceable. A line can carry the byte itself, so a number is read to nine digits.
 SUBSTITUTION = "\x01"
+PLACEHOLDER = re.compile(rf"\${SUBSTITUTION}(\d{{0,9}})\$")
 # Numbered across every line judged, so a placeholder carried into a shell's line names no substitution of that line.
 LIFTED = itertools.count(1)
 # How deep substitutions nest before the rest is read as before they were lifted, which bounds the recursion.
@@ -124,6 +125,12 @@ def closing(command, index):
         if quote is None and command.startswith("<<", close):
             # A heredoc's body is read by line, which this scan does not do, so the line is left to `prepared`.
             return None
+        if quote is None and character == "#" and command[close - 1] in " \t\n;&|()":
+            # A comment, as bash reads one inside a substitution: a quote or a paren in it is text.
+            close = command.find("\n", close)
+            if close < 0:
+                return None
+            continue
         if quote == "'":
             quote = None if character == "'" else quote
         elif character == "\\":
@@ -275,8 +282,8 @@ def segments(command, depth=0):
 
     def lift(token):
         # A substitution runs before the command whose word holds it, in a subshell of its own.
-        for number in re.findall(rf"\${SUBSTITUTION}(\d+)\$", token):
-            inner = segments(lifted.get(int(number), ""), depth + 1) or []
+        for number in PLACEHOLDER.findall(token):
+            inner = segments(lifted.get(int(number or 0), ""), depth + 1) or []
             for segment in inner:
                 segment.scope = scope + ((SUBSTITUTION, number),) + segment.scope
                 segment.lift = (number,) + segment.lift
@@ -342,7 +349,7 @@ def command_word(words):
     while index < len(words):
         word = words[index]
         # A lifted substitution may expand to nothing or to assignments, as in `env $(cat .env) sed …`.
-        if ASSIGNMENT.match(word) or word in PREFIXES or re.fullmatch(rf"\${SUBSTITUTION}\d*\$", word):
+        if ASSIGNMENT.match(word) or word in PREFIXES or PLACEHOLDER.fullmatch(word):
             index += 1
         elif word in WRAPPERS:
             index += 1
@@ -720,7 +727,8 @@ def judge(command, cwd, git, checked, depth):
         start = command_word(words)
         if start >= len(words):
             continue
-        name = words[start]
+        # A substitution glued before the name may print nothing, as `$(true)sed` runs sed.
+        name = re.sub(rf"^(?:{PLACEHOLDER.pattern})+", "", words[start])
         arguments = words[start + 1:]
         if name in ("cd", "pushd", "popd"):
             # A pipeline stage's `cd` moves nothing after it. Only a plain `cd <dir>` or `pushd <dir>`, and a bare

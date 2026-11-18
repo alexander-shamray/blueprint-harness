@@ -2716,10 +2716,11 @@ what line endings that file holds. It reads the command's lines as bash
 does, continuations joined and comments and heredoc bodies dropped, splits
 them into simple commands with `shlex`, judges an unquoted `$(…)` or
 backtick substitution's command on its own, in a subshell, before the
-command whose word holds it, and leaves that word whole (one inside
-arithmetic, one holding `<<`, one it cannot close, or one nested past
-16 levels is read as a subshell that ends the word), follows a plain
-`cd <dir>` within its subshell, finds `sed` behind the prefix words,
+command whose word holds it, and leaves that word whole (a `$(…)` inside
+arithmetic, holding `<<`, unclosed, or nested past 16 levels is read as
+a subshell that ends the word, and such a backtick as part of its word),
+follows a plain `cd <dir>` within its subshell, finds `sed` behind the
+prefix words,
 past the options of `command`, `exec`, `time`, `builtin` and `nohup`,
 and behind the `env`, `nice`, `timeout` and `stdbuf` wrappers, judges
 what a shell runs — its `-c` line,
