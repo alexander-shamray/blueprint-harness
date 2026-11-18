@@ -2038,6 +2038,16 @@ class TheGitArgvGuard(unittest.TestCase):
         self.assertRefused(
             'git status $"a\\"\'x" ; git $\'push\' origin +HEAD:main')
 
+        # Every `$"…"` is refused as a translated string whatever its span,
+        # so the verdicts above hold under a plain `find` too; the spans are
+        # what only the escape-aware closer gets right.
+        guard = self.guard_module()
+        self.assertEqual(
+            [(2, 8, False), (15, 22, True)],
+            guard.dollar_quotes(': $"\\"\'" ; git $\'push\' origin +HEAD:main'))
+        self.assertEqual([(2, 9, True), (14, 18, True)],
+                         guard.dollar_quotes("x $'a\\'b' ; y $'c'"))
+
     def test_a_parameter_expansion_glued_into_a_word_joins_it(self):
         # `${x}` on an unset name expands to nothing, so the neighbours join —
         # the argument `without_substitutions` makes for `git $( )`. No
@@ -2106,16 +2116,16 @@ class TheGitArgvGuard(unittest.TestCase):
         self.assertAdmitted("git commit -m \"built at $(date)\"")
 
     def test_a_dollar_quote_inside_double_quotes_is_not_one(self):
-        # Neither form is a quoting form inside double quotes. Decoding
-        # `"$'\\x22'"` and re-emitting it as a single-quoted word inside the
-        # surrounding double quotes unbalances the line, sends it to the
-        # `ValueError` path and lets the command beside it through, while
-        # `"a$"` closes on the wrong quote and swallows the rest of the line
-        # into one word.
-        self.assertRefused(
-            'git log "$\'\\x22\'" ; git p\'\'ush origin +HEAD:main')
-        self.assertRefused(
-            'git log "a$" ; git push origin +HEAD:main ; echo "b"')
+        # Neither form is a quoting form inside double quotes. Misread, `"$'\\x22'"` unbalances the line into the
+        # untokenisable refusal and `"a$"` opens a `$"…"` refused as a translated string, so the verdict alone passes
+        # either way; the reason is asserted, since only a correct read reaches the push's `+` refspec.
+        for command in (
+            'git log "$\'\\x22\'" ; git p\'\'ush origin +HEAD:main',
+            'git log "a$" ; git push origin +HEAD:main ; echo "b"',
+        ):
+            with self.subTest(command=command):
+                self.assertIn("a `+` refspec is a force push",
+                              self.assertRefused(command))
 
         # And the over-refusal half: to bash this is an ordinary message about
         # a regex, not an undecodable escape.
