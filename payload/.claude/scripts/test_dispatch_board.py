@@ -489,6 +489,15 @@ class PathTests(unittest.TestCase):
         self.assertTrue(claim.unknown)
         self.assertEqual({"src/node.js", "tools/main.mjs"}, db.extract_paths("edit `src/Node.js` and tools/main.mjs"))
 
+    def test_a_slashed_product_name_in_prose_claims_nothing(self):
+        # `npm` names no directory of the checkout, so `npm/Node.js` stays an unknown, exclusive claim.
+        self.assertEqual(frozenset(), db.extract_paths("built on npm/Node.js and React/Next.js"))
+
+    def test_two_names_joined_by_a_slash_each_claim(self):
+        found = db.extract_paths("see README.md/client.ts")
+        self.assertEqual({"readme.md", "readme.md/client.ts"}, found)
+        self.assertTrue(any(db._touch(path, "docs/readme.md") for path in found))
+
     def test_a_top_level_directory_claims_everything_under_it(self):
         self.in_checkout()
         self.assertEqual({"android"}, db.extract_paths("touches `android/` only"))

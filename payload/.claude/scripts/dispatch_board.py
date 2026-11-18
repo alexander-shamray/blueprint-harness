@@ -308,9 +308,22 @@ def extract_paths(text):
                 continue
             if KNOWN_FILE.search(path) or _slash_path(path + "/" if directory else path):
                 found.add(path)
-    found.update(path for path in map(_normalise, BARE_PATH.findall(text)) if not PRODUCT.fullmatch(path))
+    found.update(_bare_paths(text))
     found.discard("")
     return frozenset(found)
+
+
+def _bare_paths(text):
+    for path in map(_normalise, BARE_PATH.findall(text)):
+        parts = path.split("/")
+        # The match is greedy across a slash, so `README.md/client.ts` names two files: each prefix ending in a known
+        # type claims too, or the old type's file would drop out of the claim.
+        yield from ("/".join(parts[:end]) for end in range(1, len(parts))
+                    if KNOWN_FILE.search("/".join(parts[:end])) and not PRODUCT.fullmatch("/".join(parts[:end])))
+        # A slashed product name, `npm/Node.js`, is a path only where its first segment names a directory.
+        if PRODUCT.fullmatch(parts[-1]) and (len(parts) == 1 or not _slash_path(parts[0] + "/")):
+            continue
+        yield path
 
 
 def _numbers(text):
