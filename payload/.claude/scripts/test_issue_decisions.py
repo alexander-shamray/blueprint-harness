@@ -420,6 +420,22 @@ class Cli(StubGh):
         self.assertEqual(code, 3)
         self.assertIn("gh failed: gh repo view could not start: exec format error", err)
 
+    def test_a_close_that_stalls_after_the_comment_still_says_the_comment_landed(self):
+        comment = self.write("interview/9-close.txt", "closing\n")
+        real = ID.subprocess.run
+
+        def stalls_on_close(argv, **kwargs):
+            self.assertEqual(ID.CHILD_TIMEOUT, kwargs.get("timeout"))
+            if argv[1:3] == ["issue", "close"]:
+                raise ID.subprocess.TimeoutExpired(argv, kwargs["timeout"])
+            return real(argv, **kwargs)
+
+        with mock.patch.object(ID.subprocess, "run", side_effect=stalls_on_close):
+            code, err = self.run_main(["close", "9", "--comment-file", comment, "--run", RUN])
+        self.assertEqual(3, code)
+        self.assertIn("close step failed after the comment was posted; a retry posts a second", err)
+        self.assertIn(f"did not answer within {ID.CHILD_TIMEOUT} s", err)
+
     def test_a_usage_error_exits_2_with_the_refused_prefix(self):
         for argv in ([], ["record", "5"], ["fly", "5"]):
             with self.subTest(argv=argv):
@@ -441,10 +457,18 @@ class SyncRowChild(unittest.TestCase):
         refused = mock.Mock(returncode=2, stderr=b"refused: no list\n")
         with mock.patch.object(ID.subprocess, "run", return_value=refused):
             self.assertEqual("refused: no list", ID.sync_row("1677"))
+        self.assertEqual(ID.CHILD_TIMEOUT, kwargs["timeout"])
+        stalled = ID.subprocess.TimeoutExpired(["py"], ID.CHILD_TIMEOUT)
+        with mock.patch.object(ID.subprocess, "run", side_effect=stalled):
+            self.assertEqual(f"did not finish within {ID.CHILD_TIMEOUT} s", ID.sync_row("1677"))
 
 
 class PathWhichParity(unittest.TestCase):
     # issue_decisions keeps its own copy so it imports nothing of the dispatcher's; the two must answer alike.
+    def test_both_copies_bound_a_child_alike(self):
+        import dispatch_board
+        self.assertEqual(dispatch_board.CHILD_TIMEOUT, ID.CHILD_TIMEOUT)
+
     def test_both_copies_find_the_same_executable_and_skip_the_same_planted_one(self):
         import dispatch_board
         name = "tool.cmd" if os.name == "nt" else "tool"
