@@ -283,6 +283,8 @@ SAFE_SHELLS = frozenset({"bash", "sh"})
 RUN = re.compile(r"^(?:      - |        )run:(.*)$", re.M)
 # A write to either file reaches every later step's environment or PATH, the head's code at one remove.
 RUNNER_FILES = re.compile(r"GITHUB_(?:ENV|PATH)\b")
+# Variables that make a safe word or a judge load a file: bash sources one, Python imports from one, git reads one.
+ENV_HOOKS = re.compile(r"^ +(?:BASH_ENV|ENV|PYTHON\w*|GIT_CONFIG\w*|GIT_EXEC_PATH|LD_PRELOAD|NODE_OPTIONS):", re.M)
 
 
 def run_script(step: str) -> str | None:
@@ -446,7 +448,9 @@ def runs_head_code(step: str) -> bool:
     shell, uses = SHELL.search(step), USES.search(step)
     if STEP_HEAD_CODE.search(step) or (shell and shell.group(1).strip() not in SAFE_SHELLS):
         return True
-    if uses and not SAFE_ACTIONS.fullmatch(uses.group(1).strip()) or RUNNER_FILES.search(step):
+    if RUNNER_FILES.search(step) or ENV_HOOKS.search(step):
+        return True
+    if uses and not SAFE_ACTIONS.fullmatch(uses.group(1).strip()):
         return True
     script = run_script(step)
     if script is None:
@@ -464,7 +468,10 @@ def name_of(step: str) -> str:
 
 def head_code_before_the_verdicts(text: str, job: str = "gates") -> list[str]:
     steps = steps_of(text, job)
-    return [name_of(step) for step in steps[:verdicts_at(steps) + 1] if runs_head_code(step)]
+    # The workflow's and the job's own keys reach every step, so a hook or a default shell there is named too.
+    above = text.split("\njobs:\n", 1)[0] + "\n" + job_of(text, job).split("\n    steps:\n", 1)[0]
+    hooked = ["the workflow or job env"] if ENV_HOOKS.search(above) or re.search(r"(?m)^ *defaults:", above) else []
+    return hooked + [name_of(step) for step in steps[:verdicts_at(steps) + 1] if runs_head_code(step)]
 
 
 def workflow(*steps: str) -> str:
@@ -636,7 +643,9 @@ class TheReader(unittest.TestCase):
                          "        run: git log -1 &&\n          npm test",
                          '        run: cp .github/gate/env "$GITHUB_ENV"',
                          '        run: echo "$GITHUB_WORKSPACE/bin" >> "$GITHUB_PATH"',
-                         "        env:\n          NOTE: |\n            run: true\n        run: npm test"):
+                         "        env:\n          NOTE: |\n            run: true\n        run: npm test",
+                         "        env:\n          BASH_ENV: .github/gate/env.sh\n        run: true",
+                         "        env:\n          PYTHONPATH: .\n        run: true"):
             with self.subTest(spelling=spelling):
                 self.assertEqual(["step 1"], head_code_before_the_verdicts(workflow(JUDGES, spelling, REPORTS)))
 
@@ -697,6 +706,16 @@ class TheReader(unittest.TestCase):
         self.assertEqual([], head_code_before_the_verdicts(workflow(JUDGES, REPORTS) + second))
         self.assertEqual(["- run: python -m unittest"], [name_of(step) for step in steps_of(
             workflow(JUDGES, REPORTS) + second, "other") if runs_head_code(step)])
+
+    def test_a_hook_in_the_workflow_or_job_env_is_named(self) -> None:
+        clean = workflow(JUDGES, REPORTS)
+        for text in (clean.replace("name: Gate\n", "name: Gate\nenv:\n  BASH_ENV: .github/x.sh\n"),
+                     clean.replace("    runs-on:", "    env:\n      PYTHONPATH: .\n    runs-on:"),
+                     clean.replace("    runs-on:", "    defaults:\n      run:\n        shell: python {0}\n"
+                                   "    runs-on:")):
+            with self.subTest(text=text):
+                self.assertEqual(["the workflow or job env"], head_code_before_the_verdicts(text))
+        self.assertEqual([], head_code_before_the_verdicts(clean))
 
     def test_a_job_that_is_not_there_is_refused(self) -> None:
         with self.assertRaises(ValueError):
