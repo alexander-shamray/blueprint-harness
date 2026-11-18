@@ -147,6 +147,23 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
         self.assertIsNone(GH_GRANT.search("ghost"))
         self.assertIsNone(GH_GRANT.search("bash .claude/scripts/gh-pr-create.sh"))
 
+    @staticmethod
+    def code_of(helper):
+        # Comments stripped: a helper's header explains the hazard by naming
+        # the very fields it must not request, and prose cannot drift into use.
+        return [line for line in helper.read_text(encoding="utf-8").splitlines()
+                if not line.lstrip().startswith("#")]
+
+    def json_fields(self, helper):
+        """The field list after each `--json` in the helper's code, in order."""
+        return re.findall(r"--json[ \t]+([\w,]+)", "\n".join(self.code_of(helper)))
+
+    def assert_no_feed_field(self, helper):
+        for line in self.code_of(helper):
+            with self.subTest(helper=helper.name, line=line):
+                self.assertNotIn("reviews", line)
+                self.assertNotIn("comments", line)
+
     # The payload's commands that hold each helper's grant; a target's own commands that do are held to it there.
     BRANCH_LOOKUP_COMMANDS = ("pr.md", "ship.md")
     LOCALITY_COMMANDS = ("ship.md",)
@@ -156,16 +173,12 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
         # commands need, so one helper with a fixed field set serves them.
         helper = SCRIPTS / "pr-for-branch.sh"
         self.assertTrue(helper.exists())
-        text = helper.read_text(encoding="utf-8")
-        self.assertIn("--json number,state,url", text)
-        # Comments stripped: the helper's header explains the hazard by naming
-        # the very fields it must not request, and prose cannot drift into use.
-        code = [
-            line for line in text.splitlines() if not line.lstrip().startswith("#")
-        ]
-        for line in code:
-            self.assertNotIn("reviews", line)
-            self.assertNotIn("comments", line)
+        # The whole field list of every call, not a prefix: a field appended
+        # after the expected ones, `body` or `author`, would pass a prefix.
+        self.assertEqual(
+            ["nameWithOwner", "number,state,url,headRepository,headRefOid,baseRefName,mergeCommit"],
+            self.json_fields(helper))
+        self.assert_no_feed_field(helper)
         for name in self.BRANCH_LOOKUP_COMMANDS:
             with self.subTest(command=name):
                 frontmatter = (COMMANDS / name).read_text(
@@ -191,10 +204,13 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
         text = (COMMANDS / "ship.md").read_text(encoding="utf-8")
         frontmatter = text.split("---")[1]
         self.assertIn("bash .claude/scripts/pr-state.sh:*", frontmatter)
-        helper = (SCRIPTS / "pr-state.sh").read_text(encoding="utf-8")
-        self.assertIn("--json state,mergeable,mergeStateStatus,headRefOid,mergeCommit",
-                      helper)
-        self.assertNotIn("$2", helper)
+        helper = SCRIPTS / "pr-state.sh"
+        # It prints gh's JSON raw, so a field appended to the list reaches the
+        # caller: the list is compared whole, and the feed scan applies here too.
+        self.assertEqual(["state,mergeable,mergeStateStatus,headRefOid,mergeCommit"],
+                         self.json_fields(helper))
+        self.assert_no_feed_field(helper)
+        self.assertNotIn("$2", helper.read_text(encoding="utf-8"))
 
     def test_the_locality_rows_go_through_the_fixed_helper(self):
         # The change contract `docs/harness-local.md` *Documents* names asks a PR body for `| Class |` and
