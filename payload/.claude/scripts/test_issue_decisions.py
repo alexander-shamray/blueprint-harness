@@ -181,6 +181,17 @@ class Shapes(unittest.TestCase):
             f"## Owner decisions\n\n````\n~~~\n# comment\n````\n{line}\n\n## Notes\n",
         )
 
+    def test_a_heading_inside_a_fence_is_not_the_section(self):
+        # A fenced example of the heading is code: the entry goes under the real one, or a new one after the body.
+        line = "- 2026-11-02: Q: r A: b"
+        example = "```md\n## Owner decisions\n```\n"
+        self.assertEqual(ID.append_decision(f"Intro\n{example}", line),
+                         f"Intro\n{example}\n## Owner decisions\n\n{line}\n")
+        self.assertEqual(ID.append_decision(f"{example}\n## Owner decisions\n\n- a\n", line),
+                         f"{example}\n## Owner decisions\n\n- a\n{line}\n")
+        with self.assertRaises(ID.Refusal):
+            ID.append_decision("Intro\n```\n## Owner decisions\n", line)
+
     def test_an_empty_section_gets_its_first_entry(self):
         self.assertEqual(
             ID.append_decision("## Owner decisions\n", "- 2026-11-01: Q: q A: a"),

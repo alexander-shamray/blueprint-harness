@@ -2,7 +2,7 @@
 
 `record` appends a dated answer under `## Owner decisions`, `unblock` drops `question` or `paused`, `close` comments and
 closes as not planned, `comment` only comments. Exit 2: refused, nothing written; 3: `gh` failed; 4: `tasks sync` left a
-row. The untrusted body is matched by heading line alone, so one in a fence counts; a retried `close` comments twice."""
+row. The untrusted body is matched by heading line outside a fence; a retried `close` comments twice."""
 
 import argparse
 import json
@@ -67,34 +67,43 @@ def entry(day, question, answer):
     return line
 
 
+def fenced(lines):
+    """The indexes of the lines a CommonMark fence holds, its opener and closer included, and whether one is open."""
+    inside, fence = set(), ""
+    for i, text in enumerate(lines):
+        mark = FENCE.match(text)
+        if fence:
+            inside.add(i)
+            # A closer is the opener's character, at least as long, with nothing but spaces after it.
+            if mark and mark.group(1)[0] == fence[0] and len(mark.group(1)) >= len(fence) \
+                    and not text[mark.end():].strip():
+                fence = ""
+        elif mark:
+            inside.add(i)
+            fence = mark.group(1)
+    return inside, bool(fence)
+
+
 def append_decision(body, line):
     # The body is the issue author's text: only heading and fence lines are read, to place the entry.
     crlf = "\r\n" in body
     eol = "\r" if crlf else ""
     lines = body.split("\n")
-    at = [i for i, text in enumerate(lines) if text.rstrip("\r") == HEADING]
+    code, unclosed = fenced(lines)
+    at = [i for i, text in enumerate(lines) if text.rstrip("\r") == HEADING and i not in code]
     if len(at) > 1:
         raise Refusal(f"the issue body holds {HEADING!r} {len(at)} times")
     if not body.strip():
         # Nothing to separate the section from, so it opens the body rather than following blank lines.
         return f"{HEADING}\n\n{line}\n"
     if not at:
+        if unclosed:
+            # A section appended after an unclosed fence would be code, and no decision would be read from it.
+            raise Refusal("the issue body ends inside a fence, so a section appended to it would be code")
         return body.rstrip("\r\n") + f"{eol}\n{eol}\n{HEADING}{eol}\n{eol}\n{line}{eol}\n"
     start = at[0]
-    end = len(lines)
-    fence = ""
-    for i in range(start + 1, len(lines)):
-        mark = FENCE.match(lines[i])
-        if fence:
-            # A closer is the opener's character, at least as long, with nothing but spaces after it.
-            if mark and mark.group(1)[0] == fence[0] and len(mark.group(1)) >= len(fence) \
-                    and not lines[i][mark.end():].strip():
-                fence = ""
-        elif mark:
-            fence = mark.group(1)
-        elif ANY_HEADING.match(lines[i]):
-            end = i
-            break
+    end = next((i for i in range(start + 1, len(lines)) if i not in code and ANY_HEADING.match(lines[i])),
+               len(lines))
     last = start
     for i in range(start + 1, end):
         if lines[i].strip():
