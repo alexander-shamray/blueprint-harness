@@ -477,13 +477,23 @@ class PathTests(unittest.TestCase):
         found = db.extract_paths("Edit src/app/core/api/client.ts and `app.component.html`, then theme.scss.")
         self.assertEqual({"src/app/core/api/client.ts", "app.component.html", "theme.scss"}, found)
         for name in ("a.tsx", "a.js", "a.mjs", "a.cjs", "a.css", "a.xml", "a.gradle", "a.kts", "a.kt", "a.java",
-                     "a.swift", "a.plist"):
+                     "a.swift", "a.plist", "gradle.properties", "project.pbxproj", "debug.xcconfig", "main.storyboard"):
             with self.subTest(name=name):
                 self.assertEqual({name}, db.extract_paths(f"see {name} here"))
+
+    def test_a_product_named_like_a_script_is_not_a_claim(self):
+        self.in_checkout()
+        self.assertEqual(frozenset(), db.extract_paths("bump Node.js to 24 and `Vue.js` with Chart.js"))
+        claim = db.group_claim(group_of(line(task="bump Node.js to 24")), {1700: "Node.js 24 is out"})
+        self.assertTrue(claim.unknown)
+        self.assertEqual({"main.js", "src/node.js"}, db.extract_paths("edit main.js and `src/Node.js`"))
 
     def test_a_top_level_directory_claims_everything_under_it(self):
         self.in_checkout()
         self.assertEqual({"android"}, db.extract_paths("touches `android/` only"))
+        for spelling in ("`android/,`", "`android/.`", "(`android/)`", "`android\\`"):
+            with self.subTest(spelling=spelling):
+                self.assertEqual({"android"}, db.extract_paths(f"touches {spelling} only"))
         top, inside = self.claim({"android"}), self.claim({"android/app/src/main/androidmanifest.xml"})
         self.assertTrue(self.over(top, inside))
         self.assertTrue(self.over(inside, top))
