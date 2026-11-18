@@ -536,9 +536,19 @@ class TheOrdinaryWriteIsNotDisturbed(GuardCase):
                 self.assertNotEqual(guard.key(composed, (folded, False)),
                                     guard.key(decomposed, (folded, False)))
 
-        os.makedirs(composed, exist_ok=True)
+        # The end-to-end half puts the name in the checkout's own root, as the
+        # differently-cased prefix case does: a spelling that differs only
+        # beneath an ASCII root sits under the anchor composed or not, and a
+        # `..` after it is gone before any key is taken.
+        checkout = os.path.join(self.outside, unicodedata.normalize("NFC", name))
+        respelled = os.path.join(self.outside, unicodedata.normalize("NFD", name))
+        for tree in ("docs", os.path.join(".claude", "scripts"), ".git"):
+            os.makedirs(os.path.join(checkout, tree), exist_ok=True)
+        self.write(os.path.join(checkout, "docs", "chapter.md"), "prose\n")
+        scripts = os.path.join(checkout, ".claude", "scripts")
+        self.write(os.path.join(scripts, "helper.sh"), "ok\n")
         try:
-            here, there = os.stat(composed), os.stat(decomposed)
+            here, there = os.stat(checkout), os.stat(respelled)
             one_directory = (here.st_dev, here.st_ino) == (there.st_dev,
                                                            there.st_ino)
         except OSError:
@@ -549,13 +559,25 @@ class TheOrdinaryWriteIsNotDisturbed(GuardCase):
                   file=sys.stderr)
             return
 
-        target = os.path.join(self.root, ".claude", "scripts", "helper.sh")
+        # Without composing, the respelled root is under no anchor, and the
+        # plain write is refused as a spelling no checkout recognises; only
+        # composing admits it and judges the link from inside.
+        anchored = {"cwd": checkout, "project": checkout}
+        self.assertAdmitted(os.path.join(respelled, "docs", "chapter.md"),
+                            **anchored)
         for linker in linkers():
             with self.subTest(link=linker):
-                link = self.link_to("composed", target, linker)
-                through = os.path.join(
-                    decomposed, "..", os.path.relpath(link, self.root))
-                self.assertRefused(through)
+                link = os.path.join(checkout, "docs", f"composed-{linker}")
+                if linker == "symlink":
+                    os.symlink(os.path.join(scripts, "helper.sh"), link)
+                    spelled = os.path.join("docs", f"composed-{linker}")
+                else:
+                    JUNCTIONS(scripts, link)
+                    spelled = os.path.join("docs", f"composed-{linker}",
+                                           "helper.sh")
+                through = os.path.join(respelled, spelled)
+                self.assertIn("resolves elsewhere in it",
+                              self.assertRefused(through, **anchored))
 
     def test_two_names_that_can_coexist_are_not_folded_into_one(self):
         # On a normalisation-sensitive filesystem, NTFS and ext4 among them, a
