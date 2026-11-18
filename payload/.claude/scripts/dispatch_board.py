@@ -314,16 +314,29 @@ def extract_paths(text):
 
 
 def _bare_paths(text):
-    for path in map(_normalise, BARE_PATH.findall(text)):
+    for raw in BARE_PATH.findall(text):
+        path = _normalise(raw)
         parts = path.split("/")
         # The match is greedy across a slash, so `README.md/client.ts` names two files: each prefix ending in a known
         # type claims too, or the old type's file would drop out of the claim.
         yield from ("/".join(parts[:end]) for end in range(1, len(parts))
                     if KNOWN_FILE.search("/".join(parts[:end])) and not PRODUCT.fullmatch("/".join(parts[:end])))
-        # A slashed product name, `npm/Node.js`, is a path only where its first segment names a directory.
-        if PRODUCT.fullmatch(parts[-1]) and (len(parts) == 1 or not _slash_path(parts[0] + "/")):
-            continue
-        yield path
+        if not PRODUCT.fullmatch(path) and not _product_pair(raw, parts):
+            yield path
+
+
+def _product_pair(raw, parts):
+    """Whether a bare match is two product names, `npm/Node.js` or `React.js/Next.js`, and so no path.
+
+    Only a pair whose second name is capitalised, as a product's is and a script's seldom is, and whose first names
+    no directory of the checkout; a deeper or absolute path, or one under a real directory, still claims.
+    """
+    if len(parts) != 2 or not parts[0] or not PRODUCT.fullmatch(parts[1]):
+        return False
+    if not raw.replace("\\", "/").rsplit("/", 1)[-1][:1].isupper():
+        return False
+    names = _directory_names()
+    return names is None or parts[0] not in names
 
 
 def _numbers(text):
