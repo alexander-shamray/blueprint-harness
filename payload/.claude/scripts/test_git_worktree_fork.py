@@ -378,7 +378,7 @@ class NeitherCreatorShadowsAPackedBranch(unittest.TestCase):
         # stops at its match and the writer dies of SIGPIPE, so the probe sorts first among heads that fill several.
         root = self.packed()
         lines = "".join(f"create refs/heads/zz/filler-{n:04d}-{'x' * 80} HEAD\n" for n in range(3000))
-        Path(root, "heads.txt").write_text(lines, encoding="utf-8")
+        Path(root, "heads.txt").write_text(lines, encoding="utf-8", newline="\n")
         made = run_bash('cd "$C" && git update-ref --stdin < "$L" && git pack-refs --all',
                         C=f"{root}/checkout", L=f"{root}/heads.txt")
         self.assertEqual(0, made.returncode, made.stderr)
