@@ -837,8 +837,18 @@ def run_session(root, run, gid):
     directory = run_dir(root, run)
     state = load_state(directory)
     entry = _entry(state, gid)
-    if entry.get("status") not in ACTIVE:
-        raise Refusal(f"{gid} is {entry.get('status') or 'not launched'}, not waiting for an executor")
+    status = entry.get("status")
+    if status not in ACTIVE:
+        raise Refusal(f"{gid} is {status or 'not launched'}, not waiting for an executor")
+    # `_launch` removes the pid file first, so a second `run` would orphan a live executor and start another in its
+    # worktree; and a held group would be launched straight back into its hold. `resume` lifts both holds.
+    pid = _pid(directory, gid)
+    if pid is not None and alive(pid):
+        raise Refusal(f"{gid}'s executor is still running")
+    if status == "account":
+        raise Refusal(f"{gid} is held on the account until `resume` lifts it")
+    if status == "week" and not _week_passed(entry, now()):
+        raise Refusal(f"{gid} is held until the week resets, {entry.get('resets_at') or 'at an unknown time'}")
     marker = directory / f"{gid}.refused.json"
     try:
         marker.unlink(missing_ok=True)

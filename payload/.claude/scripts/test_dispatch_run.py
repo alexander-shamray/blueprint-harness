@@ -785,6 +785,23 @@ class LaunchTests(InRoot):
         self.assertIn("refused: S1 is handed-back, not waiting for an executor",
                       run_cli(["run", RUN, "S1"]))
 
+    def test_run_refuses_a_live_executor_and_a_held_group(self):
+        # Each refusal leaves the pid file and launches nothing: a launch would replace the pid with the child's.
+        cases = (({"status": "running"}, os.getpid(), "S1's executor is still running"),
+                 ({"status": "account"}, None, "S1 is held on the account until `resume` lifts it"),
+                 ({"status": "week", "resets_at": (NOW + timedelta(days=3650)).isoformat()}, None,
+                  "S1 is held until the week resets"),
+                 ({"status": "week"}, None, "S1 is held until the week resets, at an unknown time"))
+        for fields, pid, refusal in cases:
+            with self.subTest(fields=fields):
+                (state_dir() / "S1.pid").unlink(missing_ok=True)
+                record(RUN, "S1", pid=pid, branch=BRANCH, worktree=WORKTREE, **fields)
+                task_text()
+                with mock.patch.object(dr, "CLAUDE_COMMAND", [sys.executable, "-P", "-c", "print('{}')"]), \
+                        mock.patch.object(dr.subprocess, "Popen", side_effect=AssertionError("launched")):
+                    self.assertIn(f"refused: {refusal}", run_cli(["run", RUN, "S1"]))
+                self.assertEqual(pid is not None, (state_dir() / "S1.pid").exists())
+
 
 class ResultTests(unittest.TestCase):
     def check(self, data):
