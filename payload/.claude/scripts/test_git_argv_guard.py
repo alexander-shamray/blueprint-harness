@@ -50,6 +50,28 @@ class _TallyingList(list):
             yield item
 
 
+class _TallyingView:
+    """A list seen through, not copied, that records each element read:
+    `heredoc_spans` appends to the list it hands `_quoting` while the scan
+    runs, so the instrument there shares it."""
+
+    def __init__(self, items, tally):
+        self.items = items
+        self.tally = tally
+
+    def __len__(self):
+        return len(self.items)
+
+    def __getitem__(self, index):
+        self.tally[0] += 1
+        return self.items[index]
+
+    def __iter__(self):
+        for item in self.items:
+            self.tally[0] += 1
+            yield item
+
+
 class TheGitArgvGuard(unittest.TestCase):
     """Two holes a permission rule cannot close, closed at argv.
 
@@ -2779,6 +2801,7 @@ class TheGitArgvGuard(unittest.TestCase):
         guard = self.guard_module()
         body = "cat > f.md <<'EOF'\nplain\nEOF\n"
         original = guard.heredoc_spans
+        scanner = guard._quoting
         reads = {}
         try:
             for count in (100, 200, 400):
@@ -2786,12 +2809,18 @@ class TheGitArgvGuard(unittest.TestCase):
                 guard.heredoc_spans = (
                     lambda command, *args, _o=original, _t=tally, **kwargs:
                     _TallyingList(_o(command, *args, **kwargs), _t))
+                # `_quoting` reads each pass's spans, often a copy, by index: a
+                # search per character there is the same defect a level down.
+                guard._quoting = (
+                    lambda command, *args, data=(), _o=scanner, _t=tally, **kwargs:
+                    _o(command, *args, data=_TallyingView(data, _t), **kwargs))
                 # A distinct trailing comment per size, because `offence`
                 # memoises its verdict per string.
                 guard.offence(body * count + "# " + str(count))
                 reads[count] = tally[0]
         finally:
             guard.heredoc_spans = original
+            guard._quoting = scanner
 
         self.assertGreater(reads[100], 0, "the instrument saw the list at all")
         for smaller, larger in ((100, 200), (200, 400)):
