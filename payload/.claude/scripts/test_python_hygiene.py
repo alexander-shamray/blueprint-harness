@@ -143,14 +143,15 @@ def dash_c_unguarded(flags: list[object]) -> bool:
     """Whether interpreter options reach `-c`, alone or in a combined short flag, with neither `P` nor `I` before it.
 
     Options end at the first element not starting with `-`, or at `-m`. A `None` (one non-literal) is the script and
-    ends them too, but after a `SPLICED` it may be a spliced option's argument, so both are read past there.
+    ends them too, but straight after a `SPLICED` it may be a spliced option's argument, so it is read past there.
     """
     guarded, spliced, at = False, False, 0
     while at < len(flags):
         flag = flags[at]
         if flag is SPLICED or (flag is None and spliced):
-            spliced, at = True, at + 1
+            spliced, at = flag is SPLICED, at + 1
             continue
+        spliced = False
         if not isinstance(flag, str):
             return False
         if not flag.startswith("-") or flag in ("-", "--"):
@@ -260,7 +261,10 @@ class PythonHygiene(unittest.TestCase):
                   # A splice may hold any options, so the `-c` after it counts; a single non-literal is the script.
                   "subprocess.run([sys.executable, *opts, '-c', code])\n"
                   "subprocess.run([sys.executable, str(SCRIPT), '-c'])\n"
-                  "subprocess.run([sys.executable, *opts, warn, '-c', code])\n")
+                  "subprocess.run([sys.executable, *opts, warn, '-c', code])\n"
+                  # Only the element straight after a splice is read past; the next non-literal is the script.
+                  "subprocess.run([sys.executable, *opts, warn, str(SCRIPT), '-c'])\n"
+                  "subprocess.run([sys.executable, *opts, '-u', str(SCRIPT), '-c'])\n")
         self.assertEqual(unsafe_dash_c(source), [2, 4, 6, 7, 8, 10, 14, 15, 17, 19, 21])
 
     def test_no_fixture_makes_its_root_with_mktemp(self) -> None:
