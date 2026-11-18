@@ -3221,9 +3221,12 @@ class TheGitArgvGuard(unittest.TestCase):
                         "pwsh -EncodedCommand ZwBpAHQAIABzAHQAYQB0AHUAcwA=", "cmd /c run.bat"):
             with self.subTest(command=command):
                 self.assertRefused(command, tool="PowerShell")
-        for command in ("Write-Output done", "Get-ChildItem -Path docs/backend-architecture"):
+        for command in ("Write-Output done", "Get-ChildItem -Path docs/backend-architecture",
+                        "Get-Content C:\\dev\\x\\README.md", "Test-Path src\\app"):
             with self.subTest(command=command):
                 self.assertIsNone(self.judge(command, tool="PowerShell"))
+        # A backslash path still names git where it does.
+        self.assertRefused("Get-Content C:\\git\\x", tool="PowerShell")
 
     def test_a_malformed_event_does_not_take_the_session_down(self):
         # The one deliberate fail-OPEN, and it is argued rather than assumed:
