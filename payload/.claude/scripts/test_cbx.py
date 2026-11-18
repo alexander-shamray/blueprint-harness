@@ -43,8 +43,13 @@ def _bash():
         return str(git)
     found = shutil.which("bash")
     if not found:
-        raise unittest.SkipTest("bash is not on PATH")
+        # Not a skip: bash is a stated prerequisite, and a skip on a missing tool reports a pass.
+        raise RuntimeError("bash is not on PATH, and the wrapper's refusals are run, not described")
     return found
+
+
+def setUpModule():
+    _bash()
 
 
 def _powershell():
