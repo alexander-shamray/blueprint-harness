@@ -268,6 +268,11 @@ JUDGE_SET = re.compile(r'(?m)^\s*judge=(.*)$')
 JUDGE_WORD = re.compile(r'(?<![\w$-])judge\b')
 # The root both judge forms trust: a step that sets it, or reads it under another spelling, is not trusted.
 RUNNER_TEMP_WORD = re.compile(r'(?<![\w${])RUNNER_TEMP\b')
+# `printf -v` writes any variable, under any quoting, so neither word count above can see what it names.
+PRINTF_V = re.compile(r'(?<![\w-])printf\b[^\n;|&]*\s-v')
+# The same hooks ENV_HOOKS names, and PATH, set in the script itself: as a line, or as a command's prefix.
+SCRIPT_HOOKS = re.compile(r'(?<![\w$-])(?:BASH_ENV|ENV|PYTHON\w*|GIT_CONFIG\w*|GIT_EXEC_PATH|LD_PRELOAD|NODE_OPTIONS'
+                          r'|PATH)\+?=')
 UNDER_RUNNER_TEMP = re.compile(r'"\$RUNNER_TEMP/([\w./-]+\.py)"')
 # Reads no module from the checkout: how the drift gate reads its manifest ahead of the judge. Only the programs
 # gates.yml runs are named, since `-c` runs whatever it is handed.
@@ -481,12 +486,12 @@ def runs_head_code(step: str) -> bool:
     script = run_script(step)
     if script is None:
         return False
-    if RUNNER_TEMP_WORD.search(script):
+    if RUNNER_TEMP_WORD.search(script) or PRINTF_V.search(script) or SCRIPT_HOOKS.search(script):
         return True
     # A judge and an isolated read stand in as `:`, so their arguments are read as arguments; one that climbs out of
     # the runner's temp directory, or runs a program gates.yml does not, stays itself and reads as head code.
-    script = JUDGE.sub(lambda judge: ":" if a_judge(judge, script) else judge.group(0),
-                       ISOLATED.sub(lambda read: ":" if read.group(1) in ISOLATED_PROGRAMS else read.group(0), script))
+    script = ISOLATED.sub(lambda read: ":" if read.group(1) in ISOLATED_PROGRAMS else read.group(0), script)
+    script = JUDGE.sub(lambda judge: ":" if a_judge(judge, script) else judge.group(0), script)
     defined = set(re.findall(r"(?m)^\s*(\w+)\(\)", script))
     return any(word not in SAFE_COMMANDS and word not in defined for word in command_words(script))
 
@@ -695,7 +700,17 @@ class TheReader(unittest.TestCase):
                          '        env:\n          judge: .github/x.py\n        run: |\n          python "$judge"\n'
                          '          judge="$RUNNER_TEMP/a.py"',
                          '        run: |\n          RUNNER_TEMP=.github\n          python "$RUNNER_TEMP/x.py"',
-                         '        env:\n          RUNNER_TEMP: .github\n        run: python "$RUNNER_TEMP/x.py"'):
+                         '        env:\n          RUNNER_TEMP: .github\n        run: python "$RUNNER_TEMP/x.py"',
+                         # `printf -v` writes `judge` or the root under a spelling no word count sees, and a hook
+                         # variable set in the script reaches a judge or a safe word as its env key would.
+                         '        run: |\n          judge="$RUNNER_TEMP/a.py"\n          printf -vjudge .github/x.py\n'
+                         '          python "$judge"',
+                         '        run: |\n          judge="$RUNNER_TEMP/a.py"\n'
+                         "          printf -v ju''dge .github/x.py\n          python \"$judge\"",
+                         "        run: |\n          printf -v RUNNER''_TEMP .github\n"
+                         '          python "$RUNNER_TEMP/x.py"',
+                         '        run: PYTHONPATH=.github python "$RUNNER_TEMP/gate/gate.py"',
+                         '        run: |\n          PATH=.github/bin:$PATH\n          git log -1'):
             with self.subTest(spelling=spelling):
                 self.assertEqual(["step 1"], head_code_before_the_verdicts(workflow(JUDGES, spelling, REPORTS)))
 
