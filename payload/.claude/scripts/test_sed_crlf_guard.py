@@ -135,6 +135,35 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             with self.subTest(command=command):
                 self.assertRefused(command, "crlf.txt")
 
+    def test_a_substitution_leaves_the_operands_after_it_judged(self):
+        # The parentheses of `$(…)` were read as a subshell, so the `sed` lost every word after the substitution and
+        # its literal file operand went unjudged.
+        for command in (
+            "sed -i $(cat fix.sed) crlf.txt",
+            "sed -i s/one/$(date +%Y)/ crlf.txt",
+            "sed -i \"s/one/$(date +%Y)/\" crlf.txt",
+            "sed -i s/one/$((1+1))/ crlf.txt",
+            "sed -i s/one/`date`/ crlf.txt",
+            "sed -i s/one/$(echo $(date))/ crlf.txt",
+            "sed -i s/one/$(echo ')')/ crlf.txt",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command, "crlf.txt")
+
+    def test_a_substitutions_own_command_is_still_judged(self):
+        # Lifting a substitution out of its word must not lose the command inside it, nor let its `cd` move the
+        # commands after it: bash runs it in a subshell.
+        for command in (
+            "x=$(sed -i 's/one/uno/' crlf.txt)",
+            "echo `sed -i 's/one/uno/' crlf.txt`",
+            "echo $(( $(sed -i 's/one/uno/' crlf.txt) ))",
+            "echo $(cd sub) && sed -i 's/one/uno/' crlf.txt",
+            "echo $(cd sub; sed -i 's/one/uno/' inner.txt)",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command, ".txt")
+        self.assertAdmitted("echo $(cd sub) && sed -i 's/one/uno/' inner.txt")
+
     def test_what_only_looks_like_a_heredoc_leaves_the_lines_after_it_judged(self):
         # Review R2: a here-string and an arithmetic shift matched the heredoc opener, and every later line went
         # unjudged.

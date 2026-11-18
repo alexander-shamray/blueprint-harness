@@ -65,6 +65,9 @@ WRAPPERS = {
 SHELLS = {"bash", "sh", "bash.exe", "sh.exe"}
 # Stands for a heredoc body in the line `prepared` returns: a NUL, which no bash command line can carry.
 BODY = "\x00"
+# Stands for a command substitution inside the word `prepared` leaves around it, as `$<SUBSTITUTION><n>$`: the `$`
+# keeps an operand holding one unplaceable, and the byte, like BODY's, is one no command line carries.
+SUBSTITUTION = "\x01"
 # Bash's long options, which it reads before any cluster with one dash or two, and those that take the next word as
 # their value; a short option's value is the next word for each `o` and `O` in its cluster.
 SHELL_LONG = {"debug", "debugger", "dump-po-strings", "dump-strings", "help", "login", "noediting", "noprofile", "norc",
@@ -96,7 +99,43 @@ MAX_READ = 4 << 20
 GIT_TIMEOUT = 5
 
 
-def prepared(command):
+def substitution_end(command, index):
+    """Where the unquoted `$(…)`, `$((…))` or backtick substitution opening at `index` ends, or None.
+
+    None leaves the text as it was, so a form this cannot close reads as it did before substitutions were lifted.
+    """
+    if command[index] == "`":
+        close = index + 1
+        while close < len(command) and command[close] != "`":
+            close += 2 if command[close] == "\\" else 1
+        return close + 1 if close < len(command) else None
+    if not command.startswith("$(", index):
+        return None
+    depth, quote, close = 0, None, index + 1
+    while close < len(command):
+        character = command[close]
+        if quote is None and command.startswith("<<", close):
+            # A heredoc's body is read by line, which this scan does not do, so the line is left to `prepared`.
+            return None
+        if quote == "'":
+            quote = None if character == "'" else quote
+        elif character == "\\":
+            close += 1
+        elif quote == '"':
+            quote = None if character == '"' else quote
+        elif character in "'\"":
+            quote = character
+        elif character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+            if depth == 0:
+                return close + 1
+        close += 1
+    return None
+
+
+def prepared(command, substitutions):
     """The command as bash reads its lines, continuations joined and comments dropped, and its heredoc bodies.
 
     Each body is lifted out of the line and its opener replaced by `<< <BODY><n>`, so the body is never read as
@@ -133,6 +172,20 @@ def prepared(command):
         elif character == "#" and word_start:
             while index < len(command) and command[index] != "\n":
                 index += 1
+            continue
+        elif substitutions is not None and not arithmetic and character in "$`" and (
+                end := substitution_end(command, index)) is not None:
+            # Lifted like a body, so its parentheses do not end the word and cut the operands after it; `$((…))` is
+            # arithmetic, with no command to lift unless its body runs one.
+            arithmetic_only = command.startswith("$((", index) and command.startswith("))", end - 2)
+            body = command[index + (1 if character == "`" else 2):end - 1]
+            if arithmetic_only and "$(" not in body and "`" not in body:
+                out.append(f"${SUBSTITUTION}$")
+            else:
+                substitutions.append(body[1:-1] if arithmetic_only else body)
+                out.append(f"${SUBSTITUTION}{len(substitutions)}$")
+            index = end
+            word_start = False
             continue
         elif command.startswith("((", index) or (arithmetic and command.startswith("))", index)):
             # A `<<` inside `$(( ))` or `(( ))` is a shift, whatever word follows it.
@@ -193,7 +246,8 @@ class Segment:
 
 def segments(command):
     """The command's simple commands as `Segment`s, or `None` where `shlex` cannot read it."""
-    text, bodies = prepared(command)
+    lifted = []
+    text, bodies = prepared(command, lifted)
     lexer = shlex.shlex(text, posix=True, punctuation_chars=PUNCTUATION)
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
@@ -218,6 +272,12 @@ def segments(command):
             continue
         if not token or not set(token) <= set(PUNCTUATION):
             current.words.append(token)
+            # A substitution runs before the command whose word holds it, in a subshell of its own.
+            for number in re.findall(rf"\${SUBSTITUTION}(\d+)\$", token):
+                inner = segments(lifted[int(number) - 1]) or []
+                for segment in inner:
+                    segment.scope = scope + ((SUBSTITUTION, number),) + segment.scope
+                found[-1:-1] = inner
             continue
         # A run can join a group's paren to a redirection, as `)>` does, so the parens are taken out of it first:
         # each opens or closes a subshell and ends the command before it.
