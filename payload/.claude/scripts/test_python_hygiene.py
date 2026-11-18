@@ -135,11 +135,39 @@ def mktemp_fixture(source: str) -> list[int]:
     return [node.lineno for node in _strings(tree) if id(node) not in prose and MKTEMP_DIRECTORY.search(node.value)]
 
 
+def dash_c_unguarded(flags: list[str]) -> bool:
+    """Whether interpreter options reach `-c`, alone or in a combined short flag, with neither `P` nor `I` before it.
+
+    Options end at the first element not starting with `-`, or at `-m`: what follows is the program's own argv.
+    """
+    guarded, at = False, 0
+    while at < len(flags):
+        flag = flags[at]
+        if not flag.startswith("-") or flag in ("-", "--"):
+            return False
+        if flag.startswith("--"):
+            at += 2 if flag == "--check-hash-based-pycs" else 1
+            continue
+        for place, letter in enumerate(flag[1:], 1):
+            if letter in "PI":
+                guarded = True
+            elif letter == "c":
+                return not guarded
+            elif letter == "m":
+                return False
+            elif letter in "WX":
+                # The rest of the flag, or the next element, is the option's argument.
+                at += place == len(flag) - 1
+                break
+        at += 1
+    return False
+
+
 def unsafe_dash_c(source: str) -> list[int]:
     """Lines of an argv literal that runs `sys.executable -c` with neither `-P` nor `-I` before the `-c`.
 
-    `-c` puts the working directory first on `sys.path`, and a suite runs from the root, where a planted module
-    named after the standard library's would be imported in its place.
+    `-c` puts the working directory first on `sys.path`, where a planted stdlib-named module would be imported.
+    Only a literal list or tuple headed by `sys.executable` is read, not one built by name, splice or `.append`.
     """
     lines = []
     for node in ast.walk(ast.parse(source)):
@@ -149,7 +177,7 @@ def unsafe_dash_c(source: str) -> list[int]:
         if not (isinstance(head, ast.Attribute) and head.attr == "executable" and _name(head.value) == "sys"):
             continue
         flags = [e.value for e in node.elts[1:] if isinstance(e, ast.Constant) and isinstance(e.value, str)]
-        if "-c" in flags and not {"-P", "-I"} & set(flags[:flags.index("-c")]):
+        if dash_c_unguarded(flags):
             lines.append(node.lineno)
     return sorted(lines)
 
@@ -202,8 +230,15 @@ class PythonHygiene(unittest.TestCase):
                   "subprocess.run([sys.executable, '-P', '-c', 'pass'])\n"
                   "CHILD = (sys.executable, '-c', 'import fcntl')\n"
                   "subprocess.run([sys.executable, '-I', '-c', 'pass'])\n"
-                  "subprocess.run([sys.executable, 'script.py', '-c'])\n")
-        self.assertEqual(unsafe_dash_c(source), [2, 4, 6])
+                  "subprocess.run([sys.executable, '-uc', 'pass'])\n"
+                  "subprocess.run([sys.executable, '-cpass'])\n"
+                  "subprocess.run([sys.executable, '-W', 'ignore', '-c', 'pass'])\n"
+                  "subprocess.run([sys.executable, '-Pc', 'pass'])\n"
+                  "subprocess.run([sys.executable, '-cP', 'pass'])\n"
+                  "subprocess.run([sys.executable, 'script.py', '-c'])\n"
+                  "subprocess.run([sys.executable, '-m', 'unittest', '-c'])\n"
+                  "subprocess.run([sys.executable, '-W', '-c', 'script.py'])\n")
+        self.assertEqual(unsafe_dash_c(source), [2, 4, 6, 7, 8, 10])
 
     def test_no_fixture_makes_its_root_with_mktemp(self) -> None:
         self.assertEqual(offences(ROOT, mktemp_fixture), [], "take the root from review_helpers.temp_root")
