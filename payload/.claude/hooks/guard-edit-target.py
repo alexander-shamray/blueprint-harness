@@ -10,6 +10,7 @@ import json
 import os
 import re
 import sys
+import traceback
 import types
 import unicodedata
 
@@ -641,7 +642,13 @@ def main():
               file=sys.stderr)
         return 0
 
-    reason = offence(event)
+    # The launcher maps a crash to a non-blocking error and the write runs unjudged, so a crash refuses it instead,
+    # as guard-helper-argv.py's does.
+    try:
+        reason = offence(event)
+    except Exception:  # noqa: BLE001
+        traceback.print_exc(file=sys.stderr)
+        reason = "this write crashed the edit target guard, so nothing about it is established; refusing it."
     if reason is None:
         return 0
 

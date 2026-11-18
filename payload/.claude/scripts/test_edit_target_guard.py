@@ -907,6 +907,14 @@ class AWorktreeTheSessionHasNotEntered(GuardCase):
             {"permissions": {"deny": [f"Edit({rule})" for rule in denies]}}))
         return os.path.join(hooks, "guard-edit-target.py")
 
+    def test_a_crash_in_judging_refuses_the_write(self):
+        # A sibling guard broken mid-edit raises outside every handler offence() holds; the hook must still deny.
+        hook = self.hook_denying()
+        self.write(os.path.join(os.path.dirname(hook), "guard-git-argv.py"), "def (\n")
+        worktree = self.linked()
+        reason = self.assertRefused(os.path.join(worktree, "docs", "note.md"), hook=hook)
+        self.assertIn("crashed the edit target guard", reason)
+
     def test_its_denied_trees_are_refused_from_outside_it(self):
         worktree = self.linked()
         for parts in ((".claude", "scripts", "helper.sh"),
