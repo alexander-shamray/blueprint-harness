@@ -264,6 +264,10 @@ SUITES = {"closure-gate", "comment-gate", "commit-gate", "harness-drift", "local
 # A judge sits outside the checkout; the comment gate holds its path in `$judge`, assigned under the same root.
 JUDGE = re.compile(r'(?<![-\w])python(?: -I)? "\$(?:RUNNER_TEMP/([\w./-]+\.py)|judge)"')
 JUDGE_SET = re.compile(r'(?m)^\s*judge=(.*)$')
+# `judge` as anything but a read: a write in any form, a loop variable, a `read` target, a word in a comment.
+JUDGE_WORD = re.compile(r'(?<![\w$-])judge\b')
+# The root both judge forms trust: a step that sets it, or reads it under another spelling, is not trusted.
+RUNNER_TEMP_WORD = re.compile(r'(?<![\w${])RUNNER_TEMP\b')
 UNDER_RUNNER_TEMP = re.compile(r'"\$RUNNER_TEMP/([\w./-]+\.py)"')
 # Reads no module from the checkout: how the drift gate reads its manifest ahead of the judge. Only the programs
 # gates.yml runs are named, since `-c` runs whatever it is handed.
@@ -289,7 +293,8 @@ RUN = re.compile(r"^(?:      - |        )run:(.*)$", re.M)
 # A write to either file reaches every later step's environment or PATH, the head's code at one remove.
 RUNNER_FILES = re.compile(r"GITHUB_(?:ENV|PATH)\b")
 # Variables that make a safe word or a judge load a file: bash sources one, Python imports from one, git reads one.
-ENV_HOOKS = re.compile(r"^ +(?:BASH_ENV|ENV|PYTHON\w*|GIT_CONFIG\w*|GIT_EXEC_PATH|LD_PRELOAD|NODE_OPTIONS):", re.M)
+ENV_HOOKS = re.compile(r"^ +(?:BASH_ENV|ENV|PYTHON\w*|GIT_CONFIG\w*|GIT_EXEC_PATH|LD_PRELOAD|NODE_OPTIONS|RUNNER_TEMP"
+                       r"|judge):", re.M)
 
 
 def run_script(step: str) -> str | None:
@@ -454,12 +459,15 @@ def outside_the_checkout(path: str) -> bool:
 
 
 def a_judge(found: re.Match, script: str) -> bool:
-    """Whether a JUDGE match runs a file under the runner's temp directory: named there, or `$judge` assigned there."""
+    """Whether a JUDGE match runs a file under the runner's temp directory: named there, or `$judge` assigned there
+    once, on a line of its own, ahead of the run. Any other write to `judge` leaves the value unknown."""
     if found.group(1) is not None:
         return outside_the_checkout(found.group(1))
-    values = [value.strip() for value in JUDGE_SET.findall(script)]
-    return bool(values) and all((under := UNDER_RUNNER_TEMP.fullmatch(value)) and outside_the_checkout(under.group(1))
-                                for value in values)
+    sets, words = list(JUDGE_SET.finditer(script)), JUDGE_WORD.findall(script)
+    if len(sets) != 1 or len(words) != 1 or sets[0].start() > found.start():
+        return False
+    under = UNDER_RUNNER_TEMP.fullmatch(sets[0].group(1).strip())
+    return bool(under) and outside_the_checkout(under.group(1))
 
 
 def runs_head_code(step: str) -> bool:
@@ -473,6 +481,8 @@ def runs_head_code(step: str) -> bool:
     script = run_script(step)
     if script is None:
         return False
+    if RUNNER_TEMP_WORD.search(script):
+        return True
     # A judge and an isolated read stand in as `:`, so their arguments are read as arguments; one that climbs out of
     # the runner's temp directory, or runs a program gates.yml does not, stays itself and reads as head code.
     script = JUDGE.sub(lambda judge: ":" if a_judge(judge, script) else judge.group(0),
@@ -673,7 +683,19 @@ class TheReader(unittest.TestCase):
                          '        run: |\n          judge=.github/x.py\n          python "$judge"',
                          '        run: python "$judge"',
                          '        run: |\n          judge="$RUNNER_TEMP/../x.py"\n          python "$judge"',
-                         "        run: python -I -c 'exec(open(\".github/x.py\").read())'"):
+                         "        run: python -I -c 'exec(open(\".github/x.py\").read())'",
+                         # `$judge` read before its one assignment, written a second time, set in another form, or
+                         # taken from the environment; and the root the judges trust, set by the step.
+                         '        run: |\n          python "$judge"\n          judge="$RUNNER_TEMP/a.py"',
+                         '        run: |\n          judge="$RUNNER_TEMP/a.py"\n          judge=.github/x.py\n'
+                         '          python "$judge"',
+                         '        run: |\n          judge="$RUNNER_TEMP/a.py"\n          true; judge=.github/x.py\n'
+                         '          python "$judge"',
+                         '        run: for judge in .github/x.py; do python "$judge"; done',
+                         '        env:\n          judge: .github/x.py\n        run: |\n          python "$judge"\n'
+                         '          judge="$RUNNER_TEMP/a.py"',
+                         '        run: |\n          RUNNER_TEMP=.github\n          python "$RUNNER_TEMP/x.py"',
+                         '        env:\n          RUNNER_TEMP: .github\n        run: python "$RUNNER_TEMP/x.py"'):
             with self.subTest(spelling=spelling):
                 self.assertEqual(["step 1"], head_code_before_the_verdicts(workflow(JUDGES, spelling, REPORTS)))
 
