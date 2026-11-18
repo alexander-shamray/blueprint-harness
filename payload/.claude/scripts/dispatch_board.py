@@ -1521,10 +1521,11 @@ def branch_paths(root, branch):
         return frozenset()
     for ref in (branch, f"origin/{branch}"):
         try:
-            out = git(root, "diff", "--name-only", f"origin/main...{ref}", "--")
+            # --no-renames lists a move's vacated path too, and -z leaves a non-ASCII name unquoted.
+            out = git(root, "diff", "--name-only", "--no-renames", "-z", f"origin/main...{ref}", "--")
         except Refusal:
             continue
-        return frozenset(path for path in (_normalise(p) for p in out.splitlines()) if path)
+        return frozenset(path for path in (_normalise(p) for p in out.split("\0")) if path)
     return frozenset()
 
 
