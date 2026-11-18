@@ -33,8 +33,8 @@ ORIGINAL_ENVIRON = os.environ
 
 SCRIPTS = Path(__file__).resolve().parent
 NO_CWD_SEARCH = "NoDefaultCurrentDirectoryInExePath"
-# Every variable a case here sets or pops, for the canary to compare at the end. Only these: another suite's
-# module fixture pops its own, so a whole-environment compare would blame this file for them.
+# Every variable a case here sets or pops, for the canary to compare at the end. Only these: the rest of the
+# environment is the host's and the runner's, which this file's canary has no say over.
 PATCHED_VARIABLES = ("CBX_NO_SKILL_AUTO_UPDATE", "CLAUDE_PROJECT_DIR", "GIT_DIR", "GIT_WORK_TREE", NO_CWD_SEARCH,
                      "PATH", "PATHEXT", "PYTHONPATH")
 ORIGINAL_VARIABLES = {name: os.environ.get(name) for name in PATCHED_VARIABLES}
