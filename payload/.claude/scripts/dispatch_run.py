@@ -1547,18 +1547,22 @@ def _unrecorded(directory, state, gid, entry, line):
     """A `run` that exited refused and left neither a marker from this launch nor a session record not yet read.
 
     With no pid file it launched nothing and could not write its marker; with one, an executor ran and its record
-    was not written. _launch removes an earlier pid file first, and one a refusal left is read as the latter.
+    was not written. _launch removes an earlier pid file first, and one a refusal left is read as the latter, but
+    for a group held at `account` or `week`: `run` refuses those before `_launch`, so nothing ran.
     """
     why = one_line(line, 200) if isinstance(line, str) and line.strip() else "no reason given"
+    status = entry.get("status")
+    if status == "account":
+        # The group keeps its slot and its hold, and the line names the hold as a session that ended on it would.
+        return [f"{gid}: account - run refused, the hold stands: {why}", "transcript: not found"]
+    if status == "week":
+        # A reset that passed after `run` looked frees the group for another `run`, which the runbook starts.
+        decision = "relaunch" if _week_passed(entry, now()) else "week"
+        return [f"{gid}: {decision} - run refused on the week's hold: {why}", "transcript: not found"]
     path = Path(directory) / f"{gid}.pid"
     pid = _pid(directory, gid)
     if pid is not None and alive(pid):
         raise Refusal(f"{gid} has no session record and its executor is still running")
-    status = entry.get("status")
-    if status == "account" or status == "week" and not _week_passed(entry, now()):
-        # `run` refused on the hold and launched nothing, so the group keeps its slot and its hold, and the line
-        # names the hold as a session that ended on it would.
-        return [f"{gid}: {status} - run refused, the hold stands: {why}", "transcript: not found"]
     if path.exists():
         # It ran and may have merged, but nothing records how it ended, so a human reads its worktree.
         status, reason = "crash-hand-back", f"its executor ran and left no session record: {why}"

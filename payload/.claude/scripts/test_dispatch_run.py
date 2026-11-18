@@ -805,8 +805,21 @@ class LaunchTests(InRoot):
                 if pid is None:
                     # The runbook's `result --refused` after the exit 2 keeps the hold and the slot.
                     out = run_cli(["result", RUN, "S1", "--refused", line.strip()])
-                    self.assertIn(f"S1: {fields['status']} - run refused, the hold stands", out)
+                    self.assertIn(f"S1: {fields['status']} - run refused", out)
                     self.assertEqual(fields["status"], group_state(RUN, "S1")["status"])
+
+    def test_result_reads_a_held_refusal_over_an_unreadable_pid_and_a_reset_since_passed(self):
+        # The earlier session's pid file is still there, since `run` refused before `_launch`; it is not read.
+        line = "refused: S1 is held until the week resets"
+        for fields, decision in (({"status": "account"}, "account"),
+                                 ({"status": "week", "resets_at": (NOW - timedelta(days=1)).isoformat()},
+                                  "relaunch")):
+            with self.subTest(fields=fields):
+                record(RUN, "S1", branch=BRANCH, worktree=WORKTREE, **fields)
+                (state_dir() / "S1.pid").write_text("not a pid\n", encoding="utf-8")
+                out = run_cli(["result", RUN, "S1", "--refused", line])
+                self.assertIn(f"S1: {decision} - run refused", out)
+                self.assertEqual(fields["status"], group_state(RUN, "S1")["status"])
 
     def test_run_launches_over_a_pid_file_it_cannot_read(self):
         record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
