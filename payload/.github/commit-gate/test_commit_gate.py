@@ -268,11 +268,10 @@ JUDGE_SET = re.compile(r'(?m)^\s*judge=(.*)$')
 JUDGE_WORD = re.compile(r'(?<![\w$-])judge\b')
 # The root both judge forms trust: a step that sets it, or reads it under another spelling, is not trusted.
 RUNNER_TEMP_WORD = re.compile(r'(?<![\w${])RUNNER_TEMP\b')
-# `printf -v` writes any variable, under any quoting, so neither word count above can see what it names.
-PRINTF_V = re.compile(r'(?<![\w-])printf\b[^\n;|&]*\s-v')
-# The same hooks ENV_HOOKS names, and PATH, set in the script itself: as a line, or as a command's prefix.
-SCRIPT_HOOKS = re.compile(r'(?<![\w$-])(?:BASH_ENV|ENV|PYTHON\w*|GIT_CONFIG\w*|GIT_EXEC_PATH|LD_PRELOAD|NODE_OPTIONS'
-                          r'|PATH)\+?=')
+# The hooks ENV_HOOKS names but for the two judge words, which the word checks above cover, and PATH, set in the
+# script itself: as a line, or as a command's prefix.
+SCRIPT_HOOKS = re.compile(r'(?<![\w$-])(?:BASH_ENV|ENV|PYTHON\w*|GIT_CONFIG\w*|GIT_EXEC_PATH|GIT_DIR|GIT_WORK_TREE'
+                          r'|HOME|XDG_CONFIG_HOME|LD_PRELOAD|NODE_OPTIONS|PATH)\+?=')
 UNDER_RUNNER_TEMP = re.compile(r'"\$RUNNER_TEMP/([\w./-]+\.py)"')
 # Reads no module from the checkout: how the drift gate reads its manifest ahead of the judge. Only the programs
 # gates.yml runs are named, since `-c` runs whatever it is handed.
@@ -280,8 +279,9 @@ ISOLATED = re.compile(r"(?<![-\w])python -I -c '([^']*)'")
 ISOLATED_PROGRAMS = frozenset({'import json, sys; print(json.load(sys.stdin)["harness_commit"])'})
 # Deny by default: a command reads as head code unless its first word is one of these, the shell's own words or a
 # tool the workflow hands data to. An interpreter, a build tool or a path is never named here.
-SAFE_COMMANDS = frozenset({":", "[", "[[", "cp", "echo", "exit", "false", "gh", "git", "grep", "jq", "mkdir", "printf",
-                           "rm", "set", "test", "true"})
+# `printf` is not one: its `-v` writes any variable, under quoting no reader here unpicks, and no step needs it.
+SAFE_COMMANDS = frozenset({":", "[", "[[", "cp", "echo", "exit", "false", "gh", "git", "grep", "jq", "mkdir", "rm",
+                           "set", "test", "true"})
 # Words after which the shell expects a command, words that close a compound, and words whose header runs nothing.
 OPENERS = frozenset({"!", "{", "if", "then", "elif", "else", "while", "until", "do"})
 CLOSERS = frozenset({"}", "fi", "done"})
@@ -298,8 +298,8 @@ RUN = re.compile(r"^(?:      - |        )run:(.*)$", re.M)
 # A write to either file reaches every later step's environment or PATH, the head's code at one remove.
 RUNNER_FILES = re.compile(r"GITHUB_(?:ENV|PATH)\b")
 # Variables that make a safe word or a judge load a file: bash sources one, Python imports from one, git reads one.
-ENV_HOOKS = re.compile(r"^ +(?:BASH_ENV|ENV|PYTHON\w*|GIT_CONFIG\w*|GIT_EXEC_PATH|LD_PRELOAD|NODE_OPTIONS|RUNNER_TEMP"
-                       r"|judge):", re.M)
+ENV_HOOKS = re.compile(r"^ +(?:BASH_ENV|ENV|PYTHON\w*|GIT_CONFIG\w*|GIT_EXEC_PATH|GIT_DIR|GIT_WORK_TREE|HOME"
+                       r"|XDG_CONFIG_HOME|LD_PRELOAD|NODE_OPTIONS|RUNNER_TEMP|judge):", re.M)
 
 
 def run_script(step: str) -> str | None:
@@ -486,7 +486,7 @@ def runs_head_code(step: str) -> bool:
     script = run_script(step)
     if script is None:
         return False
-    if RUNNER_TEMP_WORD.search(script) or PRINTF_V.search(script) or SCRIPT_HOOKS.search(script):
+    if RUNNER_TEMP_WORD.search(script) or SCRIPT_HOOKS.search(script):
         return True
     # A judge and an isolated read stand in as `:`, so their arguments are read as arguments; one that climbs out of
     # the runner's temp directory, or runs a program gates.yml does not, stays itself and reads as head code.
@@ -710,7 +710,13 @@ class TheReader(unittest.TestCase):
                          "        run: |\n          printf -v RUNNER''_TEMP .github\n"
                          '          python "$RUNNER_TEMP/x.py"',
                          '        run: PYTHONPATH=.github python "$RUNNER_TEMP/gate/gate.py"',
-                         '        run: |\n          PATH=.github/bin:$PATH\n          git log -1'):
+                         '        run: |\n          PATH=.github/bin:$PATH\n          git log -1',
+                         # A home or git directory the step points into the checkout: Python and git read config there.
+                         '        run: HOME=.github python "$RUNNER_TEMP/gate/gate.py"',
+                         '        run: GIT_DIR=.github/repo git log -1',
+                         '        env:\n          XDG_CONFIG_HOME: .github\n        run: git log -1',
+                         "        run: |\n          judge=\"$RUNNER_TEMP/a.py\"\n"
+                         "          pr''intf '-v' ju''dge .github/x.py\n          python \"$judge\""):
             with self.subTest(spelling=spelling):
                 self.assertEqual(["step 1"], head_code_before_the_verdicts(workflow(JUDGES, spelling, REPORTS)))
 
