@@ -52,9 +52,9 @@ container='^ {0,3}([-+*]|[0123456789]{1,9}[.)])([[:blank:]]|$)|^ {0,3}[<>]'
 rowish='^[[:blank:]]*\|?[[:blank:]]*(Class|Touch set)[[:blank:]]*\|'
 after_container=0 contained=0
 # GitHub hides an HTML comment. A `<!--` outside a fence with no `-->` after it on its line leaves one open, and it
-# is never closed here: a later `-->` ends it only when its opener began an HTML block of its own, which a line reader
-# cannot tell, and GitHub otherwise hides the rest. So every row or fence line after one is refused. A backtick is no
-# code span here, since run lengths and escapes decide one, so a quoted `<!--` counts as an opener.
+# is never closed here: whether a later `-->` ends it turns on block or inline context and paragraph ends, which a line
+# reader cannot tell. So every row or fence line after one is refused, as after such a `<!--` inside a fence opened
+# after a container, which GitHub may have ended. A backtick is no code span here, so a quoted `<!--` is an opener.
 comment=0
 while IFS= read -r line; do
   if [ "$comment" -eq 1 ]; then
@@ -66,6 +66,9 @@ while IFS= read -r line; do
   if [ -n "$fence" ]; then
     if [ "$contained" -eq 1 ] && [[ "$line" =~ $rowish ]]; then
       refuse "a Class or Touch set row sits in a fenced block after a list, block quote or HTML block"
+    fi
+    if [ "$contained" -eq 1 ]; then
+      case "$line" in *'<!--'*) case "--${line##*'<!--'}" in *'-->'*) ;; *) comment=1 ;; esac ;; esac
     fi
     if [[ "$line" =~ $fence_close ]] && [ "${BASH_REMATCH[1]:0:1}" = "${fence:0:1}" ] &&
       [ "${#BASH_REMATCH[1]}" -ge "${#fence}" ]; then fence=""; fi

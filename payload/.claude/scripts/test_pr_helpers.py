@@ -618,9 +618,9 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
                 self.assertEqual(["class D", "inside docs/x.md"], r.stdout.splitlines())
 
     def test_a_row_after_an_html_comment_left_open_is_refused(self):
-        # GitHub hides the comment, and a later `-->` closes it only when its opener began an HTML block of its own,
-        # which a line reader cannot tell, so every row or fence line after an open comment is refused, as the CI
-        # gate refuses it; a verdict here would pass a body CI refuses.
+        # GitHub hides the comment, and whether a later `-->` closes it turns on context a line reader cannot tell,
+        # so every row or fence line after an open comment is refused, as the CI gate refuses it; a verdict here
+        # would pass a body CI refuses.
         table = "| Class | D |\n| Touch set | docs/x.md |\n"
         hidden = "| Class | E |\n| Touch set | src/y.py |\n"
         refusal = ("a Class or Touch set row, or a fence line, sits after an HTML comment left open, "
@@ -644,6 +644,7 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
             ("a span joining a closer", "<!-- a -`x`->\n" + hidden + "-->\n"),
             ("a quoted opener refuses, as a precaution", "the `<!--` marker\n" + table),
             ("a fence line inside a comment", "<!--\n```\n-->\n" + table + "```\n" + hidden + "```\n"),
+            ("an opener in a fence GitHub may have ended", "- note\n\n  ```\n<!--\n```\n" + hidden + "-->\n"),
             ("a quoted opener before a fenced example",
              "Use the `<!--` marker.\n\n```\n-->\n" + hidden + "```\n\n" + table),
         ):
