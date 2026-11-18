@@ -373,10 +373,34 @@ class NeitherCreatorShadowsAPackedBranch(unittest.TestCase):
                 self.assertIn("branch already exists", result.stderr)
                 self.assertEqual(before, self.refs(root))
 
-    def test_a_name_that_only_extends_it_is_created(self):
+    def test_a_match_early_in_a_long_list_is_still_refused(self):
+        # A `grep -q` on a pipe under `pipefail` reads as "absent" once the list outgrows the pipe's buffer, as it
+        # stops at its match and the writer dies of SIGPIPE, so the probe sorts first among heads that fill several.
         root = self.packed()
-        result = run_bash('cd "$C" && bash "$H" feat/probe-two HEAD', C=f"{root}/checkout", H=str(self.CREATE))
-        self.assertEqual(0, result.returncode, result.stderr)
+        lines = "".join(f"create refs/heads/zz/filler-{n:04d}-{'x' * 80} HEAD\n" for n in range(3000))
+        Path(root, "heads.txt").write_text(lines, encoding="utf-8")
+        made = run_bash('cd "$C" && git update-ref --stdin < "$L" && git pack-refs --all',
+                        C=f"{root}/checkout", L=f"{root}/heads.txt")
+        self.assertEqual(0, made.returncode, made.stderr)
+        result = run_bash('cd "$C" && bash "$H" Feat/Probe HEAD', C=f"{root}/checkout", H=str(self.CREATE))
+        self.assertEqual(3, result.returncode, result.stderr)
+        result = self.fork(f"{root}/checkout", ".claude/worktrees/probe", "Feat/Probe")
+        self.assertEqual(3, result.returncode, result.stderr)
+
+    def test_a_name_that_is_not_the_whole_of_one_is_created(self):
+        # Whole names, matched literally: a prefix, an extension and a name a `.` pattern would match are other names.
+        for creator in ("create", "fork"):
+            root = self.packed()
+            made = run_bash('git -C "$C" branch feat/a.b && git -C "$C" pack-refs --all', C=f"{root}/checkout")
+            self.assertEqual(0, made.returncode, made.stderr)
+            for name in ("feat/prob", "feat/probe-two", "feat/axb"):
+                with self.subTest(creator=creator, name=name):
+                    if creator == "create":
+                        result = run_bash('cd "$C" && bash "$H" "$B" HEAD', C=f"{root}/checkout",
+                                          H=str(self.CREATE), B=name)
+                    else:
+                        result = self.fork(f"{root}/checkout", f".claude/worktrees/{name.split('/')[1]}", name)
+                    self.assertEqual(0, result.returncode, result.stderr)
 
 
 class TheAddAsksForLongPaths(unittest.TestCase):
