@@ -1,8 +1,8 @@
 """What `.claude/hooks/guard-sed-crlf.py` refuses, and what it must not.
 
-Verdict cases call `offence` with `strips_cr=True`, since only Git Bash's sed drops the CR and they run on every
-`payload-suites` leg; process cases run the hook as the harness does, and only the Windows leg reaches its refusal and
-`/c/...` translation. The last class has the registration as its subject."""
+Verdict cases call `offence` with `strips_cr=True`, since only Git Bash's sed drops the CR, on every leg; process
+cases run the hook as the harness does, and only the Windows leg reaches its refusal and `/c/...` translation. The
+crash case runs `main` in process with `offence` raising, a deny on every leg; the last, the registration."""
 
 import contextlib
 import importlib.util
@@ -608,6 +608,17 @@ class TheHookAsTheHarnessRunsIt(ACheckout):
                 self.assertEqual(b"", result.stdout.strip())
                 self.assertIn(b"guard-sed-crlf", result.stderr)
 
+    def test_an_event_that_is_not_utf8_is_refused(self):
+        # Not the fail-open above: bytes nothing could decode hold a command nothing read.
+        result = subprocess.run([sys.executable, str(HOOK)], input=b"\xff", capture_output=True)
+        self.assertEqual(0, result.returncode)
+        verdict = json.loads(result.stdout.decode("utf-8"))["hookSpecificOutput"]
+        self.assertEqual("deny", verdict["permissionDecision"])
+        self.assertIn("not UTF-8", verdict["permissionDecisionReason"])
+
+
+class ACrashWhileJudgingRefuses(ACheckout):
+
     def test_a_crash_while_judging_refuses_the_command(self):
         # Any exception under offence() escaped main() as a traceback and empty stdout, which admits the sed -i.
         module = guard_module()
@@ -623,14 +634,6 @@ class TheHookAsTheHarnessRunsIt(ACheckout):
         self.assertEqual("deny", verdict["permissionDecision"])
         self.assertIn("crashed the sed line-ending guard", verdict["permissionDecisionReason"])
         self.assertIn("a digit limit", stderr.getvalue())
-
-    def test_an_event_that_is_not_utf8_is_refused(self):
-        # Not the fail-open above: bytes nothing could decode hold a command nothing read.
-        result = subprocess.run([sys.executable, str(HOOK)], input=b"\xff", capture_output=True)
-        self.assertEqual(0, result.returncode)
-        verdict = json.loads(result.stdout.decode("utf-8"))["hookSpecificOutput"]
-        self.assertEqual("deny", verdict["permissionDecision"])
-        self.assertIn("not UTF-8", verdict["permissionDecisionReason"])
 
 
 class TheWiringWithoutWhichNoneOfTheAboveRuns(unittest.TestCase):
