@@ -493,6 +493,7 @@ class PathTests(unittest.TestCase):
         self.in_checkout()
         # Neither `npm` nor `react.js` names a directory of the checkout, so each pair stays an unknown claim.
         self.assertEqual(frozenset(), db.extract_paths("built on npm/Node.js, React/Next.js and React.js/Next.js"))
+        self.assertEqual(frozenset(), db.extract_paths("built on zone.js/Angular.js"))
         # A checkout that cannot be walked claims the pair, erring towards exclusive as `_slash_path` does.
         with mock.patch.object(db, "_directory_names", lambda: None):
             self.assertEqual({"npm/node.js"}, db.extract_paths("built on npm/Node.js"))
