@@ -68,6 +68,8 @@ BODY = "\x00"
 # Stands for a command substitution inside the word `prepared` leaves around it, as `$<SUBSTITUTION><n>$`: the `$`
 # keeps an operand holding one unplaceable, and the byte, like BODY's, is one no command line carries.
 SUBSTITUTION = "\x01"
+# Numbered across every line judged, so a placeholder carried into a shell's line names no substitution of that line.
+LIFTED = itertools.count(1)
 # Bash's long options, which it reads before any cluster with one dash or two, and those that take the next word as
 # their value; a short option's value is the next word for each `o` and `O` in its cluster.
 SHELL_LONG = {"debug", "debugger", "dump-po-strings", "dump-strings", "help", "login", "noediting", "noprofile", "norc",
@@ -109,9 +111,12 @@ def substitution_end(command, index):
         while close < len(command) and command[close] != "`":
             close += 2 if command[close] == "\\" else 1
         return close + 1 if close < len(command) else None
-    if not command.startswith("$(", index):
-        return None
-    depth, quote, close = 0, None, index + 1
+    return closing(command, index + 1) if command.startswith("$(", index) else None
+
+
+def closing(command, index):
+    """Just past the `)` that closes the `(` at `index`, quotes and escapes skipped, or None."""
+    depth, quote, close = 0, None, index
     while close < len(command):
         character = command[close]
         if quote is None and command.startswith("<<", close):
@@ -177,13 +182,16 @@ def prepared(command, substitutions):
                 end := substitution_end(command, index)) is not None:
             # Lifted like a body, so its parentheses do not end the word and cut the operands after it; `$((…))` is
             # arithmetic, with no command to lift unless its body runs one.
-            arithmetic_only = command.startswith("$((", index) and command.startswith("))", end - 2)
+            # `$((…))` is arithmetic only where its inner `(` closes at its end, as bash parses it: `$((a); (b))` runs
+            # two subshells.
+            arithmetic_only = command.startswith("$((", index) and closing(command, index + 2) == end - 1
             body = command[index + (1 if character == "`" else 2):end - 1]
             if arithmetic_only and "$(" not in body and "`" not in body:
                 out.append(f"${SUBSTITUTION}$")
             else:
-                substitutions.append(body[1:-1] if arithmetic_only else body)
-                out.append(f"${SUBSTITUTION}{len(substitutions)}$")
+                number = next(LIFTED)
+                substitutions[number] = body[1:-1] if arithmetic_only else body
+                out.append(f"${SUBSTITUTION}{number}$")
             index = end
             word_start = False
             continue
@@ -242,11 +250,13 @@ class Segment:
         self.piped = False
         # What a heredoc or a here-string feeds it, which a shell reading its input runs as a command line.
         self.stdin = None
+        # The substitutions it was lifted out of, outermost first: a pipe joins only commands of the same line.
+        self.lift = ()
 
 
 def segments(command):
     """The command's simple commands as `Segment`s, or `None` where `shlex` cannot read it."""
-    lifted = []
+    lifted = {}
     text, bodies = prepared(command, lifted)
     lexer = shlex.shlex(text, posix=True, punctuation_chars=PUNCTUATION)
     lexer.whitespace = " \t\r"
@@ -260,9 +270,20 @@ def segments(command):
     scope = ()
     found = [Segment(scope)]
     redirection = None
+
+    def lift(token):
+        # A substitution runs before the command whose word holds it, in a subshell of its own.
+        for number in re.findall(rf"\${SUBSTITUTION}(\d+)\$", token):
+            inner = segments(lifted.get(int(number), "")) or []
+            for segment in inner:
+                segment.scope = scope + ((SUBSTITUTION, number),) + segment.scope
+                segment.lift = (number,) + segment.lift
+            found[-1:-1] = inner
+
     for token in tokens:
         current = found[-1]
         if redirection is not None:
+            lift(token)
             # The word after a redirection is its file, a heredoc's body or a here-string's text.
             if redirection == "<<" and token.startswith(BODY) and token[len(BODY):].isdigit():
                 current.stdin = bodies[int(token[len(BODY):])]
@@ -272,12 +293,7 @@ def segments(command):
             continue
         if not token or not set(token) <= set(PUNCTUATION):
             current.words.append(token)
-            # A substitution runs before the command whose word holds it, in a subshell of its own.
-            for number in re.findall(rf"\${SUBSTITUTION}(\d+)\$", token):
-                inner = segments(lifted[int(number) - 1]) or []
-                for segment in inner:
-                    segment.scope = scope + ((SUBSTITUTION, number),) + segment.scope
-                found[-1:-1] = inner
+            lift(token)
             continue
         # A run can join a group's paren to a redirection, as `)>` does, so the parens are taken out of it first:
         # each opens or closes a subshell and ends the command before it.
@@ -689,7 +705,7 @@ def judge(command, cwd, git, checked, depth):
     # Each subshell's `pushd` stack, inherited as its directory is.
     stacks = {(): []}
     for position, segment in enumerate(found):
-        previous = found[position - 1] if position else None
+        previous = next((earlier for earlier in reversed(found[:position]) if earlier.lift == segment.lift), None)
         scope = segment.scope
         if scope not in directories:
             parent = next(scope[:length] for length in range(len(scope) - 1, -1, -1)
