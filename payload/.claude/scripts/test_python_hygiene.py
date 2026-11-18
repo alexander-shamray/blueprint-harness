@@ -135,18 +135,24 @@ def mktemp_fixture(source: str) -> list[int]:
     return [node.lineno for node in _strings(tree) if id(node) not in prose and MKTEMP_DIRECTORY.search(node.value)]
 
 
-def dash_c_unguarded(flags: list[str | None]) -> bool:
+# Stands for a `*splice` in the argv: any number of options may be in it, so it is read past.
+SPLICED = object()
+
+
+def dash_c_unguarded(flags: list[object]) -> bool:
     """Whether interpreter options reach `-c`, alone or in a combined short flag, with neither `P` nor `I` before it.
 
-    Options end at the first element not starting with `-`, or at `-m`: what follows is the program's own argv. A
-    `None` stands for an element not spelled literally; in an option's place it is read past, so a `-c` after it counts.
+    Options end at the first element not starting with `-`, or at `-m`. A `None`, one element not spelled literally,
+    is the script there and ends them too; `SPLICED` is read past, so a `-c` after a splice counts.
     """
     guarded, at = False, 0
     while at < len(flags):
         flag = flags[at]
-        if flag is None:
+        if flag is SPLICED:
             at += 1
             continue
+        if not isinstance(flag, str):
+            return False
         if not flag.startswith("-") or flag in ("-", "--"):
             return False
         if flag.startswith("--"):
@@ -181,7 +187,8 @@ def unsafe_dash_c(source: str) -> list[int]:
         if not (isinstance(head, ast.Attribute) and head.attr == "executable" and _name(head.value) == "sys"):
             continue
         # A placeholder keeps each element's place, so an option's argument stays the element after it.
-        flags = [e.value if isinstance(e, ast.Constant) and isinstance(e.value, str) else None
+        flags = [e.value if isinstance(e, ast.Constant) and isinstance(e.value, str)
+                 else SPLICED if isinstance(e, ast.Starred) else None
                  for e in node.elts[1:]]
         if dash_c_unguarded(flags):
             lines.append(node.lineno)
@@ -249,8 +256,11 @@ class PythonHygiene(unittest.TestCase):
                   "subprocess.run([sys.executable, '--check-hash-based-pycs', 'always', '-c', 'pass'])\n"
                   "subprocess.run([sys.executable, '-Wc'])\n"
                   "subprocess.run([sys.executable, '-Xdev', '-c', 'pass'])\n"
-                  "subprocess.run([sys.executable, '--', '-c'])\n")
-        self.assertEqual(unsafe_dash_c(source), [2, 4, 6, 7, 8, 10, 14, 15, 17])
+                  "subprocess.run([sys.executable, '--', '-c'])\n"
+                  # A splice may hold any options, so the `-c` after it counts; a single non-literal is the script.
+                  "subprocess.run([sys.executable, *opts, '-c', code])\n"
+                  "subprocess.run([sys.executable, str(SCRIPT), '-c'])\n")
+        self.assertEqual(unsafe_dash_c(source), [2, 4, 6, 7, 8, 10, 14, 15, 17, 19])
 
     def test_no_fixture_makes_its_root_with_mktemp(self) -> None:
         self.assertEqual(offences(ROOT, mktemp_fixture), [], "take the root from review_helpers.temp_root")
