@@ -332,6 +332,53 @@ class NeitherCreatorTakesMain(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
 
 
+class NeitherCreatorShadowsAPackedBranch(unittest.TestCase):
+    """A packed branch is refused under any spelling of its case, by both creators.
+
+    A case-exact existence check misses `Feat/Probe` against a packed `feat/probe`, and on a case-insensitive
+    filesystem the new loose ref then shadows the packed one and moves it.
+    """
+
+    SPELLINGS = ("feat/probe", "Feat/Probe", "FEAT/PROBE", "feat/Probe")
+    CREATE = SCRIPTS / "git-branch-create.sh"
+    fixture = ForkShape.fixture
+    fork = ForkShape.fork
+    refs = NeitherCreatorTakesMain.refs
+
+    def packed(self):
+        root = self.fixture()
+        for step in ('git -C "$C" branch feat/probe', 'git -C "$C" pack-refs --all'):
+            made = run_bash(step, C=f"{root}/checkout")
+            self.assertEqual(0, made.returncode, made.stderr)
+        return root
+
+    def test_the_fork_refuses_every_spelling(self):
+        root = self.packed()
+        before = self.refs(root)
+        for spelling in self.SPELLINGS:
+            with self.subTest(spelling=spelling):
+                result = self.fork(f"{root}/checkout", ".claude/worktrees/probe", spelling)
+                self.assertEqual(3, result.returncode, f"{spelling!r}: {result.stderr}")
+                self.assertIn("branch already exists", result.stderr)
+                self.assertEqual(before, self.refs(root))
+
+    def test_the_in_place_create_refuses_every_spelling(self):
+        root = self.packed()
+        before = self.refs(root)
+        for spelling in self.SPELLINGS:
+            with self.subTest(spelling=spelling):
+                result = run_bash('cd "$C" && bash "$H" "$B" HEAD', C=f"{root}/checkout", H=str(self.CREATE),
+                                  B=spelling)
+                self.assertEqual(3, result.returncode, f"{spelling!r}: {result.stderr}")
+                self.assertIn("branch already exists", result.stderr)
+                self.assertEqual(before, self.refs(root))
+
+    def test_a_name_that_only_extends_it_is_created(self):
+        root = self.packed()
+        result = run_bash('cd "$C" && bash "$H" feat/probe-two HEAD', C=f"{root}/checkout", H=str(self.CREATE))
+        self.assertEqual(0, result.returncode, result.stderr)
+
+
 class TheAddAsksForLongPaths(unittest.TestCase):
     def test_the_add_spells_core_longpaths_in_a_code_line(self):
         # Only a Windows run can fail on a path past 260 characters, so the spelling is held on every platform,

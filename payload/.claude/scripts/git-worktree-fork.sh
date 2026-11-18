@@ -47,8 +47,11 @@ esac
 # It must not exist: refusing here is what makes the missing -B harmless
 # rather than merely unavailable, since a caller cannot reset a branch by
 # passing its name.
-! git show-ref --verify --quiet "refs/heads/$branch" ||
-  { echo "branch already exists: $branch" >&2; exit 3; }
+# Compared folded, as `main` is above: on a case-insensitive filesystem a packed `feat/x` is missed by a case-exact
+# check for `Feat/X`, whose new loose ref then shadows and moves it.
+wanted=$(printf %s "refs/heads/$branch" | tr '[:upper:]' '[:lower:]')
+! git for-each-ref --format='%(refname)' refs/heads/ | tr '[:upper:]' '[:lower:]' | grep -Fxe "$wanted" >/dev/null ||
+  { echo "branch already exists: $branch, or a spelling of it that differs only in case" >&2; exit 3; }
 git show-ref --verify --quiet refs/remotes/origin/main ||
   { echo "no refs/remotes/origin/main — fetch first (step 1)" >&2; exit 4; }
 # origin/main is fixed because step 5 forks only from the fetched base, and read
