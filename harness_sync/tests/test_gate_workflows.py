@@ -317,6 +317,23 @@ class TheDecision(unittest.TestCase):
         self.assertEqual({"locality": "true"}, decided)
         self.assertIn("::warning::", out)
 
+    def test_a_base_missing_from_the_checkout_fails_the_commit_and_comment_gates(self) -> None:
+        # Their probe for the base's gate also fails on a missing base, which they would read as the bootstrap and
+        # judge with the head's own copy under a notice; the drift gate already fails here.
+        for step, gate in (("commit_take", ".github/commit-gate/commit_gate.py"),
+                           ("comment", ".github/comment-gate/comment_gate.py")):
+            with self.subTest(step=step), tempfile.TemporaryDirectory() as directory:
+                repo = Path(directory)
+                git(repo, "init", "-q", "-b", "main")
+                (repo / gate).parent.mkdir(parents=True)
+                (repo / gate).write_text("print()\n", encoding="utf-8")
+                rc, out, _ = run_step(step_script(step), {"BASE_SHA": "b" * 40, "HEAD_SHA": "c" * 40, "GATE": gate,
+                                                          "RUNNER_TEMP": directory}, cwd=repo)
+                self.assertNotEqual(0, rc, out)
+                self.assertIn("is not in the checkout", out)
+                self.assertNotIn("introduces it", out)
+                self.assertNotIn("bootstrap", out)
+
     def test_the_locality_gate_judges_only_on_the_decision(self) -> None:
         self.assertIn("steps.decide.outputs.locality == 'true'", step_of("locality_take"))
         self.assertIn("${{ steps.decide.outputs.locality }}", step_of("verdicts"))
