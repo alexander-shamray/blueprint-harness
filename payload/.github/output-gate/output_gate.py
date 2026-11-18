@@ -206,12 +206,10 @@ def find_missing_output(artifacts: Path, walked: list[Path], solution: str) -> l
 
 
 def find_residue(repo_root: Path) -> list[str]:
-    """Any `bin/` or `obj/` under the source roots, outermost first.
+    """Any `bin/` or `obj/` under the source roots, outside `NOT_SOURCE_DIRECTORY_NAMES`, outermost first.
 
-    The walk prunes what it reports, so a stale `obj/` full of a previous
-    layout's subdirectories is one finding rather than a screenful. The
-    outermost directory is also the one to delete, which makes the finding and
-    the fix the same sentence.
+    The walk prunes what it reports: a stale `obj/` is one finding, and the
+    outermost directory is the one to delete.
     """
     findings: list[str] = []
     for source_root in SOURCE_ROOTS:
