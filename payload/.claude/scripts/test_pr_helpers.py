@@ -155,8 +155,12 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
                 if not line.lstrip().startswith("#")]
 
     def json_fields(self, helper):
-        """The field list after each `--json` in the helper's code, in order."""
-        return re.findall(r"--json[ \t]+([\w,]+)", "\n".join(self.code_of(helper)))
+        """The field list after each `--json` in the helper's code, in order;
+        every `--json` must yield one, so a spelling the pattern misses fails."""
+        code = "\n".join(self.code_of(helper))
+        fields = re.findall(r"--json(?:[ \t]+|=)[\"']?([\w,]+)", code)
+        self.assertEqual(code.count("--json"), len(fields), helper.name)
+        return fields
 
     def assert_no_feed_field(self, helper):
         for line in self.code_of(helper):
