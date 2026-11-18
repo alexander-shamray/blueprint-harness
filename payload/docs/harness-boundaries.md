@@ -2778,7 +2778,8 @@ at one (*Paths on another machine*), a file that does not exist or cannot
 be read, a command `shlex` cannot tokenise, no
 git on `PATH`, or a git that cannot answer: each is admitted, because a
 guard that refuses what it cannot resolve blocks ordinary work for want of
-a resolution. An unreadable event is admitted, as in the other guards.
+a resolution. An event that is UTF-8 but not a JSON object is admitted, as in
+the other guards, and one that is not UTF-8 is refused, as they refuse it.
 
 **Its residuals, stated rather than left to be found, and pinned in its
 suite as what the hook returns.** The launchers and wrappers *The guards'
