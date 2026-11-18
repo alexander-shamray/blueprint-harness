@@ -400,7 +400,8 @@ class PathTests(unittest.TestCase):
 
     # The directories a case's dotless tokens are judged against, laid out as a checkout of its own: the walk is the
     # subject, and the checkout this suite sits in is a different tree in every target.
-    CHECKOUT = ("src/Services/Ordering", "src/Services/Catalog", "deploy/rabbitmq", "tools/quality-sets", "docs")
+    CHECKOUT = ("src/Services/Ordering", "src/Services/Catalog", "deploy/rabbitmq", "tools/quality-sets", "docs",
+                "android/app")
 
     def in_checkout(self):
         tmp = tempfile.TemporaryDirectory()
@@ -470,6 +471,23 @@ class PathTests(unittest.TestCase):
         b = db.group_claim(group_of(line(gid="Z2", number=1701, task="`Services/Ordering` and `b.md`")), {1701: ""})
         self.assertFalse(a.unknown or b.unknown)
         self.assertTrue(db.overlaps(a, "Z1", {1700}, b, "Z2", {1701}))
+
+    def test_a_frontend_file_type_claims_like_a_backend_one(self):
+        self.in_checkout()
+        found = db.extract_paths("Edit src/app/core/api/client.ts and `app.component.html`, then theme.scss.")
+        self.assertEqual({"src/app/core/api/client.ts", "app.component.html", "theme.scss"}, found)
+        for name in ("a.tsx", "a.js", "a.mjs", "a.cjs", "a.css", "a.xml", "a.gradle", "a.kts", "a.kt", "a.java",
+                     "a.swift", "a.plist"):
+            with self.subTest(name=name):
+                self.assertEqual({name}, db.extract_paths(f"see {name} here"))
+
+    def test_a_top_level_directory_claims_everything_under_it(self):
+        self.in_checkout()
+        self.assertEqual({"android"}, db.extract_paths("touches `android/` only"))
+        top, inside = self.claim({"android"}), self.claim({"android/app/src/main/androidmanifest.xml"})
+        self.assertTrue(self.over(top, inside))
+        self.assertTrue(self.over(inside, top))
+        self.assertFalse(self.over(top, self.claim({"src/androidx/a.kt"})))
 
     def test_paths_are_normalised_case_slashes_and_dot_prefix(self):
         found = db.extract_paths(r"`.\Src\Gateway\Program.cs` and `./Docs/A.MD`")
