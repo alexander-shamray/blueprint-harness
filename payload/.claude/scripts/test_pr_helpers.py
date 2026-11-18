@@ -633,16 +633,24 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
             ("an empty comment then a second opened", table + "<!--> <!--\n" + hidden),
             ("indented row", table + "<!--\n  | Class | E |\n-->\n"),
             ("pipeless row", table + "<!--\nTouch set | src/y.py |\n-->\n"),
+            # A backtick decides no code span here, so no unmatched run, escape or join can hide the opener or
+            # forge a closer.
+            ("an unmatched backtick run", "``<!--`\n" + hidden + "-->\n | Class | D |\n"),
+            ("an escaped backtick", "\\`<!--`\n" + hidden + "-->\n | Class | D |\n"),
+            ("a span joining a closer", "<!-- a -`x`->\n" + hidden + "-->\n"),
+            ("a quoted opener refuses, as a precaution", "the `<!--` marker\n" + table),
         ):
             with self.subTest(name=name):
                 r = self._run_locality_with_gh(self._gh_printing(body))
                 self.assertEqual((3, "", refusal), (r.returncode, r.stdout, r.stderr))
-        # A comment GitHub closes, or a marker it shows as code, hides nothing the table holds.
+        # A comment GitHub closes, by any `-->`, quoted or not, hides nothing the table holds, and a fence line inside
+        # one opens nothing.
         for name, body in (
             ("closed on its line", "<!-- note -->\n" + table),
             ("closed before the table", "<!--\nnote\n-->\n" + table),
             ("an empty comment", "<!-->\n" + table),
-            ("a marker in a code span", "the `<!--` marker\n" + table),
+            ("a quoted closer on the opening line", "<!-- `-->`\n" + table),
+            ("a fence line inside a comment", "<!--\n```\n-->\n" + table),
             ("a marker in a fence", "```\n<!--\n```\n" + table),
             ("a closer alone", "-->\n" + table),
             ("a backticked closer still closes", "<!--\n`-->`\n" + table),

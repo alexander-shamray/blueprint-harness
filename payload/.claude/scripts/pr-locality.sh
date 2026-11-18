@@ -52,16 +52,12 @@ container='^ {0,3}([-+*]|[0123456789]{1,9}[.)])([[:blank:]]|$)|^ {0,3}[<>]'
 rowish='^[[:blank:]]*\|?[[:blank:]]*(Class|Touch set)[[:blank:]]*\|'
 after_container=0 contained=0
 # GitHub hides an HTML comment, so a row inside one is refused, and its fence lines open nothing. One opens at a
-# `<!--` outside a code span, the last span on its line taken first, with no `-->` after it on its line, and closes
-# at the next line holding a `-->`; inside one a backtick quotes nothing, so a quoted closer still closes it.
-comment=0 code_span='^(.*)`[^`]*`(.*)$'
+# `<!--` outside a fence with no `-->` after it on its line, and closes at the next line holding a `-->`. A backtick
+# is no code span here, since run lengths and escapes decide one, so a quoted `<!--` refuses rather than hides.
+comment=0
 comment_after() {
-  local text=$1
-  if [ "$comment" -eq 0 ]; then
-    while [[ "$text" =~ $code_span ]]; do text="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
-  fi
-  case "$text" in
-    *'<!--'*) case "--${text##*'<!--'}" in *'-->'*) comment=0 ;; *) comment=1 ;; esac ;;
+  case "$1" in
+    *'<!--'*) case "--${1##*'<!--'}" in *'-->'*) comment=0 ;; *) comment=1 ;; esac ;;
     *'-->'*) comment=0 ;;
   esac
 }
