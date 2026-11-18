@@ -559,9 +559,11 @@ class TheOrdinaryWriteIsNotDisturbed(GuardCase):
                   file=sys.stderr)
             return
 
-        # Without composing, the respelled root is under no anchor, and the
-        # plain write is refused as a spelling no checkout recognises; only
-        # composing admits it and judges the link from inside.
+        # The plain write is the control: it is admitted with or without
+        # composing. The link is what composing decides: composed, the
+        # respelled root is the anchor and the link resolves elsewhere in it;
+        # not composed, it is refused as a spelling no checkout recognises,
+        # which the reason assertion tells apart.
         anchored = {"cwd": checkout, "project": checkout}
         self.assertAdmitted(os.path.join(respelled, "docs", "chapter.md"),
                             **anchored)
