@@ -163,9 +163,15 @@ def run_fake_claude(stdout=b"{}", code=0, description="Narrow the RabbitMQ read 
     return json.loads((state_dir() / "S1.session.json").read_text(encoding="utf-8"))
 
 
+# Every reaped child stays referenced for the run: on Windows its Popen holds the process handle, and while that is
+# open the pid cannot be reused, so `alive()` reads the dead child rather than whatever took its number.
+_REAPED = []
+
+
 def finished_pid():
     child = subprocess.Popen([sys.executable, "-P", "-c", "pass"])
     child.wait()
+    _REAPED.append(child)
     return child.pid
 
 
