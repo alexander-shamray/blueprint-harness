@@ -837,8 +837,22 @@ def run_session(root, run, gid):
     directory = run_dir(root, run)
     state = load_state(directory)
     entry = _entry(state, gid)
-    if entry.get("status") not in ACTIVE:
-        raise Refusal(f"{gid} is {entry.get('status') or 'not launched'}, not waiting for an executor")
+    status = entry.get("status")
+    if status not in ACTIVE:
+        raise Refusal(f"{gid} is {status or 'not launched'}, not waiting for an executor")
+    # `_launch` removes the pid file first, so a second `run` would orphan a live executor and start another in its
+    # worktree; and a held group would be launched straight back into its hold, which `resume` lifts for an account
+    # and the reset ends for a week. A pid file that cannot be read is `_launch`'s to clear, as before.
+    try:
+        pid = _pid(directory, gid)
+    except Refusal:
+        pid = None
+    if pid is not None and alive(pid):
+        raise Refusal(f"{gid}'s executor is still running")
+    if status == "account":
+        raise Refusal(f"{gid} is held on the account until `resume` lifts it")
+    if status == "week" and not _week_passed(entry, now()):
+        raise Refusal(f"{gid} is held until the week resets, {entry.get('resets_at') or 'at an unknown time'}")
     marker = directory / f"{gid}.refused.json"
     try:
         marker.unlink(missing_ok=True)
@@ -1536,6 +1550,15 @@ def _unrecorded(directory, state, gid, entry, line):
     was not written. _launch removes an earlier pid file first, and one a refusal left is read as the latter.
     """
     why = one_line(line, 200) if isinstance(line, str) and line.strip() else "no reason given"
+    status = entry.get("status")
+    # Neither hold below reached `_launch`, so its pid file is an earlier session's and is not read.
+    if status == "account":
+        # The group keeps its slot and its hold, and the line names the hold as a session that ended on it would.
+        return [f"{gid}: account - run refused, the hold stands: {why}", "transcript: not found"]
+    if status == "week" and f"{gid} is held until the week resets" in why:
+        # A reset that passed after `run` looked frees the group for another `run`, which the runbook starts.
+        decision = "relaunch" if _week_passed(entry, now()) else "week"
+        return [f"{gid}: {decision} - run refused on the week's hold: {why}", "transcript: not found"]
     path = Path(directory) / f"{gid}.pid"
     pid = _pid(directory, gid)
     if pid is not None and alive(pid):

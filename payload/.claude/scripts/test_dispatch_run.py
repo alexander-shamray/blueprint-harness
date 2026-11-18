@@ -785,6 +785,59 @@ class LaunchTests(InRoot):
         self.assertIn("refused: S1 is handed-back, not waiting for an executor",
                       run_cli(["run", RUN, "S1"]))
 
+    def test_run_refuses_a_live_executor_and_a_held_group(self):
+        # Each refusal leaves the pid file and launches nothing: a launch would replace the pid with the child's.
+        cases = (({"status": "running"}, os.getpid(), "S1's executor is still running"),
+                 ({"status": "account"}, None, "S1 is held on the account until `resume` lifts it"),
+                 ({"status": "week", "resets_at": (NOW + timedelta(days=3650)).isoformat()}, None,
+                  "S1 is held until the week resets"),
+                 ({"status": "week"}, None, "S1 is held until the week resets, at an unknown time"))
+        for fields, pid, refusal in cases:
+            with self.subTest(fields=fields):
+                (state_dir() / "S1.pid").unlink(missing_ok=True)
+                record(RUN, "S1", pid=pid, branch=BRANCH, worktree=WORKTREE, **fields)
+                task_text()
+                with mock.patch.object(dr, "CLAUDE_COMMAND", [sys.executable, "-P", "-c", "print('{}')"]), \
+                        mock.patch.object(dr.subprocess, "Popen", side_effect=AssertionError("launched")):
+                    line = run_cli(["run", RUN, "S1"])
+                self.assertIn(f"refused: {refusal}", line)
+                self.assertEqual(pid is not None, (state_dir() / "S1.pid").exists())
+                if pid is None:
+                    # The runbook's `result --refused` after the exit 2 keeps the hold and the slot.
+                    out = run_cli(["result", RUN, "S1", "--refused", line.strip()])
+                    self.assertIn(f"S1: {fields['status']} - run refused", out)
+                    self.assertEqual(fields["status"], group_state(RUN, "S1")["status"])
+
+    def test_result_reads_a_held_refusal_over_an_unreadable_pid_and_a_reset_since_passed(self):
+        # The earlier session's pid file is still there, since `run` refused before `_launch`; it is not read.
+        line = "refused: S1 is held until the week resets"
+        for fields, decision in (({"status": "account"}, "account"),
+                                 ({"status": "week", "resets_at": (NOW - timedelta(days=1)).isoformat()},
+                                  "relaunch")):
+            with self.subTest(fields=fields):
+                record(RUN, "S1", branch=BRANCH, worktree=WORKTREE, **fields)
+                (state_dir() / "S1.pid").write_text("not a pid\n", encoding="utf-8")
+                out = run_cli(["result", RUN, "S1", "--refused", line])
+                self.assertIn(f"S1: {decision} - run refused", out)
+                self.assertEqual(fields["status"], group_state(RUN, "S1")["status"])
+
+    def test_result_hands_back_a_week_that_ran_past_its_reset(self):
+        # A passed reset lets `run` into `_launch`, so a refusal that is not the hold's may follow a session that ran.
+        record(RUN, "S1", pid=1, branch=BRANCH, worktree=WORKTREE, status="week",
+               resets_at=(NOW - timedelta(days=1)).isoformat())
+        with mock.patch.object(dr, "alive", return_value=False):
+            out = run_cli(["result", RUN, "S1", "--refused", "refused: could not write S1.session.json"])
+        self.assertIn("S1: crash-hand-back", out)
+        self.assertEqual("crash-hand-back", group_state(RUN, "S1")["status"])
+
+    def test_run_launches_over_a_pid_file_it_cannot_read(self):
+        record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
+        task_text()
+        (state_dir() / "S1.pid").write_text("not a pid\n", encoding="utf-8")
+        with mock.patch.object(dr, "CLAUDE_COMMAND", [sys.executable, "-P", "-c", "print('{}')"]):
+            run_cli(["run", RUN, "S1"])
+        self.assertTrue((state_dir() / "S1.session.json").is_file())
+
 
 class ResultTests(unittest.TestCase):
     def check(self, data):
