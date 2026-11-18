@@ -35,7 +35,8 @@ MODELS = {"Opus": "opus", "Sonnet": "sonnet"}
 EXTENSIONS = ("cs|csproj|py|sh|md|json|ya?ml|sql|ps1|props|slnx|toml|tsx?|[mc]?js|html|s?css|xml|gradle|kts?|java|"
               "swift|plist|properties|pbxproj|xcconfig|storyboard")
 # A slashless `<name>.js`, `Node.js` or `zone.js`, is as often a product or a package as a file: read as one, it
-# would make an empty claim look known. A script still claims by a path with a slash.
+# would make an empty claim look known. A script still claims by a path with a slash, but for the pair of product
+# names `_product_pair` reads.
 PRODUCT = re.compile(r"[^/]+\.[mc]?js")
 BARE_PATH = re.compile(rf"(?<![\w./\\-])([\w.\\/-]+\.(?:{EXTENSIONS}))(?!\w)", re.IGNORECASE)
 KNOWN_FILE = re.compile(rf"\.(?:{EXTENSIONS})$", re.IGNORECASE)
@@ -317,10 +318,12 @@ def _bare_paths(text):
     for raw in BARE_PATH.findall(text):
         path = _normalise(raw)
         parts = path.split("/")
-        # The match is greedy across a slash, so `README.md/client.ts` names two files: each prefix ending in a known
-        # type claims too, or the old type's file would drop out of the claim.
-        yield from ("/".join(parts[:end]) for end in range(1, len(parts))
-                    if KNOWN_FILE.search("/".join(parts[:end])) and not PRODUCT.fullmatch("/".join(parts[:end])))
+        # The match is greedy across a slash, so `README.md/client.ts` names two files: at each segment ending in a
+        # known type, what lies before and after it claims too, or either file would drop out of the claim.
+        for end in range(1, len(parts)):
+            if KNOWN_FILE.search(parts[end - 1]):
+                yield from (side for side in ("/".join(parts[:end]), "/".join(parts[end:]))
+                            if side and not PRODUCT.fullmatch(side))
         if not PRODUCT.fullmatch(path) and not _product_pair(raw, parts):
             yield path
 
@@ -329,14 +332,15 @@ def _product_pair(raw, parts):
     """Whether a bare match is two product names, `npm/Node.js` or `React.js/Next.js`, and so no path.
 
     Only a pair whose second name is capitalised, as a product's is and a script's seldom is, and whose first names
-    no directory of the checkout; a deeper or absolute path, or one under a real directory, still claims.
+    no directory of the checkout; a deeper or absolute path, or one under a real directory, still claims, and so
+    does every pair when the checkout cannot be walked, as `_slash_path` errs.
     """
     if len(parts) != 2 or not parts[0] or not PRODUCT.fullmatch(parts[1]):
         return False
     if not raw.replace("\\", "/").rsplit("/", 1)[-1][:1].isupper():
         return False
     names = _directory_names()
-    return names is None or parts[0] not in names
+    return names is not None and parts[0] not in names
 
 
 def _numbers(text):
