@@ -841,8 +841,12 @@ def run_session(root, run, gid):
     if status not in ACTIVE:
         raise Refusal(f"{gid} is {status or 'not launched'}, not waiting for an executor")
     # `_launch` removes the pid file first, so a second `run` would orphan a live executor and start another in its
-    # worktree; and a held group would be launched straight back into its hold. `resume` lifts both holds.
-    pid = _pid(directory, gid)
+    # worktree; and a held group would be launched straight back into its hold, which `resume` lifts for an account
+    # and the reset ends for a week. A pid file that cannot be read is `_launch`'s to clear, as before.
+    try:
+        pid = _pid(directory, gid)
+    except Refusal:
+        pid = None
     if pid is not None and alive(pid):
         raise Refusal(f"{gid}'s executor is still running")
     if status == "account":
@@ -1550,6 +1554,11 @@ def _unrecorded(directory, state, gid, entry, line):
     pid = _pid(directory, gid)
     if pid is not None and alive(pid):
         raise Refusal(f"{gid} has no session record and its executor is still running")
+    status = entry.get("status")
+    if status == "account" or status == "week" and not _week_passed(entry, now()):
+        # `run` refused on the hold and launched nothing, so the group keeps its slot and its hold, and the line
+        # names the hold as a session that ended on it would.
+        return [f"{gid}: {status} - run refused, the hold stands: {why}", "transcript: not found"]
     if path.exists():
         # It ran and may have merged, but nothing records how it ended, so a human reads its worktree.
         status, reason = "crash-hand-back", f"its executor ran and left no session record: {why}"

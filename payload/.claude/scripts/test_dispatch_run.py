@@ -799,8 +799,22 @@ class LaunchTests(InRoot):
                 task_text()
                 with mock.patch.object(dr, "CLAUDE_COMMAND", [sys.executable, "-P", "-c", "print('{}')"]), \
                         mock.patch.object(dr.subprocess, "Popen", side_effect=AssertionError("launched")):
-                    self.assertIn(f"refused: {refusal}", run_cli(["run", RUN, "S1"]))
+                    line = run_cli(["run", RUN, "S1"])
+                self.assertIn(f"refused: {refusal}", line)
                 self.assertEqual(pid is not None, (state_dir() / "S1.pid").exists())
+                if pid is None:
+                    # The runbook's `result --refused` after the exit 2 keeps the hold and the slot.
+                    out = run_cli(["result", RUN, "S1", "--refused", line.strip()])
+                    self.assertIn(f"S1: {fields['status']} - run refused, the hold stands", out)
+                    self.assertEqual(fields["status"], group_state(RUN, "S1")["status"])
+
+    def test_run_launches_over_a_pid_file_it_cannot_read(self):
+        record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
+        task_text()
+        (state_dir() / "S1.pid").write_text("not a pid\n", encoding="utf-8")
+        with mock.patch.object(dr, "CLAUDE_COMMAND", [sys.executable, "-P", "-c", "print('{}')"]):
+            run_cli(["run", RUN, "S1"])
+        self.assertTrue((state_dir() / "S1.session.json").is_file())
 
 
 class ResultTests(unittest.TestCase):
