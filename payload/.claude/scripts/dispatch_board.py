@@ -38,6 +38,8 @@ EXTENSIONS = ("cs|csproj|py|sh|md|json|ya?ml|sql|ps1|props|slnx|toml|tsx?|[mc]?j
 # would make an empty claim look known. A script still claims by a path with a slash, but for the bare pair of
 # product names `_product_pair` reads.
 PRODUCT = re.compile(r"[^/]+\.[mc]?js")
+# Lower-case first names of such a pair; any other lower-case first segment may be a directory the task creates.
+PRODUCT_TOOLS = frozenset({"bun", "deno", "node", "npm", "pnpm", "yarn"})
 BARE_PATH = re.compile(rf"(?<![\w./\\-])([\w.\\/-]+\.(?:{EXTENSIONS}))(?!\w)", re.IGNORECASE)
 KNOWN_FILE = re.compile(rf"\.(?:{EXTENSIONS})$", re.IGNORECASE)
 # A code span may cross a line break inside a paragraph, but no block boundary: a fence's delimiter line, a blank
@@ -331,11 +333,13 @@ def _bare_paths(text):
 def _product_pair(raw, parts):
     """Whether a bare match is two product names, `npm/Node.js` or `React.js/Next.js`, and so no path.
 
-    Only a capitalised second name under a first that names no directory; anything else claims, as does every pair
-    when the checkout cannot be walked, since `_slash_path` errs towards exclusive too."""
-    if len(parts) != 2 or not parts[0] or not PRODUCT.fullmatch(parts[1]):
+    Only a capitalised second name under a first that reads as a product, capitalised or a tool `PRODUCT_TOOLS`
+    names, so not an absolute path's empty one, and that names no directory. Anything else claims, as does every
+    pair when the checkout cannot be walked, since `_slash_path` errs towards exclusive too."""
+    if len(parts) != 2 or not PRODUCT.fullmatch(parts[1]):
         return False
-    if not raw.replace("\\", "/").rsplit("/", 1)[-1][:1].isupper():
+    first, second = raw.replace("\\", "/").rsplit("/", 1)
+    if not second[:1].isupper() or not (first[:1].isupper() or parts[0] in PRODUCT_TOOLS):
         return False
     names = _directory_names()
     return names is not None and parts[0] not in names

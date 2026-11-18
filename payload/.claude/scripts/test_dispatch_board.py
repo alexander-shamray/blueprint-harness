@@ -502,6 +502,11 @@ class PathTests(unittest.TestCase):
         found = db.extract_paths("add scripts/check.mjs, newpkg/src/index.js, /repo/src/main.js and C:\\repo\\app.js")
         self.assertEqual({"scripts/check.mjs", "newpkg/src/index.js", "/repo/src/main.js", "/repo/app.js"}, found)
         self.assertEqual({"src/main.js"}, db.extract_paths("edit src/Main.js"))
+        # A new lower-case directory is no product, an absolute path names a file, and so does a deeper one, though
+        # each holds a capitalised script under a segment no directory in the checkout has.
+        self.assertEqual({"widgets/header.js"}, db.extract_paths("add widgets/Header.js"))
+        self.assertEqual({"/main.js"}, db.extract_paths("edit /Main.js"))
+        self.assertIn("lib/node.js/main.js", db.extract_paths("edit Lib/Node.js/Main.js"))
 
     def test_two_names_joined_by_a_slash_each_claim(self):
         self.in_checkout()
