@@ -37,7 +37,15 @@ def path_grammar():
     return module
 
 
-GRAMMAR = path_grammar()
+def _loaded_grammar():
+    """The grammar, or `None` and why: a sibling broken mid-edit must reach main()'s refusal, not crash the import."""
+    try:
+        return path_grammar(), None
+    except Exception:  # noqa: BLE001
+        return None, traceback.format_exc()
+
+
+GRAMMAR, GRAMMAR_FAILURE = _loaded_grammar()
 
 
 GIT_GUARD = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -645,6 +653,8 @@ def main():
     # The launcher maps a crash to a non-blocking error and the write runs unjudged, so a crash refuses it instead,
     # as guard-helper-argv.py's does.
     try:
+        if GRAMMAR is None:
+            raise RuntimeError(f"path_grammar.py did not load:\n{GRAMMAR_FAILURE}")
         reason = offence(event)
     except Exception:  # noqa: BLE001
         traceback.print_exc(file=sys.stderr)

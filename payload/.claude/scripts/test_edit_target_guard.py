@@ -915,6 +915,13 @@ class AWorktreeTheSessionHasNotEntered(GuardCase):
         reason = self.assertRefused(os.path.join(worktree, "docs", "note.md"), hook=hook)
         self.assertIn("crashed the edit target guard", reason)
 
+    def test_a_grammar_that_will_not_load_refuses_every_write(self):
+        # path_grammar.py loads at import, before main()'s try, so a broken one must still end in the refusal.
+        hook = self.hook_denying()
+        self.write(os.path.join(os.path.dirname(hook), "path_grammar.py"), "def (\n")
+        reason = self.assertRefused(os.path.join(self.root, "docs", "note.md"), hook=hook)
+        self.assertIn("crashed the edit target guard", reason)
+
     def test_its_denied_trees_are_refused_from_outside_it(self):
         worktree = self.linked()
         for parts in ((".claude", "scripts", "helper.sh"),
