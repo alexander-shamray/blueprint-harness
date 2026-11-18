@@ -4645,7 +4645,9 @@ class TheListsTheGuardReads(unittest.TestCase):
         rules = [rule for path in commands
                  for rule in self.command_edit_paths(path.read_text(encoding="utf-8"))]
         denied = [rule for rule in rules if not rule.startswith("~/")]
-        for rule in [*module.edit_denies(), *denied]:
+        # The commands' rules alone: `edit_denies()` is what `denied_path` reads, so asking it about its own
+        # rules matches each glob against itself and can fail on nothing.
+        for rule in denied:
             with self.subTest(rule=rule):
                 path = rule.removeprefix("./").removesuffix("/**")
                 self.assertIsNotNone(module.denied_path(path + "/x" if rule.endswith("/**") else path))

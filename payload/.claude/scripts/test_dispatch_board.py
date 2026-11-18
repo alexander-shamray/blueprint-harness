@@ -861,12 +861,17 @@ class WriteTests(unittest.TestCase):
         self.assertIn("does not record S1", err)
 
     def test_a_group_id_that_is_not_a_letter_and_number_is_refused(self):
+        # A started run, so an unguarded id would have a directory to write under; the whole tree,
+        # the task list included, must come out as it went in.
         self.write(FIXTURE)
+        dr.save_state(self.run_dir, {"groups": {}})
+        tree = lambda: {p: p.read_bytes() for p in self.dir.rglob("*") if p.is_file()}
+        before = tree()
         for bad in ("../x", "s1", "S1/../../y"):
             code, err = self.cli("move", bad)
             self.assertEqual(2, code, bad)
             self.assertIn("is not a group id", err)
-        self.assertFalse((self.dir / "x.json").exists())
+        self.assertEqual(before, tree())
 
     def test_place_refuses_a_group_an_in_progress_row_holds(self):
         moved = db.move_to_in_progress(FIXTURE, self.s1(), "b", "w", TODAY)
