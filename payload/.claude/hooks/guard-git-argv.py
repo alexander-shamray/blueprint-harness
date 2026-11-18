@@ -318,10 +318,16 @@ def xdg_git_config(path, cwd=None, whole=False):
 
 
 def npm_userconfig(path, cwd=None, whole=False):
-    """`$NPM_CONFIG_USERCONFIG` when `path` names it, or `None`; npm reads it for `~/.npmrc`."""
-    for name in NPM_USERCONFIG_VARIABLES:
-        value = os.environ.get(name)
-        if value and moved_file(value, (), path, cwd, whole):
+    """`$NPM_CONFIG_USERCONFIG` when `path` names it, or `None`; npm reads it for `~/.npmrc`.
+
+    npm takes the name in any case and expands a leading `~` against the home, so both are read here.
+    """
+    for name, value in os.environ.items():
+        if name.lower() != "npm_config_userconfig" or not value:
+            continue
+        if value.startswith(("~/", "~\\")) or value == "~":
+            value = os.path.expanduser(value)
+        if moved_file(value, (), path, cwd, whole):
             return f"${name}"
     return None
 
