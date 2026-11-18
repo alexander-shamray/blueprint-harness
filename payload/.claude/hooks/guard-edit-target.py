@@ -364,7 +364,7 @@ def home_offence(spelled, lexical, resolved, cwd=None):
         moved = next((label for path in (lexical, resolved)
                       if (label := git_guard().moved_config(path, cwd))), None)
     except (OSError, ValueError, TypeError, AttributeError):
-        npm = [os.environ.get(name) for name in ("NPM_CONFIG_USERCONFIG", "npm_config_userconfig")]
+        npm = [value for name, value in os.environ.items() if name.lower() == "npm_config_userconfig"]
         if not (os.environ.get("XDG_CONFIG_HOME") and any(
                 os.path.normcase(path).replace("\\", "/").lower().endswith("/git/config")
                 for path in (lexical, resolved))) and not any(

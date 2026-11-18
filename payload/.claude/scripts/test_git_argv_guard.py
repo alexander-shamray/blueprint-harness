@@ -4379,6 +4379,23 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
             self.admitted(f"ls > {holder}/a/other", f"cat {moved}", env=named)
         self.admitted(f"ls > {moved}", env=cleared)
 
+    def test_npms_user_config_variable_is_read_in_any_case_and_from_the_home(self):
+        # npm matches `npm_config_` case-insensitively and expands a leading `~/` against the home.
+        home, env = self.real_home()
+        holder = Path(temp_root(self)).as_posix()
+        names = ("NPM_CONFIG_USERCONFIG",) if os.name == "nt" else ("NPM_CONFIG_USERCONFIG", "npm_config_userconfig")
+        cleared = {**env, **{name: "" for name in names}}
+        if os.name != "nt":
+            with self.subTest(spelling="mixed"):
+                self.assertRegex(self.assertRefused(f"ls > {holder}/userrc",
+                                                    env={**cleared, "NPM_CONFIG_userconfig": f"{holder}/userrc"}),
+                                 r"\$NPM_CONFIG_userconfig")
+        with self.subTest(spelling="home"):
+            named = {**cleared, "USERPROFILE": home, "NPM_CONFIG_USERCONFIG": "~/custom-npmrc"}
+            for command in ("ls > ~/custom-npmrc", f"ls > {Path(home, 'custom-npmrc').as_posix()}"):
+                with self.subTest(command=command):
+                    self.assertRegex(self.assertRefused(command, env=named), r"\$NPM_CONFIG_USERCONFIG")
+
     def test_npms_windows_global_config_below_the_home_is_refused(self):
         # npm's default prefix on Windows is `%APPDATA%\npm`, so its global config sits below the home.
         _, env = self.real_home()
