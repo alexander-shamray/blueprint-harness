@@ -2397,6 +2397,29 @@ class TranscriptTests(unittest.TestCase):
                 with mock.patch.object(dr, "_created", lambda path: created[Path(path).name]):
                     self.assertEqual(str(folder / "new.jsonl"), dr.transcript_path(worktree, None, 200.0))
                     self.assertIsNone(dr.transcript_path(worktree, None, 250.0))
+                # A file not dated, or gone before its stat, is passed over and the rest still answer.
+                created["old.jsonl"] = None
+                with mock.patch.object(dr, "_created", lambda path: created[Path(path).name]):
+                    self.assertEqual(str(folder / "new.jsonl"), dr.transcript_path(worktree, None, 0.0))
+
+    def test_a_transcript_is_dated_by_its_first_entry_where_no_creation_time_is_kept(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "a.jsonl")
+            path.write_text('{"type": "summary"}\n{"timestamp": "1970-01-01T00:01:40Z"}\n'
+                            '{"timestamp": "2026-01-01T00:00:00Z"}\n', encoding="utf-8")
+            # The change time a later append moved, which is all Linux and macOS keep beside the content.
+            stat = mock.Mock(spec=["st_ctime"], st_ctime=9e9)
+            with mock.patch.object(dr.os, "stat", return_value=stat):
+                with mock.patch.object(dr.os, "name", "posix"):
+                    self.assertEqual(100.0, dr._created(path))
+                with mock.patch.object(dr.os, "name", "nt"):
+                    self.assertEqual(9e9, dr._created(path))
+            born = mock.Mock(spec=["st_ctime", "st_birthtime"], st_ctime=9e9, st_birthtime=50.0)
+            with mock.patch.object(dr.os, "stat", return_value=born):
+                self.assertEqual(50.0, dr._created(path))
+            path.write_text("", encoding="utf-8")
+            self.assertIsNone(dr._first_entry_time(path))
+            self.assertIsNone(dr._created(Path(tmp, "gone.jsonl")))
 
 
 class StrangersIssues(InRoot):
