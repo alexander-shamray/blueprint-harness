@@ -4316,6 +4316,29 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                       f"mv staged {holder}/c", f"ln -s staged {holder}/c", env=env)
         self.admitted(f"ls > {spelled}/git/config", env={**env, "XDG_CONFIG_HOME": ""})
 
+    def test_npm_reads_its_user_config_where_the_variable_moves_it(self):
+        # npm reads `$NPM_CONFIG_USERCONFIG`, in either spelling, in place of `~/.npmrc`.
+        _, env = self.real_home()
+        holder = Path(temp_root(self)).as_posix()
+        moved = f"{holder}/a/userrc"
+        for name in ("NPM_CONFIG_USERCONFIG", "npm_config_userconfig"):
+            named = {**env, "NPM_CONFIG_USERCONFIG": "", "npm_config_userconfig": "", name: moved}
+            for command in (f"ls > {moved}", f'echo x >> "${name}"', f"tee ${{{name}}}", f"cp a {moved}",
+                            f"rm {moved}", f"ln -s staged {moved}", f"mv staged {holder}/a"):
+                with self.subTest(variable=name, command=command):
+                    self.assertIn(f"${name}", self.assertRefused(command, env=named))
+            self.admitted(f"ls > {holder}/a/other", f"cat {moved}", env=named)
+        self.admitted(f"ls > {moved}", env={**env, "NPM_CONFIG_USERCONFIG": "", "npm_config_userconfig": ""})
+
+    def test_npms_windows_global_config_below_the_home_is_refused(self):
+        # npm's default prefix on Windows is `%APPDATA%\npm`, so its global config sits below the home.
+        _, env = self.real_home()
+        for command in ("ls > ~/AppData/Roaming/npm/etc/npmrc", "echo x >> ~/appdata/roaming/npm/etc/npmrc",
+                        "rm -rf ~/AppData/Roaming/npm/etc"):
+            with self.subTest(command=command):
+                self.assertIn("No rule judges a shell write", self.assertRefused(command, env=env))
+        self.admitted("ls > ~/AppData/Roaming/npm/etc/other", env=env)
+
     def test_the_claude_code_user_state_is_refused_in_a_home_that_is_no_checkout(self):
         # `~/.claude.json` sits beside `~/.claude`, and its MCP servers start with every later session.
         _, env = self.real_home()

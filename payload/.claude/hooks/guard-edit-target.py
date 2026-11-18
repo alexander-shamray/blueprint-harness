@@ -361,21 +361,26 @@ def home_offence(spelled, lexical, resolved, cwd=None):
                     "owner's to run (docs/harness-boundaries.md)."
                 )
     try:
-        xdg = any(git_guard().xdg_git_config(path, cwd) for path in (lexical, resolved))
+        moved = next((label for path in (lexical, resolved)
+                      if (label := git_guard().moved_config(path, cwd))), None)
     except (OSError, ValueError, TypeError, AttributeError):
-        if not os.environ.get("XDG_CONFIG_HOME") or not any(
+        npm = [os.environ.get(name) for name in ("NPM_CONFIG_USERCONFIG", "npm_config_userconfig")]
+        if not (os.environ.get("XDG_CONFIG_HOME") and any(
                 os.path.normcase(path).replace("\\", "/").lower().endswith("/git/config")
-                for path in (lexical, resolved)):
+                for path in (lexical, resolved))) and not any(
+                    value and os.path.basename(path).lower() == os.path.basename(value).lower()
+                    for value in npm for path in (lexical, resolved)):
             return None
         return (
-            f"guard-edit-target: {spelled} may be git's configuration at "
-            "`$XDG_CONFIG_HOME/git/config`, and the names that guard it "
-            f"cannot be read from {GIT_GUARD} (docs/harness-boundaries.md)."
+            f"guard-edit-target: {spelled} may be git's or npm's configuration "
+            "where `$XDG_CONFIG_HOME` or `$NPM_CONFIG_USERCONFIG` moves it, and "
+            f"the names that guard it cannot be read from {GIT_GUARD} "
+            "(docs/harness-boundaries.md)."
         )
-    if xdg:
+    if moved:
         return (
-            f"guard-edit-target: {spelled} resolves to {resolved}, git's own "
-            "configuration at `$XDG_CONFIG_HOME/git/config`: what runs at "
+            f"guard-edit-target: {spelled} resolves to {resolved}, git's or "
+            f"npm's own configuration at `{moved}`: what runs at "
             "login, under every session, which no checkout's rules own "
             "(docs/harness-boundaries.md)."
         )

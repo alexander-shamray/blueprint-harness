@@ -2355,7 +2355,10 @@ at its own root and name none of them.
 `~/.config/git/config`, with `$XDG_CONFIG_HOME/git/config` wherever the hook's
 environment moves it (#589), and `~/.npmrc`, read on every npm call, whose
 `script-shell` and `node-options` run a program under each one that runs a
-script (#597), run at login under every session, and
+script (#597), with `$NPM_CONFIG_USERCONFIG` wherever the hook's environment
+moves it and npm's Windows global config,
+`~/AppData/Roaming/npm/etc/npmrc`, which its default prefix puts below the
+home (#611), run at login under every session, and
 `~/.claude.json` and `~/.claude`'s credentials, settings, hooks, commands,
 agents, plugins, scripts, skills and sandbox apply to every project (#585),
 judged on the first component only, so a name below `projects` is a session's
@@ -2372,7 +2375,7 @@ one list, `HOME_TREES` and its neighbours in `guard-git-argv.py`, which the edit
 guard loads; if it cannot load them it refuses a target under the home
 directory. A redirect and a writing verb's operand are judged by spelling and by
 resolution, with `HOME` and the process's own home both read as the root, and
-`$XDG_CONFIG_HOME` expanded as `HOME` is,
+`$XDG_CONFIG_HOME` and `$NPM_CONFIG_USERCONFIG` expanded as `HOME` is,
 whatever checkout holds the target, the one the session stands in included: a
 checkout at `~/.claude` or inside a place below excuses none of these names, as
 the edit guard's does not (#512, #537).
