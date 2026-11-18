@@ -493,19 +493,22 @@ class PathTests(unittest.TestCase):
         self.in_checkout()
         # Neither `npm` nor `react.js` names a directory of the checkout, so each pair stays an unknown claim.
         self.assertEqual(frozenset(), db.extract_paths("built on npm/Node.js, React/Next.js and React.js/Next.js"))
+        # A checkout that cannot be walked claims the pair, erring towards exclusive as `_slash_path` does.
         with mock.patch.object(db, "_directory_names", lambda: None):
-            self.assertEqual(frozenset(), db.extract_paths("built on npm/Node.js"))
+            self.assertEqual({"npm/node.js"}, db.extract_paths("built on npm/Node.js"))
 
     def test_a_script_path_beside_the_product_rule_still_claims(self):
         self.in_checkout()
         found = db.extract_paths("add scripts/check.mjs, newpkg/src/index.js, /repo/src/main.js and C:\\repo\\app.js")
         self.assertEqual({"scripts/check.mjs", "newpkg/src/index.js", "/repo/src/main.js", "/repo/app.js"}, found)
+        self.assertEqual({"src/main.js"}, db.extract_paths("edit src/Main.js"))
 
     def test_two_names_joined_by_a_slash_each_claim(self):
         self.in_checkout()
         found = db.extract_paths("see README.md/client.ts")
-        self.assertEqual({"readme.md", "readme.md/client.ts"}, found)
+        self.assertEqual({"readme.md", "client.ts", "readme.md/client.ts"}, found)
         self.assertTrue(any(db._touch(path, "docs/readme.md") for path in found))
+        self.assertTrue(any(db._touch(path, "src/api/client.ts") for path in found))
 
     def test_a_top_level_directory_claims_everything_under_it(self):
         self.in_checkout()
