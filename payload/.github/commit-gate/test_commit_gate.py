@@ -265,12 +265,157 @@ SUITES = {"closure-gate", "comment-gate", "commit-gate", "harness-drift", "local
 JUDGE = re.compile(r'(?<![-\w])python(?: -I)? "\$(?:RUNNER_TEMP/[\w./-]+\.py|judge)"')
 # Reads no module from the checkout: how the drift gate reads its manifest ahead of the judge.
 ISOLATED = re.compile(r"(?<![-\w])python -I -c\b")
-# A list of spellings, so an interpreter it does not name reads as nothing: a command whose first word is a path, a
-# shell handed a file, Python, a local action, or any step set to run inside the checkout.
-HEAD_CODE = re.compile(
-    r"(?<![-\w])python3?(?:\.\d+)?(?=\s)|\bpytest\b|\bunittest\b"
-    r"|(?<![-\w])(?:bash|sh|source)[ \t]+\S|^\s*(?:- )?(?:run: )?[\w./-]*/[\w./-]+"
-    r"|^\s*(?:- )?uses: \./|^\s*working-directory:", re.M)
+# Deny by default: a command reads as head code unless its first word is one of these, the shell's own words or a
+# tool that takes the checkout only as data. An interpreter, a build tool or a path is never named here.
+SAFE_COMMANDS = frozenset({":", "[", "[[", "cp", "echo", "exit", "false", "gh", "git", "grep", "jq", "mkdir", "printf",
+                           "rm", "set", "test", "true"})
+# Words after which the shell expects a command, words that close a compound, and words whose header runs nothing.
+OPENERS = frozenset({"!", "{", "if", "then", "elif", "else", "while", "until", "do"})
+CLOSERS = frozenset({"}", "fi", "done"})
+HEADERS = frozenset({"for", "select"})
+# Outside the script: a local action, a step run inside the checkout, or a shell other than these.
+STEP_HEAD_CODE = re.compile(r"^\s*(?:- )?uses: \./|^\s*working-directory:", re.M)
+SHELL = re.compile(r"^\s*(?:- )?shell: *(.*)$", re.M)
+SAFE_SHELLS = frozenset({"bash", "sh"})
+RUN = re.compile(r"^( *)(- )?run:(.*)$", re.M)
+
+
+def run_script(step: str) -> str | None:
+    """The step's `run`, a block scalar's lines dedented or the one line as written."""
+    found = RUN.search(step)
+    if not found:
+        return None
+    value = found.group(3).strip()
+    if not value or value[0] not in "|>":
+        return value + "\n"
+    indent = len(found.group(1)) + len(found.group(2) or "")
+    lines = []
+    for line in step[found.end() + 1:].split("\n"):
+        if line.strip() and len(line) - len(line.lstrip(" ")) <= indent:
+            break
+        lines.append(line)
+    width = min((len(line) - len(line.lstrip(" ")) for line in lines if line.strip()), default=0)
+    return "\n".join(line[width:] for line in lines) + "\n"
+
+
+def command_words(script: str) -> list[str]:
+    """The first word of every command in a shell script, `$(...)` and backticks included.
+
+    Quotes and escapes are followed, and what it cannot place, a heredoc or an unclosed quote, it refuses."""
+    words: list[str] = []
+    frames: list[dict] = [{"kind": "code", "closer": "", "word": "", "head": True, "depth": 0, "target": False}]
+
+    def end_word(frame: dict) -> None:
+        word, frame["word"] = frame["word"], ""
+        if not word:
+            return
+        if frame["target"]:
+            frame["target"] = False
+        elif frame["head"]:
+            if re.match(r"[A-Za-z_]\w*=", word) or word in OPENERS:
+                return
+            frame["head"] = False
+            if word not in CLOSERS and word not in HEADERS:
+                words.append(word)
+
+    def skip_braces(at: int) -> int:
+        depth = 0
+        while at < len(script):
+            depth += {"{": 1, "}": -1}.get(script[at], 0)
+            if depth == 0:
+                return at
+            at += 1
+        raise ValueError("an unclosed ${ in a run script")
+
+    at = 0
+    while at < len(script):
+        frame, char, ahead = frames[-1], script[at], script[at + 1:at + 2]
+        # Inside double quotes a character joins the word the quote stands in.
+        word = frame if frame["kind"] == "code" else frame["parent"]
+        if char == "\\":
+            if ahead != "\n":
+                word["word"] += ahead
+            elif frame["kind"] == "code":
+                end_word(frame)
+            at += 2
+            continue
+        if char == "$" and ahead == "{":
+            end = skip_braces(at + 1)
+            word["word"] += script[at:end + 1]
+            at = end + 1
+            continue
+        if char == "$" and ahead == "(":
+            if script[at + 2:at + 3] == "(":
+                raise ValueError("arithmetic $(( in a run script")
+            word["word"] += "$"
+            frames.append({"kind": "code", "closer": ")", "word": "", "head": True, "depth": 0, "target": False})
+            at += 2
+            continue
+        if char == "`":
+            if frame["kind"] == "code" and frame["closer"] == "`":
+                end_word(frame)
+                frames.pop()
+            else:
+                word["word"] += "$"
+                frames.append({"kind": "code", "closer": "`", "word": "", "head": True, "depth": 0, "target": False})
+            at += 1
+            continue
+        if frame["kind"] == "quote":
+            if char == '"':
+                frames.pop()
+            else:
+                word["word"] += char
+            at += 1
+            continue
+        if char == '"':
+            frames.append({"kind": "quote", "parent": frame})
+        elif char == "'":
+            end = script.find("'", at + 1)
+            if end < 0:
+                raise ValueError("an unclosed ' in a run script")
+            frame["word"] += script[at + 1:end]
+            at = end
+        elif char == "#" and not frame["word"]:
+            end = script.find("\n", at)
+            at = (end if end >= 0 else len(script)) - 1
+        elif char in " \t":
+            end_word(frame)
+        elif char in "\n;&|":
+            end_word(frame)
+            frame["head"] = True
+        elif char in "<>":
+            if script[at:at + 3] == "<<<":
+                at += 2
+            elif script[at:at + 2] == "<<":
+                raise ValueError("a heredoc in a run script")
+            if frame["word"].isdigit():
+                frame["word"] = ""
+            end_word(frame)
+            while script[at + 1:at + 2] in (">", "&") and script[at + 1:at + 2]:
+                at += 1
+            frame["target"] = True
+        elif char == "(":
+            end_word(frame)
+            frame["depth"] += 1
+            frame["head"] = True
+        elif char == ")":
+            end_word(frame)
+            if frame["depth"]:
+                frame["depth"] -= 1
+                frame["head"] = True
+            elif frame["closer"] == ")":
+                frames.pop()
+            else:
+                raise ValueError("an unmatched ) in a run script")
+        else:
+            frame["word"] += char
+        at += 1
+    if len(frames) != 1 or frames[0]["depth"]:
+        raise ValueError("an unclosed quote, substitution or group in a run script")
+    end_word(frames[0])
+    return words
+
+
 VERDICTS = re.compile(r"(?m)^ +(?:- )?id: verdicts$")
 
 
@@ -285,7 +430,16 @@ def verdicts_at(steps: list[str]) -> int:
 
 
 def runs_head_code(step: str) -> bool:
-    return bool(HEAD_CODE.search(JUDGE.sub("", ISOLATED.sub("", step))))
+    shell = SHELL.search(step)
+    if STEP_HEAD_CODE.search(step) or (shell and shell.group(1).strip() not in SAFE_SHELLS):
+        return True
+    script = run_script(step)
+    if script is None:
+        return False
+    # A judge and an isolated read stand in as `:`, so their arguments are read as arguments.
+    script = JUDGE.sub(":", ISOLATED.sub(":", script))
+    defined = set(re.findall(r"(?m)^\s*(\w+)\(\)", script))
+    return any(word not in SAFE_COMMANDS and word not in defined for word in command_words(script))
 
 
 def name_of(step: str) -> str:
@@ -443,7 +597,24 @@ class TheReader(unittest.TestCase):
                          "        run: .github/gate/suite.sh",
                          "        run: |\n          set -e\n          .github/gate/suite.sh",
                          "        uses: ./.github/actions/suite",
-                         "        working-directory: .github/gate\n        run: make"):
+                         "        working-directory: .github/gate\n        run: make",
+                         # Deny by default: a tool no list spelled is named for not being one of the safe words.
+                         "        run: npm test",
+                         "        run: node .github/gate/check.mjs",
+                         "        run: dotnet test",
+                         "        run: pwsh .github/gate/suite.ps1",
+                         "        run: make check",
+                         "        run: env CI=1 npm test",
+                         "        run: git log -1 && npm test",
+                         "        run: git log -1 | node",
+                         "        run: out=$(npm test)",
+                         '        run: echo "$(./tool)"',
+                         "        run: echo `make`",
+                         "        run: |\n          if true; then\n            npm ci\n          fi",
+                         "        run: |\n          for gate in a b; do\n            make \"$gate\"\n          done",
+                         "        run: |\n          check() { npm test; }\n          check",
+                         "        shell: python {0}\n        run: print(1)",
+                         "        shell: pwsh\n        run: true"):
             with self.subTest(spelling=spelling):
                 self.assertEqual(["step 1"], head_code_before_the_verdicts(workflow(JUDGES, spelling, REPORTS)))
 
@@ -468,9 +639,27 @@ class TheReader(unittest.TestCase):
                          "        run: python -I -c 'import json'",
                          "        shell: bash\n        env:\n          GATE: .github/gate/gate.py\n        run: true",
                          "        run: git show \"$BASE_SHA:$GATE\" > \"$RUNNER_TEMP/gate/gate.py\"",
-                         "        # python -m unittest\n        run: true"):
+                         "        # python -m unittest\n        run: true",
+                         "        run: echo 'npm test; make' \"a;b | node\"",
+                         '        run: git log -1 > "$RUNNER_TEMP/log" 2>&1',
+                         "        run: |\n          take() { git show \"$1\"; }\n          take HEAD"):
             with self.subTest(spelling=spelling):
                 self.assertEqual([], head_code_before_the_verdicts(workflow(spelling, JUDGES, REPORTS)))
+
+    def test_a_script_the_reader_cannot_place_is_refused(self) -> None:
+        for spelling in ("        run: |\n          cat <<EOF\n          npm test\n          EOF",
+                         "        run: echo 'unclosed",
+                         '        run: echo "$(git log"',
+                         "        run: echo $((1 + 2))"):
+            with self.subTest(spelling=spelling), self.assertRaises(ValueError):
+                head_code_before_the_verdicts(workflow(spelling, JUDGES, REPORTS))
+
+    def test_the_reader_finds_the_commands_the_workflow_runs(self) -> None:
+        # The order case above passes on a reader that finds nothing, so its subject is checked here.
+        steps = workflow_steps()
+        found = {word for step in steps[:verdicts_at(steps) + 1] if (script := run_script(step))
+                 for word in command_words(script)}
+        self.assertLessEqual({"git", "gh", "jq", "mkdir", "python"}, found)
 
     def test_a_workflow_with_no_verdicts_two_or_no_judge_ahead_is_refused(self) -> None:
         for steps in ((JUDGES,), (JUDGES, REPORTS, REPORTS), (REPORTS, JUDGES)):
