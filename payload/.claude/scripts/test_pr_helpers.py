@@ -969,8 +969,9 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
 # What bash 3.2, /bin/bash on macOS, refuses: `mapfile` and `readarray`, an
 # associative array, and the case-changing expansions.
 BASH_4 = re.compile(
-    r"\b(?:mapfile|readarray)\b|\b(?:declare|local|typeset)(?:\s+-[a-zA-Z]+)*?\s+-[a-zA-Z]*A"
-    r"|\$\{\w+(?:\[[^]]*\])?(?:,|\^)")
+    r"\b(?:mapfile|readarray|coproc|globstar)\b|\b(?:declare|local|typeset)(?:\s+-[a-zA-Z]+)*?\s+-[a-zA-Z]*[An]"
+    r"|\$\{\w+(?:\[[^]]*\])?(?:,|\^|@[a-zA-Z]\})|\$\{#?\w+\[\s*-"
+    r"|(?<!\|)\|&|&>>|;;&")
 
 
 class AStalledGhReadEndsAtTheBound(GhShim, unittest.TestCase):
@@ -1024,11 +1025,15 @@ class NoHelperNeedsBash4(unittest.TestCase):
         # The positive control: a pattern that matched nothing would pass every script.
         for line in ("mapfile -d '' tree < x", "readarray -t a", "declare -A seen=()", "local -rA x",
                      "declare -g -A seen=()", "local -r -A x",
-                     'echo "${name,,}"', 'echo "${name^^}"', 'echo "${name^}"'):
+                     'echo "${name,,}"', 'echo "${name^^}"', 'echo "${name^}"',
+                     "local -n ref=$1", "declare -rn ref=x", 'echo "${list[-1]}"', 'echo "${#list[ -1]}"',
+                     "git log |& head", "make &>> log", "  a) x ;;&", "coproc cat", "shopt -s globstar",
+                     'echo "${name@Q}"', 'echo "${list[0]@E}"'):
             with self.subTest(line=line):
                 self.assertRegex(line, BASH_4)
         for line in ('echo "${name}"', 'echo "${name:-a,b}"', "declare -a list=()", 'echo "${#list[@]}"',
-                     'echo "${name/,/;}"'):
+                     'echo "${name/,/;}"', 'echo "${list[@]}"', 'echo "${@}"', "a || b &", "x &> log",
+                     "  a) x ;;", 'echo "${list[i-1]}"', "local -r x", "declare -i n"):
             with self.subTest(line=line):
                 self.assertNotRegex(line, BASH_4)
 
