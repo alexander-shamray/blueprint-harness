@@ -65,6 +65,14 @@ WRAPPERS = {
 SHELLS = {"bash", "sh", "bash.exe", "sh.exe"}
 # Stands for a heredoc body in the line `prepared` returns: a NUL, which no bash command line can carry.
 BODY = "\x00"
+# Stands for a command substitution inside the word `prepared` leaves around it, as `$<SUBSTITUTION><n>$`: the `$`
+# keeps an operand holding one unplaceable. A line can carry the byte itself, so a number is read to nine digits.
+SUBSTITUTION = "\x01"
+PLACEHOLDER = re.compile(rf"\${SUBSTITUTION}(\d{{0,9}})\$")
+# Numbered across every line judged, so a placeholder carried into a shell's line names no substitution of that line.
+LIFTED = itertools.count(1)
+# How deep substitutions nest before the rest is read as before they were lifted, which bounds the recursion.
+LIFT_DEPTH = 16
 # Bash's long options, which it reads before any cluster with one dash or two, and those that take the next word as
 # their value; a short option's value is the next word for each `o` and `O` in its cluster.
 SHELL_LONG = {"debug", "debugger", "dump-po-strings", "dump-strings", "help", "login", "noediting", "noprofile", "norc",
@@ -96,7 +104,52 @@ MAX_READ = 4 << 20
 GIT_TIMEOUT = 5
 
 
-def prepared(command):
+def substitution_end(command, index):
+    """Where the unquoted `$(…)`, `$((…))` or backtick substitution opening at `index` ends, or None.
+
+    None leaves the text as it was, so a form this cannot close reads as it did before substitutions were lifted.
+    """
+    if command[index] == "`":
+        close = index + 1
+        while close < len(command) and command[close] != "`":
+            close += 2 if command[close] == "\\" else 1
+        return close + 1 if close < len(command) else None
+    return closing(command, index + 1) if command.startswith("$(", index) else None
+
+
+def closing(command, index):
+    """Just past the `)` that closes the `(` at `index`, quotes and escapes skipped, or None."""
+    depth, quote, close = 0, None, index
+    while close < len(command):
+        character = command[close]
+        if quote is None and command.startswith("<<", close):
+            # A heredoc's body is read by line, which this scan does not do, so the line is left to `prepared`.
+            return None
+        if quote is None and character == "#" and command[close - 1] in " \t\n;&|()":
+            # A comment, as bash reads one inside a substitution: a quote or a paren in it is text.
+            close = command.find("\n", close)
+            if close < 0:
+                return None
+            continue
+        if quote == "'":
+            quote = None if character == "'" else quote
+        elif character == "\\":
+            close += 1
+        elif quote == '"':
+            quote = None if character == '"' else quote
+        elif character in "'\"":
+            quote = character
+        elif character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+            if depth == 0:
+                return close + 1
+        close += 1
+    return None
+
+
+def prepared(command, substitutions):
     """The command as bash reads its lines, continuations joined and comments dropped, and its heredoc bodies.
 
     Each body is lifted out of the line and its opener replaced by `<< <BODY><n>`, so the body is never read as
@@ -133,6 +186,23 @@ def prepared(command):
         elif character == "#" and word_start:
             while index < len(command) and command[index] != "\n":
                 index += 1
+            continue
+        elif substitutions is not None and not arithmetic and character in "$`" and (
+                end := substitution_end(command, index)) is not None:
+            # Lifted like a body, so its parentheses do not end the word and cut the operands after it; `$((…))` is
+            # arithmetic, with no command to lift unless its body runs one.
+            # `$((…))` is arithmetic only where its inner `(` closes at its end, as bash parses it: `$((a); (b))` runs
+            # two subshells.
+            arithmetic_only = command.startswith("$((", index) and closing(command, index + 2) == end - 1
+            body = command[index + (1 if character == "`" else 2):end - 1]
+            if arithmetic_only and "$(" not in body and "`" not in body:
+                out.append(f"${SUBSTITUTION}$")
+            else:
+                number = next(LIFTED)
+                substitutions[number] = body[1:-1] if arithmetic_only else body
+                out.append(f"${SUBSTITUTION}{number}$")
+            index = end
+            word_start = False
             continue
         elif command.startswith("((", index) or (arithmetic and command.startswith("))", index)):
             # A `<<` inside `$(( ))` or `(( ))` is a shift, whatever word follows it.
@@ -189,11 +259,14 @@ class Segment:
         self.piped = False
         # What a heredoc or a here-string feeds it, which a shell reading its input runs as a command line.
         self.stdin = None
+        # The substitutions it was lifted out of, outermost first: a pipe joins only commands of the same line.
+        self.lift = ()
 
 
-def segments(command):
+def segments(command, depth=0):
     """The command's simple commands as `Segment`s, or `None` where `shlex` cannot read it."""
-    text, bodies = prepared(command)
+    lifted = {}
+    text, bodies = prepared(command, lifted if depth < LIFT_DEPTH else None)
     lexer = shlex.shlex(text, posix=True, punctuation_chars=PUNCTUATION)
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
@@ -206,9 +279,20 @@ def segments(command):
     scope = ()
     found = [Segment(scope)]
     redirection = None
+
+    def lift(token):
+        # A substitution runs before the command whose word holds it, in a subshell of its own.
+        for number in PLACEHOLDER.findall(token):
+            inner = segments(lifted.get(int(number or 0), ""), depth + 1) or []
+            for segment in inner:
+                segment.scope = scope + ((SUBSTITUTION, number),) + segment.scope
+                segment.lift = (number,) + segment.lift
+            found[-1:-1] = inner
+
     for token in tokens:
         current = found[-1]
         if redirection is not None:
+            lift(token)
             # The word after a redirection is its file, a heredoc's body or a here-string's text.
             if redirection == "<<" and token.startswith(BODY) and token[len(BODY):].isdigit():
                 current.stdin = bodies[int(token[len(BODY):])]
@@ -218,6 +302,7 @@ def segments(command):
             continue
         if not token or not set(token) <= set(PUNCTUATION):
             current.words.append(token)
+            lift(token)
             continue
         # A run can join a group's paren to a redirection, as `)>` does, so the parens are taken out of it first:
         # each opens or closes a subshell and ends the command before it.
@@ -263,7 +348,8 @@ def command_word(words):
     index = 0
     while index < len(words):
         word = words[index]
-        if ASSIGNMENT.match(word) or word in PREFIXES:
+        # A lifted substitution may expand to nothing or to assignments, as in `env $(cat .env) sed …`.
+        if ASSIGNMENT.match(word) or word in PREFIXES or PLACEHOLDER.fullmatch(word):
             index += 1
         elif word in WRAPPERS:
             index += 1
@@ -629,7 +715,7 @@ def judge(command, cwd, git, checked, depth):
     # Each subshell's `pushd` stack, inherited as its directory is.
     stacks = {(): []}
     for position, segment in enumerate(found):
-        previous = found[position - 1] if position else None
+        previous = next((earlier for earlier in reversed(found[:position]) if earlier.lift == segment.lift), None)
         scope = segment.scope
         if scope not in directories:
             parent = next(scope[:length] for length in range(len(scope) - 1, -1, -1)
@@ -641,7 +727,8 @@ def judge(command, cwd, git, checked, depth):
         start = command_word(words)
         if start >= len(words):
             continue
-        name = words[start]
+        # A substitution glued before the name may print nothing, as `$(true)sed` runs sed.
+        name = re.sub(rf"^(?:{PLACEHOLDER.pattern})+", "", words[start])
         arguments = words[start + 1:]
         if name in ("cd", "pushd", "popd"):
             # A pipeline stage's `cd` moves nothing after it. Only a plain `cd <dir>` or `pushd <dir>`, and a bare

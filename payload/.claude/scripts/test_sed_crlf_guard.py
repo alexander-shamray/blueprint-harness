@@ -135,6 +135,65 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             with self.subTest(command=command):
                 self.assertRefused(command, "crlf.txt")
 
+    def test_a_substitution_leaves_the_operands_after_it_judged(self):
+        # The parentheses of `$(…)` were read as a subshell, so the `sed` lost every word after the substitution and
+        # its literal file operand went unjudged.
+        for command in (
+            "sed -i $(cat fix.sed) crlf.txt",
+            "sed -i s/one/$(date +%Y)/ crlf.txt",
+            "sed -i \"s/one/$(date +%Y)/\" crlf.txt",
+            "sed -i s/one/$((1+1))/ crlf.txt",
+            "sed -i s/one/`date`/ crlf.txt",
+            "sed -i s/one/$(echo $(date))/ crlf.txt",
+            "sed -i s/one/$(echo ')')/ crlf.txt",
+            # Review R1 of round 2: a placeholder where the command word stands may expand to nothing.
+            "env $(cat .env) sed -i 's/one/uno/' crlf.txt",
+            "$(true) sed -i 's/one/uno/' crlf.txt",
+            "$(true) bash -c \"sed -i 's/one/uno/' crlf.txt\"",
+            # Review R2 of round 2: nesting deep enough to exhaust the recursion is read as before, not raised.
+            "$(" * 500 + "true" + ")" * 500 + "; sed -i 's/one/uno/' crlf.txt",
+            # Review round 3: a placeholder glued before the name, a comment's quote inside a substitution, and a
+            # line that carries the placeholder's byte itself.
+            "$(true)sed -i 's/one/uno/' crlf.txt",
+            "$(true)bash -c \"sed -i 's/one/uno/' crlf.txt\"",
+            "x=$(true # don't\n); sed -i 's/one/uno/' crlf.txt; echo 'x)'",
+            "printf '$\x01" + "9" * 5000 + "$'; sed -i 's/one/uno/' crlf.txt",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command, "crlf.txt")
+
+    def test_a_substitutions_own_command_is_still_judged(self):
+        # Lifting a substitution out of its word must not lose the command inside it, nor let its `cd` move the
+        # commands after it: bash runs it in a subshell.
+        for command in (
+            "x=$(sed -i 's/one/uno/' crlf.txt)",
+            "echo `sed -i 's/one/uno/' crlf.txt`",
+            "echo $(( $(sed -i 's/one/uno/' crlf.txt) ))",
+            "echo $(cd sub) && sed -i 's/one/uno/' crlf.txt",
+            "echo $(cd sub; sed -i 's/one/uno/' inner.txt)",
+            # Review R3 and R4 of the change: a redirection's word, and `$((…); (…))`, which is two subshells.
+            "cat lf.txt > $(sed -i 's/one/uno/' crlf.txt; echo out.txt)",
+            "x=$((cd sub); (sed -i 's/one/uno/' crlf.txt))",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command, ".txt")
+        self.assertAdmitted("echo $(cd sub) && sed -i 's/one/uno/' inner.txt")
+
+    def test_a_placeholder_carried_into_a_shells_line_is_judged_not_raised(self):
+        # Review R1 of the change: the line a shell is handed holds the placeholder its substitution left, which
+        # names no substitution of that line, so looking it up raised and the hook let everything through.
+        for command in (
+            "echo $(cat cmds.sh) | bash; sed -i 's/one/uno/' crlf.txt",
+            "bash -c $(cat cmds.sh); sed -i 's/one/uno/' crlf.txt",
+            "bash <<< $(cat cmds.sh); sed -i 's/one/uno/' crlf.txt",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command, "crlf.txt")
+
+    def test_a_pipe_still_feeds_a_shell_whose_words_hold_a_substitution(self):
+        # Review R2 of the change: the lifted command sat between the two stages and the echo no longer reached bash.
+        self.assertRefused("echo \"sed -i s/one/uno/ crlf.txt\" | bash -s $(pwd)", "crlf.txt")
+
     def test_what_only_looks_like_a_heredoc_leaves_the_lines_after_it_judged(self):
         # Review R2: a here-string and an arithmetic shift matched the heredoc opener, and every later line went
         # unjudged.
