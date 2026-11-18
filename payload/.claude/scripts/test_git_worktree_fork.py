@@ -17,6 +17,7 @@ from review_helpers import (
     temp_root,
     run_bash,
 )
+from test_link_skips import skip_only_without_links
 
 
 FORK = SCRIPTS / "git-worktree-fork.sh"
@@ -43,6 +44,9 @@ if [ "$LINK" = yes ]; then
   git -C "$root/origin" update-index --add --cacheinfo "120000,$blob,.claude/settings.local.json"
   git -C "$root/origin" -c user.name=t -c user.email=t@t commit -q -m link
   git -C "$root/checkout" fetch -q origin
+  # A link, not a file holding its target, wherever the host can make one:
+  # Git for Windows defaults this off, which would leave nothing to judge.
+  git -C "$root/checkout" config core.symlinks true
 fi
 if [ "$IGNORE" = yes ]; then printf '.claude/worktrees/\\n' > "$root/checkout/.gitignore"; fi
 mkdir -p "$root/checkout/src"
@@ -137,14 +141,18 @@ class ForkShape(unittest.TestCase):
                          json.loads(copied.stdout))
 
     def test_the_approval_is_not_written_through_a_link_the_branch_carries(self):
+        probe = Path(temp_root(self))
+        try:
+            os.symlink(probe / "absent", probe / "link")
+        except (OSError, NotImplementedError) as refused:
+            skip_only_without_links(refused, "symbolic link")
         root = self.fixture(link="yes")
         self.local_settings(root, json.dumps({"enabledMcpjsonServers": ["codebase-index"]}))
         result = self.fork(f"{root}/checkout", ".claude/worktrees/probe")
         self.assertEqual(0, result.returncode, result.stderr)
         linked = run_bash('[ -L "$W/.claude/settings.local.json" ]',
                           W=f"{root}/checkout/.claude/worktrees/probe")
-        if linked.returncode != 0:
-            self.skipTest("git checked the link out as a file: no symbolic links here")
+        self.assertEqual(0, linked.returncode, "git checked the link out as a file")
         self.assertNotEqual(0, run_bash('[ -e "$R/outside.json" ]', R=root).returncode,
                             "the approval was written through the link")
 
