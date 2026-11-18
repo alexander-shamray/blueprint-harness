@@ -282,11 +282,17 @@ ISOLATED_PROGRAMS = frozenset({'import json, sys; print(json.load(sys.stdin)["ha
 # `printf` is not one: its `-v` writes any variable, under quoting no reader here unpicks, and no step needs it.
 SAFE_COMMANDS = frozenset({":", "[", "[[", "cp", "echo", "exit", "false", "gh", "git", "grep", "jq", "mkdir", "rm",
                            "set", "test", "true"})
-# Two safe words run a program when told to: git through an alias, `-c` or a subcommand such as `submodule foreach`,
-# and jq through a program or module file. Only the subcommands gates.yml runs are named, with no global option but
-# `-C`, and jq's file options are refused in long form or in any short cluster.
-GIT_SUBCOMMANDS = frozenset({"cat-file", "checkout", "diff", "fetch", "init", "log", "merge-base", "remote", "show"})
-JQ_FILES = re.compile(r"--(?:from-file|library-path)\b|-[A-Za-z]*[fL]")
+# Three safe words run a program when told to: git through an alias, `-c`, a subcommand such as `submodule foreach`
+# or an option such as `--upload-pack`; jq through a program or module file; gh through an alias or an extension.
+# Their arguments are read as an allow-list of what gates.yml passes. `cp` is still read by its first word alone.
+GIT_OPTIONS = {"cat-file": {"-e", "-t"}, "checkout": {"-q", "--"}, "diff": {"--quiet", "--"},
+               "fetch": {"-q", "--no-tags", "--depth", "--"}, "init": {"-q"}, "log": {"-1"},
+               "merge-base": {"--is-ancestor"}, "remote": set(), "show": set()}
+GIT_VALUED = ("--format=", "--filter=blob:none")
+JQ_OPTIONS = frozenset({"-s", "-r", "-n", "-c", "-e", "-rs", "-sr", "--arg", "--argjson"})
+JQ_LOADS = re.compile(r"\b(?:import|include)\b")
+# Marks an argument holding an unquoted expansion, which the shell may split into options.
+UNQUOTED = "\0"
 # Words after which the shell expects a command, words that close a compound, and words whose header runs nothing.
 OPENERS = frozenset({"!", "{", "if", "then", "elif", "else", "while", "until", "do"})
 CLOSERS = frozenset({"}", "fi", "done"})
@@ -340,25 +346,25 @@ def command_words(script: str) -> list[str]:
 
 
 def commands(script: str) -> list[list[str]]:
-    """Every command in a shell script, `$(...)` and backticks included, as its words but for redirection targets.
-
-    Quotes and escapes are followed, and what it cannot place, a heredoc, an unclosed quote, a backtick nested in
-    another or a function defined anywhere but at the start of a line at the top, it refuses. A function's definition
-    is listed as its name and `()`, where it falls in the script."""
+    """Every command in a script, substitutions included, as its words but for assignments, openers and redirection
+    targets; a function's definition is listed as its name and `()`, where it falls. Quotes and escapes are followed,
+    and what it cannot place, a heredoc, an unclosed quote, a backtick nested in another or a function defined
+    anywhere but at the start of a line at the top, it refuses."""
     found: list[list[str]] = []
     frames: list[dict] = [{"kind": "code", "closer": "", "word": "", "head": True, "depth": 0, "target": False,
                             "prefixed": False}]
 
     def end_word(frame: dict) -> None:
-        word, quoted = frame["word"], frame.get("started")
-        frame["word"], frame["started"] = "", False
+        word, quoted, bare = frame["word"], frame.get("started"), frame.get("bare", False)
+        frame["word"], frame["started"], frame["bare"] = "", False, False
         if not word:
             return
         if frame["target"]:
             frame["target"] = False
             frame["prefixed"] = frame["prefixed"] or frame["head"]
         elif not frame["head"]:
-            frame.setdefault("args", []).append(word)
+            # An unquoted expansion splits into words no reader here can see, so it is marked for `safe_arguments`.
+            frame.setdefault("args", []).append(UNQUOTED + word if bare else word)
         else:
             # A command follows any `&&`, `||` or `|` before it. A quoted or escaped word, or one after an assignment
             # or a redirection, is no reserved word, so only a bare first word moves how deep the compound commands
@@ -418,6 +424,8 @@ def commands(script: str) -> list[list[str]]:
                 end_word(frame)
             at += 2
             continue
+        if char == "$" and ahead in "{(" and frame["kind"] == "code":
+            frame["bare"] = True
         if char == "$" and ahead == "{":
             end = skip_braces(at + 1)
             word["word"] += script[at:end + 1]
@@ -436,6 +444,7 @@ def commands(script: str) -> list[list[str]]:
                 end_word(frame)
                 frames.pop()
             else:
+                frame["bare"] = frame.get("bare", False) or frame["kind"] == "code"
                 word["word"] += "$"
                 frames.append({"kind": "code", "closer": "`", "word": "", "head": True, "depth": 0, "target": False,
                             "prefixed": False})
@@ -514,6 +523,7 @@ def commands(script: str) -> list[list[str]]:
             else:
                 raise ValueError("an unmatched ) in a run script")
         else:
+            frame["bare"] = frame.get("bare", False) or char == "$"
             frame["word"] += char
         at += 1
     if len(frames) != 1 or frames[0]["depth"]:
@@ -573,22 +583,41 @@ def runs_head_code(step: str) -> bool:
     for command in commands(script):
         if command[0].endswith("()"):
             defined.add(command[0][:-2])
-        elif command[0] not in defined and (command[0] not in SAFE_COMMANDS or not safe_arguments(command)):
+        elif command[0] not in defined and (command[0] not in SAFE_COMMANDS or not safe_arguments(command, script)):
             return True
     return False
 
 
-def safe_arguments(command: list[str]) -> bool:
-    """Whether a safe word's arguments keep it from running a program: git only as the subcommands gates.yml runs,
-    after no global option but `-C`, and jq reading no program or module from a file."""
+def safe_arguments(command: list[str], script: str) -> bool:
+    """Whether a safe word's arguments keep it from running a program, read as an allow-list of what gates.yml
+    passes: git as its subcommands with their own options, after no global option but a `-C` into the runner's temp
+    directory; jq with its own options and a program that loads nothing; gh as `pr view` or `api`."""
     word, args = command[0], command[1:]
-    if word == "git":
-        while args[:1] == ["-C"]:
-            args = args[2:]
-        return bool(args) and args[0] in GIT_SUBCOMMANDS
+    if word not in ("git", "jq", "gh"):
+        return True
+    if any(arg.startswith(UNQUOTED) for arg in args):
+        return False
     if word == "jq":
-        return not any(JQ_FILES.match(arg) for arg in args)
-    return True
+        return all(arg in JQ_OPTIONS or not arg.startswith("-") and not JQ_LOADS.search(arg) for arg in args)
+    if word == "gh":
+        return args[:2] == ["pr", "view"] or args[:1] == ["api"]
+    while args[:1] == ["-C"] and len(args) > 1 and under_runner_temp(args[1], script):
+        args = args[2:]
+    if not args or args[0] not in GIT_OPTIONS:
+        return False
+    return all(not arg.startswith("-") or arg in GIT_OPTIONS[args[0]] or arg.startswith(GIT_VALUED) for arg in args[1:])
+
+
+def under_runner_temp(path: str, script: str) -> bool:
+    """Whether a `-C` directory is under the runner's temp directory: spelled there, or a `$name` the script assigns
+    once, on a line of its own, as such a path. The checkout could hold a bare repository whose config runs code."""
+    named = re.fullmatch(r"\$(\w+)", path)
+    if named:
+        sets = re.findall(rf'(?m)^\s*{named.group(1)}=(.*)$', script)
+        if len(sets) != 1 or len(re.findall(rf'(?<![\w$-]){named.group(1)}\b', script)) != 1:
+            return False
+        path = sets[0].strip().strip('"')
+    return re.fullmatch(r"\$RUNNER_TEMP/[\w.-]+(?:/[\w.-]+)*", path) is not None and ".." not in path.split("/")
 
 
 def name_of(step: str) -> str:
@@ -775,6 +804,15 @@ class TheReader(unittest.TestCase):
                          "        run: jq -nrf .github/x.jq",
                          "        run: jq --from-file=.github/x.jq",
                          "        run: jq -L.github -n 'import \"x\" as x; 1'",
+                         "        run: jq -n 'import \"x\" as x {search: \"./.github\"}; x::f'",
+                         "        run: git fetch --upload-pack='npm test #' .",
+                         "        run: git init --template=.github/t d",
+                         "        run: git log -1 --format=%B --output=.git/config",
+                         "        run: git -C .github/repo diff A B",
+                         '        run: git -C "$d" diff A B',
+                         "        run: |\n          o=--upload-pack=x\n          git fetch $o origin",
+                         "        run: gh alias set --shell t 'npm test'",
+                         "        run: gh extension install .",
                          # A function stands in for a name only once defined, and a blank line ends a plain run's
                          # command.
                          "        run: |\n          npm test\n          npm() { :; }",
@@ -859,7 +897,8 @@ class TheReader(unittest.TestCase):
                          '        run: git log -1 > "$RUNNER_TEMP/log" 2>&1',
                          "        run: |\n          take() { git show \"$1\"; }\n          take HEAD",
                          "        run: true\n          git log -1",
-                         '        run: git -C "$RUNNER_TEMP/h" -C x fetch -q --depth 1 -- origin main',
+                         '        run: git -C "$RUNNER_TEMP/h" fetch -q --depth 1 -- origin main',
+                         '        run: |\n          hist="$RUNNER_TEMP/history"\n          git -C "$hist" init -q',
                          "        run: |\n          for g in a b; do\n            git show \"HEAD:$g\"\n          done",
                          "        run: jq -rs --arg pr 1 '.[]' out.json"):
             with self.subTest(spelling=spelling):
