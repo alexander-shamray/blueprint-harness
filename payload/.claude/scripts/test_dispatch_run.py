@@ -164,7 +164,7 @@ def run_fake_claude(stdout=b"{}", code=0, description="Narrow the RabbitMQ read 
 
 
 def finished_pid():
-    child = subprocess.Popen([sys.executable, "-c", "pass"])
+    child = subprocess.Popen([sys.executable, "-P", "-c", "pass"])
     child.wait()
     return child.pid
 
@@ -736,7 +736,7 @@ class LaunchTests(InRoot):
         def refuse(path, text):
             raise dr.Refusal("pid file refused")
 
-        with mock.patch.object(dr, "CLAUDE_COMMAND", [sys.executable, "-c", "pass"]), \
+        with mock.patch.object(dr, "CLAUDE_COMMAND", [sys.executable, "-P", "-c", "pass"]), \
                 mock.patch.object(dr, "_write", refuse):
             self.assertIn("refused: pid file refused", run_cli(["run", RUN, "S1"]))
         self.assertEqual([], list((self.root / "system-temp").iterdir()))
@@ -758,7 +758,7 @@ class LaunchTests(InRoot):
         blocker.write_text("a file where the temp root goes", encoding="utf-8")
         task_text()
         with mock.patch.object(dr, "TEMP_ROOT", str(blocker.resolve())), \
-                mock.patch.object(dr, "CLAUDE_COMMAND", [sys.executable, "-c", "print('{}')"]):
+                mock.patch.object(dr, "CLAUDE_COMMAND", [sys.executable, "-P", "-c", "print('{}')"]):
             self.assertIn("refused: could not create the executor's temp directory", run_cli(["run", RUN, "S1"]))
         self.assertFalse((state_dir() / "S1.pid").exists())
         self.assertTrue((state_dir() / "S1.refused.json").is_file())
@@ -1795,7 +1795,7 @@ class WakeTests(InRoot):
                          [self.wake()[i] for i in (1, 3, 4, 5)])
         self.assertIn("relaunch S9", run_cli(["resume", RUN]))
         task_text("S9")
-        with mock.patch.object(dr, "CLAUDE_COMMAND", [sys.executable, "-c", "print('{}')"]):
+        with mock.patch.object(dr, "CLAUDE_COMMAND", [sys.executable, "-P", "-c", "print('{}')"]):
             self.assertEqual("", run_cli(["run", RUN, "S9"]))
         self.assertTrue((state_dir() / "S9.session.json").is_file())
         self.assertIn("S9: relaunch - no result; exit 0", run_cli(["result", RUN, "S9"]))
@@ -2011,7 +2011,7 @@ class WakeTests(InRoot):
             real_unlink(path, missing_ok=missing_ok)
         cases = {"no claude on PATH": (None, mock.patch.object(dr, "path_which", lambda _: None),
                                        "no claude on PATH"),
-                 "a stale file it cannot remove": ([sys.executable, "-c", "pass"],
+                 "a stale file it cannot remove": ([sys.executable, "-P", "-c", "pass"],
                                                    mock.patch.object(Path, "unlink", locked),
                                                    "could not remove the stale")}
         for name, (claude, patch, why) in cases.items():
