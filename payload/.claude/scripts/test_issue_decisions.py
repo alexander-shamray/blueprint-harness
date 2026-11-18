@@ -198,6 +198,9 @@ class Shapes(unittest.TestCase):
         # A backtick run whose info string holds a backtick is inline code, so the heading below it counts.
         self.assertEqual(ID.append_decision("```js```\n\n## Owner decisions\n\n- a\n", line),
                          f"```js```\n\n## Owner decisions\n\n- a\n{line}\n")
+        # A tilde fence may hold a backtick in its info string, and still opens, so its heading is an example.
+        tilde = "~~~ a`b\n## Owner decisions\n~~~\n"
+        self.assertEqual(ID.append_decision(tilde, line), f"{tilde}\n## Owner decisions\n\n{line}\n")
 
     def test_an_empty_section_gets_its_first_entry(self):
         self.assertEqual(
