@@ -314,8 +314,15 @@ def run_script(step: str) -> str | None:
             break
         lines.append(line)
     if not value or value[0] not in "|>":
-        # A plain scalar's deeper lines fold into it, one space each.
-        return " ".join([value, *(line.strip() for line in lines if line.strip())]) + "\n"
+        # A plain scalar's deeper lines fold into it, one space each, but a run of blank lines folds to as many
+        # newlines, each of which ends a command.
+        folded, blank = value, 0
+        for line in lines:
+            if not line.strip():
+                blank += 1
+                continue
+            folded, blank = folded + ("\n" * blank or " ") + line.strip(), 0
+        return folded + "\n"
     width = min((len(line) - len(line.lstrip(" ")) for line in lines if line.strip()), default=0)
     return "\n".join(line[width:] for line in lines) + "\n"
 
@@ -323,7 +330,8 @@ def run_script(step: str) -> str | None:
 def command_words(script: str) -> list[str]:
     """The first word of every command in a shell script, `$(...)` and backticks included.
 
-    Quotes and escapes are followed, and what it cannot place, a heredoc or an unclosed quote, it refuses."""
+    Quotes and escapes are followed, and what it cannot place, a heredoc, an unclosed quote or a backtick nested in
+    another, it refuses. A function's definition is listed as its name and `()`, where it falls in the script."""
     words: list[str] = []
     frames: list[dict] = [{"kind": "code", "closer": "", "word": "", "head": True, "depth": 0, "target": False}]
 
@@ -357,6 +365,8 @@ def command_words(script: str) -> list[str]:
         # Inside double quotes a character joins the word the quote stands in.
         word = frame if frame["kind"] == "code" else frame["parent"]
         if char == "\\":
+            if ahead == "`" and any(f["kind"] == "code" and f["closer"] == "`" for f in frames):
+                raise ValueError("a backtick nested in another in a run script")
             if ahead != "\n":
                 word["word"] += ahead
             elif frame["kind"] == "code":
@@ -424,6 +434,12 @@ def command_words(script: str) -> list[str]:
             while script[at + 1:at + 2] in (">", "&") and script[at + 1:at + 2]:
                 at += 1
             frame["target"] = True
+        elif char == "(" and ahead == ")" and frame["head"] and re.fullmatch(r"[A-Za-z_][\w-]*", frame["word"]) \
+                and not frame.get("started"):
+            # A bare name straight before `()` defines a function; a quoted or spaced one reads as a call.
+            words.append(frame["word"] + "()")
+            frame["word"], at = "", at + 2
+            continue
         elif char == "(":
             end_word(frame)
             frame["depth"] += 1
@@ -492,8 +508,14 @@ def runs_head_code(step: str) -> bool:
     # the runner's temp directory, or runs a program gates.yml does not, stays itself and reads as head code.
     script = ISOLATED.sub(lambda read: ":" if read.group(1) in ISOLATED_PROGRAMS else read.group(0), script)
     script = JUDGE.sub(lambda judge: ":" if a_judge(judge, script) else judge.group(0), script)
-    defined = set(re.findall(r"(?m)^\s*(\w+)\(\)", script))
-    return any(word not in SAFE_COMMANDS and word not in defined for word in command_words(script))
+    # A function stands in for its name only from its definition on, as the shell runs it.
+    defined: set[str] = set()
+    for word in command_words(script):
+        if word.endswith("()"):
+            defined.add(word[:-2])
+        elif word not in SAFE_COMMANDS and word not in defined:
+            return True
+    return False
 
 
 def name_of(step: str) -> str:
@@ -670,6 +692,11 @@ class TheReader(unittest.TestCase):
                          "        run: |\n          if true; then\n            npm ci\n          fi",
                          "        run: |\n          for gate in a b; do\n            make \"$gate\"\n          done",
                          "        run: |\n          check() { npm test; }\n          check",
+                         # A function stands in for a name only once defined, and a blank line ends a plain run's
+                         # command.
+                         "        run: |\n          npm test\n          npm() { :; }",
+                         '        run: |\n          echo "\n          npm() { :; }"\n          npm test',
+                         "        run: true\n\n          npm test",
                          "        shell: python {0}\n        run: print(1)",
                          "        shell: pwsh\n        run: true",
                          "        uses: './.github/actions/suite'",
@@ -746,7 +773,8 @@ class TheReader(unittest.TestCase):
                          "        # python -m unittest\n        run: true",
                          "        run: echo 'npm test; make' \"a;b | node\"",
                          '        run: git log -1 > "$RUNNER_TEMP/log" 2>&1',
-                         "        run: |\n          take() { git show \"$1\"; }\n          take HEAD"):
+                         "        run: |\n          take() { git show \"$1\"; }\n          take HEAD",
+                         "        run: true\n          git log -1"):
             with self.subTest(spelling=spelling):
                 self.assertEqual([], head_code_before_the_verdicts(workflow(spelling, JUDGES, REPORTS)))
 
@@ -758,7 +786,8 @@ class TheReader(unittest.TestCase):
                          '        run: echo "${OUT:-$(npm test)}"',
                          "        run: grep -q ok <(npm test)",
                          "        run: cp >(make) out",
-                         "        run: echo $'\\'' ; npm test ; echo $'\\''"):
+                         "        run: echo $'\\'' ; npm test ; echo $'\\''",
+                         "        run: echo `echo \\`npm test\\` `"):
             with self.subTest(spelling=spelling), self.assertRaises(ValueError):
                 head_code_before_the_verdicts(workflow(spelling, JUDGES, REPORTS))
 
