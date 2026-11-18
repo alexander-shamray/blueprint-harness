@@ -31,9 +31,11 @@ TASK_AT = {"In progress": 2, "Remaining": 3, "Tracking": 3, "Paused": 1}
 NUMBER_AT = {"In progress": 1, "Remaining": 2, "Tracking": 2, "Paused": 0}
 WAVE, GROUP, TASK, LABELS, DEPENDS, MODEL, CONFLICTS = 0, 1, 3, 4, 5, 6, 7
 MODELS = {"Opus": "opus", "Sonnet": "sonnet"}
-# Every target's file types, frontend's and its native shells' among them: a path this misses narrows a claim.
+# The backend's file types and the frontend's web and native ones: a path this misses narrows a claim.
 EXTENSIONS = ("cs|csproj|py|sh|md|json|ya?ml|sql|ps1|props|slnx|toml|tsx?|[mc]?js|html|s?css|xml|gradle|kts?|java|"
-              "swift|plist")
+              "swift|plist|properties|pbxproj|xcconfig|storyboard")
+# `Node.js` or `Vue.js` in prose is a product, not a file: read as one, it would make an empty claim look known.
+PRODUCT = re.compile(r"[A-Z][\w-]*\.js")
 BARE_PATH = re.compile(rf"(?<![\w./\\-])([\w.\\/-]+\.(?:{EXTENSIONS}))(?!\w)", re.IGNORECASE)
 KNOWN_FILE = re.compile(rf"\.(?:{EXTENSIONS})$", re.IGNORECASE)
 # A code span may cross a line break inside a paragraph, but no block boundary: a fence's delimiter line, a blank
@@ -300,10 +302,12 @@ def extract_paths(text):
             path = _normalise(piece)
             # A slash command or a dotted identifier is not a file: it would make an empty claim look known. A trailing
             # slash names a directory, top-level ones included, which `_normalise` has stripped.
-            directory = _normalise(piece + "x").endswith("/x")
+            directory = re.search(r"[/\\][.,;:)\]>'\"]*$", piece) is not None
+            if PRODUCT.fullmatch(piece.strip("(['\"<.,;:)]>")):
+                continue
             if KNOWN_FILE.search(path) or _slash_path(path + "/" if directory else path):
                 found.add(path)
-    found.update(_normalise(m) for m in BARE_PATH.findall(text))
+    found.update(_normalise(m) for m in BARE_PATH.findall(text) if not PRODUCT.fullmatch(m))
     found.discard("")
     return frozenset(found)
 
