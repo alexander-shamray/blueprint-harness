@@ -35,8 +35,8 @@ MODELS = {"Opus": "opus", "Sonnet": "sonnet"}
 EXTENSIONS = ("cs|csproj|py|sh|md|json|ya?ml|sql|ps1|props|slnx|toml|tsx?|[mc]?js|html|s?css|xml|gradle|kts?|java|"
               "swift|plist|properties|pbxproj|xcconfig|storyboard")
 # A slashless `<name>.js`, `Node.js` or `zone.js`, is as often a product or a package as a file: read as one, it
-# would make an empty claim look known. A script still claims by a path with a slash, but for the pair of product
-# names `_product_pair` reads.
+# would make an empty claim look known. A script still claims by a path with a slash, but for the bare pair of
+# product names `_product_pair` reads.
 PRODUCT = re.compile(r"[^/]+\.[mc]?js")
 BARE_PATH = re.compile(rf"(?<![\w./\\-])([\w.\\/-]+\.(?:{EXTENSIONS}))(?!\w)", re.IGNORECASE)
 KNOWN_FILE = re.compile(rf"\.(?:{EXTENSIONS})$", re.IGNORECASE)
@@ -331,10 +331,8 @@ def _bare_paths(text):
 def _product_pair(raw, parts):
     """Whether a bare match is two product names, `npm/Node.js` or `React.js/Next.js`, and so no path.
 
-    Only a pair whose second name is capitalised, as a product's is and a script's seldom is, and whose first names
-    no directory of the checkout; a deeper or absolute path, or one under a real directory, still claims, and so
-    does every pair when the checkout cannot be walked, as `_slash_path` errs.
-    """
+    Only a capitalised second name under a first that names no directory; anything else claims, as does every pair
+    when the checkout cannot be walked, since `_slash_path` errs towards exclusive too."""
     if len(parts) != 2 or not parts[0] or not PRODUCT.fullmatch(parts[1]):
         return False
     if not raw.replace("\\", "/").rsplit("/", 1)[-1][:1].isupper():
