@@ -1359,8 +1359,39 @@ def project_slug(path):
 
 
 def _created(path):
-    stat = os.stat(path)
-    return getattr(stat, "st_birthtime", stat.st_ctime)
+    """When a transcript was started, or None where nothing says so or it is gone.
+
+    `st_ctime` is creation time only on Windows: on Linux and macOS every append moves it, so another session's
+    transcript still being written would pass as new. Where no creation time is kept, the first entry's timestamp
+    stands in, which no append moves."""
+    try:
+        stat = os.stat(path)
+    except OSError:
+        return None
+    birth = getattr(stat, "st_birthtime", None)
+    if birth is not None:
+        return birth
+    if os.name == "nt":
+        return stat.st_ctime
+    return _first_entry_time(path)
+
+
+def _first_entry_time(path, lines=50):
+    """The first `timestamp` among a transcript's opening lines, in epoch seconds, or None."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            for _ in range(lines):
+                line = handle.readline()
+                if not line:
+                    break
+                try:
+                    stamp = json.loads(line).get("timestamp")
+                    return datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+                except (ValueError, AttributeError, TypeError, RecursionError):
+                    continue
+    except OSError:
+        return None
+    return None
 
 
 def transcript_path(worktree, session_id, since):
@@ -1370,9 +1401,10 @@ def transcript_path(worktree, session_id, since):
         return str(folder / f"{session_id}.jsonl") if SESSION_ID.fullmatch(session_id) else None
     try:
         names = [name for name in os.listdir(folder) if name.endswith(".jsonl")]
-        found = [(_created(folder / name), str(folder / name)) for name in names]
     except OSError:
         return None
+    # A file gone between the listing and its stat, or one not yet dated, is passed over rather than ending the look.
+    found = [(created, str(folder / name)) for name in names if (created := _created(folder / name)) is not None]
     found = [item for item in found if item[0] >= since]
     return max(found)[1] if found else None
 
