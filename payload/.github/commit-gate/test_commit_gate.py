@@ -261,10 +261,14 @@ def run_block(step: str) -> str:
 
 # Each gate directory gates.yml runs a suite in, after the verdicts.
 SUITES = {"closure-gate", "comment-gate", "commit-gate", "harness-drift", "locality-gate"}
-# A judge sits outside the checkout; the comment gate holds its path in `$judge`.
-JUDGE = re.compile(r'(?<![-\w])python(?: -I)? "\$(?:RUNNER_TEMP/[\w./-]+\.py|judge)"')
-# Reads no module from the checkout: how the drift gate reads its manifest ahead of the judge.
-ISOLATED = re.compile(r"(?<![-\w])python -I -c\b")
+# A judge sits outside the checkout; the comment gate holds its path in `$judge`, assigned under the same root.
+JUDGE = re.compile(r'(?<![-\w])python(?: -I)? "\$(?:RUNNER_TEMP/([\w./-]+\.py)|judge)"')
+JUDGE_SET = re.compile(r'(?m)^\s*judge=(.*)$')
+UNDER_RUNNER_TEMP = re.compile(r'"\$RUNNER_TEMP/([\w./-]+\.py)"')
+# Reads no module from the checkout: how the drift gate reads its manifest ahead of the judge. Only the programs
+# gates.yml runs are named, since `-c` runs whatever it is handed.
+ISOLATED = re.compile(r"(?<![-\w])python -I -c '([^']*)'")
+ISOLATED_PROGRAMS = frozenset({'import json, sys; print(json.load(sys.stdin)["harness_commit"])'})
 # Deny by default: a command reads as head code unless its first word is one of these, the shell's own words or a
 # tool the workflow hands data to. An interpreter, a build tool or a path is never named here.
 SAFE_COMMANDS = frozenset({":", "[", "[[", "cp", "echo", "exit", "false", "gh", "git", "grep", "jq", "mkdir", "printf",
@@ -273,7 +277,8 @@ SAFE_COMMANDS = frozenset({":", "[", "[[", "cp", "echo", "exit", "false", "gh", 
 OPENERS = frozenset({"!", "{", "if", "then", "elif", "else", "while", "until", "do"})
 CLOSERS = frozenset({"}", "fi", "done"})
 HEADERS = frozenset({"for", "select"})
-# Outside the script: a step run inside the checkout, a shell other than these, or an action not named here.
+# Outside the script: a step run in a gate's directory, where an interpreter imports the head's modules, a shell
+# other than these, or an action not named here.
 STEP_HEAD_CODE = re.compile(r"^\s*working-directory:", re.M)
 USES = re.compile(r"^\s*(?:- )?uses:(.*)$", re.M)
 SAFE_ACTIONS = re.compile(r"actions/(?:checkout|setup-python)@[\w.-]+")
@@ -444,6 +449,19 @@ def verdicts_at(steps: list[str]) -> int:
     return at[0]
 
 
+def outside_the_checkout(path: str) -> bool:
+    return ".." not in path.split("/")
+
+
+def a_judge(found: re.Match, script: str) -> bool:
+    """Whether a JUDGE match runs a file under the runner's temp directory: named there, or `$judge` assigned there."""
+    if found.group(1) is not None:
+        return outside_the_checkout(found.group(1))
+    values = [value.strip() for value in JUDGE_SET.findall(script)]
+    return bool(values) and all((under := UNDER_RUNNER_TEMP.fullmatch(value)) and outside_the_checkout(under.group(1))
+                                for value in values)
+
+
 def runs_head_code(step: str) -> bool:
     shell, uses = SHELL.search(step), USES.search(step)
     if STEP_HEAD_CODE.search(step) or (shell and shell.group(1).strip() not in SAFE_SHELLS):
@@ -455,8 +473,10 @@ def runs_head_code(step: str) -> bool:
     script = run_script(step)
     if script is None:
         return False
-    # A judge and an isolated read stand in as `:`, so their arguments are read as arguments.
-    script = JUDGE.sub(":", ISOLATED.sub(":", script))
+    # A judge and an isolated read stand in as `:`, so their arguments are read as arguments; one that climbs out of
+    # the runner's temp directory, or runs a program gates.yml does not, stays itself and reads as head code.
+    script = JUDGE.sub(lambda judge: ":" if a_judge(judge, script) else judge.group(0),
+                       ISOLATED.sub(lambda read: ":" if read.group(1) in ISOLATED_PROGRAMS else read.group(0), script))
     defined = set(re.findall(r"(?m)^\s*(\w+)\(\)", script))
     return any(word not in SAFE_COMMANDS and word not in defined for word in command_words(script))
 
@@ -645,7 +665,15 @@ class TheReader(unittest.TestCase):
                          '        run: echo "$GITHUB_WORKSPACE/bin" >> "$GITHUB_PATH"',
                          "        env:\n          NOTE: |\n            run: true\n        run: npm test",
                          "        env:\n          BASH_ENV: .github/gate/env.sh\n        run: true",
-                         "        env:\n          PYTHONPATH: .\n        run: true"):
+                         "        env:\n          PYTHONPATH: .\n        run: true",
+                         # A judge path that climbs back into the checkout, or a `$judge` set anywhere but under the
+                         # runner's temp directory, is the head's code; so is an isolated read of a program
+                         # gates.yml does not run.
+                         '        run: python "$RUNNER_TEMP/../x.py"',
+                         '        run: |\n          judge=.github/x.py\n          python "$judge"',
+                         '        run: python "$judge"',
+                         '        run: |\n          judge="$RUNNER_TEMP/../x.py"\n          python "$judge"',
+                         "        run: python -I -c 'exec(open(\".github/x.py\").read())'"):
             with self.subTest(spelling=spelling):
                 self.assertEqual(["step 1"], head_code_before_the_verdicts(workflow(JUDGES, spelling, REPORTS)))
 
@@ -667,7 +695,9 @@ class TheReader(unittest.TestCase):
 
     def test_what_runs_nothing_from_the_checkout_is_not_named(self) -> None:
         for spelling in ("        uses: actions/setup-python@v7\n        with:\n          python-version: '3.12'",
-                         "        run: python -I -c 'import json'",
+                         "        run: python -I -c "
+                         "'import json, sys; print(json.load(sys.stdin)[\"harness_commit\"])'",
+                         '        run: |\n          judge="$RUNNER_TEMP/comment_gate.py"\n          python "$judge"',
                          "        shell: bash\n        env:\n          GATE: .github/gate/gate.py\n        run: true",
                          "        run: git show \"$BASE_SHA:$GATE\" > \"$RUNNER_TEMP/gate/gate.py\"",
                          "        # python -m unittest\n        run: true",
