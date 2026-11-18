@@ -286,6 +286,8 @@ SAFE_COMMANDS = frozenset({":", "[", "[[", "cp", "echo", "exit", "false", "gh", 
 OPENERS = frozenset({"!", "{", "if", "then", "elif", "else", "while", "until", "do"})
 CLOSERS = frozenset({"}", "fi", "done"})
 HEADERS = frozenset({"for", "select"})
+# Words that open a compound command, which CLOSERS end.
+COMPOUNDS = frozenset({"if", "while", "until", "{"}) | HEADERS
 # Outside the script: a step run in a gate's directory, where an interpreter imports the head's modules, a shell
 # other than these, or an action not named here.
 STEP_HEAD_CODE = re.compile(r"^\s*working-directory:", re.M)
@@ -330,8 +332,9 @@ def run_script(step: str) -> str | None:
 def command_words(script: str) -> list[str]:
     """The first word of every command in a shell script, `$(...)` and backticks included.
 
-    Quotes and escapes are followed, and what it cannot place, a heredoc, an unclosed quote or a backtick nested in
-    another, it refuses. A function's definition is listed as its name and `()`, where it falls in the script."""
+    Quotes and escapes are followed, and what it cannot place, a heredoc, an unclosed quote, a backtick nested in
+    another or a function defined anywhere but on a line of its own at the top, it refuses. A function's definition
+    is listed as its name and `()`, where it falls in the script."""
     words: list[str] = []
     frames: list[dict] = [{"kind": "code", "closer": "", "word": "", "head": True, "depth": 0, "target": False}]
 
@@ -342,11 +345,21 @@ def command_words(script: str) -> list[str]:
         if frame["target"]:
             frame["target"] = False
         elif frame["head"]:
+            # How deep the compound commands around the next command run, so a definition inside one is refused.
+            frame["compound"] = frame.get("compound", 0) + (word in COMPOUNDS) - (word in CLOSERS)
             if re.match(r"[A-Za-z_]\w*=", word) or word in OPENERS:
                 return
             frame["head"] = False
             if word not in CLOSERS and word not in HEADERS:
                 words.append(word)
+
+    def defines_at_top(at: int) -> bool:
+        """Whether the name ending at `at` starts a line of the script itself, run by its own shell after a plain
+        line: not in a substitution, a subshell, a compound or a list continued from the line before."""
+        start = at - len(frames[0]["word"])
+        line = script.rfind("\n", 0, start) + 1
+        return (len(frames) == 1 and not frames[0]["depth"] and not frames[0].get("compound")
+                and not script[line:start].strip() and not script[:line].rstrip().endswith(("&", "|", "\\")))
 
     def skip_braces(at: int) -> int:
         depth, start = 0, at
@@ -365,6 +378,8 @@ def command_words(script: str) -> list[str]:
         # Inside double quotes a character joins the word the quote stands in.
         word = frame if frame["kind"] == "code" else frame["parent"]
         if char == "\\":
+            # An escaped character quotes the word, as a quote would: bash takes no quoted word for a name.
+            word["started"] = True
             if ahead == "`" and any(f["kind"] == "code" and f["closer"] == "`" for f in frames):
                 raise ValueError("a backtick nested in another in a run script")
             if ahead != "\n":
@@ -436,7 +451,10 @@ def command_words(script: str) -> list[str]:
             frame["target"] = True
         elif char == "(" and ahead == ")" and frame["head"] and re.fullmatch(r"[A-Za-z_][\w-]*", frame["word"]) \
                 and not frame.get("started"):
-            # A bare name straight before `()` defines a function; a quoted or spaced one reads as a call.
+            # A bare name straight before `()` defines a function; a quoted or spaced one reads as a call. Only
+            # one on a line of its own at the top is known to reach the calls after it, so any other is refused.
+            if not defines_at_top(at):
+                raise ValueError("a function defined inside a command, compound or list in a run script")
             words.append(frame["word"] + "()")
             frame["word"], at = "", at + 2
             continue
@@ -696,6 +714,7 @@ class TheReader(unittest.TestCase):
                          # command.
                          "        run: |\n          npm test\n          npm() { :; }",
                          '        run: |\n          echo "\n          npm() { :; }"\n          npm test',
+                         "        run: |\n          set +e\n          n\\pm() { :; }\n          npm test",
                          "        run: true\n\n          npm test",
                          "        shell: python {0}\n        run: print(1)",
                          "        shell: pwsh\n        run: true",
@@ -787,7 +806,14 @@ class TheReader(unittest.TestCase):
                          "        run: grep -q ok <(npm test)",
                          "        run: cp >(make) out",
                          "        run: echo $'\\'' ; npm test ; echo $'\\''",
-                         "        run: echo `echo \\`npm test\\` `"):
+                         "        run: echo `echo \\`npm test\\` `",
+                         # A definition whose shell is not the caller's, or that may never run, is not trusted.
+                         "        run: ( npm() { :; } ); npm test",
+                         "        run: x=$(npm() { :; }); npm test",
+                         "        run: false && npm() { :; }; npm test",
+                         "        run: if false; then npm() { :; }; fi; npm test",
+                         "        run: |\n          if false; then\n            npm() { :; }\n          fi\n          npm test",
+                         "        run: |\n          false &&\n          npm() { :; }\n          npm test"):
             with self.subTest(spelling=spelling), self.assertRaises(ValueError):
                 head_code_before_the_verdicts(workflow(spelling, JUDGES, REPORTS))
 
