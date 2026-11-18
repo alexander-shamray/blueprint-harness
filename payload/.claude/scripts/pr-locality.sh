@@ -51,7 +51,26 @@ fence="" fence_open='^ {0,3}(`{3,}|~{3,})(.*)$' fence_close='^ {0,3}(`{3,}|~{3,}
 container='^ {0,3}([-+*]|[0123456789]{1,9}[.)])([[:blank:]]|$)|^ {0,3}[<>]'
 rowish='^[[:blank:]]*\|?[[:blank:]]*(Class|Touch set)[[:blank:]]*\|'
 after_container=0 contained=0
+# GitHub hides an HTML comment, so a row inside one is refused, and its fence lines open nothing. One opens at a
+# `<!--` outside a code span, the last span on its line taken first, with no `-->` after it on its line, and closes
+# at the next line holding a `-->`; inside one a backtick quotes nothing, so a quoted closer still closes it.
+comment=0 code_span='^(.*)`[^`]*`(.*)$'
+comment_after() {
+  local text=$1
+  if [ "$comment" -eq 0 ]; then
+    while [[ "$text" =~ $code_span ]]; do text="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
+  fi
+  case "$text" in
+    *'<!--'*) case "--${text##*'<!--'}" in *'-->'*) comment=0 ;; *) comment=1 ;; esac ;;
+    *'-->'*) comment=0 ;;
+  esac
+}
 while IFS= read -r line; do
+  if [ "$comment" -eq 1 ]; then
+    [[ "$line" =~ $rowish ]] && refuse "a Class or Touch set row sits inside an HTML comment, which GitHub hides"
+    comment_after "$line"
+    continue
+  fi
   if [ -n "$fence" ]; then
     if [ "$contained" -eq 1 ] && [[ "$line" =~ $rowish ]]; then
       refuse "a Class or Touch set row sits in a fenced block after a list, block quote or HTML block"
@@ -67,6 +86,7 @@ while IFS= read -r line; do
       *) fence=${BASH_REMATCH[1]}; contained=$after_container; continue ;;
     esac
   fi
+  comment_after "$line"
   if [[ "$line" =~ $class_at ]]; then class_row=$line; class_rows=$((class_rows + 1)); fi
   if [[ "$line" =~ $touch_at ]]; then touch_row=$line; touch_rows=$((touch_rows + 1)); fi
 done < <(printf '%s\n' "$body")

@@ -618,6 +618,40 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
                 self.assertEqual(0, r.returncode, r.stderr)
                 self.assertEqual(["class D", "inside docs/x.md"], r.stdout.splitlines())
 
+    def test_a_row_inside_an_html_comment_is_refused(self):
+        # GitHub hides the comment, so its row is not the table a reviewer reads; the CI gate refuses it, so a
+        # verdict here would pass a body CI refuses.
+        table = "| Class | D |\n| Touch set | docs/x.md |\n"
+        hidden = "| Class | E |\n| Touch set | src/y.py |\n"
+        refusal = "a Class or Touch set row sits inside an HTML comment, which GitHub hides\n"
+        for name, body in (
+            ("before the table", "<!--\n" + hidden + "-->\n" + table),
+            ("after the table", table + "<!-- a note\n" + hidden + "-->\n"),
+            ("never closed", table + "\n<!--\n" + hidden),
+            ("opened mid-line", table + "text <!-- note\n" + hidden + "-->\n"),
+            ("reopened after a close", table + "<!-- a --> b <!--\n" + hidden + "-->\n"),
+            ("an empty comment then a second opened", table + "<!--> <!--\n" + hidden),
+            ("indented row", table + "<!--\n  | Class | E |\n-->\n"),
+            ("pipeless row", table + "<!--\nTouch set | src/y.py |\n-->\n"),
+        ):
+            with self.subTest(name=name):
+                r = self._run_locality_with_gh(self._gh_printing(body))
+                self.assertEqual((3, "", refusal), (r.returncode, r.stdout, r.stderr))
+        # A comment GitHub closes, or a marker it shows as code, hides nothing the table holds.
+        for name, body in (
+            ("closed on its line", "<!-- note -->\n" + table),
+            ("closed before the table", "<!--\nnote\n-->\n" + table),
+            ("an empty comment", "<!-->\n" + table),
+            ("a marker in a code span", "the `<!--` marker\n" + table),
+            ("a marker in a fence", "```\n<!--\n```\n" + table),
+            ("a closer alone", "-->\n" + table),
+            ("a backticked closer still closes", "<!--\n`-->`\n" + table),
+        ):
+            with self.subTest(name=name):
+                r = self._run_locality_with_gh(self._gh_printing(body))
+                self.assertEqual(0, r.returncode, r.stderr)
+                self.assertEqual(["class D", "inside docs/x.md"], r.stdout.splitlines())
+
     def test_a_lone_carriage_return_is_refused(self):
         # A lone CR ends a line for GitHub and not for this helper, so `note` + CR + an opener fences the table on
         # the page and not here; the CI gate refuses it, and so does the helper. CRLF endings are still read. printf
