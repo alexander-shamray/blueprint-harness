@@ -2779,7 +2779,10 @@ be read, a command `shlex` cannot tokenise, no
 git on `PATH`, or a git that cannot answer: each is admitted, because a
 guard that refuses what it cannot resolve blocks ordinary work for want of
 a resolution. An event that is UTF-8 but not a JSON object is admitted, as in
-the other guards, and one that is not UTF-8 is refused, as they refuse it.
+the other guards, and one that is not UTF-8 is refused, as they refuse it. A
+crash while judging is refused too, as the argv guards refuse one: an
+exception is empty stdout, which a `PreToolUse` hook's caller reads as
+admitted.
 
 **Its residuals, stated rather than left to be found, and pinned in its
 suite as what the hook returns.** The launchers and wrappers *The guards'
