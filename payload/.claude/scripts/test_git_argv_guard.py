@@ -4395,6 +4395,10 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
             for command in ("ls > ~/custom-npmrc", f"ls > {Path(home, 'custom-npmrc').as_posix()}"):
                 with self.subTest(command=command):
                     self.assertRegex(self.assertRefused(command, env=named), r"\$NPM_CONFIG_USERCONFIG")
+        with self.subTest(spelling="bare ~"):
+            # npm expands only `~/`; a bare `~` is the file `~` in the working directory.
+            self.assertRegex(self.assertRefused("ls > ./~", env={**cleared, "NPM_CONFIG_USERCONFIG": "~"}),
+                             r"\$NPM_CONFIG_USERCONFIG")
 
     def test_npms_windows_global_config_below_the_home_is_refused(self):
         # npm's default prefix on Windows is `%APPDATA%\npm`, so its global config sits below the home.

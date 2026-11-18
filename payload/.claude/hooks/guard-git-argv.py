@@ -247,7 +247,7 @@ HOME_FILES = frozenset({
 # so a `core.fsmonitor` or `core.sshCommand` there runs at the next git call; and npm reads its global
 # config from its prefix, which on Windows is `%APPDATA%\npm`, below the home and the session's to write.
 HOME_NESTED_FILES = frozenset({(".config", "git", "config"), ("appdata", "roaming", "npm", "etc", "npmrc")})
-# npm reads its user config from this variable in place of `~/.npmrc`, in either spelling.
+# npm reads its user config from this variable in place of `~/.npmrc`; `npm_userconfig` reads it in any case.
 NPM_USERCONFIG_VARIABLES = ("NPM_CONFIG_USERCONFIG", "npm_config_userconfig")
 # Beside `~/.claude` rather than in it: Claude Code's user state, whose MCP servers
 # and project grants every later session starts under.
@@ -320,12 +320,13 @@ def xdg_git_config(path, cwd=None, whole=False):
 def npm_userconfig(path, cwd=None, whole=False):
     """`$NPM_CONFIG_USERCONFIG` when `path` names it, or `None`; npm reads it for `~/.npmrc`.
 
-    npm takes the name in any case and expands a leading `~` against the home, so both are read here.
+    npm takes the name in any case and expands a leading `~/` (or `~\\`) against the home, so both are read here;
+    a bare `~` it resolves from the working directory, as a relative path.
     """
     for name, value in os.environ.items():
         if name.lower() != "npm_config_userconfig" or not value:
             continue
-        if value.startswith(("~/", "~\\")) or value == "~":
+        if value.startswith(("~/", "~\\")):
             value = os.path.expanduser(value)
         if moved_file(value, (), path, cwd, whole):
             return f"${name}"
