@@ -821,6 +821,15 @@ class LaunchTests(InRoot):
                 self.assertIn(f"S1: {decision} - run refused", out)
                 self.assertEqual(fields["status"], group_state(RUN, "S1")["status"])
 
+    def test_result_hands_back_a_week_that_ran_past_its_reset(self):
+        # A passed reset lets `run` into `_launch`, so a refusal that is not the hold's may follow a session that ran.
+        record(RUN, "S1", pid=1, branch=BRANCH, worktree=WORKTREE, status="week",
+               resets_at=(NOW - timedelta(days=1)).isoformat())
+        with mock.patch.object(dr, "alive", return_value=False):
+            out = run_cli(["result", RUN, "S1", "--refused", "refused: could not write S1.session.json"])
+        self.assertIn("S1: crash-hand-back", out)
+        self.assertEqual("crash-hand-back", group_state(RUN, "S1")["status"])
+
     def test_run_launches_over_a_pid_file_it_cannot_read(self):
         record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE)
         task_text()

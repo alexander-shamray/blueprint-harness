@@ -1547,15 +1547,15 @@ def _unrecorded(directory, state, gid, entry, line):
     """A `run` that exited refused and left neither a marker from this launch nor a session record not yet read.
 
     With no pid file it launched nothing and could not write its marker; with one, an executor ran and its record
-    was not written. _launch removes an earlier pid file first, and one a refusal left is read as the latter, but
-    for a group held at `account` or `week`: `run` refuses those before `_launch`, so nothing ran.
+    was not written. _launch removes an earlier pid file first, and one a refusal left is read as the latter.
     """
     why = one_line(line, 200) if isinstance(line, str) and line.strip() else "no reason given"
     status = entry.get("status")
+    # Neither hold below reached `_launch`, so its pid file is an earlier session's and is not read.
     if status == "account":
         # The group keeps its slot and its hold, and the line names the hold as a session that ended on it would.
         return [f"{gid}: account - run refused, the hold stands: {why}", "transcript: not found"]
-    if status == "week":
+    if status == "week" and f"{gid} is held until the week resets" in why:
         # A reset that passed after `run` looked frees the group for another `run`, which the runbook starts.
         decision = "relaunch" if _week_passed(entry, now()) else "week"
         return [f"{gid}: {decision} - run refused on the week's hold: {why}", "transcript: not found"]
