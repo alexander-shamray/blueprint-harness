@@ -636,10 +636,30 @@ def target_offence(event, spelled):
     return home_offence(spelled, lexical, resolved, cwd)
 
 
+def deny(reason):
+    json.dump(
+        {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": reason,
+            }
+        },
+        sys.stdout,
+    )
+    return 0
+
+
 def main():
+    # An event that is not UTF-8 holds a path nothing read, so it is refused, as guard-git-argv.py refuses one.
     try:
-        event = json.loads(sys.stdin.buffer.read().decode("utf-8"))
-    except (json.JSONDecodeError, ValueError, UnicodeDecodeError):
+        text = sys.stdin.buffer.read().decode("utf-8")
+    except UnicodeDecodeError:
+        return deny("guard-edit-target: this hook event is not UTF-8, so the path in it cannot be read; "
+                    "refusing rather than admitting what nothing judged.")
+    try:
+        event = json.loads(text)
+    except (json.JSONDecodeError, ValueError):
         # The one deliberate fail-open, as in guard-git-argv.py: a hook that
         # cannot read its own input has established nothing, and refusing every
         # write on a malformed event would turn a defect here into a dead
@@ -666,18 +686,7 @@ def main():
         reason = "this write crashed the edit target guard, so nothing about it is established; refusing it."
     if reason is None:
         return 0
-
-    json.dump(
-        {
-            "hookSpecificOutput": {
-                "hookEventName": "PreToolUse",
-                "permissionDecision": "deny",
-                "permissionDecisionReason": reason,
-            }
-        },
-        sys.stdout,
-    )
-    return 0
+    return deny(reason)
 
 
 if __name__ == "__main__":

@@ -4017,7 +4017,8 @@ def scan_budget(command):
 # tool is admitted only as one read-only cmdlet over plain words: no quote,
 # escape, variable, call, pipe, separator or wildcard, and no launcher, whose
 # arguments (an encoded command, say) can carry git in characters this allows.
-POWERSHELL_PLAIN = re.compile(r"[A-Za-z0-9 _./:,=-]*")
+# A backslash is a Windows path's separator; PowerShell's escape is the backtick.
+POWERSHELL_PLAIN = re.compile(r"[A-Za-z0-9 _./:,=\\-]*")
 POWERSHELL_GIT = re.compile(r"(?i)(?<![a-z0-9_])git(?![a-z0-9_])")
 POWERSHELL_READS = frozenset((
     "get-childitem", "get-content", "get-item", "get-location", "resolve-path",
