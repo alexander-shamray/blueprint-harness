@@ -746,17 +746,21 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
         self.assertAdmitted(os.path.join(self.HOME, "appdata", "roaming", "npm", "etc", "other"))
 
     def test_a_link_into_the_keys_is_held(self):
+        # A home built here, so the case has its subject on a host whose real home holds no `.ssh`.
+        home = os.path.join(self.outside, "home")
+        real = os.path.join(home, ".ssh")
+        os.makedirs(real)
+        env = {"HOME": home, "USERPROFILE": home}
         for linker in linkers():
             with self.subTest(link=linker):
                 link = os.path.join(self.outside, f"keys-{linker}")
-                real = os.path.join(self.HOME, ".ssh")
-                if not os.path.isdir(real):
-                    self.skipTest("no ~/.ssh to link to")
                 if linker == "symlink":
                     os.symlink(real, link, target_is_directory=True)
                 else:
                     JUNCTIONS(real, link)
-                self.assertRefused(os.path.join(link, "authorized_keys"))
+                self.assertIn("what runs at login",
+                              self.assertRefused(os.path.join(link, "authorized_keys"), env=env))
+                self.assertAdmitted(os.path.join(self.outside, "keys.md"), env=env)
 
     def test_the_rest_of_the_outside_stays_admitted(self):
         # What the allow-list would have refused: 22 edits to a sibling
