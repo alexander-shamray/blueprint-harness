@@ -236,18 +236,19 @@ def main(path):
         print(f"{DIM}waiting for a session under {path}{RESET}")
         path = newest_transcript(path, time.time() - LOOKBACK)
         print(f"{DIM}following {path}{RESET}")
-    with open(path, encoding="utf-8", errors="replace") as handle:
-        pending = ""
+    # Bytes, decoded a whole line at a time: a line the writer has not finished is held until its newline arrives,
+    # and a text read would have decoded a character it split as two replacement characters first.
+    with open(path, "rb") as handle:
+        pending = b""
         while True:
             line = handle.readline()
             if not line:
                 time.sleep(1)
                 continue
-            # A line the writer has not finished is held until its newline arrives, rather than parsed in two halves.
             pending += line
-            if not pending.endswith("\n"):
+            if not pending.endswith(b"\n"):
                 continue
-            line, pending = pending, ""
+            line, pending = pending.decode("utf-8", errors="replace"), b""
             try:
                 show(json.loads(line))
             except (json.JSONDecodeError, KeyError, TypeError):

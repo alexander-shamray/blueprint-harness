@@ -147,6 +147,28 @@ class FollowTests(unittest.TestCase):
                 ws.main(str(path))
             self.assertEqual([{"type": "user", "message": {"content": "hi"}}], shown)
 
+    def test_a_character_split_between_two_writes_is_shown_whole(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "session.jsonl")
+            record = '{"type": "user", "message": {"content": "\u2705 done"}}\n'.encode("utf-8")
+            cut = record.index("\u2705".encode("utf-8")) + 1
+            path.write_bytes(record[:cut])
+            shown, polls = [], []
+
+            def the_writer_finishes(_seconds):
+                polls.append(1)
+                if len(polls) == 1:
+                    with open(path, "ab") as handle:
+                        handle.write(record[cut:])
+                else:
+                    raise Stop
+
+            with mock.patch.object(ws, "show", side_effect=shown.append), \
+                    mock.patch.object(ws.time, "sleep", side_effect=the_writer_finishes), \
+                    self.assertRaises(Stop):
+                ws.main(str(path))
+            self.assertEqual([{"type": "user", "message": {"content": "\u2705 done"}}], shown)
+
 
 if __name__ == "__main__":
     unittest.main()
