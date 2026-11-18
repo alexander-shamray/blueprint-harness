@@ -4321,14 +4321,17 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         _, env = self.real_home()
         holder = Path(temp_root(self)).as_posix()
         moved = f"{holder}/a/userrc"
-        for name in ("NPM_CONFIG_USERCONFIG", "npm_config_userconfig"):
-            named = {**env, "NPM_CONFIG_USERCONFIG": "", "npm_config_userconfig": "", name: moved}
+        # Windows holds one variable whatever its case, so the two spellings are two only elsewhere.
+        names = ("NPM_CONFIG_USERCONFIG",) if os.name == "nt" else ("NPM_CONFIG_USERCONFIG", "npm_config_userconfig")
+        cleared = {**env, **{name: "" for name in names}}
+        for name in names:
+            named = {**cleared, name: moved}
             for command in (f"ls > {moved}", f'echo x >> "${name}"', f"tee ${{{name}}}", f"cp a {moved}",
                             f"rm {moved}", f"ln -s staged {moved}", f"mv staged {holder}/a"):
                 with self.subTest(variable=name, command=command):
-                    self.assertIn(f"${name}", self.assertRefused(command, env=named))
+                    self.assertRegex(self.assertRefused(command, env=named), r"\$(?i:npm_config_userconfig)")
             self.admitted(f"ls > {holder}/a/other", f"cat {moved}", env=named)
-        self.admitted(f"ls > {moved}", env={**env, "NPM_CONFIG_USERCONFIG": "", "npm_config_userconfig": ""})
+        self.admitted(f"ls > {moved}", env=cleared)
 
     def test_npms_windows_global_config_below_the_home_is_refused(self):
         # npm's default prefix on Windows is `%APPDATA%\npm`, so its global config sits below the home.

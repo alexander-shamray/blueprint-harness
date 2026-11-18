@@ -724,21 +724,25 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
     def test_npm_reads_its_user_config_where_the_variable_moves_it(self):
         # npm reads `$NPM_CONFIG_USERCONFIG`, in either spelling, in place of `~/.npmrc`.
         moved = os.path.join(self.outside, "npm", "userrc")
-        for name in ("NPM_CONFIG_USERCONFIG", "npm_config_userconfig"):
-            env = {"NPM_CONFIG_USERCONFIG": "", "npm_config_userconfig": "", name: moved}
+        # Windows holds one variable whatever its case, so the two spellings are two only elsewhere.
+        names = ("NPM_CONFIG_USERCONFIG",) if os.name == "nt" else ("NPM_CONFIG_USERCONFIG", "npm_config_userconfig")
+        cleared = {name: "" for name in names}
+        for name in names:
+            env = {**cleared, name: moved}
             with self.subTest(variable=name):
                 reason = self.assertRefused(moved, env=env)
                 self.assertIn("what runs at login", reason)
-                self.assertIn(f"${name}", reason)
+                self.assertRegex(reason, r"\$(?i:npm_config_userconfig)")
                 self.assertAdmitted(os.path.join(self.outside, "npm", "other"), env=env)
-        self.assertAdmitted(moved, env={"NPM_CONFIG_USERCONFIG": "", "npm_config_userconfig": ""})
+        self.assertAdmitted(moved, env=cleared)
 
     def test_npms_windows_global_config_below_the_home_is_refused(self):
         # npm's default prefix on Windows is `%APPDATA%\npm`, so its global config sits below the home.
         target = os.path.join(self.HOME, "AppData", "Roaming", "npm", "etc", "npmrc")
         if os.name == "nt":
             self.assertIn("what runs at login", self.assertRefused(target))
-        self.assertIn("what runs at login", self.assertRefused(target.lower()))
+        self.assertIn("what runs at login", self.assertRefused(
+            os.path.join(self.HOME, "appdata", "roaming", "npm", "etc", "npmrc")))
         self.assertAdmitted(os.path.join(self.HOME, "appdata", "roaming", "npm", "etc", "other"))
 
     def test_a_link_into_the_keys_is_held(self):
@@ -854,9 +858,12 @@ class TheHomeDirectoryKeepsWhatRunsAtLogin(GuardCase):
         # A Windows runner's temp root is under its real home, so this one is set.
         env = {key: value for key, value in os.environ.items() if key != "CLAUDE_PROJECT_DIR"}
         # Set as a CI runner sets it: only a file git could read there is refused.
-        env.update(HOME=home, USERPROFILE=home, XDG_CONFIG_HOME=os.path.join(self.outside, "xdg"))
+        env.update(HOME=home, USERPROFILE=home, XDG_CONFIG_HOME=os.path.join(self.outside, "xdg"),
+                   NPM_CONFIG_USERCONFIG=os.path.join(self.outside, "npm", "userrc"))
         for target, reason in ((os.path.join(home, "notes.md"), "cannot be read"),
                                (os.path.join(self.outside, "xdg", "git", "config"), "cannot be read"),
+                               # Judged by its name alone, which errs towards refusing a file of that name.
+                               (os.path.join(self.outside, "npm", "userrc"), "cannot be read"),
                                (os.path.join(self.outside, "NuGet.Config"), "cannot be read"),
                                (os.path.join(self.outside, "loot.txt"), None)):
             with self.subTest(target=target):
