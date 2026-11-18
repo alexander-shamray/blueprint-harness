@@ -2802,32 +2802,36 @@ class TheGitArgvGuard(unittest.TestCase):
         body = "cat > f.md <<'EOF'\nplain\nEOF\n"
         original = guard.heredoc_spans
         scanner = guard._quoting
-        reads = {}
+        reads = {"passes": {}, "scanner": {}}
         try:
             for count in (100, 200, 400):
-                tally = [0]
+                passes, scans = [0], [0]
                 guard.heredoc_spans = (
-                    lambda command, *args, _o=original, _t=tally, **kwargs:
+                    lambda command, *args, _o=original, _t=passes, **kwargs:
                     _TallyingList(_o(command, *args, **kwargs), _t))
                 # `_quoting` reads each pass's spans, often a copy, by index: a
                 # search per character there is the same defect a level down.
+                # Its own tally, since its linear reads per character would
+                # drown a quadratic pass in the list's.
                 guard._quoting = (
-                    lambda command, *args, data=(), _o=scanner, _t=tally, **kwargs:
+                    lambda command, *args, data=(), _o=scanner, _t=scans, **kwargs:
                     _o(command, *args, data=_TallyingView(data, _t), **kwargs))
                 # A distinct trailing comment per size, because `offence`
                 # memoises its verdict per string.
                 guard.offence(body * count + "# " + str(count))
-                reads[count] = tally[0]
+                reads["passes"][count] = passes[0]
+                reads["scanner"][count] = scans[0]
         finally:
             guard.heredoc_spans = original
             guard._quoting = scanner
 
-        self.assertGreater(reads[100], 0, "the instrument saw the list at all")
-        for smaller, larger in ((100, 200), (200, 400)):
-            with self.subTest(sizes=(smaller, larger)):
-                self.assertLess(
-                    reads[larger], reads[smaller] * 2.5,
-                    "twice the heredocs is twice the reads, not four times")
+        for instrument, tallies in reads.items():
+            self.assertGreater(tallies[100], 0, f"the {instrument} instrument saw its list at all")
+            for smaller, larger in ((100, 200), (200, 400)):
+                with self.subTest(instrument=instrument, sizes=(smaller, larger)):
+                    self.assertLess(
+                        tallies[larger], tallies[smaller] * 2.5,
+                        "twice the heredocs is twice the reads, not four times")
 
     def test_a_wrappers_own_option_is_not_the_shells_script_flag(self):
         # `ionice -c 2 bash` runs bash on its stdin — `-c` there is the
