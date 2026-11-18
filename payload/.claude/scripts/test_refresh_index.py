@@ -33,8 +33,8 @@ ORIGINAL_ENVIRON = os.environ
 
 SCRIPTS = Path(__file__).resolve().parent
 NO_CWD_SEARCH = "NoDefaultCurrentDirectoryInExePath"
-# Every variable a case here sets or pops, for the canary to compare at the end. Only these: the rest of the
-# environment is the host's and the runner's, which this file's canary has no say over.
+# Every variable a case here sets or pops itself, for the canary to compare at the end. Only these: the rest of
+# the environment is the host's and the runner's, and a helper's patch (sign_nothing's) is restored by its own.
 PATCHED_VARIABLES = ("CBX_NO_SKILL_AUTO_UPDATE", "CLAUDE_PROJECT_DIR", "GIT_DIR", "GIT_WORK_TREE", NO_CWD_SEARCH,
                      "PATH", "PATHEXT", "PYTHONPATH")
 ORIGINAL_VARIABLES = {name: os.environ.get(name) for name in PATCHED_VARIABLES}
@@ -2634,14 +2634,15 @@ class WhatWasPatchedIsRestored(unittest.TestCase):
 
         def environ(node):
             return (isinstance(node, ast.Attribute) and node.attr == "environ"
-                    or isinstance(node, ast.Name) and node.id == "environ")
+                    or isinstance(node, ast.Name) and node.id == "environ"
+                    or isinstance(node, ast.Constant) and node.value == "os.environ")
 
         # A form whose names it cannot read is reported unreadable rather than skipped, so it fails the check.
         patched = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
                 line = node.lineno
-                if node.func.attr in ("pop", "setdefault") and environ(node.func.value):
+                if node.func.attr in ("pop", "setdefault", "__setitem__", "__delitem__") and environ(node.func.value):
                     patched.add(spelled(node.args[0] if node.args else None, line))
                 elif node.func.attr in ("update", "clear", "popitem") and environ(node.func.value):
                     patched.add(spelled(None, line))
