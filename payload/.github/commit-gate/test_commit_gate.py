@@ -282,6 +282,11 @@ ISOLATED_PROGRAMS = frozenset({'import json, sys; print(json.load(sys.stdin)["ha
 # `printf` is not one: its `-v` writes any variable, under quoting no reader here unpicks, and no step needs it.
 SAFE_COMMANDS = frozenset({":", "[", "[[", "cp", "echo", "exit", "false", "gh", "git", "grep", "jq", "mkdir", "rm",
                            "set", "test", "true"})
+# Two safe words run a program when told to: git through an alias, `-c` or a subcommand such as `submodule foreach`,
+# and jq through a program or module file. Only the subcommands gates.yml runs are named, with no global option but
+# `-C`, and jq's file options are refused in long form or in any short cluster.
+GIT_SUBCOMMANDS = frozenset({"cat-file", "checkout", "diff", "fetch", "init", "log", "merge-base", "remote", "show"})
+JQ_FILES = re.compile(r"--(?:from-file|library-path)\b|-[A-Za-z]*[fL]")
 # Words after which the shell expects a command, words that close a compound, and words whose header runs nothing.
 OPENERS = frozenset({"!", "{", "if", "then", "elif", "else", "while", "until", "do"})
 CLOSERS = frozenset({"}", "fi", "done"})
@@ -330,12 +335,17 @@ def run_script(step: str) -> str | None:
 
 
 def command_words(script: str) -> list[str]:
-    """The first word of every command in a shell script, `$(...)` and backticks included.
+    """The first word of every command in a shell script, `$(...)` and backticks included."""
+    return [command[0] for command in commands(script)]
+
+
+def commands(script: str) -> list[list[str]]:
+    """Every command in a shell script, `$(...)` and backticks included, as its words but for redirection targets.
 
     Quotes and escapes are followed, and what it cannot place, a heredoc, an unclosed quote, a backtick nested in
     another or a function defined anywhere but at the start of a line at the top, it refuses. A function's definition
     is listed as its name and `()`, where it falls in the script."""
-    words: list[str] = []
+    found: list[list[str]] = []
     frames: list[dict] = [{"kind": "code", "closer": "", "word": "", "head": True, "depth": 0, "target": False,
                             "prefixed": False}]
 
@@ -347,7 +357,9 @@ def command_words(script: str) -> list[str]:
         if frame["target"]:
             frame["target"] = False
             frame["prefixed"] = frame["prefixed"] or frame["head"]
-        elif frame["head"]:
+        elif not frame["head"]:
+            frame.setdefault("args", []).append(word)
+        else:
             # A command follows any `&&`, `||` or `|` before it. A quoted or escaped word, or one after an assignment
             # or a redirection, is no reserved word, so only a bare first word moves how deep the compound commands
             # around the next command run, and only a bare `}` back at a definition's own depth closes its body.
@@ -364,8 +376,10 @@ def command_words(script: str) -> list[str]:
             if reserved and word in OPENERS:
                 return
             frame["head"] = False
-            if not reserved or (word not in CLOSERS and word not in HEADERS):
-                words.append(word)
+            # A closer's or a header's words belong to no command.
+            frame["args"] = [word] if not reserved or (word not in CLOSERS and word not in HEADERS) else []
+            if frame["args"]:
+                found.append(frame["args"])
 
     def defines_at_top(at: int) -> bool:
         """Whether the name ending at `at` starts a line of the script itself, run by its own shell: not in a
@@ -483,7 +497,7 @@ def command_words(script: str) -> list[str]:
             body = len(script[at + 2:]) - len(script[at + 2:].lstrip(" \t"))
             if not defines_at_top(at) or script[at + 2 + body:at + 3 + body] != "{":
                 raise ValueError("a function defined inside a command, compound or list in a run script")
-            words.append(frame["word"] + "()")
+            found.append([frame["word"] + "()"])
             frame["word"], frame["body"], at = "", frame.get("compound", 0), at + 2
             continue
         elif char == "(":
@@ -505,7 +519,7 @@ def command_words(script: str) -> list[str]:
     if len(frames) != 1 or frames[0]["depth"]:
         raise ValueError("an unclosed quote, substitution or group in a run script")
     end_word(frames[0])
-    return words
+    return found
 
 
 VERDICTS = re.compile(r"(?m)^ +(?:- )?id: verdicts$")
@@ -556,12 +570,25 @@ def runs_head_code(step: str) -> bool:
     script = JUDGE.sub(lambda judge: ":" if a_judge(judge, script) else judge.group(0), script)
     # A function stands in for its name only from its definition on, as the shell runs it.
     defined: set[str] = set()
-    for word in command_words(script):
-        if word.endswith("()"):
-            defined.add(word[:-2])
-        elif word not in SAFE_COMMANDS and word not in defined:
+    for command in commands(script):
+        if command[0].endswith("()"):
+            defined.add(command[0][:-2])
+        elif command[0] not in defined and (command[0] not in SAFE_COMMANDS or not safe_arguments(command)):
             return True
     return False
+
+
+def safe_arguments(command: list[str]) -> bool:
+    """Whether a safe word's arguments keep it from running a program: git only as the subcommands gates.yml runs,
+    after no global option but `-C`, and jq reading no program or module from a file."""
+    word, args = command[0], command[1:]
+    if word == "git":
+        while args[:1] == ["-C"]:
+            args = args[2:]
+        return bool(args) and args[0] in GIT_SUBCOMMANDS
+    if word == "jq":
+        return not any(JQ_FILES.match(arg) for arg in args)
+    return True
 
 
 def name_of(step: str) -> str:
@@ -738,6 +765,16 @@ class TheReader(unittest.TestCase):
                          "        run: |\n          if true; then\n            npm ci\n          fi",
                          "        run: |\n          for gate in a b; do\n            make \"$gate\"\n          done",
                          "        run: |\n          check() { npm test; }\n          check",
+                         # A safe word told to run a program: git through a subcommand, `-c` or an alias, jq
+                         # through a program or module file.
+                         "        run: git submodule foreach 'npm test'",
+                         "        run: git -c alias.t='!npm test' t",
+                         "        run: git -C . -c core.pager=make log",
+                         "        run: git",
+                         "        run: jq -f .github/x.jq",
+                         "        run: jq -nrf .github/x.jq",
+                         "        run: jq --from-file=.github/x.jq",
+                         "        run: jq -L.github -n 'import \"x\" as x; 1'",
                          # A function stands in for a name only once defined, and a blank line ends a plain run's
                          # command.
                          "        run: |\n          npm test\n          npm() { :; }",
@@ -821,7 +858,10 @@ class TheReader(unittest.TestCase):
                          "        run: echo 'npm test; make' \"a;b | node\"",
                          '        run: git log -1 > "$RUNNER_TEMP/log" 2>&1',
                          "        run: |\n          take() { git show \"$1\"; }\n          take HEAD",
-                         "        run: true\n          git log -1"):
+                         "        run: true\n          git log -1",
+                         '        run: git -C "$RUNNER_TEMP/h" -C x fetch -q --depth 1 -- origin main',
+                         "        run: |\n          for g in a b; do\n            git show \"HEAD:$g\"\n          done",
+                         "        run: jq -rs --arg pr 1 '.[]' out.json"):
             with self.subTest(spelling=spelling):
                 self.assertEqual([], head_code_before_the_verdicts(workflow(spelling, JUDGES, REPORTS)))
 
