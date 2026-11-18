@@ -51,20 +51,16 @@ fence="" fence_open='^ {0,3}(`{3,}|~{3,})(.*)$' fence_close='^ {0,3}(`{3,}|~{3,}
 container='^ {0,3}([-+*]|[0123456789]{1,9}[.)])([[:blank:]]|$)|^ {0,3}[<>]'
 rowish='^[[:blank:]]*\|?[[:blank:]]*(Class|Touch set)[[:blank:]]*\|'
 after_container=0 contained=0
-# GitHub hides an HTML comment, so a row inside one is refused, and its fence lines open nothing. One opens at a
-# `<!--` outside a fence with no `-->` after it on its line, and closes at the next line holding a `-->`. A backtick
-# is no code span here, since run lengths and escapes decide one, so a quoted `<!--` refuses rather than hides.
+# GitHub hides an HTML comment. A `<!--` outside a fence with no `-->` after it on its line leaves one open, and it
+# is never closed here: a later `-->` ends it only when its opener began an HTML block of its own, which a line reader
+# cannot tell, and GitHub otherwise hides the rest. So every row or fence line after one is refused. A backtick is no
+# code span here, since run lengths and escapes decide one, so a quoted `<!--` counts as an opener.
 comment=0
-comment_after() {
-  case "$1" in
-    *'<!--'*) case "--${1##*'<!--'}" in *'-->'*) comment=0 ;; *) comment=1 ;; esac ;;
-    *'-->'*) comment=0 ;;
-  esac
-}
 while IFS= read -r line; do
   if [ "$comment" -eq 1 ]; then
-    [[ "$line" =~ $rowish ]] && refuse "a Class or Touch set row sits inside an HTML comment, which GitHub hides"
-    comment_after "$line"
+    if [[ "$line" =~ $rowish ]] || [[ "$line" =~ $fence_open ]]; then
+      refuse "a Class or Touch set row, or a fence line, sits after an HTML comment left open, which GitHub may hide"
+    fi
     continue
   fi
   if [ -n "$fence" ]; then
@@ -82,7 +78,7 @@ while IFS= read -r line; do
       *) fence=${BASH_REMATCH[1]}; contained=$after_container; continue ;;
     esac
   fi
-  comment_after "$line"
+  case "$line" in *'<!--'*) case "--${line##*'<!--'}" in *'-->'*) ;; *) comment=1 ;; esac ;; esac
   if [[ "$line" =~ $class_at ]]; then class_row=$line; class_rows=$((class_rows + 1)); fi
   if [[ "$line" =~ $touch_at ]]; then touch_row=$line; touch_rows=$((touch_rows + 1)); fi
 done < <(printf '%s\n' "$body")
