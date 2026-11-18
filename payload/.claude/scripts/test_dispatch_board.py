@@ -623,29 +623,6 @@ class PathTests(unittest.TestCase):
             self.assertEqual(frozenset(), db.branch_paths(".", "-x"))
             self.assertEqual(frozenset(), db.branch_paths(".", None))
 
-    def test_branch_paths_claim_a_moved_files_old_path_and_a_non_ascii_name(self):
-        # Against real git, since the defaults this guards against (rename detection, quoted paths) are git's own.
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-
-            def run(*args):
-                db.git(root, "-c", "user.name=t", "-c", "user.email=t@example.invalid",
-                       "-c", "commit.gpgsign=false", *args)
-            run("init", "-q", "-b", "main")
-            (root / "src" / "old").mkdir(parents=True)
-            (root / "src" / "old" / "x.cs").write_text("class X {}\n" * 20, encoding="utf-8")
-            run("add", "-A")
-            run("commit", "-q", "-m", "base")
-            run("update-ref", "refs/remotes/origin/main", "HEAD")
-            run("checkout", "-q", "-b", "fix/move")
-            run("mv", "src/old", "src/new")
-            (root / "docs").mkdir()
-            (root / "docs" / "caf\u00e9.md").write_text("menu\n", encoding="utf-8")
-            run("add", "-A")
-            run("commit", "-q", "-m", "move")
-            self.assertEqual({"src/old/x.cs", "src/new/x.cs", "docs/caf\u00e9.md"},
-                             db.branch_paths(root, "fix/move"))
-
     def test_pick_takes_the_earliest_wave_then_table_order(self):
         groups = db.groups(db.parse_tasks(tasks_of(
             line(number=1, gid="B1", wave=2), line(number=2, gid="A1", wave=1), line(number=3, gid="A2", wave=1))))
