@@ -54,14 +54,14 @@ origin_pushes_where_added || exit 8
 git fetch --quiet origin "+refs/heads/main:refs/remotes/origin/main" "+refs/heads/$branch:refs/remotes/origin/$branch"
 remote=$(git rev-parse "refs/remotes/origin/$branch")
 tip=$(git rev-parse HEAD)
-# One line per commit of `origin/main..<ref>`: a hash of its tree, author and message with every `PR:` line dropped
-# and the spacing the trailer adds normalised away, so a commit differing only by this helper's trailer hashes alike.
+# One line per commit of `origin/main..<ref>`: a hash of its tree, author and message with this run's `PR: #<n>` line
+# dropped and the spacing it adds normalised away, so a commit differing only by that trailer hashes alike.
 commits_but_the_trailer() {
   local sha
   for sha in $(git rev-list --reverse "origin/main..$1"); do
     {
       git show -s --format='%T%n%an <%ae> %ad' "$sha"
-      git show -s --format=%B "$sha" | { grep -vE '^PR: #[0-9]+'$'\r''?$' || :; } | git stripspace
+      git show -s --format=%B "$sha" | { grep -vxE "PR: #$pr"$'\r''?' || :; } | git stripspace
     } | git hash-object --stdin
   done
 }
