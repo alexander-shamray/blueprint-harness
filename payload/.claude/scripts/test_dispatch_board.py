@@ -476,17 +476,18 @@ class PathTests(unittest.TestCase):
         self.in_checkout()
         found = db.extract_paths("Edit src/app/core/api/client.ts and `app.component.html`, then theme.scss.")
         self.assertEqual({"src/app/core/api/client.ts", "app.component.html", "theme.scss"}, found)
-        for name in ("a.tsx", "a.js", "a.mjs", "a.cjs", "a.css", "a.xml", "a.gradle", "a.kts", "a.kt", "a.java",
+        for name in ("a.tsx", "src/a.js", "src/a.mjs", "src/a.cjs", "a.css", "a.xml", "a.gradle", "a.kts", "a.kt", "a.java",
                      "a.swift", "a.plist", "gradle.properties", "project.pbxproj", "debug.xcconfig", "main.storyboard"):
             with self.subTest(name=name):
                 self.assertEqual({name}, db.extract_paths(f"see {name} here"))
 
     def test_a_product_named_like_a_script_is_not_a_claim(self):
         self.in_checkout()
-        self.assertEqual(frozenset(), db.extract_paths("bump Node.js to 24 and `Vue.js` with Chart.js"))
-        claim = db.group_claim(group_of(line(task="bump Node.js to 24")), {1700: "Node.js 24 is out"})
+        found = db.extract_paths("bump Node.js to 24, `Vue.js` with Chart.js, and drop `zone.js` and main.mjs")
+        self.assertEqual(frozenset(), found)
+        claim = db.group_claim(group_of(line(task="it installs no `zone.js`")), {1700: "Node.js 24 is out"})
         self.assertTrue(claim.unknown)
-        self.assertEqual({"main.js", "src/node.js"}, db.extract_paths("edit main.js and `src/Node.js`"))
+        self.assertEqual({"src/node.js", "tools/main.mjs"}, db.extract_paths("edit `src/Node.js` and tools/main.mjs"))
 
     def test_a_top_level_directory_claims_everything_under_it(self):
         self.in_checkout()

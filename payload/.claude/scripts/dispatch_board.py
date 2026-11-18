@@ -31,11 +31,12 @@ TASK_AT = {"In progress": 2, "Remaining": 3, "Tracking": 3, "Paused": 1}
 NUMBER_AT = {"In progress": 1, "Remaining": 2, "Tracking": 2, "Paused": 0}
 WAVE, GROUP, TASK, LABELS, DEPENDS, MODEL, CONFLICTS = 0, 1, 3, 4, 5, 6, 7
 MODELS = {"Opus": "opus", "Sonnet": "sonnet"}
-# The backend's file types and the frontend's web and native ones: a path this misses narrows a claim.
+# Common source and config types of the backend and the frontend: a path this misses narrows a claim.
 EXTENSIONS = ("cs|csproj|py|sh|md|json|ya?ml|sql|ps1|props|slnx|toml|tsx?|[mc]?js|html|s?css|xml|gradle|kts?|java|"
               "swift|plist|properties|pbxproj|xcconfig|storyboard")
-# `Node.js` or `Vue.js` in prose is a product, not a file: read as one, it would make an empty claim look known.
-PRODUCT = re.compile(r"[A-Z][\w-]*\.js")
+# A slashless `<name>.js`, `Node.js` or `zone.js`, is as often a product or a package as a file: read as one, it
+# would make an empty claim look known. A script still claims by a path with a slash.
+PRODUCT = re.compile(r"[^/]+\.[mc]?js")
 BARE_PATH = re.compile(rf"(?<![\w./\\-])([\w.\\/-]+\.(?:{EXTENSIONS}))(?!\w)", re.IGNORECASE)
 KNOWN_FILE = re.compile(rf"\.(?:{EXTENSIONS})$", re.IGNORECASE)
 # A code span may cross a line break inside a paragraph, but no block boundary: a fence's delimiter line, a blank
@@ -303,11 +304,11 @@ def extract_paths(text):
             # A slash command or a dotted identifier is not a file: it would make an empty claim look known. A trailing
             # slash names a directory, top-level ones included, which `_normalise` has stripped.
             directory = re.search(r"[/\\][.,;:)\]>'\"]*$", piece) is not None
-            if PRODUCT.fullmatch(piece.strip("(['\"<.,;:)]>")):
+            if PRODUCT.fullmatch(path):
                 continue
             if KNOWN_FILE.search(path) or _slash_path(path + "/" if directory else path):
                 found.add(path)
-    found.update(_normalise(m) for m in BARE_PATH.findall(text) if not PRODUCT.fullmatch(m))
+    found.update(path for path in map(_normalise, BARE_PATH.findall(text)) if not PRODUCT.fullmatch(path))
     found.discard("")
     return frozenset(found)
 
