@@ -580,18 +580,42 @@ class PathTests(unittest.TestCase):
 
         def fake(root, *args):
             calls.append(args)
-            if args[2] == "origin/main...fix/other":
+            if args[4] == "origin/main...fix/other":
                 raise db.Refusal("unknown revision")
-            return "src/Gateway/Program.cs\ndocs/A.md\n\n"
+            return "src/Gateway/Program.cs\0docs/A.md\0\0"
         with mock.patch.object(db, "git", fake):
             self.assertEqual({"src/gateway/program.cs", "docs/a.md"}, db.branch_paths(".", "fix/other"))
-        self.assertEqual([("diff", "--name-only", "origin/main...fix/other", "--"),
-                          ("diff", "--name-only", "origin/main...origin/fix/other", "--")], calls)
+        self.assertEqual([("diff", "--name-only", "--no-renames", "-z", "origin/main...fix/other", "--"),
+                          ("diff", "--name-only", "--no-renames", "-z", "origin/main...origin/fix/other", "--")],
+                         calls)
         with mock.patch.object(db, "git", side_effect=db.Refusal("no such ref")):
             self.assertEqual(frozenset(), db.branch_paths(".", "fix/other"))
         with mock.patch.object(db, "git", side_effect=AssertionError("git was asked")):
             self.assertEqual(frozenset(), db.branch_paths(".", "-x"))
             self.assertEqual(frozenset(), db.branch_paths(".", None))
+
+    def test_branch_paths_claim_a_moved_files_old_path_and_a_non_ascii_name(self):
+        # Against real git, since the defaults this guards against (rename detection, quoted paths) are git's own.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            def run(*args):
+                db.git(root, "-c", "user.name=t", "-c", "user.email=t@example.invalid",
+                       "-c", "commit.gpgsign=false", *args)
+            run("init", "-q", "-b", "main")
+            (root / "src" / "old").mkdir(parents=True)
+            (root / "src" / "old" / "x.cs").write_text("class X {}\n" * 20, encoding="utf-8")
+            run("add", "-A")
+            run("commit", "-q", "-m", "base")
+            run("update-ref", "refs/remotes/origin/main", "HEAD")
+            run("checkout", "-q", "-b", "fix/move")
+            run("mv", "src/old", "src/new")
+            (root / "docs").mkdir()
+            (root / "docs" / "caf\u00e9.md").write_text("menu\n", encoding="utf-8")
+            run("add", "-A")
+            run("commit", "-q", "-m", "move")
+            self.assertEqual({"src/old/x.cs", "src/new/x.cs", "docs/caf\u00e9.md"},
+                             db.branch_paths(root, "fix/move"))
 
     def test_pick_takes_the_earliest_wave_then_table_order(self):
         groups = db.groups(db.parse_tasks(tasks_of(
