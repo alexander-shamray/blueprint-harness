@@ -671,6 +671,8 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
                 r = self._run_locality_with_gh(self._gh_printing(body))
                 self.assertEqual(3, r.returncode, r.stderr)
                 self.assertEqual("", r.stdout)
+                # The later "is empty" and "is not a class" refusals also exit 3, so the message names this one.
+                self.assertIn("one row without the other", r.stderr)
 
     def test_a_row_with_no_closing_pipe_is_not_one_cell(self):
         # The CI gate's `_cell` refuses a row whose cell is not closed by a `|`, so the local verdict must too.
