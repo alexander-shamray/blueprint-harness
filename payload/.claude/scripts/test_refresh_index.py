@@ -2625,27 +2625,42 @@ class WhatWasPatchedIsRestored(unittest.TestCase):
                  for target in node.targets if isinstance(target, ast.Name)
                  and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)}
 
-        def spelled(node):
+        def spelled(node, line):
             if isinstance(node, ast.Constant) and isinstance(node.value, str):
                 return node.value
             if isinstance(node, ast.Name) and node.id in names:
                 return names[node.id]
-            return f"<unreadable at line {node.lineno}>"
+            return f"<unreadable at line {line}>"
 
         def environ(node):
             return (isinstance(node, ast.Attribute) and node.attr == "environ"
                     or isinstance(node, ast.Name) and node.id == "environ")
 
+        # A form whose names it cannot read is reported unreadable rather than skipped, so it fails the check.
         patched = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-                if node.func.attr == "pop" and environ(node.func.value) and node.args:
-                    patched.add(spelled(node.args[0]))
-                elif node.func.attr == "dict" and node.args and environ(node.args[0]) and len(node.args) > 1:
-                    if isinstance(node.args[1], ast.Dict):
-                        patched.update(spelled(key) for key in node.args[1].keys)
-            elif isinstance(node, ast.Subscript) and isinstance(node.ctx, ast.Store) and environ(node.value):
-                patched.add(spelled(node.slice))
+                line = node.lineno
+                if node.func.attr in ("pop", "setdefault") and environ(node.func.value):
+                    patched.add(spelled(node.args[0] if node.args else None, line))
+                elif node.func.attr in ("update", "clear", "popitem") and environ(node.func.value):
+                    patched.add(spelled(None, line))
+                elif node.func.attr == "dict" and node.args and environ(node.args[0]):
+                    if len(node.args) > 1:
+                        values = node.args[1]
+                        if isinstance(values, ast.Dict):
+                            patched.update(spelled(key, line) for key in values.keys)
+                        else:
+                            patched.add(spelled(None, line))
+                    for keyword in node.keywords:
+                        if keyword.arg == "clear":
+                            if not (isinstance(keyword.value, ast.Constant) and keyword.value.value is False):
+                                patched.add(spelled(None, line))
+                        else:
+                            patched.add(keyword.arg or spelled(None, line))
+            elif (isinstance(node, ast.Subscript) and isinstance(node.ctx, (ast.Store, ast.Del))
+                  and environ(node.value)):
+                patched.add(spelled(node.slice, node.lineno))
         self.assertTrue(patched, "the scan found no patched variable, so it is reading nothing")
         self.assertLessEqual(patched, set(PATCHED_VARIABLES))
 
