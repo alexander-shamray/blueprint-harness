@@ -390,10 +390,15 @@ class NeitherCreatorShadowsAPackedBranch(unittest.TestCase):
         made = run_bash('cd "$C" && git update-ref --stdin < "$L" && git pack-refs --all',
                         C=f"{root}/checkout", L=f"{root}/heads.txt")
         self.assertEqual(0, made.returncode, made.stderr)
+        before = self.refs(root)
         result = run_bash('cd "$C" && bash "$H" Feat/Probe HEAD', C=f"{root}/checkout", H=str(self.CREATE))
         self.assertEqual(3, result.returncode, result.stderr)
+        self.assertIn("branch already exists", result.stderr)
+        self.assertEqual(before, self.refs(root))
         result = self.fork(f"{root}/checkout", ".claude/worktrees/probe", "Feat/Probe")
         self.assertEqual(3, result.returncode, result.stderr)
+        self.assertIn("branch already exists", result.stderr)
+        self.assertEqual(before, self.refs(root))
 
     def test_a_name_that_is_not_the_whole_of_one_is_created(self):
         # Whole names, matched literally: a prefix, an extension and a name a `.` pattern would match are other names.
