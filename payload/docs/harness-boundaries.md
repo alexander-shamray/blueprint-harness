@@ -2027,8 +2027,15 @@ quoted example beside the table is a second row and the round refuses a
 body the gate passes. A fence opened after a list item, a block quote or an
 HTML block start is the exception, and a row in it, indented or without its
 leading pipe, exits 3 as the gate refuses it: GitHub ends a fence in a list
-item when the list ends and hides one in an HTML comment, which a line reader
-cannot follow, so that row may be the table GitHub shows. A carriage return
+item when the list ends, which a line reader cannot follow, so that row may be
+the table GitHub shows. A row or a fence line after an HTML comment left
+open exits 3 too: a `<!--` outside a fence with no `-->` after it on its line
+leaves one open, and it is never closed, since whether a later `-->` ends it
+on GitHub turns on block or inline context and paragraph ends, which a line
+reader cannot tell. So does such a `<!--` inside a fence opened after a list
+item, block quote or HTML block, which GitHub may have ended already. A
+backtick is not read as a code span there, so a quoted `<!--` counts as an
+opener. A carriage return
 that ends no CRLF ends a line for GitHub and not for the helper, and exits 3
 too. A
 class cell is one letter A–E, two distinct letters joined by `+`, or

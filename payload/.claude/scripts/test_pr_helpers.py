@@ -606,8 +606,8 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
         self.assertEqual(["class D", "inside docs/x.md"], r.stdout.splitlines())
 
     def test_a_row_in_a_fence_after_a_container_is_refused(self):
-        # GitHub ends a fence opened in a list item when the list ends and hides one in an HTML comment, so a fenced
-        # row after a list, block quote or HTML block may be what it shows as the table. The CI gate refuses it,
+        # GitHub ends a fence opened in a list item when the list ends, so a fenced row after a list, block quote or
+        # HTML block start may be what it shows as the table. The CI gate refuses it,
         # in any spelling GitHub could render once the fence ends, and a verdict here would pass a body CI refuses.
         table = "| Class | D |\n| Touch set | docs/x.md |\n"
         example = "| Class | E |\n| Touch set | src/y.py |\n"
@@ -616,7 +616,6 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
             ("list item", "- note\n\n  ```\n"),
             ("numbered item", "1. note\n\n   ```\n"),
             ("block quote", "> note\n\n```\n"),
-            ("html comment", "<!--\n```\n-->\n"),
             ("container long before the fence", "* note\n\ntext\n\n```\n"),
         )]
         bodies += [(f"row {row!r}", "- note\n\n  ```\n" + row + "\n```\n" + table)
@@ -632,6 +631,54 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
             ("container after the table", table + "\n- item\n\n```\ncode\n```\n"),
             ("not a list item", "-note\n\n```\n" + example + "```\n" + table),
             ("indented four", "    - note\n\n```\n" + example + "```\n" + table),
+        ):
+            with self.subTest(name=name):
+                r = self._run_locality_with_gh(self._gh_printing(body))
+                self.assertEqual(0, r.returncode, r.stderr)
+                self.assertEqual(["class D", "inside docs/x.md"], r.stdout.splitlines())
+
+    def test_a_row_after_an_html_comment_left_open_is_refused(self):
+        # GitHub hides the comment, and whether a later `-->` closes it turns on context a line reader cannot tell,
+        # so every row or fence line after an open comment is refused, as the CI gate refuses it; a verdict here
+        # would pass a body CI refuses.
+        table = "| Class | D |\n| Touch set | docs/x.md |\n"
+        hidden = "| Class | E |\n| Touch set | src/y.py |\n"
+        refusal = ("a Class or Touch set row, or a fence line, sits after an HTML comment left open, "
+                   "which GitHub may hide\n")
+        for name, body in (
+            ("before the table", "<!--\n" + hidden + "-->\n" + table),
+            ("after the table", table + "<!-- a note\n" + hidden + "-->\n"),
+            ("never closed", table + "\n<!--\n" + hidden),
+            ("opened mid-line", table + "text <!-- note\n" + hidden + "-->\n"),
+            ("reopened after a close", "<!-- a --> b <!--\nnote\n-->\n" + table),
+            ("inside a list item", "- <!--\nnote\n-->\n\n" + table),
+            ("inside an html block", "<div>\n<!--\n\n-->\n" + table),
+            ("closed later, which may close nothing", "<!--\nnote\n-->\n" + table),
+            ("an empty comment then a second opened", table + "<!--> <!--\n" + hidden),
+            ("indented row", table + "<!--\n  | Class | E |\n-->\n"),
+            ("pipeless row", table + "<!--\nTouch set | src/y.py |\n-->\n"),
+            # A backtick decides no code span here, so no unmatched run, escape or join can hide the opener or
+            # forge a closer.
+            ("an unmatched backtick run", "``<!--`\n" + hidden + "-->\n | Class | D |\n"),
+            ("an escaped backtick", "\\`<!--`\n" + hidden + "-->\n | Class | D |\n"),
+            ("a span joining a closer", "<!-- a -`x`->\n" + hidden + "-->\n"),
+            ("a quoted opener refuses, as a precaution", "the `<!--` marker\n" + table),
+            ("a fence line inside a comment", "<!--\n```\n-->\n" + table + "```\n" + hidden + "```\n"),
+            ("an opener in a fence GitHub may have ended", "- note\n\n  ```\n<!--\n```\n" + hidden + "-->\n"),
+            ("a quoted opener before a fenced example",
+             "Use the `<!--` marker.\n\n```\n-->\n" + hidden + "```\n\n" + table),
+        ):
+            with self.subTest(name=name):
+                r = self._run_locality_with_gh(self._gh_printing(body))
+                self.assertEqual((3, "", refusal), (r.returncode, r.stdout, r.stderr))
+        # A comment closed on its own line, or a marker inside a fence, hides nothing the table holds.
+        for name, body in (
+            ("closed on its line", "<!-- note -->\n" + table),
+            ("an empty comment", "<!-->\n" + table),
+            ("a quoted closer on the opening line", "<!-- `-->`\n" + table),
+            ("a marker in a fence", "```\n<!--\n```\n" + table),
+            ("a closer alone", "-->\n" + table),
+            ("a comment after the table", table + "\n<!--\nnote\n"),
         ):
             with self.subTest(name=name):
                 r = self._run_locality_with_gh(self._gh_printing(body))
