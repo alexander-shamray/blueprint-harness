@@ -151,6 +151,9 @@ class TheCliIsNotStartedOverAnIndexTheHookRefuses(unittest.TestCase):
 
     def test_a_git_that_fails_or_stalls_is_a_refusal_not_a_checkout_left_alone(self):
         # Only git's own "not a git repository" answer means no checkout; a dead or stalled git has said nothing.
+        # `main` sets a variable and a `sys` flag for the process it ends; here that process is the suite's.
+        self.enterContext(mock.patch.dict(os.environ))
+        self.enterContext(mock.patch.object(sys, "dont_write_bytecode", sys.dont_write_bytecode))
         spec = importlib.util.spec_from_file_location("gate_index_under_test", GATE)
         gate = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(gate)
