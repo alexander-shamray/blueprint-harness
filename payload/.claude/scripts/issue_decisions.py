@@ -26,6 +26,8 @@ ENTRY_RE = re.compile(
     % (PART_LIMIT - 1, PART_LIMIT - 1)
 )
 ANY_HEADING = re.compile(r"#{1,6}\s")
+# A CommonMark fence opener or closer: a `# line` between two is code, not the heading that ends the section.
+FENCE = re.compile(r" {0,3}(`{3,}|~{3,})")
 
 
 class Refusal(Exception):
@@ -66,7 +68,7 @@ def entry(day, question, answer):
 
 
 def append_decision(body, line):
-    # The body is the issue author's text: only the heading line is located, nothing else in it is read.
+    # The body is the issue author's text: only heading and fence lines are read, to place the entry.
     crlf = "\r\n" in body
     eol = "\r" if crlf else ""
     lines = body.split("\n")
@@ -80,8 +82,17 @@ def append_decision(body, line):
         return body.rstrip("\r\n") + f"{eol}\n{eol}\n{HEADING}{eol}\n{eol}\n{line}{eol}\n"
     start = at[0]
     end = len(lines)
+    fence = ""
     for i in range(start + 1, len(lines)):
-        if ANY_HEADING.match(lines[i]):
+        mark = FENCE.match(lines[i])
+        if fence:
+            # A closer is the opener's character, at least as long, with nothing but spaces after it.
+            if mark and mark.group(1)[0] == fence[0] and len(mark.group(1)) >= len(fence) \
+                    and not lines[i][mark.end():].strip():
+                fence = ""
+        elif mark:
+            fence = mark.group(1)
+        elif ANY_HEADING.match(lines[i]):
             end = i
             break
     last = start

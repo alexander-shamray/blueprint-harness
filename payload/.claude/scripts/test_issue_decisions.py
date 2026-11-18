@@ -162,6 +162,25 @@ class Shapes(unittest.TestCase):
             f"Intro\n\n## Owner decisions\n\n{first}\n{second}\n\n## Notes\n\nTail\n",
         )
 
+    def test_a_heading_inside_a_fence_does_not_end_the_section(self):
+        first, second = "- 2026-11-01: Q: q A: a", "- 2026-11-02: Q: r A: b"
+        for fence, closer in (("```", "```"), ("~~~~", "~~~~~"), ("```sh", "```")):
+            with self.subTest(fence=fence):
+                body = f"## Owner decisions\n\n{first}\n{fence}\n# a comment\n{closer}\n\n## Notes\n"
+                self.assertEqual(
+                    ID.append_decision(body, second),
+                    f"## Owner decisions\n\n{first}\n{fence}\n# a comment\n{closer}\n{second}\n\n## Notes\n",
+                )
+
+    def test_a_fence_closes_only_on_its_own_character_and_length(self):
+        # "~~~" cannot close "````", so the "# comment" after it is still code and the section runs to "## Notes".
+        line = "- 2026-11-02: Q: r A: b"
+        body = "## Owner decisions\n\n````\n~~~\n# comment\n````\n\n## Notes\n"
+        self.assertEqual(
+            ID.append_decision(body, line),
+            f"## Owner decisions\n\n````\n~~~\n# comment\n````\n{line}\n\n## Notes\n",
+        )
+
     def test_an_empty_section_gets_its_first_entry(self):
         self.assertEqual(
             ID.append_decision("## Owner decisions\n", "- 2026-11-01: Q: q A: a"),
