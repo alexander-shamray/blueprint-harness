@@ -1343,10 +1343,13 @@ registered on `Bash` alone, so git through the PowerShell tool was judged by
 nothing here: a second registration sends PowerShell calls to the git guard,
 which parses Bash's grammar and not PowerShell's, so it admits a PowerShell
 command only as one of a few read-only cmdlets over plain words that do not
-name `git`. A quote, an escape, a variable, a call, a separator, a wildcard, a
-backslash or any other first word refuses it, because each is a way another
-interpreter, an encoded command or a computed name could run git unseen, and a
-list of launchers would trail PowerShell's. The index guard stays on
+name `git`. A quote, an escape, a variable, a call, a separator, a wildcard or
+any other first word refuses it, because each is a way another interpreter, an
+encoded command or a computed name could run git unseen, and a list of
+launchers would trail PowerShell's. A backslash is admitted, as a Windows
+path's separator: PowerShell's escape is the backtick, and the other
+interpreters that read a backslash as one are first words already refused.
+The index guard stays on
 `Bash`, because the skill's prefix grants are `Bash(...)` rules and a
 PowerShell call is prompted like any other.
 And a heredoc with no closing line, whose body then fails to tokenise, is
