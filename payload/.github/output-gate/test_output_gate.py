@@ -139,6 +139,20 @@ class Residue(TemporaryRepository):
         self.assertIn("src/Web/obj/", output)
         self.assertNotIn("node_modules", output)
 
+    def test_a_package_s_csproj_under_node_modules_is_not_a_project_on_disk(self) -> None:
+        """A package may ship a `.csproj`; the subject walk prunes the same
+        two directories the residue walk does, so it is not called missing
+        from the solution."""
+        tree(self.root, {"Catalog.Domain": "src/Services/Catalog/Catalog.Domain"})
+        (self.root / "src/Web/node_modules/some-package").mkdir(parents=True)
+        (self.root / "src/Web/node_modules/some-package/Shipped.csproj").write_text("<Project />")
+        (self.root / "src/Web/.angular/cache").mkdir(parents=True)
+        (self.root / "src/Web/.angular/cache/Cached.csproj").write_text("<Project />")
+
+        code, output = run(self.root)
+
+        self.assertEqual(code, 0, output)
+
     def test_an_obj_beside_a_project_under_tools_fails(self) -> None:
         """`tools/` holds a project the solution builds, so it is source too."""
         tree(self.root, {"BffReplay": "tools/bff-replay"})

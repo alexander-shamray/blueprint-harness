@@ -86,11 +86,17 @@ def solution_projects(solution: Path) -> list[Path]:
 
 
 def walked_projects(repo_root: Path) -> list[Path]:
-    """Every `.csproj` on disk under the source roots, spelled the same way."""
+    """Every `.csproj` on disk under the source roots, spelled the same way,
+    outside `NOT_SOURCE_DIRECTORY_NAMES`: a package's own `.csproj` there is
+    not the solution's, and the tree is not walked for nothing."""
     projects: list[Path] = []
     for source_root in SOURCE_ROOTS:
-        for csproj in (repo_root / source_root).rglob("*.csproj"):
-            projects.append(csproj.relative_to(repo_root))
+        for directory, subdirectories, files in os.walk(repo_root / source_root):
+            subdirectories[:] = [
+                name for name in subdirectories if name.lower() not in NOT_SOURCE_DIRECTORY_NAMES]
+            projects.extend(
+                (Path(directory) / name).relative_to(repo_root)
+                for name in files if name.endswith(".csproj"))
     return sorted(projects)
 
 
