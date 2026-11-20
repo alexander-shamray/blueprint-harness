@@ -940,6 +940,18 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
         self.assertEqual(0, r.returncode, r.stderr)
         self.assertIn("inside docs/runbooks/outbox-growth.md", r.stdout.splitlines())
 
+    def test_a_tab_indented_comment_or_a_tab_only_line_in_the_class_map_is_skipped(self):
+        # The gate's read_map strips every kind of whitespace before it tests for a blank line or a comment, so a
+        # map holding these is read whole in CI and must be here too.
+        body = "| Class | D |\n| Touch set | docs/** |\n"
+        for name, line in (("a tab-indented comment", "\t# a note\n"), ("a tab-only line", "\t\n"),
+                           ("a space and a tab", " \t\n")):
+            with self.subTest(line=name):
+                r = self._run_locality_with_gh(self._gh_printing(body, "docs/a.md\n"),
+                                               scripts=self._scripts_with_map(line + CLASSES))
+                self.assertEqual(0, r.returncode, r.stderr)
+                self.assertIn("inside docs/a.md", r.stdout.splitlines())
+
     def test_a_class_map_that_cannot_be_read_refuses_the_run(self):
         # The gate refuses a map it cannot read whole, so a verdict half-read
         # from one is an answer CI never gives, and the helper refuses it too.
