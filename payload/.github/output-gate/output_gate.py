@@ -6,6 +6,7 @@ What it reads and why is `README.md`'s; the rule is Section 4.1's.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import os
 import sys
 import xml.etree.ElementTree as ElementTree
@@ -88,7 +89,8 @@ def solution_projects(solution: Path) -> list[Path]:
 def walked_projects(repo_root: Path) -> list[Path]:
     """Every `.csproj` on disk under the source roots, spelled the same way,
     outside `NOT_SOURCE_DIRECTORY_NAMES`: a package's own `.csproj` there is
-    not the solution's, and the tree is not walked for nothing."""
+    not the solution's, and the tree is not walked for nothing. `fnmatch`
+    keeps the case rule `rglob` had on each host."""
     projects: list[Path] = []
     for source_root in SOURCE_ROOTS:
         for directory, subdirectories, files in os.walk(repo_root / source_root):
@@ -96,7 +98,7 @@ def walked_projects(repo_root: Path) -> list[Path]:
                 name for name in subdirectories if name.lower() not in NOT_SOURCE_DIRECTORY_NAMES]
             projects.extend(
                 (Path(directory) / name).relative_to(repo_root)
-                for name in files if name.endswith(".csproj"))
+                for name in files if fnmatch.fnmatch(name, "*.csproj"))
     return sorted(projects)
 
 

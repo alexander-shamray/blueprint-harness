@@ -21,7 +21,8 @@ none of that reasoning.
   `obj/` under `src/` either — so the gate proves a restore and a build both
   ran: a restore alone creates every `obj` entry and no `bin` entry.
 - The solution, the one `.slnx` at the repository's root, reconciled in both
-  directions with the projects found on disk, because a walk that finds no
+  directions with the projects found on disk, outside the same two
+  directories, because a walk that finds no
   project satisfies every assertion above. It is found rather than named,
   since each target calls its solution something of its own, and none or more
   than one at the root is refused before anything else is read: either leaves
