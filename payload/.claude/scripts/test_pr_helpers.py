@@ -382,13 +382,16 @@ class NoCommandReadsAPullRequestFeedUnfiltered(GhShim, unittest.TestCase):
                                        scripts=self._scripts_with_map(CLASSES + "d:\n  - 'other/**'\n"))
         self.assertEqual((3, "classes.yml has a line outside its grammar\n"), (r.returncode, r.stderr))
 
-    def test_a_pull_request_with_no_changed_files_prints_only_its_class(self):
-        # Reached when `main` has already landed a branch's whole diff. Under `set -u`, bash 3.2 calls an empty array
-        # unbound, so the verdict loop has to survive having nothing to judge.
+    def test_a_pull_request_with_no_changed_files_is_refused(self):
+        # Reached when `main` has already landed a branch's whole diff. The CI gate refuses an empty subject rather
+        # than passing it, and a lone `class` line read as a verdict list would be a pass, so the helper refuses too
+        # and prints no verdict.
         body = "| Class | D |\n| Touch set | docs/** |\n"
         r = self._run_locality_with_gh(self._gh_printing(body, ""))
-        self.assertEqual(0, r.returncode, r.stderr)
-        self.assertEqual(["class D"], r.stdout.splitlines())
+        self.assertEqual(3, r.returncode, r.stderr)
+        self.assertEqual("", r.stdout)
+        self.assertEqual("the pull request has no changed files, which is an empty subject rather than a pass\n",
+                         r.stderr)
 
 
     def test_a_failing_gh_is_not_an_empty_body(self):

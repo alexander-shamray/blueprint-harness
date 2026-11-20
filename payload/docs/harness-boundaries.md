@@ -2013,7 +2013,9 @@ whole run, because a verdict list with one line withheld reads as complete.
 For the same reason it reads the pull request's `changedFiles` and exits 3
 when the endpoint's count of `filename`s differs, a rename being one file: the
 endpoint stops short of a very large pull request, and a short list would print
-verdicts for part of the diff.
+verdicts for part of the diff. A pull request with no changed file exits 3
+too, as the CI gate refuses an empty subject: a lone `class` line would read as
+a diff with nothing outside its set.
 
 **Its grammar refuses rather than guesses.** A body carrying neither row
 prints nothing, and the caller skips its touch-set check and says so; one
