@@ -173,7 +173,9 @@ named=" " stocked=" "
 class_patterns=(); member=""
 while IFS= read -r raw || [ -n "$raw" ]; do
   raw=${raw%$'\r'}
-  t="${raw#"${raw%%[! ]*}"}"
+  # Any ASCII whitespace, as the gate's read_map strips it: a tab-indented comment or
+  # a tab-only line is skipped there, and refusing it here is a verdict CI never gives.
+  t="${raw#"${raw%%[![:space:]]*}"}"
   case "$t" in ''|'#'*) continue ;; esac
   if [[ "$raw" =~ ^([ABCDE]):[[:space:]]*$ ]]; then
     member=${BASH_REMATCH[1]}
