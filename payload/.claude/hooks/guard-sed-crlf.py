@@ -696,6 +696,39 @@ def moved_to(directory, cwd):
     return target
 
 
+def env_directories(prefix):
+    """The directories each `env -C` or `--chdir` among the wrapper words `prefix` names, in order; `None` for one
+    holding an expansion."""
+    found = []
+    for index, word in enumerate(prefix):
+        if word != "env":
+            continue
+        position = index + 1
+        while position < len(prefix) and prefix[position].startswith("-") and prefix[position] not in ("-", "--"):
+            option = prefix[position]
+            position += 1
+            if option.startswith("--"):
+                name, given, value = option[2:].partition("=")
+                if not (name and "chdir".startswith(name)):
+                    position += 0 if given or option_width(option, WRAPPERS["env"]) == 1 else 1
+                    continue
+                if not given:
+                    value = prefix[position] if position < len(prefix) else None
+                    position += 1
+            else:
+                at = next((at for at, letter in enumerate(option[1:], 1) if f"-{letter}" in WRAPPERS["env"]), None)
+                if at is None:
+                    continue
+                value = option[at + 1:]
+                if not value:
+                    value = prefix[position] if position < len(prefix) else None
+                    position += 1
+                if option[at] != "C":
+                    continue
+            found.append(None if value is None or "$" in value or "`" in value else value)
+    return found
+
+
 def places(found):
     """`found` without repeats, in order, and at most `MAX_PLACES` of them."""
     return tuple(dict.fromkeys(found))[:MAX_PLACES]
@@ -758,6 +791,10 @@ def judge(command, cwd, git, checked, depth):
             segment.moved = None not in moved and not conditional
             directories[scope] = places(here + moved if conditional else moved)
             continue
+        # `env -C DIR` runs the command after it from DIR, so its files are looked for there.
+        for directory in env_directories(words[:start]):
+            here = tuple(None if place is None or directory is None else moved_to(directory, place)
+                         for place in here)
         program = os.path.basename(native(name)).lower()
         if program in SHELLS:
             # The line runs from here: a `-c` line, whose `-c` may share a cluster as in `-lc`, or the shell's input.

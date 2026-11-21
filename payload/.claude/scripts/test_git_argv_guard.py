@@ -4648,6 +4648,31 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
             with self.subTest(named=verb):
                 self.assertIn(verb, module.WRITING_VERBS)
 
+    def test_env_chdir_moves_the_verbs_after_it(self):
+        # `env -C DIR` runs its command from DIR, so its relative operands are judged there, not in the shell's cwd.
+        self.refused(
+            "env -C .claude cp /tmp/a settings.json",
+            "env -C.claude cp /tmp/a settings.json",
+            "env --chdir=.claude rm -f hooks/x",
+            "env --chdir .claude tee settings.json",
+            "env --ch=.claude cp /tmp/a settings.json",
+            "env -iC .claude cp /tmp/a settings.json",
+            "env -u X -C .claude X=1 cp /tmp/a settings.json",
+            "env -C notes -C ../.claude cp /tmp/a settings.json",
+            "sudo env -C .claude cp /tmp/a settings.json",
+        )
+        # The same operand from where the shell stands, and the options that take a value but move nothing.
+        self.admitted(
+            "env cp /tmp/a settings.json",
+            "env -C notes cp /tmp/a settings.json",
+            "env -u C cp /tmp/a settings.json",
+            "env -a .claude cp /tmp/a settings.json",
+            "env -- cp /tmp/a settings.json",
+        )
+        # A directory nobody can read leaves only an absolute operand placed.
+        self.admitted('env -C "$D" cp /tmp/a settings.json')
+        self.refused(f'env -C "$D" cp /tmp/a {self.root}/.claude/settings.json')
+
     def test_a_verbs_destination_is_found_through_its_options(self):
         self.refused(
             "cp -t .claude/hooks /tmp/x", "cp -rt.claude/hooks /tmp/x",

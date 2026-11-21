@@ -255,6 +255,30 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
         # `popd +1` drops sub from the stack, so the bare `popd` after it lands here, not in sub: unplaceable too.
         self.assertAdmitted("pushd sub; pushd ..; popd +1; popd; sed -i 's/one/uno/' crlf.txt")
 
+    def test_env_chdir_moves_the_sed_after_it(self):
+        # `env -C DIR` runs sed from DIR, so its operand is looked for there, not where the shell stands.
+        for command in (
+            "env -C sub sed -i 's/one/uno/' inner.txt",
+            "env -Csub sed -i 's/one/uno/' inner.txt",
+            "env --chdir=sub sed -i 's/one/uno/' inner.txt",
+            "env --chdir sub sed -i 's/one/uno/' inner.txt",
+            "env --ch=sub sed -i 's/one/uno/' inner.txt",
+            "env -u X -C sub sed -i 's/one/uno/' inner.txt",
+            "cd sub && env -C .. sed -i 's/one/uno/' crlf.txt",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command, os.path.basename(command.split()[-1]))
+        # Looked for where the shell stands, these would draw a refusal no rewrite earns; a directory nobody can read
+        # leaves the operand unplaced, and `-u C` moves nothing.
+        for command in (
+            "env -C sub sed -i 's/one/uno/' crlf.txt",
+            "env -C \"$D\" sed -i 's/one/uno/' crlf.txt",
+            "env -C nowhere sed -i 's/one/uno/' crlf.txt",
+        ):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
+        self.assertRefused("env -u C sed -i 's/one/uno/' crlf.txt", "crlf.txt")
+
     def test_a_cd_or_pushd_to_a_missing_directory_is_unplaceable(self):
         # Bash refuses a directory that is not there and stays put, and a failed `pushd` pushes nothing, so after `;`
         # these lines run their `sed` in the line's own directory, where no inner.txt is. Followed as moves, the `pushd`

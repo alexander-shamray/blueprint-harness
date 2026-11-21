@@ -3568,6 +3568,9 @@ def writing_verb_offence(words, cwd, command):
         if literal is None or ASSIGNMENT.match(words[index]):
             continue
         verb = program_name(literal)
+        if verb == "env":
+            # `env -C DIR` runs what follows it from DIR.
+            cwd = env_directory(words, literals, index, cwd, command)
         if verb == "find":
             refusal = find_offence(words[index + 1:], cwd, command)
             if refusal is not None:
@@ -3584,6 +3587,51 @@ def writing_verb_offence(words, cwd, command):
         if refusal is not None:
             return refusal
     return None
+
+
+# `env`'s options that take a value: `-u NAME`, `-C DIR`, `-S STRING` and `-a ARG`, and their long names, which
+# getopt_long also takes as any prefix only one of its names has.
+ENV_VALUED = {"u": "unset", "C": "chdir", "S": "split-string", "a": "argv0"}
+ENV_LONG = ("argv0", "block-signal", "chdir", "debug", "default-signal", "help", "ignore-environment",
+            "ignore-signal", "list-signal-handling", "null", "split-string", "unset", "version")
+
+
+def env_directory(words, literals, index, cwd, command):
+    """Where the `env` at `index` runs its command from: `cwd` moved by each `-C`/`--chdir`, `None` if unreadable."""
+    position = index + 1
+    while position < len(literals):
+        literal = literals[position]
+        if literal is None:
+            # An option spelled with an expansion may be a `-C` nobody can read.
+            return None if words[position].lstrip("\"'").startswith("-") else cwd
+        if literal == "--" or not literal.startswith("-") or literal == "-":
+            break
+        position += 1
+        if literal.startswith("--"):
+            name, given, value = literal[2:].partition("=")
+            names = [long for long in ENV_LONG if long.startswith(name)] if name else []
+            long = names[0] if len(names) == 1 or name in ENV_LONG else None
+            if long not in ENV_VALUED.values():
+                continue
+            if not given:
+                value, position = (words[position] if position < len(words) else None), position + 1
+            else:
+                value = shlex.quote(value)
+            if long == "chdir":
+                cwd = None if value is None or cwd is None else written_path(value, cwd, command)
+            continue
+        for at, letter in enumerate(literal[1:], 1):
+            if letter not in ENV_VALUED:
+                continue
+            rest = literal[at + 1:]
+            if rest:
+                value = shlex.quote(rest)
+            else:
+                value, position = (words[position] if position < len(words) else None), position + 1
+            if letter == "C":
+                cwd = None if value is None or cwd is None else written_path(value, cwd, command)
+            break
+    return cwd
 
 
 def _git_operands(words, literals, value_options):
