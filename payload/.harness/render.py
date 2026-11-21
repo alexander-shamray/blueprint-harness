@@ -90,8 +90,14 @@ def _covers(deny: str, allow: str) -> bool:
             return command == prefix or command.startswith(prefix + " ")
         return fnmatch.fnmatchcase(command, denied) if "*" in denied else allowed == denied
     if tool in _PATH_TOOLS:
-        return fnmatch.fnmatchcase(allowed.removeprefix("./"), denied.removeprefix("./"))
+        return fnmatch.fnmatchcase(_project_path(allowed), _project_path(denied))
     return allowed == denied
+
+
+def _project_path(path: str) -> str:
+    """A path rule's specifier as the project root reads it: `/x` and `./x` both name the root's `x`, and only `//`
+    starts a path outside it."""
+    return path if path.startswith("//") else path.removeprefix("./").removeprefix("/")
 
 
 def render_settings(base: dict, cfg: object) -> dict:

@@ -173,9 +173,13 @@ class GuardCase(unittest.TestCase):
         self.assertEqual("deny", payload["permissionDecision"])
         return payload["permissionDecisionReason"]
 
-    def assertRefused(self, file_path, **kwargs):
+    def assertRefused(self, file_path, crashed=False, **kwargs):
+        # A crash also ends in a deny, so a case that does not mean one refuses it: a guard broken for one tool
+        # would otherwise keep every refusal case of that tool green while refusing all its real writes.
         reason = self.judge(file_path, **kwargs)
         self.assertIsNotNone(reason, f"admitted: {file_path}")
+        if not crashed:
+            self.assertNotIn("crashed the edit target guard", reason)
         return reason
 
     def assertAdmitted(self, file_path, **kwargs):
@@ -386,8 +390,11 @@ class ALinkIsNotTheFileItIsSpelledAs(GuardCase):
         target = os.path.join(self.root, ".claude", "scripts", "helper.sh")
         for linker in linkers():
             with self.subTest(link=linker):
-                self.assertRefused(self.link_to("book", target, linker),
-                                   tool="NotebookEdit", key="notebook_path")
+                reason = self.assertRefused(self.link_to("book", target, linker),
+                                            tool="NotebookEdit", key="notebook_path")
+                self.assertIn(".claude/scripts", reason.replace("\\", "/"))
+        # The control: a notebook in an allowed tree is written.
+        self.assertAdmitted(os.path.join(self.root, "docs", "book.ipynb"), tool="NotebookEdit", key="notebook_path")
 
     def test_a_harmless_file_path_beside_the_notebook_path_excuses_nothing(self):
         # Every key a call carries is judged: the first one read is not the one the tool writes through.
@@ -395,8 +402,9 @@ class ALinkIsNotTheFileItIsSpelledAs(GuardCase):
         harmless = {"file_path": os.path.join(self.root, "docs", "chapter.md")}
         for linker in linkers():
             with self.subTest(link=linker):
-                self.assertRefused(self.link_to("book2", target, linker),
-                                   tool="NotebookEdit", key="notebook_path", extra=harmless)
+                reason = self.assertRefused(self.link_to("book2", target, linker),
+                                            tool="NotebookEdit", key="notebook_path", extra=harmless)
+                self.assertIn(".claude/scripts", reason.replace("\\", "/"))
 
 
 class TheOrdinaryWriteIsNotDisturbed(GuardCase):
@@ -967,14 +975,14 @@ class AWorktreeTheSessionHasNotEntered(GuardCase):
         hook = self.hook_denying()
         self.write(os.path.join(os.path.dirname(hook), "guard-git-argv.py"), "def (\n")
         worktree = self.linked()
-        reason = self.assertRefused(os.path.join(worktree, "docs", "note.md"), hook=hook)
+        reason = self.assertRefused(os.path.join(worktree, "docs", "note.md"), crashed=True, hook=hook)
         self.assertIn("crashed the edit target guard", reason)
 
     def test_a_grammar_that_will_not_load_refuses_every_write(self):
         # path_grammar.py loads at import, before main()'s try, so a broken one must still end in the refusal.
         hook = self.hook_denying()
         self.write(os.path.join(os.path.dirname(hook), "path_grammar.py"), "def (\n")
-        reason = self.assertRefused(os.path.join(self.root, "docs", "note.md"), hook=hook)
+        reason = self.assertRefused(os.path.join(self.root, "docs", "note.md"), crashed=True, hook=hook)
         self.assertIn("crashed the edit target guard", reason)
 
     def test_its_denied_trees_are_refused_from_outside_it(self):

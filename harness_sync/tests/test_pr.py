@@ -456,6 +456,18 @@ class OpenedTests(SyncTestCase):
         self.assertEqual(git(self.target, "branch", "--show-current").strip(), "main")
         self.assertEqual(self.remote_branches(), ["main"])
 
+    def test_a_full_page_of_open_prs_is_refused_since_it_may_be_cut(self) -> None:
+        # A list cut at its limit drops the oldest open pull requests, a stale sync among them.
+        full = [{"number": n, "headRefName": f"docs/other-{n}", "isCrossRepository": False} for n in range(1, 201)]
+        gh = FakeGh(self.origin, open_prs=full)
+        with self.assertRaisesRegex(SyncError, "200 open pull requests, its --limit 200, so it may be cut"):
+            self.sync(gh)
+        self.assertFalse(any(call[:2] in (["pr", "create"], ["pr", "close"]) for call in gh.calls))
+        self.assert_clean()
+        # One short of the limit is a whole list.
+        outcome = self.sync(FakeGh(self.origin, open_prs=full[:199]))
+        self.assertEqual((outcome.state, outcome.pr), ("opened", 42))
+
     def test_push_replaces_a_leftover_branch_with_no_pr(self) -> None:
         # A run that pushed and died before `gh pr create` leaves the branch behind and no pull request.
         git(self.target, "push", "-q", "origin", f"main:refs/heads/{self.branch()}")

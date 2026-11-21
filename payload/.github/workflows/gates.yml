@@ -349,6 +349,10 @@ jobs:
             echo "::warning::base commit $BASE_SHA carries no comment gate;" \
               "this pull request is judged by the gate it proposes (bootstrap)"
             cp "$GATE" "$judge"
+            if [ ! -s "$judge" ]; then
+              echo "::error::$GATE in this pull request is empty"
+              exit 1
+            fi
           fi
           python "$judge" --base "$BASE_SHA" --head "$HEAD_SHA"
 
