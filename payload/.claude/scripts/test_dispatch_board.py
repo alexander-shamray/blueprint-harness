@@ -933,6 +933,9 @@ class WriteTests(unittest.TestCase):
         owed = "| 1 | S1 | owed (not filed) | Write the note | docs | none | Opus | none |\n"
         with_owed = moved.replace("| 1 | S3 | 1681 |", owed + "| 1 | S3 | 1681 |")
         self.assertIsNotNone(db.rewrite_day(with_owed, with_owed.replace("Write the note", "Write the long note")))
+        # But a held group never gains an owed row, however many it already has.
+        with self.assertRaisesRegex(db.Refusal, "S1 is held by an In progress row"):
+            db.rewrite_day(with_owed, with_owed.replace(owed, owed + owed.replace("Write the note", "Another")))
 
     def test_a_night_back_refuses_a_list_board_would_refuse(self):
         # back wrote its result unchecked, so returned rows joined a re-cut group of their letter in another wave.
