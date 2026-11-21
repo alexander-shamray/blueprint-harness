@@ -1339,7 +1339,8 @@ def _tasks_command(args, today):
             return rewrite(text, _read(copy) if copy.is_file() else None, source)
         tasks = parse_tasks(text)
         if args.action == "place":
-            reason = reused(state, args.group)
+            # The placed issue has no row yet, so it is never one a sent-back group held.
+            reason = reused(state, args.group, [f"#{args.issue}"])
             if reason is not None:
                 raise Refusal(reason)
             after.append(lambda: _note_placed(directory, args.issue))
