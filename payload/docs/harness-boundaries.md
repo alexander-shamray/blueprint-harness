@@ -1377,10 +1377,16 @@ glob or brace source has no known name, and `-T` lands on the directory itself,
 so each is judged as the whole directory.
 `~` and the variables this process shares with the session are expanded and
 judged, and a literal `cd` is followed, through a subshell's end as well. A
-script a shell, an evaluator or a substitution runs is judged from every
-directory its outer command stands in, so
+`cd` bash may not make, one that can fail before a `;`, one `||`, a branch or a
+loop can skip, one in a pipeline stage or backgrounded, `pushd -n`, or one under
+`!`, leaves the directory before it possible too, and a relative write is judged
+from every directory the shell may stand in; only the runs after `cd X &&` are
+judged from `X` alone. A script a shell, an evaluator or a substitution runs is
+judged from every directory its outer command stands in, so
 `cd .claude && bash -c 'ls > settings.json'` is refused, and so is the rarer
 command that would place the write there only from a point it never runs at.
+Past `MAX_STANDINGS` directories, or `MAX_EXTRA_JUDGEMENTS` judgements beyond
+one a run, a write or a script is refused rather than judged.
 
 **The same check holds three more writes, each narrowed by what agents type.**
 `find` is judged by what it writes: `-delete` as `rm -r` from each start, so
@@ -1397,11 +1403,12 @@ directory, so `rm -rf ..` and `rm -rf ../*` are refused from the root, and
 `rm -rf .`, `rm -rf ../foo*` and `mv notes.md ..` are not.
 
 **What it cannot read it admits, and that is the narrowing, not a gap.** An
-unknown variable, a computed operand, or a relative target after a `cd` nothing
-can read is admitted: `> "$var…"` was typed 523 times, `cd x && … > y` 736 and
-`cp "$a" "$b"` 107, so refusing them is the false refusal *The guards' threat
-model* files. An expansion's readings, which exist to find a hidden program,
-place no file. The list of verbs trails the programs that write: `curl -o`,
+unknown variable, a computed operand, or a relative target after `cd X &&`
+where nothing can read `X` is admitted: `> "$var…"` was typed 523 times,
+`cd x && … > y` 736 and `cp "$a" "$b"` 107, so refusing them is the false
+refusal *The guards' threat model* files. An expansion's readings, which
+exist to find a hidden program, place no file. The list of verbs trails the
+programs that write: `curl -o`,
 `rsync`, `tar -x`, `patch` and an interpreter's own writes are not on it, and
 that is a residual. A write under `.claude/worktrees/<name>/` is judged as that
 worktree's by its place, with a `.git` left there or not, since it lands in that
