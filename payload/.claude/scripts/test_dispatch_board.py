@@ -1596,6 +1596,25 @@ class EventTests(unittest.TestCase):
         self.assertEqual(0, code)
         self.assertIn("nothing written", out)
 
+    def test_a_row_joining_a_remaining_group_takes_its_wave_unless_one_is_named(self):
+        # A group never spans a wave, so the highest wave as the default refused a group sitting in a lower one, and a
+        # Tracking row returning with a group that now sits in another wave refused the whole reconcile.
+        self.issues = {1700: issue(1700)}
+        self.assertEqual(0, self.cli("place", "1700", "--group", "M1")[0])
+        self.assertEqual((2, "M1"), (self.find(1700).wave, self.find(1700).group))
+        self.write(self.read().replace("| 5 | — | 1406 |", "| 5 | M1 | 1406 |"))
+        self.issues = every_fixture_issue(n1406=issue(1406, "x", "OPEN", "bug"))
+        code, out = self.cli("sync", "1406")
+        self.assertEqual(0, code, out)
+        self.assertEqual(("Remaining", 2, "M1"), (self.find(1406).section, self.find(1406).wave, self.find(1406).group))
+        self.readable()
+        # A wave the caller names is still the caller's, and a group cannot span it.
+        self.issues = {1701: issue(1701)}
+        before = self.read()
+        code, out = self.cli("place", "1701", "--group", "M1", "--wave", "3")
+        self.assertEqual((2, before), (code, self.read()))
+        self.assertIn("M1 spans waves", out)
+
     def test_a_label_moves_a_row_between_remaining_tracking_and_paused(self):
         self.issues = every_fixture_issue(n1685=issue(1685, "x", "OPEN", "test-gap", "code", "tracking"),
                                           n1677=issue(1677, "x", "OPEN", "bug"),

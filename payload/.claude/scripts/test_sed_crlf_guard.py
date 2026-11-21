@@ -488,12 +488,13 @@ class WhatTheHookCannotPlaceFailsOpen(ACheckout):
         original = GUARD.glob.iglob
         GUARD.glob.iglob = endless
         self.addCleanup(setattr, GUARD.glob, "iglob", original)
+        # Exactly the bound: a walk that never ran, as when candidates() stops calling iglob, proves nothing.
         self.assertAdmitted("sed -i 's/one/uno/' *.cs")
-        self.assertLessEqual(len(walked), GUARD.MAX_FILES + 1)
+        self.assertEqual(GUARD.MAX_FILES + 1, len(walked))
         # One bound for the operand, not one for each word its braces make.
         walked.clear()
         self.assertAdmitted("sed -i 's/one/uno/' {a,b,c,d}*.cs")
-        self.assertLessEqual(len(walked), GUARD.MAX_FILES + 1)
+        self.assertEqual(GUARD.MAX_FILES + 1, len(walked))
 
     def test_a_comma_quoted_inside_a_brace_list_is_the_stated_residual(self):
         # Review R1: the quotes are gone before the list is read, so the `a,b.txt` bash passes is never looked up.
