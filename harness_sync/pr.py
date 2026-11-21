@@ -154,6 +154,10 @@ def pr_body(harness_commit: str, written: list[str], deleted: list[str], run_url
 def _open_sync_prs(gh: GhRunner) -> list[tuple[int, str]]:
     raw = json.loads(gh.run(["pr", "list", "--state", "open", "--limit", LIST_LIMIT,
                              "--json", "number,headRefName,isCrossRepository"]))
+    if len(raw) >= int(LIST_LIMIT):
+        # A list cut at its limit drops the oldest, so a stale sync there would be neither superseded nor seen.
+        raise SyncError(
+            f"gh pr list returned {len(raw)} open pull requests, its --limit {LIST_LIMIT}, so it may be cut")
     # A fork can name a branch anything, so only this repository's own branches are sync pull requests, and only
     # those named exactly as this module names them.
     return sorted(
