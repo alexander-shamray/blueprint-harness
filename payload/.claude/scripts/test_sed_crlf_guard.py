@@ -264,6 +264,7 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             "env --chdir sub sed -i 's/one/uno/' inner.txt",
             "env --ch=sub sed -i 's/one/uno/' inner.txt",
             "env -u X -C sub sed -i 's/one/uno/' inner.txt",
+            "env -u env -C sub sed -i 's/one/uno/' inner.txt",
             "cd sub && env -C .. sed -i 's/one/uno/' crlf.txt",
         ):
             with self.subTest(command=command):

@@ -699,9 +699,10 @@ def moved_to(directory, cwd):
 def env_directories(prefix):
     """The directories each `env -C` or `--chdir` among the wrapper words `prefix` names, in order; `None` for one
     holding an expansion."""
-    found = []
+    found, position = [], 0
     for index, word in enumerate(prefix):
-        if word != "env":
+        # A word an earlier `env` took as an option's value is no `env` of its own.
+        if word != "env" or index < position:
             continue
         position = index + 1
         while position < len(prefix) and prefix[position].startswith("-") and prefix[position] not in ("-", "--"):
