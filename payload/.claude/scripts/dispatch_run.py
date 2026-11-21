@@ -79,8 +79,7 @@ def reused(state, gid, keys=None):
         return None
     if old.get("status") in ("done", "closed"):
         return f"{gid} ended {old['status']} in this run, and its record is the morning report's; use another letter"
-    if (old.get("status") == "returned" and keys is not None
-            and sorted(map(str, old.get("keys") or [])) != sorted(keys)):
+    if old.get("status") == "returned" and keys is not None and set(keys) - set(map(str, old.get("keys") or [])):
         return f"{gid} was sent back in this run with other issues; use another letter for these"
     return None
 

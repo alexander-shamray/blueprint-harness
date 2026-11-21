@@ -70,8 +70,8 @@ work that ends with its issue open, which `/ship` step 6 runs.
   that newly takes such a letter and number, and lets through one keeping
   the group it already had (`unheld` in `dispatch_board.py`). Nor does a
   run reuse the letter and number of a group it finished, whose record is
-  the morning report's, or move one it sent back with other issues: its
-  `tasks place` and `tasks move` refuse both (`reused` in
+  the morning report's, or give one it sent back an issue that group did
+  not hold: its `tasks place` and `tasks move` refuse both (`reused` in
   `dispatch_run.py`).
 - **`Depends on`** is `none`, issue references (`#n`, `after n`,
   `waits on n`), ISO dates, or `OWNER` for an owner's decision. An issue
