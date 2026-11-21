@@ -4291,6 +4291,33 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                       "while (cd .claude/hooks); do ls > x.py; break; done",
                       "cd .claude || exit 1", "cd notes && git status > .out")
 
+    def test_a_script_a_shell_runs_starts_where_an_earlier_cd_left_it(self):
+        # Each nested pass once started again at the event's cwd.
+        self.refused("cd .claude && bash -c 'ls > settings.json'",
+                     "cd .claude && bash <<< 'ls > settings.json'",
+                     "cd .claude && bash <<'EOF'\nls > settings.json\nEOF",
+                     "cd .claude && echo $(cp /tmp/a settings.json)",
+                     "cd .claude && echo \"$(rm settings.json)\"",
+                     "cd .claude && eval 'ls > settings.json'",
+                     "cd notes; cd ../.claude; bash -c 'cp /tmp/a settings.json'",
+                     "cd .claude && bash -c \"bash -c 'ls > settings.json'\"",
+                     "cd .claude && bash -c 'cd hooks && ls > ../settings.json'",
+                     # Which run holds the script is not tracked, so a subshell's cd counts too.
+                     "(cd .claude && make); bash -c 'ls > settings.json'")
+        self.admitted("cd notes && bash -c 'ls > settings.json'",
+                      "cd .claude && cd .. && bash -c 'ls > x.txt'",
+                      "cd notes && echo $(ls > out.md)",
+                      "bash -c 'ls > settings.json'")
+        # A cd nothing can read leaves the nested relative write unjudged from there, as the outer one is.
+        self.admitted('cd notes && cd "$dir" && bash -c \'ls > settings.json\'')
+        self.refused(f'cd "$dir" && bash -c \'ls > {self.spelled(".claude", "settings.json")}\'')
+
+    def test_a_nested_script_after_too_many_directories_is_refused(self):
+        hops = "; ".join(f"cd d{n}" for n in range(40))
+        self.assertIn("changes directory more often", self.assertRefused(f"{hops}; bash -c 'ls'"))
+        # Without a nested script the directories cost nothing extra.
+        self.admitted(f"{hops}; ls > out.md")
+
     def test_a_cd_nothing_can_read_leaves_a_relative_write_unjudged(self):
         self.admitted('cd "$dir" && ls > .claude/settings.json',
                       "cd $(git rev-parse --show-toplevel) && ls > .claude/settings.json",

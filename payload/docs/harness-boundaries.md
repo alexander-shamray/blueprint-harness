@@ -1376,7 +1376,11 @@ a copy or a move puts into a directory is judged by the name it lands under, so
 glob or brace source has no known name, and `-T` lands on the directory itself,
 so each is judged as the whole directory.
 `~` and the variables this process shares with the session are expanded and
-judged, and a literal `cd` is followed, through a subshell's end as well.
+judged, and a literal `cd` is followed, through a subshell's end as well. A
+script a shell, an evaluator or a substitution runs is judged from every
+directory its outer command stands in, so
+`cd .claude && bash -c 'ls > settings.json'` is refused, and so is the rarer
+command that would place the write there only from a point it never runs at.
 
 **The same check holds three more writes, each narrowed by what agents type.**
 `find` is judged by what it writes: `-delete` as `rm -r` from each start, so
