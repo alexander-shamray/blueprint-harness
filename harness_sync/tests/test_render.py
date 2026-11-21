@@ -123,17 +123,22 @@ class RenderTests(unittest.TestCase):
             with self.subTest(allow=allow):
                 self.assertIn(allow, render_settings(denying, cfg(allow=[allow]))["permissions"]["allow"])
 
-    def test_an_anchored_and_an_unanchored_path_rule_cover_each_other(self) -> None:
-        # `/x` and `x` both name the project root's `x`, so the anchoring of either side never hides a dead allow.
+    def test_a_path_rule_covers_by_where_it_reaches_not_by_its_spelling(self) -> None:
+        # `docs/harness-boundaries.md` measures it: a leading `/` anchors at the root, a rule of two components is
+        # anchored anyway, and one of one component reaches any depth, with or without `./`.
         denying = base()
-        denying["permissions"]["deny"] += ["Edit(/.harness/**)", "Edit(.claude/scripts/**)"]
-        for allow in ("Edit(.harness/config.json)", "Edit(./.harness/config.json)", "Edit(/.claude/scripts/x.sh)"):
+        denying["permissions"]["deny"] += ["Edit(/.harness/**)", "Edit(.claude/scripts/**)", "Edit(NuGet.Config)"]
+        for allow in ("Edit(.harness/config.json)", "Edit(./.harness/config.json)", "Edit(/.harness/x/**)",
+                      "Edit(/.claude/scripts/x.sh)", "Edit(src/NuGet.Config)", "Edit(NuGet.Config)",
+                      "Edit(/NuGet.Config)"):
             with self.subTest(allow=allow), self.assertRaises(RenderError) as ctx:
                 render_settings(denying, cfg(allow=[allow]))
             self.assertIn("denied by the base", str(ctx.exception))
-        # `//` starts an absolute path, which no project-relative deny here covers.
-        allow = "Edit(//.harness/config.json)"
-        self.assertIn(allow, render_settings(denying, cfg(allow=[allow]))["permissions"]["allow"])
+        # An anchored deny leaves the same name deeper down, which a one-component allow still reaches, and `//`
+        # starts an absolute path no project rule here covers.
+        for allow in ("Edit(.harness/**)", "Edit(./.harness/**)", "Edit(//.harness/config.json)"):
+            with self.subTest(allow=allow):
+                self.assertIn(allow, render_settings(denying, cfg(allow=[allow]))["permissions"]["allow"])
 
     def test_allow_vs_deny_comparison_strips(self) -> None:
         with self.assertRaises(RenderError):
