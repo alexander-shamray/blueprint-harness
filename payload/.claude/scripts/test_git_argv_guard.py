@@ -4315,8 +4315,12 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
     def test_a_nested_script_after_too_many_directories_is_refused(self):
         hops = "; ".join(f"cd d{n}" for n in range(40))
         self.assertIn("changes directory more often", self.assertRefused(f"{hops}; bash -c 'ls'"))
-        # Without a nested script the directories cost nothing extra.
-        self.admitted(f"{hops}; ls > out.md")
+        # A write after them is refused as well, and a run that writes nothing is not.
+        self.assertIn("changes directory more often", self.assertRefused(f"{hops}; ls > out.md"))
+        self.admitted(f"{hops}; ls")
+        # So is a command whose writes would be judged from too many directories in all.
+        writes = "; ".join(f"cp x y{n}" for n in range(300))
+        self.assertIn("changes directory more often", self.assertRefused(f"cd a; cd b; cd c; {writes}"))
 
     def test_a_nest_with_an_unreadable_cd_at_each_level_is_judged_in_time(self):
         # Each level reaches the next by two routes, with and without its default.
@@ -4325,8 +4329,30 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
             command = f"cd ${{a:-x}} && echo $({command})"
         self.judge(command)
         # One string reached from more sets of directories than the cap is refused.
-        command = "cd ${a:-x}; cd {p}; cd $(q)x; bash -c \"cd ${c:-w}; cd {r}; cd $(s)y; bash -c 'ls'\""
+        command = "cd ${a:-x} && cd {p} && cd $(q)x && bash -c \"cd ${c:-w} && cd {r} && cd $(s)y && bash -c 'ls'\""
         self.assertIn("more sets of directories", self.assertRefused(command))
+
+    def test_a_cd_bash_may_not_make_leaves_the_directory_before_it_judged(self):
+        # A cd that fails, runs in a subshell, only edits the stack, or that control flow skips.
+        self.refused("cd nosuch; ls > .claude/settings.json",
+                     "cd nosuch || true; ls > .claude/settings.json",
+                     "if cd nosuch; then :; fi; ls > .claude/settings.json",
+                     "cd notes | true; ls > .claude/settings.json",
+                     "cd notes & ls > .claude/settings.json",
+                     "true | cd notes && ls > .claude/settings.json",
+                     "pushd -n notes && ls > .claude/settings.json",
+                     "pushd -n notes; cp /tmp/a .claude/settings.json",
+                     "! cd notes && ls > .claude/settings.json",
+                     "cd .claude; true || cd ..; ls > settings.json",
+                     "cd .claude; if false; then cd ..; fi; ls > settings.json",
+                     "cd .claude; for x in; do cd ..; done; ls > settings.json",
+                     "cd .claude && true || cd ..; ls > settings.json",
+                     # A case pattern's `)` closes no subshell.
+                     "( cd .claude; case $x in a) :;; esac; ls > settings.json )")
+        # The runs after `cd X &&` are reached only once it moved.
+        self.admitted("cd nosuch && ls > .claude/settings.json",
+                      "cd notes || exit 1; cd .. && ls > out.md",
+                      "pushd -- notes && ls > settings.json")
 
     def test_a_cd_nothing_can_read_leaves_a_relative_write_unjudged(self):
         self.admitted('cd "$dir" && ls > .claude/settings.json',

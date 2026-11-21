@@ -3266,11 +3266,14 @@ def ordinary_positions(command):
     return ordinary
 
 
-def raw_runs(command):
-    """`command`'s runs in order, as `(words, redirections)`, quoting intact.
+RUN_OPERATORS = ("&&", "||", "|&", ";;", "|", "&", ";", "\n")
 
-    `shlex` removes the quotes that decide whether `~` or `$` expands. A
-    subshell's `(` and `)` stand as themselves: a `cd` inside one ends with it.
+
+def raw_runs(command):
+    """`command`'s runs as `(words, redirections)`, quoting intact, with `(`, `)` and operators.
+
+    `shlex` removes the quotes that decide whether `~` or `$` expands. Each
+    `RUN_OPERATORS` entry decides whether a `cd` moves the next run's shell.
     """
     ordinary = ordinary_positions(command)
     spans = dict(redirection_spans(command))
@@ -3307,6 +3310,11 @@ def raw_runs(command):
                 break
             if command[index] in "()":
                 runs.append(command[index])
+            operator = next((op for op in RUN_OPERATORS if command.startswith(op, index)), None)
+            if operator is not None:
+                runs.append(operator)
+                index += len(operator)
+                continue
             index += 1
             continue
         words.append(command[index:end])
@@ -3680,66 +3688,127 @@ def directory_after(words, cwd, command):
     verb = program_name(literals[start] or "")
     if verb not in DIRECTORY_CHANGES:
         return cwd
+    options = literals[start + 1:]
+    if verb == "pushd" and "-n" in options[:options.index("--") if "--" in options else None]:
+        return cwd
     operands = [word for word, literal in zip(words[start + 1:], literals[start + 1:])
                 if literal is None or not literal.startswith("-") or literal == "-"]
+    if verb == "pushd" and any(literal and re.fullmatch(r"[+-]\d+", literal) for literal in options):
+        return None
     if verb == "popd" or target_literal(operands[0] if operands else "~") == "-":
         return None
     return written_path(operands[0] if operands else "~", cwd, command)
 
 
-def write_offence(command, cwd):
-    """The reason to refuse a write in `command` run from `cwd`, or `None`.
+def stances(command, starts):
+    """`(run, directories)` for each run, then `(None, directories)` at the end.
 
-    A relative target is placed by following each literal `cd`, and after a
-    `cd` nothing can read, only an absolute target is judged.
+    A failed, skipped or subshell `cd` moves nothing, so the directories before
+    it stay possible but after `cd X &&`; `None` is one nothing can read.
     """
-    saved = []
-    for run in raw_runs(command):
-        if run == "(":
-            saved.append(cwd)
+    here, past_or, past_and = set(starts), set(), set()
+    stack, items = [], raw_runs(command)
+    for position, item in enumerate(items):
+        before = items[position - 1] if position else None
+        after = items[position + 1] if position + 1 < len(items) else None
+        if item == "(":
+            stack.append(("(", here, past_or, past_and))
+            past_or, past_and = set(), set()
             continue
-        if run == ")":
-            cwd = saved.pop() if saved else cwd
+        if item == ")":
+            # A `case` pattern's `)` closes no subshell.
+            if stack and stack[-1][0] == "(":
+                _, here, past_or, past_and = stack.pop()
             continue
+        if item == "&&":
+            here, past_and = here | past_and, set()
+            continue
+        if item == "||":
+            here, past_or = here | past_or, set()
+            continue
+        if isinstance(item, str):
+            here, past_or, past_and = here | past_or | past_and, set(), set()
+            continue
+        yield item, frozenset(here)
+        words = item[0]
+        literals = [target_literal(word) or "" for word in words]
+        lead = leading_command(literals)
+        if lead == "case":
+            stack.append(("case",))
+        elif lead == "esac" and stack and stack[-1][0] == "case":
+            stack.pop()
+        # Past the cap the set is not grown, since every relative cd could double
+        # it, and a write or a script judged from it is refused instead.
+        if (len(here) > MAX_STANDINGS or before in ("|", "|&") or after in ("|", "|&", "&")
+                or not any(program_name(literal) in DIRECTORY_CHANGES for literal in literals)):
+            continue
+        moved = {directory_after(words, cwd, command) for cwd in here}
+        if "!" in literals[:literals.index(lead) if lead in literals else None]:
+            here = here | moved
+        elif after == "&&":
+            past_or, here = past_or | here, moved
+        elif after == "||":
+            past_and = past_and | moved
+        else:
+            here = here | moved
+    yield None, frozenset(here | past_or | past_and)
+
+
+def may_write(words, written):
+    """Whether a run could write anything this guard judges by its directory.
+
+    Wider than what the checks in `write_offence` read: a redirection, or a
+    word anywhere naming git, `find` or a writing verb.
+    """
+    return bool(written) or any(
+        program_name(target_literal(word) or "") in WRITING_VERBS
+        or program_name(target_literal(word) or "") in ("git", "find") for word in words)
+
+
+def write_offence(command, starts):
+    """The reason to refuse a write in `command` run from `starts`, or `None`.
+
+    A relative target is judged from every directory `stances` says the
+    shell may stand in, and from one nothing can read only an absolute target.
+    """
+    extra = 0
+    for run, directories in stances(command, starts):
+        if run is None:
+            break
         words, written = run
-        for text in written:
-            match = WRITING_REDIRECTION.match(text)
-            if match is None:
-                continue
-            target = match.group("target").strip()
-            if not target or (match.group("operator") == ">&"
-                              and (target == "-" or target.isdigit())):
-                continue
-            refusal = destination_offence(
-                target, cwd, command, f"`{match.group('operator')}`")
+        if not may_write(words, written):
+            continue
+        extra += len(directories) - 1
+        if len(directories) > MAX_STANDINGS or extra > MAX_EXTRA_JUDGEMENTS:
+            return TOO_MANY_STANDINGS
+        for cwd in directories:
+            for text in written:
+                match = WRITING_REDIRECTION.match(text)
+                if match is None:
+                    continue
+                target = match.group("target").strip()
+                if not target or (match.group("operator") == ">&"
+                                  and (target == "-" or target.isdigit())):
+                    continue
+                refusal = destination_offence(
+                    target, cwd, command, f"`{match.group('operator')}`")
+                if refusal is not None:
+                    return refusal
+            refusal = (git_path_offence(words, cwd, command)
+                       or writing_verb_offence(words, cwd, command))
             if refusal is not None:
                 return refusal
-        refusal = (git_path_offence(words, cwd, command)
-                   or writing_verb_offence(words, cwd, command))
-        if refusal is not None:
-            return refusal
-        cwd = directory_after(words, cwd, command)
     return None
 
 
 def standing_in(command, starts):
-    """Every directory the shell stands in while it runs `command` from each of `starts`.
+    """Every directory the shell may stand in while it runs `command` from `starts`.
 
-    `None` is a directory nothing can read, as `directory_after` returns it.
     Sorted, so one set reached by two routes is one key in `offence`'s cache.
     """
-    runs = raw_runs(command)
     reached = set(starts)
-    for cwd in starts:
-        saved = []
-        for run in runs:
-            if run == "(":
-                saved.append(cwd)
-            elif run == ")":
-                cwd = saved.pop() if saved else cwd
-            else:
-                cwd = directory_after(run[0], cwd, command)
-            reached.add(cwd)
+    for _, directories in stances(command, starts):
+        reached |= directories
     return tuple(sorted(reached, key=lambda cwd: (cwd is None, cwd or "")))
 
 
@@ -3753,12 +3822,17 @@ def performed_text(command):
 # rather than a verdict, which is the one direction a guard must not fail in.
 MAX_NESTING = 24
 
-# A nested script is judged from each directory its outer command stands in, and
-# a string reached by several routes once per set of them; each multiplies the
-# cost, so past these it is refused rather than timed out.
+# A write or a nested script is judged from each directory its command may stand
+# in, and a string reached by several routes once per set of them; each multiplies
+# the cost, so past these it is refused rather than timed out.
 MAX_STANDINGS = 32
+MAX_EXTRA_JUDGEMENTS = 1000
 MAX_ROUTES = 8
 ROUTES = object()
+TOO_MANY_STANDINGS = (
+    "this command changes directory more often than the guard will follow "
+    "ahead of a write or a script it runs, and each is judged from every "
+    "directory; refusing rather than reading part of it.")
 
 
 def offence(command, depth=0, judged=None, reading=False, starts=None):
@@ -3824,13 +3898,7 @@ def _offence(command, depth, judged, reading, starts):
         return nested[0]
 
     def too_many_standings():
-        if len(nested_starts()) <= MAX_STANDINGS:
-            return None
-        return (
-            "this command changes directory more often than the guard will "
-            "follow ahead of a script it runs, and that script is judged from "
-            "each; refusing rather than reading part of it."
-        )
+        return TOO_MANY_STANDINGS if len(nested_starts()) > MAX_STANDINGS else None
 
 
     # An expansion has more than one reading, and the command is safe only if
@@ -4059,11 +4127,7 @@ def _offence(command, depth, judged, reading, starts):
     # A reading of an expansion hides a program; it names no file bash opens.
     if reading:
         return None
-    for cwd in starts:
-        refusal = write_offence(performed, cwd)
-        if refusal is not None:
-            return refusal
-    return None
+    return write_offence(performed, starts)
 
 
 # Every scan here must finish inside the hook's timeout, because a hook that
