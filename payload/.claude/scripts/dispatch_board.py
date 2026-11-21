@@ -5,6 +5,7 @@ the run's commands are dispatch_run.py's, reached from here so one grant covers 
 """
 
 import argparse
+import collections
 import contextlib
 import functools
 import hashlib
@@ -655,15 +656,22 @@ def unheld(before, after):
     """Refuse a Remaining or Tracking row of `after` in a group an In progress row holds, unless it carried that
     group in `before`: a re-cut never reuses a held letter and number, which the night reads as one claim.
 
-    An owed row's key is its task's wording, which a rewrite may change, so an owed row is matched by its group."""
-    def mark(row):
-        return "owed" if row.number is None else row.key
-
+    An owed row's key is its task's wording, which a rewrite may change, so owed rows are counted by group instead:
+    a held group may keep or reword its owed rows, never gain one."""
     held = {r.group for r in after.in_progress if r.group}
-    carried = {(mark(r), r.group) for r in before.remaining + before.tracking + before.in_progress}
+    carried = {(r.key, r.group) for r in before.remaining + before.tracking + before.in_progress}
     for row in after.remaining + after.tracking:
-        if row.group in held and (mark(row), row.group) not in carried:
+        if row.number is not None and row.group in held and (row.key, row.group) not in carried:
             raise Refusal(f"{row.group} is held by an In progress row; a re-cut never reuses its letter and number")
+
+    def owed(tasks):
+        return collections.Counter(r.group for r in tasks.remaining + tasks.tracking + tasks.in_progress
+                                   if r.number is None)
+
+    was, now = owed(before), owed(after)
+    gained = sorted(g for g in held if now[g] > was[g])
+    if gained:
+        raise Refusal(f"{gained[0]} is held by an In progress row; a re-cut never reuses its letter and number")
 
 
 # A day session's moves: one issue's row, keyed by its number, with no run
