@@ -894,16 +894,18 @@ def _cells_for(section, issue, tasks, cells, old=None, owned=frozenset()):
         return str(issue.number), task, labels, cells.get("why", PAUSED_WHY), cells.get("resume", PAUSED_RESUME)
     kept = old if old is not None and old.section in ("Remaining", "Tracking") else None
     waves = [r.wave for r in tasks.remaining + tasks.tracking if r.wave is not None]
-    wave = cells.get("wave") or (str(kept.wave) if kept else str(max(waves, default=1)))
     group = cells.get("group") or (kept.group if kept else None)
     fresh = section == "Remaining" and not (group and re.fullmatch(ROW_GROUP.pattern, group))
     if fresh:
         group = _fresh_group(tasks)
+    existing = next((g for g in groups(tasks) if g.id == group), None) if section == "Remaining" else None
+    # A group never spans a wave, so a row joining one already in Remaining takes its wave unless the caller names one.
+    wave = cells.get("wave") or (str(existing.wave) if existing else str(kept.wave) if kept
+                                 else str(max(waves, default=1)))
     # A group the helper made up is no session's placement, so the row waits until one regroups it.
     depends = cells.get("depends") or (UNPLACED if fresh else kept.cells[DEPENDS] if kept else "none")
     if "question" in issue.labels and not OWNER.search(depends):
         depends = "OWNER" if depends.casefold() == "none" else f"OWNER; {depends}"
-    existing = next((g for g in groups(tasks) if g.id == group), None) if section == "Remaining" else None
     model = cells.get("model") or (existing.model if existing else None) or (kept.cells[MODEL] if kept else None)
     if section == "Remaining" and model not in MODELS:
         model = "Opus"
