@@ -228,7 +228,10 @@ def segments(command):
     scope = ()
     found = [Segment(scope)]
     redirection = None
-    for token in tokens:
+    # A `()`, or a `(` and `)` with nothing between, is a function's name ending: the next command to take a word
+    # is its body, past any newline.
+    defining, previous = False, None
+    for token, previous in zip(tokens, [previous, *tokens]):
         current = found[-1]
         if redirection is not None:
             # The word after a redirection is its file, a heredoc's body or a here-string's text.
@@ -239,8 +242,13 @@ def segments(command):
             redirection = None
             continue
         if not token or not set(token) <= set(PUNCTUATION):
+            if defining and not current.words:
+                current.defines = True
+            defining = False
             current.words.append(token)
             continue
+        if "()" in token or token.startswith(")") and previous is not None and previous.endswith("("):
+            defining = True
         # A run can join a group's paren to a redirection, as `)>` does, so the parens are taken out of it first:
         # each opens or closes a subshell and ends the command before it.
         rest = token.replace("(", "").replace(")", "")
@@ -252,7 +260,6 @@ def segments(command):
                 scope = scope[:-1]
         if rest != token:
             found.append(Segment(scope))
-            found[-1].defines = "()" in token
         if "<" in rest or ">" in rest:
             # A bare number before a redirection is its descriptor.
             redirection = rest
@@ -284,11 +291,11 @@ def lists(found):
     Every command in an `if`, a loop or a `case`, and in a group behind `&&` or `||`, may not run.
     """
     frames = []
-    start, guarded = 0, False
+    start, guarded, carried = 0, False, False
     for position, segment in enumerate(found):
         # A compound may open behind another reserved word, as `then if` or `! {` does, or behind `time` and its
         # options. A function's body runs only when it is called, so it is guarded as a clause is.
-        defining, timing, named = segment.defines, False, False
+        defining, timing, named = segment.defines or carried, False, False
         for word in segment.words:
             if named:
                 named = False
@@ -302,6 +309,8 @@ def lists(found):
                 timing = True
             elif word not in PREFIXES:
                 break
+        # `function NAME` alone on its line opens its body on the next.
+        carried = segment.words[0] == "function" and len(segment.words) == 2
         segment.guarded = guarded
         if segment.words[0] in CLOSERS and frames:
             start, guarded = frames.pop()

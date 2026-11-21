@@ -352,6 +352,9 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             "f () { cd sub; }; sed -i 's/one/uno/' crlf.txt",
             "function f { cd sub; }; sed -i 's/one/uno/' crlf.txt",
             "function f() { cd sub; }; sed -i 's/one/uno/' crlf.txt",
+            "f ( ) { cd sub; }; sed -i 's/one/uno/' crlf.txt",
+            "f()\n{ cd sub; }\nsed -i 's/one/uno/' crlf.txt",
+            "function f\n{ cd sub; }\nsed -i 's/one/uno/' crlf.txt",
             "if [ -f absent ]; then time -p { true; }; cd sub; fi; sed -i 's/one/uno/' crlf.txt",
         ):
             with self.subTest(command=command):
