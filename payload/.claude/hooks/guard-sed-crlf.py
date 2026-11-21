@@ -256,6 +256,9 @@ def segments(command):
             if current.words and current.words[-1].isdigit():
                 current.words.pop()
         elif rest:
+            if not rest.strip("\n") and not current.words:
+                # A newline after `&&` or `||`, spaced or behind a comment, continues the list it joins.
+                continue
             following = Segment(scope)
             if "|" in rest.replace("||", ""):
                 current.piped = following.piped = True
@@ -280,20 +283,24 @@ def lists(found):
     frames = []
     start, guarded = 0, False
     for position, segment in enumerate(found):
-        first = segment.words[0]
-        if first in OPENERS:
-            frames.append((start, guarded))
-            guarded = guarded or first != "{" or segment.joined is not None
+        # A compound may open behind another reserved word, as `then if` or `! {` does.
+        for word in segment.words:
+            if word in OPENERS:
+                frames.append((start, guarded))
+                guarded = guarded or word != "{" or segment.joined is not None
+            elif word not in PREFIXES and word != "time":
+                break
         segment.guarded = guarded
-        if first in CLOSERS and frames:
+        if segment.words[0] in CLOSERS and frames:
             start, guarded = frames.pop()
-        # `&&`, `|&` and a `case` clause's `;&` or `;;&` background nothing.
+        # `&&`, `|&` and a `case` clause's `;&` or `;;&` background nothing, and a list goes on past a newline after
+        # `&&`, `||` or a pipe.
         ended = segment.ended or ""
         lone = "&" in ended.replace("&&", "").replace("|&", "").replace(";;&", "").replace(";&", "")
         if lone:
             for earlier in found[start:position + 1]:
                 earlier.backgrounded = True
-        if lone or ";" in ended or "\n" in ended:
+        if lone or ";" in ended or "\n" in ended and ended.strip("\n") not in ("&&", "||", "|", "|&"):
             start = position + 1
     return found
 
