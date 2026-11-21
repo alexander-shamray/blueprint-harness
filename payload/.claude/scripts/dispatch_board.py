@@ -640,8 +640,6 @@ def place(text, wave, group, issue, task=None, labels=None, depends=None, model=
     for section in (tasks.in_progress, tasks.remaining, tasks.tracking, tasks.paused):
         if any(r.key == key for r in section):
             raise Refusal(f"{key} already has a row; a row lives in one table only")
-    if any(r.group == group for r in tasks.in_progress):
-        raise Refusal(f"{group} is held by an In progress row; a re-cut never reuses its letter and number")
     existing = next((g for g in groups(tasks) if g.id == group), None)
     cells = (str(wave), group, str(issue), task or "Filed by /dispatch; read the issue", labels or "code",
              depends or "OWNER", model or (existing.model if existing else "Opus"), conflicts or "none")
@@ -649,15 +647,29 @@ def place(text, wave, group, issue, task=None, labels=None, depends=None, model=
     _place(lines, _line(cells, _cr(lines)))
     result = "\n".join(lines)
     groups(parse_tasks(result))
+    unheld(tasks, parse_tasks(result))
     return result
+
+
+def unheld(before, after):
+    """Refuse a Remaining or Tracking row of `after` in a group an In progress row holds, unless it carried that
+    group in `before`: a re-cut never reuses a held letter and number, which the night reads as one claim."""
+    held = {r.group for r in after.in_progress if r.group}
+    carried = {(r.key, r.group) for r in before.remaining + before.tracking + before.in_progress}
+    for row in after.remaining + after.tracking:
+        if row.group in held and (row.key, row.group) not in carried:
+            raise Refusal(f"{row.group} is held by an In progress row; a re-cut never reuses its letter and number")
 
 
 # A day session's moves: one issue's row, keyed by its number, with no run
 
-def _checked(text):
-    """The list a day write would leave, refused unless `board`'s parser reads it, so the night never stops on it."""
+def _checked(text, before=None):
+    """The list a write would leave, refused unless `board`'s parser reads it, so the night never stops on it, or,
+    given the list `before` it, where it puts a row in a group In progress holds."""
     try:
         groups(parse_tasks(text))
+        if before is not None:
+            unheld(parse_tasks(before), parse_tasks(text))
     except Refusal as refusal:
         raise Refusal(f"the list this write leaves is one board refuses: {refusal}") from None
     return text
@@ -755,7 +767,7 @@ def return_issue(text, number, saved):
         raise Refusal(f"the row saved for {key} is {row.key}'s")
     _place(lines, _line(row.cells, _cr(lines)))
     # A row someone wrote for the issue since its start is a clash `board`'s parser names here.
-    return _checked("\n".join(lines))
+    return _checked("\n".join(lines), text)
 
 
 def set_issue_state(text, number, state, branch=None):
@@ -914,7 +926,7 @@ def settle(text, issue, cells=None, new=False, owned=frozenset()):
         if row is None:
             return None, f"{key} is closed and has no row"
         _remove(lines, row.section, {key})
-        return _checked("\n".join(lines)), f"deleted {key} from {row.section}: the issue is closed"
+        return _checked("\n".join(lines), text), f"deleted {key} from {row.section}: the issue is closed"
     if row is not None and row.section == target:
         return None, f"{key} is already in {target}"
     if row is not None:
@@ -922,7 +934,7 @@ def settle(text, issue, cells=None, new=False, owned=frozenset()):
         tasks = parse_tasks("\n".join(lines))
     _insert(lines, target, _cells_for(target, issue, tasks, cells, row, owned))
     done = f"moved {key} from {row.section} to {target}" if row else f"added {key} to {target}"
-    return _checked("\n".join(lines)), done
+    return _checked("\n".join(lines), text), done
 
 
 def reconcile(text, issues, merged=lambda _branch: False, owned=frozenset()):
@@ -984,7 +996,7 @@ def rewrite_day(live, rebuilt):
     cr = _cr(_lines(live))
     rebuilt = rebuilt.replace("\r\n", "\n").replace("\n", cr + "\n")
     before, after = parse_tasks(live), parse_tasks(rebuilt)
-    _checked(rebuilt)
+    _checked(rebuilt, live)
     if sorted(r.line for r in before.in_progress) != sorted(r.line for r in after.in_progress):
         raise Refusal("the rewrite changes In progress; its rows change only through start, state, done and back")
     _same_issues(before, after)
@@ -1271,6 +1283,7 @@ def rewrite(live, read, rebuilt):
         raise Refusal("the rebuild changes the note above the sections, which is the owner's")
     before, after = parse_tasks(live), parse_tasks(rebuilt)
     groups(after)
+    unheld(before, after)
     # Another session's row is never the dispatcher's to drop or edit (spec section 4), whatever state.json holds.
     if sorted(r.line for r in before.in_progress) != sorted(r.line for r in after.in_progress):
         raise Refusal("the rebuild changes the In progress section; its rows change only through move, done and back")
@@ -1346,7 +1359,7 @@ def _tasks_command(args, today):
         # The In progress row no longer holds the wave, labels, depends, model or conflicts, so `back` needs these.
         after.append(lambda: _close(directory, args.group, "returned"))
         returned.append(entry)
-        return return_to_remaining(text, rows, keys, berserk(state)[0])
+        return _checked(return_to_remaining(text, rows, keys, berserk(state)[0]), text)
 
     # The file is read here, at the moment of the write, so another session's edit since `board` is kept. A move's
     # record is written first and undone if the list write is refused, so neither is left without the other.
