@@ -284,6 +284,10 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             "cd sub && true & sed -i 's/one/uno/' crlf.txt",
             "{ cd sub; } & sed -i 's/one/uno/' crlf.txt",
             "if true; then cd sub; fi & sed -i 's/one/uno/' crlf.txt",
+            "time { cd sub; } & sed -i 's/one/uno/' crlf.txt",
+            "! { cd sub; } & sed -i 's/one/uno/' crlf.txt",
+            # A newline after `&&` continues the list the `&` ends.
+            "cd sub &&\ntrue &\nsed -i 's/one/uno/' crlf.txt",
         ):
             with self.subTest(command=command):
                 self.assertRefused(command, "crlf.txt")
@@ -292,7 +296,9 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             "cd sub && sed -i 's/one/uno/' inner.txt",
             "cd sub >&2; sed -i 's/one/uno/' inner.txt",
             "cd sub &>/dev/null; sed -i 's/one/uno/' inner.txt",
-            "cd sub |& true; cd sub; sed -i 's/one/uno/' inner.txt",
+            "cd sub && true |& cat; sed -i 's/one/uno/' inner.txt",
+            "case x in x) cd sub;& y) true;; esac; sed -i 's/one/uno/' inner.txt",
+            "case x in x) cd sub;;& y) true;; esac; sed -i 's/one/uno/' inner.txt",
         ):
             with self.subTest(command=command):
                 self.assertRefused(command, "inner.txt")
@@ -310,6 +316,12 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             "if [ -f absent ]; then true; cd sub; fi; sed -i 's/one/uno/' crlf.txt",
             "for d in; do echo; cd sub; done; sed -i 's/one/uno/' crlf.txt",
             "[ -f absent ] && { true; cd sub; }; sed -i 's/one/uno/' crlf.txt",
+            # A compound opened behind another reserved word pushes its own frame, so its `fi` closes only it.
+            "if [ -f absent ]; then if true; then true; fi; cd sub; fi; sed -i 's/one/uno/' crlf.txt",
+            # A newline after `&&`, spaced or behind a comment, still joins the `cd` to the test.
+            "[ -f absent ] && \ncd sub; sed -i 's/one/uno/' crlf.txt",
+            "[ -f absent ] && # note\ncd sub; sed -i 's/one/uno/' crlf.txt",
+            "[ -f absent ] &&\ncd sub; sed -i 's/one/uno/' crlf.txt",
         ):
             with self.subTest(command=command):
                 self.assertRefused(command, "crlf.txt")

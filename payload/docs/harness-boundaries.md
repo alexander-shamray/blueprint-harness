@@ -2739,7 +2739,9 @@ its subshell — none at all in a pipeline stage or in a list a lone `&`
 ends, which bash runs in a subshell, and one behind `&&` or `||`, or
 anywhere in an `if`, a loop, a `case` or a group behind either, to where it
 moves and to where it may not have, judging the files in both, up to
-`MAX_PLACES` at once; a loop's body is followed for one pass, and a `popd`
+`MAX_PLACES` at once; one joined by `&&` to a move already followed runs
+only where that move landed and is followed alone, a loop's body is
+followed for one pass, and a `popd`
 after a `pushd` that may not have run is unplaceable — finds `sed` behind
 the prefix words, past the options of
 `command`, `exec`, `time`, `builtin` and `nohup`, and behind the `env`,
