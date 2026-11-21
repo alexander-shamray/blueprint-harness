@@ -1029,6 +1029,10 @@ because a join or `abspath` puts the working directory's drive before
 `\??\`: `C:\??\UNC\host\…` is not the grammar, yet git and Windows read the
 `\??\UNC\host\…` that was written.
 
+A grammar that will not load is refused, not skipped: the three guards load it
+through `_loaded_grammar` and refuse every call they judge while it is
+missing, since a crash at import exits 1, which `PreToolUse` admits.
+
 `test_host_paths.py` runs each hook in process with every filesystem and
 process entry point the hooks use fenced, and fails on any call that names
 its share, joined to a directory or not; the grammar is switched on there,

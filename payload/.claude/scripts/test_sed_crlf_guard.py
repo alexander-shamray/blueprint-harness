@@ -636,6 +636,23 @@ class ACrashWhileJudgingRefuses(ACheckout):
         self.assertIn("a digit limit", stderr.getvalue())
 
 
+    def test_a_grammar_that_will_not_load_refuses_every_command(self):
+        # path_grammar.py loads at import, outside main()'s try; a crash there exited 1, which admits.
+        hooks = os.path.join(self.root, "copy")
+        os.makedirs(hooks)
+        hook = shutil.copy(HOOK, hooks)
+        with open(os.path.join(hooks, "path_grammar.py"), "w", encoding="utf-8") as handle:
+            handle.write("def (\n")
+        event = {"hook_event_name": "PreToolUse", "cwd": self.root, "tool_name": "Bash",
+                 "tool_input": {"command": "sed -i 's/one/uno/' crlf.txt"}}
+        result = subprocess.run([sys.executable, hook], input=json.dumps(event).encode("utf-8"), capture_output=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        verdict = json.loads(result.stdout.decode("utf-8"))["hookSpecificOutput"]
+        self.assertEqual("deny", verdict["permissionDecision"])
+        self.assertIn("crashed the sed line-ending guard", verdict["permissionDecisionReason"])
+        self.assertIn(b"did not load", result.stderr)
+
+
 class TheWiringWithoutWhichNoneOfTheAboveRuns(unittest.TestCase):
 
     def commands_for(self, tool):
