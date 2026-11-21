@@ -2735,7 +2735,13 @@ reads the file a `sed -i` names, because nothing in the command's text says
 what line endings that file holds. It reads the command's lines as bash
 does, continuations joined and comments and heredoc bodies dropped, splits
 them into simple commands with `shlex`, follows a plain `cd <dir>` within
-its subshell, finds `sed` behind the prefix words, past the options of
+its subshell — none at all in a pipeline stage or in a list a lone `&`
+ends, which bash runs in a subshell, and one behind `&&` or `||`, or
+anywhere in an `if`, a loop, a `case` or a group behind either, to where it
+moves and to where it may not have, judging the files in both, up to
+`MAX_PLACES` at once; a loop's body is followed for one pass, and a `popd`
+after a `pushd` that may not have run is unplaceable — finds `sed` behind
+the prefix words, past the options of
 `command`, `exec`, `time`, `builtin` and `nohup`, and behind the `env`,
 `nice`, `timeout` and `stdbuf` wrappers, judges what a shell runs — its
 `-c` line,

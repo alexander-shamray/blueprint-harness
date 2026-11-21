@@ -103,6 +103,9 @@ SHORT_WITH_ARGUMENT = set("efl")
 MAX_FILES = 200
 MAX_READ = 4 << 20
 GIT_TIMEOUT = 5
+# The directories one subshell is followed in at once: each `cd` that may not run can double them, so past the bound
+# the rest are dropped, and the files they would name are unplaced.
+MAX_PLACES = 16
 
 
 def prepared(command):
@@ -186,16 +189,24 @@ def prepared(command):
 
 
 class Segment:
-    """One simple command: its words, the subshells it runs in, and whether it is a stage of a pipeline.
+    """One simple command: its words, its subshells, whether it is piped or backgrounded, and any `&&` or `||` before.
 
-    The last two say whether a `cd` in it moves the commands after it: bash runs a `( … )` group and every stage of
-    a pipeline in a subshell of its own, so a `cd` there is gone once the group or the pipeline ends.
+    These say whether a `cd` in it moves the commands after it: bash runs a `( … )` group, a pipeline stage and a
+    command a lone `&` ends in a subshell, so a `cd` there is gone after it, and one behind `&&` or `||` may not run.
     """
 
     def __init__(self, scope):
         self.words = []
         self.scope = scope
         self.piped = False
+        self.backgrounded = False
+        self.joined = None
+        # The separator that ends it, and whether it sits in a compound command that may not run it.
+        self.ended = None
+        self.guarded = False
+        # Whether `judge` followed this command as a `cd`, `pushd` or `popd` to a placed directory, so the command
+        # an `&&` joins to it runs only where it moved.
+        self.moved = False
         # What a heredoc or a here-string feeds it, which a shell reading its input runs as a command line.
         self.stdin = None
 
@@ -248,8 +259,43 @@ def segments(command):
             following = Segment(scope)
             if "|" in rest.replace("||", ""):
                 current.piped = following.piped = True
+            current.ended = rest
+            if rest.strip("\n") in ("&&", "||"):
+                following.joined = rest.strip("\n")
             found.append(following)
-    return [segment for segment in found if segment.words]
+    return lists([segment for segment in found if segment.words])
+
+
+# The reserved words that open and close a compound command, read as a segment's first word.
+OPENERS = {"{", "if", "while", "until", "for", "select", "case"}
+CLOSERS = {"}", "fi", "done", "esac"}
+
+
+def lists(found):
+    """`found`, each marked backgrounded where a lone `&` ends its list, and guarded where a compound may skip it.
+
+    A lone `&` runs the whole and-or list before it in a subshell, a `{ … }` or a clause closed inside it included.
+    Every command in an `if`, a loop or a `case`, and in a group behind `&&` or `||`, may not run.
+    """
+    frames = []
+    start, guarded = 0, False
+    for position, segment in enumerate(found):
+        first = segment.words[0]
+        if first in OPENERS:
+            frames.append((start, guarded))
+            guarded = guarded or first != "{" or segment.joined is not None
+        segment.guarded = guarded
+        if first in CLOSERS and frames:
+            start, guarded = frames.pop()
+        # `&&`, `|&` and a `case` clause's `;&` or `;;&` background nothing.
+        ended = segment.ended or ""
+        lone = "&" in ended.replace("&&", "").replace("|&", "").replace(";;&", "").replace(";&", "")
+        if lone:
+            for earlier in found[start:position + 1]:
+                earlier.backgrounded = True
+        if lone or ";" in ended or "\n" in ended:
+            start = position + 1
+    return found
 
 
 def option_width(option, valued):
@@ -629,15 +675,35 @@ def offence(event, strips_cr=os.name == "nt"):
     return judge(command, cwd, git_on_path(cwd), [0], 0)
 
 
+def moved_to(directory, cwd):
+    """Where a plain `cd directory` from `cwd` lands, or `None` where that cannot be placed.
+
+    Bash refuses a directory that is not there and stays put, and a failed `pushd` pushes nothing; one an earlier
+    command on the line makes is not there yet either. Either way the move is not followed.
+    """
+    target = native(directory)
+    if not (os.path.isabs(target) or elsewhere(target)):
+        target = os.path.join(cwd, target) if cwd else None
+    if target is None or elsewhere(target) or not os.path.isdir(target):
+        return None
+    return target
+
+
+def places(found):
+    """`found` without repeats, in order, and at most `MAX_PLACES` of them."""
+    return tuple(dict.fromkeys(found))[:MAX_PLACES]
+
+
 def judge(command, cwd, git, checked, depth):
     """The refusal for one command line run from `cwd`, or `None`; `checked` counts the files read across calls."""
     found = segments(command)
     if found is None:
         return None
-    # The directory each subshell stands in. One opened here starts where its parent stands when it is first seen,
-    # which is where bash forks it, since the commands are read in order.
-    directories = {(): cwd}
-    # Each subshell's `pushd` stack, inherited as its directory is.
+    # The directories each subshell may stand in, `None` among them for one that cannot be placed. One opened here
+    # starts where its parent stands when it is first seen, which is where bash forks it, since the commands are read
+    # in order.
+    directories = {(): (cwd,)}
+    # Each subshell's `pushd` stack, inherited as its directories are; `None` once it is not followed.
     stacks = {(): []}
     for position, segment in enumerate(found):
         previous = found[position - 1] if position else None
@@ -647,7 +713,7 @@ def judge(command, cwd, git, checked, depth):
                           if scope[:length] in directories)
             directories[scope] = directories[parent]
             stacks[scope] = None if stacks[parent] is None else list(stacks[parent])
-        cwd = directories[scope]
+        here = directories[scope]
         words = segment.words
         start = command_word(words)
         if start >= len(words):
@@ -655,36 +721,35 @@ def judge(command, cwd, git, checked, depth):
         name = words[start]
         arguments = words[start + 1:]
         if name in ("cd", "pushd", "popd"):
-            # A pipeline stage's `cd` moves nothing after it. Only a plain `cd <dir>` or `pushd <dir>`, and a bare
-            # `popd` back to a placed entry, can be followed; any other form leaves the files after it unplaceable.
-            if segment.piped:
+            # A pipeline stage's or a backgrounded `cd` moves nothing after it. Only a plain `cd <dir>` or
+            # `pushd <dir>`, and a bare `popd` back to a placed entry, can be followed; any other form leaves the files
+            # after it unplaceable.
+            if segment.piped or segment.backgrounded:
                 continue
+            # One that may not run leaves the commands after it where they were as well as where it moves them: in a
+            # compound that may skip it, behind `||`, or behind `&&` unless what it joins is a move already followed.
+            # A loop's body is followed for one pass.
+            conditional = segment.guarded or segment.joined == "||" or segment.joined == "&&" and not (
+                previous is not None and previous.moved and previous.scope == scope)
             if name == "popd":
                 stack = stacks[scope]
-                directories[scope] = stack.pop() if not arguments and stack else None
-                if arguments:
+                moved = stack.pop() if not arguments and stack else (None,)
+                if arguments or conditional:
                     stacks[scope] = None
-                continue
-            plain = not (len(arguments) != 1 or "$" in arguments[0] or arguments[0] == "-" or (
-                name == "pushd" and arguments[0][:1] in ("+", "-")))
-            if plain:
-                target = native(arguments[0])
-                if not (os.path.isabs(target) or elsewhere(target)):
-                    target = os.path.join(cwd, target) if cwd else None
-                # Bash refuses a directory that is not there and stays put, and a failed `pushd` pushes nothing; one an
-                # earlier command on the line makes is not there yet either. Either way the move is not followed.
-                if target is not None and (elsewhere(target) or not os.path.isdir(target)):
-                    plain, target = False, None
             else:
-                target = None
-            if name == "pushd":
-                # Any other `pushd` form, `-n <dir>` among them, changes the stack in ways not followed here, so every
-                # `popd` after it is unplaceable too.
-                if plain and stacks[scope] is not None:
-                    stacks[scope].append(cwd)
-                else:
-                    stacks[scope] = None
-            directories[scope] = target
+                plain = not (len(arguments) != 1 or "$" in arguments[0] or arguments[0] == "-" or (
+                    name == "pushd" and arguments[0][:1] in ("+", "-")))
+                moved = tuple(moved_to(arguments[0], place) if plain else None for place in here)
+                plain = plain and None not in moved
+                if name == "pushd":
+                    # Any other `pushd` form, `-n <dir>` among them, changes the stack in ways not followed here, and
+                    # one that may not run leaves it unknown, so every `popd` after either is unplaceable too.
+                    if plain and not conditional and stacks[scope] is not None:
+                        stacks[scope].append(here)
+                    else:
+                        stacks[scope] = None
+            segment.moved = None not in moved and not conditional
+            directories[scope] = places(here + moved if conditional else moved)
             continue
         program = os.path.basename(native(name)).lower()
         if program in SHELLS:
@@ -694,13 +759,14 @@ def judge(command, cwd, git, checked, depth):
                 stdin = echoed(previous)
             line = shell_line(arguments, stdin)
             if line and depth < MAX_DEPTH:
-                reason = judge(line, cwd, git, checked, depth + 1)
-                if reason:
-                    return reason
+                for place in here:
+                    reason = judge(line, place, git, checked, depth + 1)
+                    if reason:
+                        return reason
             continue
         if program not in ("sed", "sed.exe"):
             continue
-        for operand in in_place_files(arguments):
+        for cwd, operand in ((place, operand) for operand in in_place_files(arguments) for place in here):
             for path in candidates(operand, cwd):
                 checked[0] += 1
                 if checked[0] > MAX_FILES:
