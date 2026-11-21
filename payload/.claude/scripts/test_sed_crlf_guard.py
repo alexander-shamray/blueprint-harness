@@ -360,6 +360,13 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
         ):
             with self.subTest(command=command):
                 self.assertRefused(command, "crlf.txt")
+        # A definition whose body is a subshell has had it, so the group after it runs, and its `cd` is followed alone.
+        for command in (
+            "f() ( true ); { cd sub; }; sed -i 's/one/uno/' crlf.txt",
+            "function f\n( true )\n{ cd sub; }\nsed -i 's/one/uno/' crlf.txt",
+        ):
+            with self.subTest(command=command):
+                self.assertAdmitted(command)
         # It may also have run, so the files where it moves are judged too.
         self.assertRefused("true && cd sub; sed -i 's/one/uno/' inner.txt", "inner.txt")
         self.assertRefused("[ -f absent ] && cd sub; bash -c \"sed -i 's/one/uno/' crlf.txt\"", "crlf.txt")

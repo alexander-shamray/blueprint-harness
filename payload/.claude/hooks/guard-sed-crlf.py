@@ -295,7 +295,7 @@ def lists(found):
     for position, segment in enumerate(found):
         # A compound may open behind another reserved word, as `then if` or `! {` does, or behind `time` and its
         # options. A function's body runs only when it is called, so it is guarded as a clause is.
-        defining, timing, named = segment.defines or carried, False, False
+        defining, timing, named, carried = segment.defines or carried, False, False, False
         for word in segment.words:
             if named:
                 named = False
@@ -309,8 +309,10 @@ def lists(found):
                 timing = True
             elif word not in PREFIXES:
                 break
-        # A definition whose body has not opened by the end of its line, as `function NAME` alone, opens it on the next.
-        carried = defining
+        else:
+            # A line that ends at a definition's name, as `function NAME` alone, opens its body on the next. One whose
+            # body is a command of another kind, as `f() ( true )`, has had its body, and carries nothing.
+            carried = defining and "\n" in (segment.ended or "")
         segment.guarded = guarded
         if segment.words[0] in CLOSERS and frames:
             start, guarded = frames.pop()
