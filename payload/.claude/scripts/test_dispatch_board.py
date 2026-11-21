@@ -929,6 +929,24 @@ class WriteTests(unittest.TestCase):
         db.unheld(db.parse_tasks(moved), db.parse_tasks(db.return_to_remaining(
             moved, [self.s1().rows[0].line], {"#1682"})))
         self.assertIsNone(db.rewrite_day(moved, moved))
+        # An owed row's key is its wording, so a rewrite rewording one that sits in a held group is no re-cut.
+        owed = "| 1 | S1 | owed (not filed) | Write the note | docs | none | Opus | none |\n"
+        with_owed = moved.replace("| 1 | S3 | 1681 |", owed + "| 1 | S3 | 1681 |")
+        self.assertIsNotNone(db.rewrite_day(with_owed, with_owed.replace("Write the note", "Write the long note")))
+
+    def test_a_night_back_refuses_a_list_board_would_refuse(self):
+        # back wrote its result unchecked, so returned rows joined a re-cut group of their letter in another wave.
+        self.start()
+        self.write(FIXTURE)
+        self.assertEqual((0, ""), self.cli("move", "S1"))
+        clash = self.read().replace("| 2 | M2 | 1686 |", "| 2 | S1 | 1686 |")
+        self.write(clash)
+        state = dr.load_state(self.run_dir)
+        state["groups"]["S1"]["status"] = "handed-back"
+        dr.save_state(self.run_dir, state)
+        code, err = self.cli("back", "S1")
+        self.assertEqual((2, clash), (code, self.read()))
+        self.assertIn("S1 spans waves", err)
 
     def test_the_old_four_column_in_progress_header_is_refused(self):
         old = FIXTURE.replace("| Group | # | What | Branch or PR | State |", "| # | What | Branch or PR | State |")
@@ -1303,6 +1321,22 @@ class DayTests(unittest.TestCase):
         self.assertEqual(0, self.cli("back", "1683")[0])
         self.assertEqual(FIXTURE, self.read())
         self.assertFalse((self.saved / "1683.md").exists())
+
+    def test_back_refuses_a_saved_line_naming_another_rows_held_group_and_keeps_its_own(self):
+        # A row going back to its own group while a partner is still In progress is that group's own row.
+        self.start(1682)
+        self.start(1683)
+        self.assertEqual(0, self.cli("back", "1683")[0])
+        # One whose saved line now names a group another In progress row holds takes that letter anew.
+        self.start(1681)
+        saved = self.saved / "1683.md"
+        self.start(1683)
+        saved.write_text(saved.read_text(encoding="utf-8").replace("| 1 | S1 | 1683 |", "| 1 | S3 | 1683 |"),
+                         encoding="utf-8")
+        started = self.read()
+        code, out = self.cli("back", "1683")
+        self.assertEqual((2, started), (code, self.read()))
+        self.assertIn("S3 is held by an In progress row", out)
 
     def test_back_with_no_saved_line_keeps_the_row_in_progress(self):
         # An open issue goes back to its wave; a --what start or a row written by hand leaves none to go back to.
