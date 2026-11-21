@@ -1321,7 +1321,7 @@ def _placement(directory, issue):
 def _tasks_command(args, today):
     # The run's state.json is dispatch_run's, which imports this module, so it is reached at call time.
     from dispatch_run import (_close, _field, _note_placed, _record_move, _texts, berserk, load_state,
-                              record_handback, run_dir)
+                              record_handback, reused, run_dir)
     directory = run_dir(args.root, args.run)
     # Only a run `start` opened is written to, so a mistyped name leaves no phantom state.json behind.
     state = load_state(directory)
@@ -1337,6 +1337,9 @@ def _tasks_command(args, today):
             return rewrite(text, _read(copy) if copy.is_file() else None, source)
         tasks = parse_tasks(text)
         if args.action == "place":
+            reason = reused(state, args.group)
+            if reason is not None:
+                raise Refusal(reason)
             after.append(lambda: _note_placed(directory, args.issue))
             return place(text, args.wave, args.group, args.issue, **_placement(directory, args.issue))
         if args.action == "move":

@@ -1214,6 +1214,40 @@ class WriteTests(unittest.TestCase):
         self.assertEqual((0, ""), self.cli("place", "1", "S3", "1700"))
         self.assertEqual([1700], dr.load_state(self.run_dir)["placed"])
 
+    def test_a_letter_this_run_finished_or_sent_back_takes_no_other_issues(self):
+        # A move overwrote a done group's record, and launch then removed its result and session files, so the
+        # morning report lost the merge, its usage and the issues it filed.
+        self.start()
+        self.write(FIXTURE)
+        self.cli("move", "S1")
+        self.verified("S1")
+        self.assertEqual((0, ""), self.cli("done", "S1"))
+        done = dr.load_state(self.run_dir)["groups"]["S1"]
+        listed = self.read()
+        code, err = self.cli("place", "1", "S1", "1700")
+        self.assertEqual((2, listed), (code, self.read()))
+        self.assertIn("S1 ended done in this run", err)
+        self.write(listed.replace("| 1 | S3 | 1681 |", "| 1 | S1 | 1681 |"))
+        recut = self.read()
+        code, err = self.cli("move", "S1")
+        self.assertEqual((2, recut), (code, self.read()))
+        self.assertIn("S1 ended done in this run", err)
+        self.assertEqual(done, dr.load_state(self.run_dir)["groups"]["S1"])
+        # A group sent back moves again with its own issues, never with others joined to its letter.
+        self.write(FIXTURE)
+        for gid in ("S3", "M1"):
+            self.cli("move", gid)
+            state = dr.load_state(self.run_dir)
+            state["groups"][gid]["status"] = "handed-back"
+            dr.save_state(self.run_dir, state)
+            self.assertEqual((0, ""), self.cli("back", gid))
+        self.assertEqual((0, ""), self.cli("move", "S3"))
+        self.write(self.read().replace("| 2 | M2 | 1686 |", "| 2 | M1 | 1686 |"))
+        joined = self.read()
+        code, err = self.cli("move", "M1")
+        self.assertEqual((2, joined), (code, self.read()))
+        self.assertIn("M1 was sent back in this run with other issues", err)
+
     def test_back_keeps_how_the_group_ended(self):
         self.start()
         self.write(FIXTURE)

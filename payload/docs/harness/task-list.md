@@ -68,7 +68,11 @@ work that ends with its issue open, which `/ship` step 6 runs.
   neighbours is a group of one. A re-cut never reuses a letter and number
   an *In progress* row still carries: every `tasks` write refuses a row
   that newly takes such a letter and number, and lets through one keeping
-  the group it already had (`unheld` in `dispatch_board.py`).
+  the group it already had (`unheld` in `dispatch_board.py`). Nor does a
+  run reuse the letter and number of a group it finished, whose record is
+  the morning report's, or move one it sent back with other issues: its
+  `tasks place` and `tasks move` refuse both (`reused` in
+  `dispatch_run.py`).
 - **`Depends on`** is `none`, issue references (`#n`, `after n`,
   `waits on n`), ISO dates, or `OWNER` for an owner's decision. An issue
   labelled `question` carries `OWNER`, in any case GitHub spells the
