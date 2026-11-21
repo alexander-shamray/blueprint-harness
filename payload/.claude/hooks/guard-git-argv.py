@@ -3700,7 +3700,7 @@ def directory_after(words, cwd, command):
     return written_path(operands[0] if operands else "~", cwd, command)
 
 
-LOOP_WORDS = frozenset({"for", "select", "until", "while"})
+LOOP_WORDS = frozenset({"do", "for", "select", "until", "while"})
 
 
 def stances(command, starts):
@@ -3710,9 +3710,10 @@ def stances(command, starts):
     it stay possible but after `cd X &&`; `None` is one nothing can read.
     """
     walk = list(_stances(command, starts, frozenset()))
-    if any(run and (target_literal(run[0][0]) if run[0] else None) in LOOP_WORDS for run, _ in walk):
+    if any(run and LOOP_WORDS.intersection(target_literal(word) for word in run[0]) for run, _ in walk):
         # A loop's next pass starts where its body's last left it, so every run is
-        # also judged from every directory the first walk reached.
+        # also judged from every directory the first walk reached; a loop word
+        # anywhere in a run counts, since a reserved word may lead it.
         walk = list(_stances(command, starts, frozenset().union(*(seen for _, seen in walk))))
     yield from walk
 
@@ -3770,7 +3771,7 @@ def _stances(command, starts, also):
         elif lead == "esac" and stack and stack[-1][0] == "case":
             stack.pop()
         # A cd that is a whole pipeline stage, or backgrounded, moves a subshell.
-        alone = (before in ("|", "|&") and literals[0] not in COMMAND_PREFIX_WORDS
+        alone = (before in ("|", "|&") and literals and literals[0] not in COMMAND_PREFIX_WORDS
                  or after in ("|", "|&", "&"))
         if alone or not any(program_name(literal) in DIRECTORY_CHANGES for literal in literals):
             settle(after, here, here)
