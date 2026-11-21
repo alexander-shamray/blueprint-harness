@@ -73,7 +73,7 @@ SLEEP = time.sleep
 
 def reused(state, gid, keys=None):
     """Why this run's `gid` takes no other rows, or None: a group it finished keeps its record, whose merge, usage
-    and filed issues the morning report reads, and a group it sent back is moved again only with the same issues."""
+    and filed issues the morning report reads, and a group it sent back is never given an issue it did not hold."""
     old = state.get("groups", {}).get(gid)
     if not isinstance(old, dict):
         return None
