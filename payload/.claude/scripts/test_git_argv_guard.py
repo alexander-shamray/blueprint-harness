@@ -4663,6 +4663,12 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
             "env -u env -C .claude cp /tmp/a settings.json",
             # Each `-exec` runs from find's own directory, whatever an `env -C` in an earlier one moved.
             "find . -exec env -C notes true \\; -exec cp /tmp/a .claude/settings.json \\;",
+            # find itself behind `env -C` runs every `-exec` from there.
+            "env -C .claude find . -exec cp /tmp/a settings.json \\;",
+            "env -C .claude find . -exec env -C hooks true \\; -exec cp /tmp/a settings.json \\;",
+            # An option value spelled `;` or `-exec` is no find executor.
+            "env -u ';' -C .claude cp /tmp/a settings.json",
+            "env -u -exec -C .claude cp /tmp/a settings.json",
             # A script behind `env -C` runs from its directory too.
             "env -C .claude bash -c 'cp /tmp/a settings.json'",
             "env -C .claude sh -c 'echo x > settings.json'",

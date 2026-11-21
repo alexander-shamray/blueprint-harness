@@ -3564,17 +3564,19 @@ def writing_verb_offence(words, cwd, command):
     if program_name(leading_command([word or "" for word in literals])) in (
             READING_COMMANDS | DATA_ONLY_COMMANDS):
         return None
-    standing, past = cwd, 0
+    finder, past = None, 0
     for index, literal in enumerate(literals):
-        if literal in FIND_EXECUTORS or literal in (";", "+"):
-            # Each command `find -exec` runs starts from find's own directory, whatever an `env -C` before it moved.
-            cwd = standing
         if literal is None or ASSIGNMENT.match(words[index]) or index < past:
             continue
+        if finder is not None and (literal in FIND_EXECUTORS or literal in (";", "+")):
+            # Each command `find -exec` runs starts from find's own directory, whatever an `env -C` before it moved.
+            cwd = finder[0]
         verb = program_name(literal)
         if verb == "env":
             # `env -C DIR` runs what follows it from DIR; the words its options took are not commands.
             cwd, past = env_directory(words, literals, index, cwd, command)
+        if verb == "find" and finder is None:
+            finder = (cwd,)
         if verb == "find":
             refusal = find_offence(words[index + 1:], cwd, command)
             if refusal is not None:
