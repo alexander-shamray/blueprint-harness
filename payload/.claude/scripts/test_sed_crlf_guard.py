@@ -276,9 +276,54 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             # Review R3.3: `shlex` returns `)>` as one token, which read as a redirection never closed the group.
             "(cd sub && true)>out.log; sed -i 's/one/uno/' crlf.txt",
             "(cd sub && true)2>&1; sed -i 's/one/uno/' crlf.txt",
+            # Bash runs a command a lone `&` ends in a subshell, so the `sed` runs where the line started.
+            "cd sub & sed -i 's/one/uno/' crlf.txt",
+            "cd sub &\nsed -i 's/one/uno/' crlf.txt",
+            "pushd sub & sed -i 's/one/uno/' crlf.txt",
+            # The `&` backgrounds the whole list before it, a group closed inside it included.
+            "cd sub && true & sed -i 's/one/uno/' crlf.txt",
+            "{ cd sub; } & sed -i 's/one/uno/' crlf.txt",
+            "if true; then cd sub; fi & sed -i 's/one/uno/' crlf.txt",
         ):
             with self.subTest(command=command):
                 self.assertRefused(command, "crlf.txt")
+        # `&&`, `>&` and `&>` background nothing, so the `cd` still moves the `sed` after it.
+        for command in (
+            "cd sub && sed -i 's/one/uno/' inner.txt",
+            "cd sub >&2; sed -i 's/one/uno/' inner.txt",
+            "cd sub &>/dev/null; sed -i 's/one/uno/' inner.txt",
+            "cd sub |& true; cd sub; sed -i 's/one/uno/' inner.txt",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command, "inner.txt")
+
+    def test_a_cd_that_may_not_run_leaves_the_files_after_it_in_both_places(self):
+        # Bash skips a `cd` behind a failed `&&`, a succeeding `||` or an untaken clause, so the `sed` after it
+        # may run where the line started. Followed as a move, only sub was searched and the call was admitted.
+        for command in (
+            "[ -f absent ] && cd sub; sed -i 's/one/uno/' crlf.txt",
+            "true || cd sub; sed -i 's/one/uno/' crlf.txt",
+            "if [ -f absent ]; then cd sub; fi; sed -i 's/one/uno/' crlf.txt",
+            "for d in; do cd sub; done; sed -i 's/one/uno/' crlf.txt",
+            "[ -f absent ] && pushd sub; sed -i 's/one/uno/' crlf.txt",
+            # A `cd` later in a clause, or in a group behind `&&`, may not run either.
+            "if [ -f absent ]; then true; cd sub; fi; sed -i 's/one/uno/' crlf.txt",
+            "for d in; do echo; cd sub; done; sed -i 's/one/uno/' crlf.txt",
+            "[ -f absent ] && { true; cd sub; }; sed -i 's/one/uno/' crlf.txt",
+        ):
+            with self.subTest(command=command):
+                self.assertRefused(command, "crlf.txt")
+        # It may also have run, so the files where it moves are judged too.
+        self.assertRefused("true && cd sub; sed -i 's/one/uno/' inner.txt", "inner.txt")
+        self.assertRefused("[ -f absent ] && cd sub; bash -c \"sed -i 's/one/uno/' crlf.txt\"", "crlf.txt")
+        # A `cd` joined by `&&` to a move already followed runs wherever that one landed, so it is followed alone.
+        self.put(os.path.join("sub", "deep", "lf.txt"), b"one\n")
+        self.put(os.path.join("sub", "crlf.txt"), b"one\r\n")
+        self.git("-c", "core.autocrlf=false", "add", "sub/crlf.txt")
+        self.assertAdmitted("cd sub && cd deep && sed -i 's/one/uno/' crlf.txt")
+        # A `popd` after a `pushd` that may not have run reads a stack the hook does not know: unplaceable, which
+        # admits the call by the guard's stated fail-open, whether or not that `pushd` ran.
+        self.assertAdmitted("pushd sub; false && pushd ..; popd; sed -i 's/one/uno/' inner.txt")
 
     def test_a_sed_inside_a_clause_or_a_group_is_judged(self):
         for command in (
