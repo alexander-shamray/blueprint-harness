@@ -911,6 +911,25 @@ class WriteTests(unittest.TestCase):
         with self.assertRaisesRegex(db.Refusal, "S1 is held by an In progress row"):
             db.place(moved, 1, "S1", 1700)
 
+    def test_no_write_puts_a_row_in_a_group_an_in_progress_row_holds(self):
+        # place held the rule alone, so a night or day rewrite, a day placement and a night back each let a row join
+        # a running group's letter, which the night then read as one claim or merged on the next back.
+        moved = db.move_to_in_progress(FIXTURE, self.s1(), "b", "w", TODAY)
+        recut = moved.replace("| 1 | S3 | 1681 |", "| 1 | S1 | 1681 |")
+        with self.assertRaisesRegex(db.Refusal, "S1 is held by an In progress row"):
+            db.rewrite(moved, moved, recut)
+        with self.assertRaisesRegex(db.Refusal, "S1 is held by an In progress row"):
+            db.rewrite_day(moved, recut)
+        with self.assertRaisesRegex(db.Refusal, "S1 is held by an In progress row"):
+            db.settle(moved, issue(1700), {"wave": "1", "group": "S1"}, new=True)
+        tracked = moved.replace("| 5 | — | 1406 |", "| 5 | S1 | 1406 |")
+        with self.assertRaisesRegex(db.Refusal, "S1 is held by an In progress row"):
+            db.unheld(db.parse_tasks(moved), db.parse_tasks(tracked))
+        # A row that carried the letter before keeps it: the rule is about a re-cut, not the group's own rows.
+        db.unheld(db.parse_tasks(moved), db.parse_tasks(db.return_to_remaining(
+            moved, [self.s1().rows[0].line], {"#1682"})))
+        self.assertIsNone(db.rewrite_day(moved, moved))
+
     def test_the_old_four_column_in_progress_header_is_refused(self):
         old = FIXTURE.replace("| Group | # | What | Branch or PR | State |", "| # | What | Branch or PR | State |")
         with self.assertRaisesRegex(db.Refusal, "In progress header"):

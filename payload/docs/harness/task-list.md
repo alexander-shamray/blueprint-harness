@@ -66,7 +66,8 @@ work that ends with its issue open, which `/ship` step 6 runs.
   and stay at about three issues or one family. A group never spans a
   wave, a dependency or a model; a row that shares nothing with its
   neighbours is a group of one. A re-cut never reuses a letter and number
-  an *In progress* row still carries.
+  an *In progress* row still carries, and every `tasks` write that places
+  a row refuses one that does (`unheld` in `dispatch_board.py`).
 - **`Depends on`** is `none`, issue references (`#n`, `after n`,
   `waits on n`), ISO dates, or `OWNER` for an owner's decision. An issue
   labelled `question` carries `OWNER`, in any case GitHub spells the
