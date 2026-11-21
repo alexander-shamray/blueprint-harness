@@ -71,10 +71,27 @@ PROJECTS = Path.home() / ".claude" / "projects"
 SLEEP = time.sleep
 
 
+def reused(state, gid, keys=None):
+    """Why this run's `gid` takes no other rows, or None: a group it finished keeps its record, whose merge, usage
+    and filed issues the morning report reads, and a group it sent back is moved again only with the same issues."""
+    old = state.get("groups", {}).get(gid)
+    if not isinstance(old, dict):
+        return None
+    if old.get("status") in ("done", "closed"):
+        return f"{gid} ended {old['status']} in this run, and its record is the morning report's; use another letter"
+    if (old.get("status") == "returned" and keys is not None
+            and sorted(map(str, old.get("keys") or [])) != sorted(keys)):
+        return f"{gid} was sent back in this run with other issues; use another letter for these"
+    return None
+
+
 def _record_move(directory, gid, moved):
     """Record a move before the list is written, and return how to undo the record if that write is refused."""
     path = Path(directory) / "state.json"
     state = load_state(directory)
+    reason = reused(state, gid, moved["keys"])
+    if reason is not None:
+        raise Refusal(reason)
     before = _read(path)
     # A new move starts the group afresh: what an earlier launch recorded no longer describes it, but for where a
     # back sent it from, which a hand-back's record is checked against when the owner's script resumes it tonight.
