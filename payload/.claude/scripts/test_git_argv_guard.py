@@ -4039,6 +4039,25 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
             json.dump({"permissions": {"deny": [f"Edit({rule})" for rule in denies]}}, handle)
         return hook
 
+    def test_a_grammar_that_will_not_load_refuses_every_command(self):
+        # path_grammar.py loads at import, outside main()'s try; a crash there exited 1, which admits.
+        hook = self.hook_denying()
+        with open(os.path.join(os.path.dirname(hook), "path_grammar.py"), "w", encoding="utf-8") as handle:
+            handle.write("def (\n")
+        for command in ("git status", "ls > notes/out.md"):
+            with self.subTest(command=command):
+                reason = self.judge(command, hook=hook)
+                self.assertIsNotNone(reason, f"admitted: {command}")
+                self.assertIn("crashed the guard", reason)
+
+    def test_an_event_of_the_wrong_shape_is_not_judged_and_does_not_crash(self):
+        for event in ([1, 2], {"tool_name": "Bash", "tool_input": ["ls"]}, {"tool_name": "Bash", "tool_input": "ls"}):
+            with self.subTest(event=event):
+                result = subprocess.run([sys.executable, str(HOOK)], input=json.dumps(event),
+                                        capture_output=True, text=True, encoding="utf-8", timeout=HOOK_TIMEOUT)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual("", result.stdout.strip())
+
     def test_the_measured_redirections_are_refused(self):
         self.refused(
             "ls > .claude/settings.json", "ls >> .claude/hooks/guard-git-argv.py",

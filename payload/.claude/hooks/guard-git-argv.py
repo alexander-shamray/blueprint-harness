@@ -78,7 +78,15 @@ def path_grammar():
     return module
 
 
-GRAMMAR = path_grammar()
+def _loaded_grammar():
+    """The grammar, or `None` and why: a sibling broken mid-edit must reach main()'s refusal, not crash the import."""
+    try:
+        return path_grammar(), None
+    except Exception:  # noqa: BLE001
+        return None, traceback.format_exc()
+
+
+GRAMMAR, GRAMMAR_FAILURE = _loaded_grammar()
 
 # Flags that write or execute rather than inspect. Matched on a prefix, so
 # `--exec-path=<dir>` — a directory of binaries for git to run — is the same act
@@ -3884,6 +3892,8 @@ def offence(command, depth=0, judged=None, reading=False, starts=None):
     first, so a cycle terminates without inventing a verdict — the outer call
     is the one that answers.
     """
+    if GRAMMAR is None:
+        raise RuntimeError(f"path_grammar.py did not load:\n{GRAMMAR_FAILURE}")
     if judged is None:
         judged = {}
     if starts is None:
@@ -4276,6 +4286,9 @@ def main():
         # the session down for a defect in this file.
         print("guard-git-argv: unreadable hook event; not judging", file=sys.stderr)
         return 0
+    if not isinstance(event, dict):
+        print("guard-git-argv: hook event is not an object; not judging", file=sys.stderr)
+        return 0
 
     tool = event.get("tool_name")
     if tool not in ("Bash", "PowerShell"):
@@ -4285,17 +4298,17 @@ def main():
     cwd = event.get("cwd")
     EVENT_CWD = cwd if isinstance(cwd, str) and cwd else None
 
-    command = (event.get("tool_input") or {}).get("command")
+    tool_input = event.get("tool_input")
+    command = tool_input.get("command") if isinstance(tool_input, dict) else None
     if not isinstance(command, str):
         return 0
 
-    lost = main_checkout_reason(command)
-    if lost is not None:
-        return refuse(lost)
-
     try:
-        reason = (powershell_git(command) if tool == "PowerShell"
-                  else scan_budget(command) or offence(command))
+        if GRAMMAR is None:
+            raise RuntimeError(f"path_grammar.py did not load:\n{GRAMMAR_FAILURE}")
+        reason = main_checkout_reason(command) or (
+            powershell_git(command) if tool == "PowerShell"
+            else scan_budget(command) or offence(command))
     except Exception:  # noqa: BLE001 - the direction is the point
         # A crash is empty stdout, and `PreToolUse` reads empty stdout as
         # non-blocking, so an uncaught defect here would be a fail-open.

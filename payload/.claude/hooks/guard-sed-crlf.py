@@ -27,7 +27,15 @@ def path_grammar():
     return module
 
 
-GRAMMAR = path_grammar()
+def _loaded_grammar():
+    """The grammar, or `None` and why: a sibling broken mid-edit must reach main()'s refusal, not crash the import."""
+    try:
+        return path_grammar(), None
+    except Exception:  # noqa: BLE001
+        return None, traceback.format_exc()
+
+
+GRAMMAR, GRAMMAR_FAILURE = _loaded_grammar()
 
 # What a refusal names as the forms that keep the file's endings. `--binary` is admitted: measured under Git Bash's
 # GNU sed 4.9, `sed --binary -i` writes the CR back where a plain `-i` drops it.
@@ -606,6 +614,8 @@ def offence(event, strips_cr=os.name == "nt"):
     `strips_cr` is whether this platform's sed drops the CR, which only Git Bash's does: GNU sed on Linux and macOS
     keeps it as an ordinary character, so refusing there would block an edit that is harmless.
     """
+    if GRAMMAR is None:
+        raise RuntimeError(f"path_grammar.py did not load:\n{GRAMMAR_FAILURE}")
     if not strips_cr or event.get("tool_name") != "Bash":
         return None
     tool_input = event.get("tool_input")
