@@ -2737,7 +2737,8 @@ does, continuations joined and comments and heredoc bodies dropped, splits
 them into simple commands with `shlex`, follows a plain `cd <dir>` within
 its subshell — none at all in a pipeline stage or in a list a lone `&`
 ends, which bash runs in a subshell, and one behind `&&` or `||`, or
-anywhere in an `if`, a loop, a `case` or a group behind either, to where it
+anywhere in an `if`, a loop, a `case`, a group behind either or a
+function's body, to where it
 moves and to where it may not have, judging the files in both, up to
 `MAX_PLACES` at once; one joined by `&&` to a move already followed runs
 only where that move landed and is followed alone, a loop's body is
