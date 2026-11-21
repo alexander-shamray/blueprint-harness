@@ -3726,22 +3726,21 @@ def standing_in(command, starts):
     """Every directory the shell stands in while it runs `command` from each of `starts`.
 
     `None` is a directory nothing can read, as `directory_after` returns it.
+    Sorted, so one set reached by two routes is one key in `offence`'s cache.
     """
-    reached = []
+    runs = raw_runs(command)
+    reached = set(starts)
     for cwd in starts:
         saved = []
-        if cwd not in reached:
-            reached.append(cwd)
-        for run in raw_runs(command):
+        for run in runs:
             if run == "(":
                 saved.append(cwd)
             elif run == ")":
                 cwd = saved.pop() if saved else cwd
             else:
                 cwd = directory_after(run[0], cwd, command)
-            if cwd not in reached:
-                reached.append(cwd)
-    return tuple(reached)
+            reached.add(cwd)
+    return tuple(sorted(reached, key=lambda cwd: (cwd is None, cwd or "")))
 
 
 def performed_text(command):
@@ -3754,9 +3753,12 @@ def performed_text(command):
 # rather than a verdict, which is the one direction a guard must not fail in.
 MAX_NESTING = 24
 
-# A nested script is judged from each directory its outer command stands in, so
-# the directories multiply its cost; past this many it is refused, not timed out.
+# A nested script is judged from each directory its outer command stands in, and
+# a string reached by several routes once per set of them; each multiplies the
+# cost, so past these it is refused rather than timed out.
 MAX_STANDINGS = 32
+MAX_ROUTES = 8
+ROUTES = object()
 
 
 def offence(command, depth=0, judged=None, reading=False, starts=None):
@@ -3780,6 +3782,14 @@ def offence(command, depth=0, judged=None, reading=False, starts=None):
         starts = (EVENT_CWD or os.getcwd(),)
     key = (command, starts)
     if key in judged:
+        return judged[key]
+    routes = judged.setdefault(ROUTES, {})
+    routes[command] = routes.get(command, 0) + 1
+    if routes[command] > MAX_ROUTES:
+        judged[key] = (
+            "this command reaches one script from more sets of directories "
+            "than the guard will judge it from; refusing rather than reading "
+            "part of it.")
         return judged[key]
     judged[key] = None
 

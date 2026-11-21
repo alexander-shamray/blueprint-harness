@@ -4318,6 +4318,16 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         # Without a nested script the directories cost nothing extra.
         self.admitted(f"{hops}; ls > out.md")
 
+    def test_a_nest_with_an_unreadable_cd_at_each_level_is_judged_in_time(self):
+        # Each level reaches the next by two routes, with and without its default.
+        command = "ls"
+        for _ in range(23):
+            command = f"cd ${{a:-x}} && echo $({command})"
+        self.judge(command)
+        # One string reached from more sets of directories than the cap is refused.
+        command = "cd ${a:-x}; cd {p}; cd $(q)x; bash -c \"cd ${c:-w}; cd {r}; cd $(s)y; bash -c 'ls'\""
+        self.assertIn("more sets of directories", self.assertRefused(command))
+
     def test_a_cd_nothing_can_read_leaves_a_relative_write_unjudged(self):
         self.admitted('cd "$dir" && ls > .claude/settings.json',
                       "cd $(git rev-parse --show-toplevel) && ls > .claude/settings.json",
