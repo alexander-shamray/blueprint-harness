@@ -309,8 +309,8 @@ def lists(found):
                 timing = True
             elif word not in PREFIXES:
                 break
-        # `function NAME` alone on its line opens its body on the next.
-        carried = segment.words[0] == "function" and len(segment.words) == 2
+        # A definition whose body has not opened by the end of its line, as `function NAME` alone, opens it on the next.
+        carried = defining
         segment.guarded = guarded
         if segment.words[0] in CLOSERS and frames:
             start, guarded = frames.pop()
