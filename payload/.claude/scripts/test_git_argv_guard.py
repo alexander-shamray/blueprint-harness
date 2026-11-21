@@ -4356,12 +4356,15 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                      "true | if cd .claude; then ls > settings.json; fi",
                      "for x in 1 2; do ls > settings.json; cd .claude; done",
                      "while true; do ls > settings.json; cd .claude; done",
+                     "if true; then for x in 1 2; do ls > settings.json; cd .claude; done; fi",
+                     "true && { for x in 1 2; do ls > settings.json; cd .claude; done; }",
+                     "echo x | > .claude/settings.json",
                      # A case pattern's `)` closes no subshell.
                      "( cd .claude; case $x in a) :;; esac; ls > settings.json )")
         # The runs after `cd X &&` are reached only once it moved.
         self.admitted("cd nosuch && ls > .claude/settings.json",
                       "cd notes || exit 1; cd .. && ls > out.md",
-                      "pushd -- notes && ls > settings.json")
+                      "pushd -- notes && ls > settings.json", "echo x | > out.md")
 
     def test_a_cd_nothing_can_read_leaves_a_relative_write_unjudged(self):
         self.admitted('cd "$dir" && ls > .claude/settings.json',
