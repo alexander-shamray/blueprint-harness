@@ -322,6 +322,12 @@ class ARewriteOfATrackedCrlfFileIsRefused(ACheckout):
             "[ -f absent ] && \ncd sub; sed -i 's/one/uno/' crlf.txt",
             "[ -f absent ] && # note\ncd sub; sed -i 's/one/uno/' crlf.txt",
             "[ -f absent ] &&\ncd sub; sed -i 's/one/uno/' crlf.txt",
+            # A function's body runs only when it is called, and `time -p` still opens the group behind it.
+            "f() { cd sub; }; sed -i 's/one/uno/' crlf.txt",
+            "f () { cd sub; }; sed -i 's/one/uno/' crlf.txt",
+            "function f { cd sub; }; sed -i 's/one/uno/' crlf.txt",
+            "function f() { cd sub; }; sed -i 's/one/uno/' crlf.txt",
+            "if [ -f absent ]; then time -p { true; }; cd sub; fi; sed -i 's/one/uno/' crlf.txt",
         ):
             with self.subTest(command=command):
                 self.assertRefused(command, "crlf.txt")

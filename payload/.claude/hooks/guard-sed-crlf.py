@@ -204,6 +204,8 @@ class Segment:
         # The separator that ends it, and whether it sits in a compound command that may not run it.
         self.ended = None
         self.guarded = False
+        # Whether it follows a `()`, as a function's body does: `f() { … }` defines it and runs nothing.
+        self.defines = False
         # Whether `judge` followed this command as a `cd`, `pushd` or `popd` to a placed directory, so the command
         # an `&&` joins to it runs only where it moved.
         self.moved = False
@@ -250,6 +252,7 @@ def segments(command):
                 scope = scope[:-1]
         if rest != token:
             found.append(Segment(scope))
+            found[-1].defines = "()" in token
         if "<" in rest or ">" in rest:
             # A bare number before a redirection is its descriptor.
             redirection = rest
@@ -283,12 +286,21 @@ def lists(found):
     frames = []
     start, guarded = 0, False
     for position, segment in enumerate(found):
-        # A compound may open behind another reserved word, as `then if` or `! {` does.
+        # A compound may open behind another reserved word, as `then if` or `! {` does, or behind `time` and its
+        # options. A function's body runs only when it is called, so it is guarded as a clause is.
+        defining, timing, named = segment.defines, False, False
         for word in segment.words:
-            if word in OPENERS:
+            if named:
+                named = False
+            elif word == "function":
+                defining = named = True
+            elif word in OPENERS:
                 frames.append((start, guarded))
-                guarded = guarded or word != "{" or segment.joined is not None
-            elif word not in PREFIXES and word != "time":
+                guarded = guarded or defining or word != "{" or segment.joined is not None
+                defining = False
+            elif word == "time" or timing and word.startswith("-"):
+                timing = True
+            elif word not in PREFIXES:
                 break
         segment.guarded = guarded
         if segment.words[0] in CLOSERS and frames:
