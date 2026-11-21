@@ -4321,6 +4321,9 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         # So is a command whose writes would be judged from too many directories in all.
         writes = "; ".join(f"cp x y{n}" for n in range(300))
         self.assertIn("changes directory more often", self.assertRefused(f"cd a; cd b; cd c; {writes}"))
+        # A loop's second walk carries no more than saturates it, however many subshells cd.
+        subshells = ";".join(f"(cd a{n};:)" for n in range(6000))
+        self.assertIn("changes directory more often", self.assertRefused(f"{subshells}; echo do; ls > out.md"))
         # A long `&&` chain saturates rather than growing what its skipped flows reach.
         chain = " && ".join(f"cd d{n}" for n in range(3000))
         self.assertIn("changes directory more often", self.assertRefused(f"{chain} && ls > out.md"))
