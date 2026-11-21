@@ -3714,7 +3714,11 @@ def stances(command, starts):
         # A loop's next pass starts where its body's last left it, so every run is
         # also judged from every directory the first walk reached; a loop word
         # anywhere in a run counts, since a reserved word may lead it.
-        walk = list(_stances(command, starts, frozenset().union(*(seen for _, seen in walk))))
+        reached = frozenset().union(*(seen for _, seen in walk))
+        # More than the cap only has to saturate the second walk, so no more is carried.
+        if len(reached) > MAX_STANDINGS:
+            reached = frozenset(sorted(reached, key=lambda cwd: (cwd is None, cwd or ""))[:MAX_STANDINGS + 1])
+        walk = list(_stances(command, starts, reached))
     yield from walk
 
 
