@@ -653,11 +653,16 @@ def place(text, wave, group, issue, task=None, labels=None, depends=None, model=
 
 def unheld(before, after):
     """Refuse a Remaining or Tracking row of `after` in a group an In progress row holds, unless it carried that
-    group in `before`: a re-cut never reuses a held letter and number, which the night reads as one claim."""
+    group in `before`: a re-cut never reuses a held letter and number, which the night reads as one claim.
+
+    An owed row's key is its task's wording, which a rewrite may change, so an owed row is matched by its group."""
+    def mark(row):
+        return "owed" if row.number is None else row.key
+
     held = {r.group for r in after.in_progress if r.group}
-    carried = {(r.key, r.group) for r in before.remaining + before.tracking + before.in_progress}
+    carried = {(mark(r), r.group) for r in before.remaining + before.tracking + before.in_progress}
     for row in after.remaining + after.tracking:
-        if row.group in held and (row.key, row.group) not in carried:
+        if row.group in held and (mark(row), row.group) not in carried:
             raise Refusal(f"{row.group} is held by an In progress row; a re-cut never reuses its letter and number")
 
 
@@ -668,10 +673,10 @@ def _checked(text, before=None):
     given the list `before` it, where it puts a row in a group In progress holds."""
     try:
         groups(parse_tasks(text))
-        if before is not None:
-            unheld(parse_tasks(before), parse_tasks(text))
     except Refusal as refusal:
         raise Refusal(f"the list this write leaves is one board refuses: {refusal}") from None
+    if before is not None:
+        unheld(parse_tasks(before), parse_tasks(text))
     return text
 
 
