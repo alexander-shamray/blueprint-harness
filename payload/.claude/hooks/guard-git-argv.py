@@ -3564,13 +3564,17 @@ def writing_verb_offence(words, cwd, command):
     if program_name(leading_command([word or "" for word in literals])) in (
             READING_COMMANDS | DATA_ONLY_COMMANDS):
         return None
+    standing, past = cwd, 0
     for index, literal in enumerate(literals):
-        if literal is None or ASSIGNMENT.match(words[index]):
+        if literal in FIND_EXECUTORS or literal in (";", "+"):
+            # Each command `find -exec` runs starts from find's own directory, whatever an `env -C` before it moved.
+            cwd = standing
+        if literal is None or ASSIGNMENT.match(words[index]) or index < past:
             continue
         verb = program_name(literal)
         if verb == "env":
-            # `env -C DIR` runs what follows it from DIR.
-            cwd = env_directory(words, literals, index, cwd, command)
+            # `env -C DIR` runs what follows it from DIR; the words its options took are not commands.
+            cwd, past = env_directory(words, literals, index, cwd, command)
         if verb == "find":
             refusal = find_offence(words[index + 1:], cwd, command)
             if refusal is not None:
@@ -3597,13 +3601,14 @@ ENV_LONG = ("argv0", "block-signal", "chdir", "debug", "default-signal", "help",
 
 
 def env_directory(words, literals, index, cwd, command):
-    """Where the `env` at `index` runs its command from: `cwd` moved by each `-C`/`--chdir`, `None` if unreadable."""
+    """`(directory, position)` for the `env` at `index`: where it runs its command from, `cwd` moved by each
+    `-C`/`--chdir` or `None` if unreadable, and the position of the first word past its options."""
     position = index + 1
     while position < len(literals):
         literal = literals[position]
         if literal is None:
             # An option spelled with an expansion may be a `-C` nobody can read.
-            return None if words[position].lstrip("\"'").startswith("-") else cwd
+            return (None if words[position].lstrip("\"'").startswith("-") else cwd), position
         if literal == "--" or not literal.startswith("-") or literal == "-":
             break
         position += 1
@@ -3619,6 +3624,9 @@ def env_directory(words, literals, index, cwd, command):
                 value = shlex.quote(value)
             if long == "chdir":
                 cwd = None if value is None or cwd is None else written_path(value, cwd, command)
+            elif long == "split-string":
+                # The string is split and read as more options, a `-C` among them, so the directory is unknown.
+                cwd = None
             continue
         for at, letter in enumerate(literal[1:], 1):
             if letter not in ENV_VALUED:
@@ -3630,8 +3638,10 @@ def env_directory(words, literals, index, cwd, command):
                 value, position = (words[position] if position < len(words) else None), position + 1
             if letter == "C":
                 cwd = None if value is None or cwd is None else written_path(value, cwd, command)
+            elif letter == "S":
+                cwd = None
             break
-    return cwd
+    return cwd, position
 
 
 def _git_operands(words, literals, value_options):
@@ -3897,8 +3907,18 @@ def standing_in(command, starts):
     Sorted, so one set reached by two routes is one key in `offence`'s cache.
     """
     reached = set(starts)
-    for _, directories in stances(command, starts):
+    for run, directories in stances(command, starts):
         reached |= directories
+        if run is None:
+            continue
+        # A script behind `env -C DIR` runs from DIR.
+        words, past = run[0], 0
+        literals = [target_literal(word) for word in words]
+        for index, literal in enumerate(literals):
+            if index >= past and literal is not None and program_name(literal) == "env":
+                moved = [env_directory(words, literals, index, cwd, command) for cwd in directories]
+                reached |= {directory for directory, _ in moved}
+                past = max((position for _, position in moved), default=past)
     return tuple(sorted(reached, key=lambda cwd: (cwd is None, cwd or "")))
 
 

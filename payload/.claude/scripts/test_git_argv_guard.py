@@ -4660,6 +4660,12 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
             "env -u X -C .claude X=1 cp /tmp/a settings.json",
             "env -C notes -C ../.claude cp /tmp/a settings.json",
             "sudo env -C .claude cp /tmp/a settings.json",
+            "env -u env -C .claude cp /tmp/a settings.json",
+            # Each `-exec` runs from find's own directory, whatever an `env -C` in an earlier one moved.
+            "find . -exec env -C notes true \\; -exec cp /tmp/a .claude/settings.json \\;",
+            # A script behind `env -C` runs from its directory too.
+            "env -C .claude bash -c 'cp /tmp/a settings.json'",
+            "env -C .claude sh -c 'echo x > settings.json'",
         )
         # The same operand from where the shell stands, and the options that take a value but move nothing.
         self.admitted(
@@ -4670,7 +4676,7 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
             "env -- cp /tmp/a settings.json",
         )
         # A directory nobody can read leaves only an absolute operand placed.
-        self.admitted('env -C "$D" cp /tmp/a settings.json')
+        self.admitted('env -C "$D" cp /tmp/a settings.json', "env -S'-C .claude' cp /tmp/a settings.json")
         self.refused(f'env -C "$D" cp /tmp/a {self.root}/.claude/settings.json')
 
     def test_a_verbs_destination_is_found_through_its_options(self):

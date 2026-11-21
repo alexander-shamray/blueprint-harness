@@ -1386,10 +1386,13 @@ loop can skip, one in a pipeline stage or backgrounded, `pushd -n`, or one under
 `!`, leaves the directory before it possible too, and a relative write is judged
 from every directory the shell may stand in; only the runs after `cd X &&` are
 judged from `X` alone. A writing verb behind `env -C DIR` or `--chdir` is
-judged from `DIR`, and from no directory at all where `DIR` cannot be read,
-so only an absolute operand is placed. In a command with a loop every run is
-also judged from every directory one walk of it reaches, so a relative `cd`
-the loop repeats is followed once, not on each pass, and that is a residual.
+judged from `DIR`, and a script behind one from `DIR` as well; where `DIR`
+cannot be read, or `-S` may hold it, the verb is judged from no directory
+at all, so only an absolute operand is placed. Each `find -exec` command
+starts again from find's own directory. In a command with a loop every run
+is also judged from every directory one walk of it reaches, so a relative
+`cd` the loop repeats is followed once, not on each pass, and that is a
+residual.
 A script a shell, an evaluator or a substitution runs is judged from every
 directory its outer command stands in, so
 `cd .claude && bash -c 'ls > settings.json'` is refused, and so is the rarer
