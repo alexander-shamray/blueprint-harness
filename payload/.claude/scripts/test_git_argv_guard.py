@@ -4321,6 +4321,9 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
         # So is a command whose writes would be judged from too many directories in all.
         writes = "; ".join(f"cp x y{n}" for n in range(300))
         self.assertIn("changes directory more often", self.assertRefused(f"cd a; cd b; cd c; {writes}"))
+        # A long `&&` chain saturates rather than growing what its skipped flows reach.
+        chain = " && ".join(f"cd d{n}" for n in range(3000))
+        self.assertIn("changes directory more often", self.assertRefused(f"{chain} && ls > out.md"))
 
     def test_a_nest_with_an_unreadable_cd_at_each_level_is_judged_in_time(self):
         # Each level reaches the next by two routes, with and without its default.
@@ -4347,6 +4350,12 @@ class AWriteIntoWhatTheTargetDenies(unittest.TestCase):
                      "cd .claude; if false; then cd ..; fi; ls > settings.json",
                      "cd .claude; for x in; do cd ..; done; ls > settings.json",
                      "cd .claude && true || cd ..; ls > settings.json",
+                     "true || cd notes && ls > .claude/settings.json",
+                     "cd .claude && true || cd .. && ls > settings.json",
+                     "true | { cd .claude; ls > settings.json; }",
+                     "true | if cd .claude; then ls > settings.json; fi",
+                     "for x in 1 2; do ls > settings.json; cd .claude; done",
+                     "while true; do ls > settings.json; cd .claude; done",
                      # A case pattern's `)` closes no subshell.
                      "( cd .claude; case $x in a) :;; esac; ls > settings.json )")
         # The runs after `cd X &&` are reached only once it moved.

@@ -3700,17 +3700,48 @@ def directory_after(words, cwd, command):
     return written_path(operands[0] if operands else "~", cwd, command)
 
 
+LOOP_WORDS = frozenset({"for", "select", "until", "while"})
+
+
 def stances(command, starts):
     """`(run, directories)` for each run, then `(None, directories)` at the end.
 
     A failed, skipped or subshell `cd` moves nothing, so the directories before
     it stay possible but after `cd X &&`; `None` is one nothing can read.
     """
+    walk = list(_stances(command, starts, frozenset()))
+    if any(run and (target_literal(run[0][0]) if run[0] else None) in LOOP_WORDS for run, _ in walk):
+        # A loop's next pass starts where its body's last left it, so every run is
+        # also judged from every directory the first walk reached.
+        walk = list(_stances(command, starts, frozenset().union(*(seen for _, seen in walk))))
+    yield from walk
+
+
+def _stances(command, starts, also):
+    """`stances` for one walk, each set joined with `also`."""
     here, past_or, past_and = set(starts), set(), set()
-    stack, items = [], raw_runs(command)
+    stack, items, saturated = [], raw_runs(command), False
+
+    def settle(after, success, failure):
+        nonlocal here, past_or, past_and
+        if after == "&&":
+            past_or, here = past_or | failure, success
+        elif after == "||":
+            past_and, here = past_and | success, failure
+        else:
+            here = success | failure
+
     for position, item in enumerate(items):
         before = items[position - 1] if position else None
         after = items[position + 1] if position + 1 < len(items) else None
+        everywhere = here | past_or | past_and | also
+        # Past the cap nothing is grown, since every relative cd could double the
+        # set; each run is judged from more than the cap, so a write is refused.
+        saturated = saturated or len(everywhere) > MAX_STANDINGS
+        if saturated:
+            if not isinstance(item, str):
+                yield item, frozenset(everywhere)
+            continue
         if item == "(":
             stack.append(("(", here, past_or, past_and))
             past_or, past_and = set(), set()
@@ -3719,6 +3750,7 @@ def stances(command, starts):
             # A `case` pattern's `)` closes no subshell.
             if stack and stack[-1][0] == "(":
                 _, here, past_or, past_and = stack.pop()
+                settle(after, here, here)
             continue
         if item == "&&":
             here, past_and = here | past_and, set()
@@ -3729,7 +3761,7 @@ def stances(command, starts):
         if isinstance(item, str):
             here, past_or, past_and = here | past_or | past_and, set(), set()
             continue
-        yield item, frozenset(here)
+        yield item, frozenset(here | also)
         words = item[0]
         literals = [target_literal(word) or "" for word in words]
         lead = leading_command(literals)
@@ -3737,21 +3769,18 @@ def stances(command, starts):
             stack.append(("case",))
         elif lead == "esac" and stack and stack[-1][0] == "case":
             stack.pop()
-        # Past the cap the set is not grown, since every relative cd could double
-        # it, and a write or a script judged from it is refused instead.
-        if (len(here) > MAX_STANDINGS or before in ("|", "|&") or after in ("|", "|&", "&")
-                or not any(program_name(literal) in DIRECTORY_CHANGES for literal in literals)):
+        # A cd that is a whole pipeline stage, or backgrounded, moves a subshell.
+        alone = (before in ("|", "|&") and literals[0] not in COMMAND_PREFIX_WORDS
+                 or after in ("|", "|&", "&"))
+        if alone or not any(program_name(literal) in DIRECTORY_CHANGES for literal in literals):
+            settle(after, here, here)
             continue
         moved = {directory_after(words, cwd, command) for cwd in here}
         if "!" in literals[:literals.index(lead) if lead in literals else None]:
-            here = here | moved
-        elif after == "&&":
-            past_or, here = past_or | here, moved
-        elif after == "||":
-            past_and = past_and | moved
+            settle(after, here | moved, here | moved)
         else:
-            here = here | moved
-    yield None, frozenset(here | past_or | past_and)
+            settle(after, moved, here)
+    yield None, frozenset(here | past_or | past_and | also)
 
 
 def may_write(words, written):

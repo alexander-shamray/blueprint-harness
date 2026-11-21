@@ -1381,12 +1381,15 @@ judged, and a literal `cd` is followed, through a subshell's end as well. A
 loop can skip, one in a pipeline stage or backgrounded, `pushd -n`, or one under
 `!`, leaves the directory before it possible too, and a relative write is judged
 from every directory the shell may stand in; only the runs after `cd X &&` are
-judged from `X` alone. A script a shell, an evaluator or a substitution runs is
-judged from every directory its outer command stands in, so
+judged from `X` alone. In a command with a loop every run is also judged from
+every directory one walk of it reaches, so a relative `cd` the loop repeats is
+followed once, not on each pass, and that is a residual. A script a shell, an
+evaluator or a substitution runs is judged from every directory its outer
+command stands in, so
 `cd .claude && bash -c 'ls > settings.json'` is refused, and so is the rarer
 command that would place the write there only from a point it never runs at.
-Past `MAX_STANDINGS` directories, or `MAX_EXTRA_JUDGEMENTS` judgements beyond
-one a run, a write or a script is refused rather than judged.
+Past `MAX_STANDINGS` directories a write or a script is refused rather than
+judged, and past `MAX_EXTRA_JUDGEMENTS` judgements beyond one a run, a write.
 
 **The same check holds three more writes, each narrowed by what agents type.**
 `find` is judged by what it writes: `-delete` as `rm -r` from each start, so
