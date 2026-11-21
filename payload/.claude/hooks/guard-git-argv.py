@@ -3687,13 +3687,12 @@ def directory_after(words, cwd, command):
     return written_path(operands[0] if operands else "~", cwd, command)
 
 
-def write_offence(command):
-    """The reason to refuse a write in `command`, or `None`.
+def write_offence(command, cwd):
+    """The reason to refuse a write in `command` run from `cwd`, or `None`.
 
     A relative target is placed by following each literal `cd`, and after a
     `cd` nothing can read, only an absolute target is judged.
     """
-    cwd = EVENT_CWD or os.getcwd()
     saved = []
     for run in raw_runs(command):
         if run == "(":
@@ -3723,13 +3722,44 @@ def write_offence(command):
     return None
 
 
+def standing_in(command, starts):
+    """Every directory the shell stands in while it runs `command` from each of `starts`.
+
+    `None` is a directory nothing can read, as `directory_after` returns it.
+    """
+    reached = []
+    for cwd in starts:
+        saved = []
+        if cwd not in reached:
+            reached.append(cwd)
+        for run in raw_runs(command):
+            if run == "(":
+                saved.append(cwd)
+            elif run == ")":
+                cwd = saved.pop() if saved else cwd
+            else:
+                cwd = directory_after(run[0], cwd, command)
+            if cwd not in reached:
+                reached.append(cwd)
+    return tuple(reached)
+
+
+def performed_text(command):
+    """What bash performs of `command`: no heredoc body, no comment, no continuation."""
+    return separate_lines(join_continuations(strip_comments(strip_heredocs(command))))
+
+
 # Substitutions and evaluators both recurse, and a crafted nest of either would
 # otherwise reach Python's own limit — where the hook dies with a traceback
 # rather than a verdict, which is the one direction a guard must not fail in.
 MAX_NESTING = 24
 
+# A nested script is judged from each directory its outer command stands in, so
+# the directories multiply its cost; past this many it is refused, not timed out.
+MAX_STANDINGS = 32
 
-def offence(command, depth=0, judged=None, reading=False):
+
+def offence(command, depth=0, judged=None, reading=False, starts=None):
     """The reason to refuse `command`, or None to allow it.
 
     `judged` is a verdict cache, and it is what keeps the cost finite. Each
@@ -3746,16 +3776,19 @@ def offence(command, depth=0, judged=None, reading=False):
     """
     if judged is None:
         judged = {}
-    if command in judged:
-        return judged[command]
-    judged[command] = None
+    if starts is None:
+        starts = (EVENT_CWD or os.getcwd(),)
+    key = (command, starts)
+    if key in judged:
+        return judged[key]
+    judged[key] = None
 
-    verdict = _offence(command, depth, judged, reading)
-    judged[command] = verdict
+    verdict = _offence(command, depth, judged, reading, starts)
+    judged[key] = verdict
     return verdict
 
 
-def _offence(command, depth, judged, reading):
+def _offence(command, depth, judged, reading, starts):
     """`offence`'s body, called only through its cache."""
     if depth > MAX_NESTING:
         return (
@@ -3768,6 +3801,25 @@ def _offence(command, depth, judged, reading):
             "a heredoc names a delimiter this guard cannot decode, so it "
             "cannot tell where the body ends or which lines after it are "
             "commands; refusing rather than reading part of it."
+        )
+
+    # A nested script runs where an earlier `cd` left the shell. Which run holds
+    # it is not tracked, so it is judged from every directory this command
+    # stands in, `starts` among them: refusing is the direction to be wrong in.
+    nested = []
+
+    def nested_starts():
+        if not nested:
+            nested.append(standing_in(performed_text(command), starts))
+        return nested[0]
+
+    def too_many_standings():
+        if len(nested_starts()) <= MAX_STANDINGS:
+            return None
+        return (
+            "this command changes directory more often than the guard will "
+            "follow ahead of a script it runs, and that script is judged from "
+            "each; refusing rather than reading part of it."
         )
 
 
@@ -3786,7 +3838,7 @@ def _offence(command, depth, judged, reading):
     ):
         variant = outside_verbatim(command, rewrite)
         if variant != command:
-            refusal = offence(variant, depth + 1, judged, reading=True)
+            refusal = offence(variant, depth + 1, judged, reading=True, starts=starts)
             if refusal is not None:
                 return f"with {description}: {refusal}"
 
@@ -3810,7 +3862,7 @@ def _offence(command, depth, judged, reading):
                 "be read; refusing rather than judging the source instead of "
                 "the result." + STDIN_DATA_ROUTE
             )
-        refusal = offence(script, depth + 1, judged)
+        refusal = too_many_standings() or offence(script, depth + 1, judged, starts=nested_starts())
         if refusal is not None:
             return f"in a script handed to a shell on stdin: {refusal}" + STDIN_DATA_ROUTE
 
@@ -3821,7 +3873,7 @@ def _offence(command, depth, judged, reading):
         # A heredoc body arrives with `quotes` false and is not a command line.
         text = join_continuations(text, quotes=quotes)
         for inner in substitutions(text, quotes=quotes):
-            refusal = offence(inner, depth + 1, judged)
+            refusal = too_many_standings() or offence(inner, depth + 1, judged, starts=nested_starts())
             if refusal is not None:
                 return f"inside a command substitution: {refusal}"
 
@@ -3832,8 +3884,7 @@ def _offence(command, depth, judged, reading):
     # body or a comment is not one bash performs. `join_continuations` sits
     # after `strip_comments` because a backslash at the end of a comment
     # continues nothing — bash ends a comment at the newline.
-    performed = separate_lines(
-        join_continuations(strip_comments(strip_heredocs(command))))
+    performed = performed_text(command)
     resolved = strip_redirections(performed)
 
     # The check and the code that acts on it read the same string: on the raw
@@ -3896,7 +3947,7 @@ def _offence(command, depth, judged, reading):
         )
 
     for script in evaluated_scripts(tokens):
-        refusal = offence(script, depth + 1, judged)
+        refusal = too_many_standings() or offence(script, depth + 1, judged, starts=nested_starts())
         if refusal is not None:
             return f"inside a shell evaluator: {refusal}"
 
@@ -3996,7 +4047,13 @@ def _offence(command, depth, judged, reading):
                         "express it."
                     )
     # A reading of an expansion hides a program; it names no file bash opens.
-    return None if reading else write_offence(performed)
+    if reading:
+        return None
+    for cwd in starts:
+        refusal = write_offence(performed, cwd)
+        if refusal is not None:
+            return refusal
+    return None
 
 
 # Every scan here must finish inside the hook's timeout, because a hook that
