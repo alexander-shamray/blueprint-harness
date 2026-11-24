@@ -876,21 +876,22 @@ class ReviewDiffTests(SyncCase):
         # Resolving both sides follows the link, so the .diff would land wherever it points, outside the checkout.
         self.start()
         for linked in ("artifacts", "artifacts/review"):
-            with self.subTest(linked=linked):
-                shutil.rmtree(self.root / "artifacts", ignore_errors=True)
-                elsewhere = Path(tempfile.mkdtemp())
-                self.addCleanup(shutil.rmtree, elsewhere, ignore_errors=True)
+            with self.subTest(linked=linked), tempfile.TemporaryDirectory() as away:
+                if (self.root / "artifacts").exists():
+                    shutil.rmtree(self.root / "artifacts")
+                elsewhere, link = Path(away), self.root / linked
                 if linked == "artifacts":
                     (elsewhere / "review").mkdir()
                 else:
                     (self.root / "artifacts").mkdir()
-                link_directory(elsewhere, self.root / linked)
-                code, _, err = self.cli("review-diff", "7", self.out_path())
-                self.assertEqual(2, code, err)
-                self.assertIn("is one", err)
-                self.assertEqual([], [p.name for p in elsewhere.rglob("*.diff")])
-                link = self.root / linked
-                os.unlink(link) if os.path.islink(link) else os.rmdir(link)
+                link_directory(elsewhere, link)
+                try:
+                    code, _, err = self.cli("review-diff", "7", self.out_path())
+                    self.assertEqual(2, code, err)
+                    self.assertIn("is one", err)
+                    self.assertEqual([], [p.name for p in elsewhere.rglob("*.diff")])
+                finally:
+                    os.unlink(link) if os.path.islink(link) else os.rmdir(link)
 
     def test_review_diff_writes_nothing_when_a_read_fails(self):
         self.start()
