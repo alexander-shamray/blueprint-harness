@@ -136,9 +136,25 @@ def run_directory(run):
     if not isinstance(run, str) or not RUN_NAME.fullmatch(run):
         raise Refusal(f"run name {run!r} is not a yyyymmdd-hhmmss timestamp")
     directory = ROOT / "artifacts" / "dispatch" / run
+    link = linked_below(ROOT, Path("artifacts") / "dispatch" / run)
+    if link is not None:
+        raise Refusal(f"the run's directory is read only where no part of it is a link, and {link} is one")
     if not (directory / "state.json").is_file():
         raise Refusal(f"{directory / 'state.json'} is missing; the run was never started")
     return directory
+
+
+def linked_below(root, relative):
+    """The first directory of `relative` under `root`, itself included, that is a symlink or a junction, or None.
+
+    Resolving both sides of a containment check follows such a link, so a linked artifacts/ would move the boundary
+    the check holds; this is asked of each part before the check is trusted."""
+    path = Path(root)
+    for part in Path(relative).parts:
+        path = path / part
+        if os.path.islink(path) or getattr(os.path, "isjunction", lambda _: False)(path):
+            return path
+    return None
 
 
 def run_file(path, directory, option, limit):
