@@ -654,12 +654,16 @@ the settings timeout, and on a stall, or any non-zero exit, prints one
 `additionalContext` line naming the hook that did not run. It leaves with 0
 either way, since exit 2 under these events blocks the prompt or the call,
 and it writes the hook's output to a file and not a pipe, so a launcher's
-orphaned child cannot hold it past the bound. **It wraps the two hints and
-no other hook**: the guards fail closed on their own and carry no timeout,
-and `index-mcp-root` and `refresh-index` print nothing a session reads as
-advice. Those two run under `.claude/hooks/index-hook.sh` instead, which
-takes the interpreter as this wrapper does and leaves the same way, with 0
-and a line naming the hook on any non-zero exit, but holds no bound: the
+orphaned child cannot hold it past the bound. It takes the hook's name from
+its argument and hands it to `runpy.run_path` under `.claude/hooks/`, so it
+runs those two names alone, a closed set as `index-hook.sh`'s is: any other,
+a path included, exits 0 with a line on stderr and starts nothing. **It wraps
+the two hints and no other hook**: the guards fail closed on their own and
+carry no timeout, and `index-mcp-root` and `refresh-index` print nothing a
+session reads as advice. Those two run under `.claude/hooks/index-hook.sh`
+instead, which takes the interpreter as this wrapper does and leaves the same
+way, with 0 and a line naming the hook on any non-zero exit, but holds no
+bound: the
 root check reads two paths and asks `index_openable` of each, and the
 refresh hands its work to a detached worker inside a 3 s git budget, so
 once started neither waits long. Its
@@ -682,8 +686,9 @@ timeout. A `shell` field with an invocation that needs no `bash` would
 close the second, and is not taken: it would run a hint hook the wrapper
 cannot bound.
 `test_hint_bound.py` runs the wrapper against a launcher that never answers,
-one that fails and one that answers, and holds `settings.json` to routing
-both hints through it with a timeout above the bound. `test_index_hook.py`
+one that fails, one that answers and a name outside its set, and holds
+`settings.json` to routing both hints through it with a timeout above the
+bound. `test_index_hook.py`
 runs each registered root check and refresh with no `py` on `PATH`, holds
 them to the launcher under their own events, and `test_run_guard.py` holds
 no hook command to naming `py -3.12` itself.
