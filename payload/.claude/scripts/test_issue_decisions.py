@@ -16,6 +16,15 @@ from unittest import mock
 
 import issue_decisions as ID
 
+
+def link_directory(target, linkpath):
+    """A directory link: a symlink, or a junction where Windows refuses this process one."""
+    try:
+        os.symlink(target, linkpath, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        from _winapi import CreateJunction
+        CreateJunction(str(target), str(linkpath))
+
 RUN = "20261101-220000"
 RECORDER = """\
 import json
@@ -361,6 +370,24 @@ class Cli(StubGh):
                                             "--run", run])
                 self.assertEqual((2, 2), (code, record[0]))
                 self.assertEqual(self.calls(), [])
+
+    def test_a_run_reached_through_a_linked_directory_is_refused_and_posts_nothing(self):
+        # Resolving both sides follows the link, so the file it reaches would read as the run's own.
+        for linked in ("artifacts", "artifacts/dispatch", f"artifacts/dispatch/{RUN}"):
+            with self.subTest(linked=linked):
+                elsewhere = Path(tempfile.mkdtemp())
+                self.addCleanup(__import__("shutil").rmtree, elsewhere, ignore_errors=True)
+                moved = elsewhere / "moved"
+                os.rename(self.dir / linked, moved)
+                link_directory(moved, self.dir / linked)
+                comment = str(self.run_path / "c.txt")
+                Path(comment).write_text("ghp_notarealtoken", encoding="utf-8")
+                code, err = self.run_main(["comment", "9", "--comment-file", comment, "--run", RUN])
+                self.assertEqual(code, 2)
+                self.assertIn("is one", err)
+                self.assertEqual(self.calls(), [])
+                os.unlink(self.dir / linked) if os.path.islink(self.dir / linked) else os.rmdir(self.dir / linked)
+                os.rename(moved, self.dir / linked)
 
     def test_record_reads_its_question_and_answer_only_from_the_run(self):
         # Both reach a public issue body, so a one-line secret elsewhere on disk is never posted as an answer.
