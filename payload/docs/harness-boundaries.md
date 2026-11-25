@@ -237,8 +237,8 @@ guard misses, is unmeasured, and so is a command that computes its path.
 `Bash(bash .claude/skills/codebase-index/scripts/cbx search:*)` matches the
 typed string; the shell still runs `$(…)` and a second command on that line.
 `.claude/hooks/guard-index-argv.py` is the argv-level guard: substitutions,
-extra command runs, write redirections, and `graph` / `clean` / `init` /
-`watch` are refused.
+extra command runs, write redirections but one to a bare `/dev/null`, and
+`graph` / `clean` / `init` / `watch` are refused.
 The `cbx` wrapper is the other half — whitelist and
 `CBX_NO_SKILL_AUTO_UPDATE=1` — and is not a substitute for the hook.
 `cbx.ps1` runs in its caller's process, so the two variables it sets
