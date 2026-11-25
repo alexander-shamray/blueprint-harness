@@ -258,8 +258,9 @@ harness issue, and a target-local one into the target's own one; the merge goes
 on, and a `nit` is not filed. The harness filer only creates on a first filing:
 a re-taken sync meets the issue its first round filed, so it first searches the
 open issues for that exact title, with every call under a timeout, and comments
-on a match, and a failed search files nothing. Its area is the finding's tree,
-as `docs/harness/working-rules.md` maps it: `.claude/` is `harness`, other prose
+on a match the repository owner opened, and a failed search files nothing. Its
+area is the finding's tree, as `docs/harness/working-rules.md` maps it:
+`.claude/` is `harness`, other prose
 `documentation`, the rest `code`, with `test` beside `harness` or `code` for a
 suite. A target-local low goes through `gh-issue-hand.sh`, which always creates,
 so a re-take reads `gh-issue-list.sh` first, and where an open issue already
