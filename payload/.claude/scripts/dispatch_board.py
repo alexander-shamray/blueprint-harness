@@ -587,6 +587,11 @@ def _place(lines, new_line, name="Remaining"):
 
 
 def move_to_in_progress(text, group, branch, worktree, today):
+    # `start_issue`'s checks: a pipe, a line break or a backtick in either cell would split or misread the row.
+    if not BRANCH_NAME.fullmatch(branch):
+        raise Refusal(f"branch {branch!r} is not a branch name")
+    if "`" in _one_line(worktree, "worktree"):
+        raise Refusal(f"worktree {worktree!r} holds a backtick")
     lines = _lines(text)
     cr = _cr(lines)
     _, _, rows, _ = _table(lines, _scan(lines), "Remaining")
@@ -599,7 +604,7 @@ def move_to_in_progress(text, group, branch, worktree, today):
            for r in group.rows]
     _remove(lines, "Remaining", {r.key for r in group.rows})
     _append(lines, "In progress", new)
-    return "\n".join(lines)
+    return _checked("\n".join(lines), text)
 
 
 def delete_in_progress(text, keys):

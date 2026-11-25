@@ -786,6 +786,13 @@ class WriteTests(unittest.TestCase):
         placed = db.place(db.delete_in_progress(moved, {"#1700"}), 1, "Z1", 1701)
         self.assertEqual([1701], [r.number for r in db.parse_tasks(placed).remaining])
 
+    def test_a_move_refuses_a_branch_or_worktree_start_issue_refuses(self):
+        for branch, worktree, why in (("fix/a|b", "w", "is not a branch name"), ("-x", "w", "is not a branch name"),
+                                      ("b", "w|x", "without a pipe"), ("b", " ", "without a pipe"),
+                                      ("b", "w`x", "holds a backtick")):
+            with self.subTest(branch=branch, worktree=worktree), self.assertRaisesRegex(db.Refusal, why):
+                db.move_to_in_progress(FIXTURE, self.s1(), branch, worktree, TODAY)
+
     def test_a_row_not_where_it_should_be_is_refused(self):
         group = self.s1()
         moved = db.move_to_in_progress(FIXTURE, group, "b", "w", TODAY)
@@ -983,6 +990,22 @@ class WriteTests(unittest.TestCase):
         self.assertEqual([], db.pick([m2], {"M2": (True, "")}, {"M2": claim}, [], [held], 2))
         free = db.pick([m2], {"M2": (True, "")}, {"M2": claim}, [], [], 2)
         self.assertEqual(["M2"], free)
+
+    def test_the_cli_move_refuses_a_branch_or_worktree_that_would_split_the_row(self):
+        # `start_issue` refuses these spellings; a move wrote them into the row as given.
+        self.start()
+        self.write(FIXTURE)
+        for option, value, why in (("--branch", "fix/a|b", "is not a branch name"),
+                                   ("--branch", "fix/a`b", "is not a branch name"),
+                                   ("--branch", "fix/a\nb", "is not a branch name"),
+                                   ("--worktree", "wt | x", "is not one line of text without a pipe"),
+                                   ("--worktree", "wt\n| 9 | S9 |", "is not one line of text without a pipe"),
+                                   ("--worktree", "wt`, `fix/other", "holds a backtick")):
+            with self.subTest(option=option, value=value):
+                code, err = self.cli("move", "S1", option, value)
+                self.assertEqual(2, code)
+                self.assertIn(why, err)
+                self.assertEqual(FIXTURE, self.read(), "a refused move writes nothing")
 
     def test_the_cli_moves_finishes_and_returns_a_group(self):
         self.start()
