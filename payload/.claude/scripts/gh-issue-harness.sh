@@ -66,15 +66,21 @@ limit=1000
 # anyone can open one under a sync row's predictable title.
 owner="${repo%%/*}"
 open=$(bounded 60 gh issue list --repo "$repo" --state open --limit "$limit" \
-  --json number,author,title --jq '.[] | "\(.number)\t\(.author.login // "")\t\(.title)"') ||
+  --json number,author,title --jq '.[] | [.number, (.author.login // ""), .title] | @tsv') ||
   { echo "cannot search the harness's open issues" >&2; exit 3; }
 if [ -n "$open" ] && [ "$(printf '%s\n' "$open" | wc -l)" -ge "$limit" ]; then
   echo "cannot search the harness's open issues: $limit or more are open, so the list may hide a match" >&2
   exit 3
 fi
-while IFS=$'\t' read -r number author existing; do
-  existing="${existing%$'\r'}"
-  if [ "$existing" = "$title" ] && [ "$author" = "$owner" ] && [[ "$number" =~ ^[0-9]+$ ]]; then
+# @tsv escapes a tab, line break or backslash in a title, so no title text can
+# make a row of its own; the title sought is escaped the same way to compare.
+wanted="${title//\\/\\\\}"; wanted="${wanted//$'\t'/\\t}"
+while IFS= read -r row; do
+  row="${row%$'\r'}"
+  number="${row%%$'\t'*}"; rest="${row#*$'\t'}"
+  author="${rest%%$'\t'*}"; existing="${rest#*$'\t'}"
+  [ "$rest" != "$row" ] && [ "$existing" != "$rest" ] && [ -n "$author" ] || continue
+  if [ "$existing" = "$wanted" ] && [ "$author" = "$owner" ] && [[ "$number" =~ ^[0-9]+$ ]]; then
     printf '%s' "$body" | bounded 60 gh issue comment "$number" --repo "$repo" --body-file -
     exit 0
   fi
