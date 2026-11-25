@@ -1185,6 +1185,25 @@ class ResultCommandTests(InRoot):
         self.assertFalse(lines[0].startswith("S1: merged-claimed"), lines)
         self.assertFalse((state_dir() / "S1.json").exists(), "nothing was copied through the link")
 
+    def test_a_link_at_the_copys_name_is_replaced_not_written_through(self):
+        outside = self.root / "outside.json"
+        outside.write_text("untouched", encoding="utf-8")
+        self.absorb(None)
+        record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE, crashes=0)
+        target = Path(WORKTREE) / "artifacts" / "dispatch" / RUN / "S1.json"
+        target.write_text(json.dumps(MERGED_S1), encoding="utf-8")
+        try:
+            os.symlink(outside, state_dir() / "S1.json")
+        except (OSError, NotImplementedError) as refused:
+            skip_only_without_links(refused, "symbolic link")
+        (state_dir() / "S1.session.json").write_text(json.dumps(
+            {"exit": 0, "started": (NOW + timedelta(minutes=1)).isoformat(), "ended": NOW.isoformat(),
+             "stdout": json.dumps(SUCCESS), "stderr": ""}), encoding="utf-8")
+        with mock.patch.object(dr, "PROJECTS", self.root / "projects"):
+            self.assertEqual("S1: merged-claimed pr #1690", run_cli(["result", RUN, "S1"]).splitlines()[0])
+        self.assertEqual("untouched", outside.read_text(encoding="utf-8"))
+        self.assertFalse((state_dir() / "S1.json").is_symlink())
+
     def test_usage_sums_every_session_the_group_ran(self):
         earlier = {"input_tokens": 100, "cache_read_input_tokens": 1000, "output_tokens": 50}
         self.absorb(MERGED_S1, status="relaunch", absorbed="2026-11-01T20:00:00+00:00", usage=earlier)

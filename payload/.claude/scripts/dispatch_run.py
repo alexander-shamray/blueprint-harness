@@ -495,12 +495,13 @@ def _resume_fields(data, keys=RESUME_KEYS, name=RESUME_RECORD):
 
 
 def _regular(path, cap):
-    """At most `cap` + 1 bytes of `path`, an executor's file: a link, a FIFO, a device or anything but a regular file
-    is refused unopened or unread, so none can hang the dispatcher, fill its memory or copy what it points at."""
+    """At most `cap` + 1 bytes of `path`, an executor's file: a file that is itself a link, a FIFO, a device or
+    anything but a regular file is refused unopened or unread. A linked directory above it is still followed."""
     name = Path(path).name
     if Path(path).is_symlink():
-        raise Refusal(f"{name} is a link, which the dispatcher never follows")
-    # O_NONBLOCK opens a FIFO without waiting on a writer, so fstat can refuse it; O_NOFOLLOW closes the race.
+        raise Refusal(f"{name} is a link, which the dispatcher does not read through")
+    # O_NONBLOCK opens a FIFO without waiting on a writer, so fstat can refuse it; O_NOFOLLOW, where the host has it,
+    # also refuses a link swapped in after the check above.
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
     try:
         handle = os.open(path, flags)
@@ -1686,7 +1687,11 @@ def absorb(root, run, gid, run_refused=None):
     try:
         if os.path.lexists(source):
             content = _regular(source, RESULT_CAP)
-            with open(copy, "wb") as handle:
+            # The run directory is one an executor has written to, so a link left at the copy's name is removed, not
+            # written through.
+            copy.unlink(missing_ok=True)
+            with os.fdopen(os.open(copy, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)),
+                           "wb") as handle:
                 handle.write(content)
     except Refusal as why:
         unread = Invalid(str(why))
