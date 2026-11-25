@@ -1871,11 +1871,13 @@ to declare, which is why no command is granted that helper. So
 the grant is the boundary: `/ship`'s frontmatter names the helper, the settings
 do not allow it, and both sweeps deny it by the same key as the force-push
 helpers, for the day someone allows it globally. It first searches the open
-issues for that exact title and comments on a match instead of creating, every
-`gh` call under a timeout, and a failed search files nothing. It skips the label
-sibling, which resolves the checkout's repository, so a label the harness lacks
-fails the create rather than being made. Residual: `/ship` can file any text in
-the harness with it, which is its whole use.
+issues for that exact title and comments on a match the repository owner
+opened instead of creating, as `gh-issue-suppresses.sh` judges authorship, so
+an issue anyone else opened under a sync row's predictable title takes nothing;
+every `gh` call is under a timeout, and a failed search files nothing. It skips
+the label sibling, which resolves the checkout's repository, so a label the
+harness lacks fails the create rather than being made. Residual: `/ship` can
+file any text in the harness with it, which is its whole use.
 
 **The issue route is the entry point a command is granted, never an argument.**
 `gh-issue-create.sh` takes the route as its fourth word and so lets whoever
