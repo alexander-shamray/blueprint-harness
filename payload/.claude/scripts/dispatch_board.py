@@ -430,7 +430,7 @@ def _blocker(row, open_issues, today, bodies, berserk=False, restored=None):
     cell = row.cells[DEPENDS] if restored is None else restored
     # GitHub's label names are case-insensitive: `Question` asks as `question` does.
     labels = {label.strip().casefold() for label in row.cells[LABELS].split(",")}
-    # The cell is written once, when the row is placed; a label added on GitHub since holds the row all the same.
+    # The cell is rewritten only when the row changes section; a label added on GitHub since holds it all the same.
     labels |= getattr(open_issues, "labels", {}).get(row.number, frozenset())
     if not berserk and ("question" in labels or OWNER.search(f"{row.cells[TASK]} {cell}")):
         return "waits on a human"
