@@ -583,7 +583,10 @@ completely and a ranked top three does not, and so is a search confined to
 by creating a file named after the session under the temporary directory,
 which only one call can create, so a parallel batch is refused once and a
 session whose file cannot be made is never refused, since the rerun would be
-refused too. A lookup made by any route — an MCP tool or the CLI, through
+refused too. On POSIX the file sits in a directory named for the user's id
+and shut to others; one another user made first, one open to others, or a
+link in its place is never written into, and counts as a file that cannot be
+made. A lookup made by any route — an MCP tool or the CLI, through
 either shell — lets every search through, and the hook reads that from the
 session's transcript, parsing a call's line only when it names the index
 and a result's only when it answers a lookup, and stopping at the first
