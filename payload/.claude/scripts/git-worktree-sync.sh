@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Open /ship's worktree on a sync pull request's branch, and nothing else:
-# `git fetch origin <branch>`, then `git worktree add --track -b <branch>
-# <path> origin/<branch>`. A prefix grant on `git worktree add` buys `-B`, which
+# `git fetch origin <branch>` into origin/<branch>, then `git worktree add
+# --track -b <branch> <path> origin/<branch>`. A prefix grant on `git worktree add` buys `-B`, which
 # resets a branch past the `git branch --force` deny; the branch is a sync head.
 set -euo pipefail
 [ "$#" -eq 2 ] || { echo "usage: git-worktree-sync.sh <path> <branch>" >&2; exit 2; }
@@ -36,10 +36,12 @@ wanted=$(printf %s "refs/heads/$branch" | tr '[:upper:]' '[:lower:]')
 heads=$(git for-each-ref --format='%(refname)' refs/heads/ | tr '[:upper:]' '[:lower:]')
 [[ $'\n'"$heads"$'\n' != *$'\n'"$wanted"$'\n'* ]] ||
   { echo "branch already exists: $branch, or a spelling of it that differs only in case" >&2; exit 3; }
-# A failed fetch stops here even where a stale origin/<branch> is left, so the
+# Into the tracking ref by an explicit refspec, as git-trailer-pr.sh fetches:
+# under a narrowed remote.origin.fetch a bare fetch writes FETCH_HEAD alone. A
+# failed fetch stops here even where a stale origin/<branch> is left, so the
 # start point below is always the tip just read.
-git fetch -q origin "$branch" ||
+git fetch -q origin "+refs/heads/$branch:refs/remotes/origin/$branch" ||
   { echo "origin has no such branch: $branch" >&2; exit 4; }
 # `--track` sets the upstream, which a sync run reads only as `git status -sb`'s
 # ahead/behind; the start point is origin's tip, not the local `main` a bare name is.
-git -c core.longpaths=true worktree add --track -b "$branch" "$path" "origin/$branch"
+git -c core.longpaths=true worktree add --track -b "$branch" "$path" "refs/remotes/origin/$branch"
