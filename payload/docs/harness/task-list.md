@@ -76,10 +76,13 @@ work that ends with its issue open, which `/ship` step 6 runs.
 - **`Depends on`** is `none`, issue references (`#n`, `after n`,
   `waits on n`), ISO dates, or `OWNER` for an owner's decision. An issue
   labelled `question` carries `OWNER`, in any case GitHub spells the
-  label. Other free text holds the row: the board cannot judge it, and so
-  does a number no issue in the list holds, such as a typo or a pull
-  request's, and another repository's issue, `<repo>#n`, which the list
-  never holds.
+  label. A row is placed once and its *Labels* cell never rewritten, so
+  the board also reads each issue's live labels: a `question`, `paused`
+  or `tracking` added on GitHub since holds the row as one in the cell
+  does (`_blocker` in `dispatch_board.py`). Other free text holds the
+  row: the board cannot judge it, and so does a number no issue in the
+  list holds, such as a typo or a pull request's, and another
+  repository's issue, `<repo>#n`, which the list never holds.
 - **`Model`** is the session's: `Opus` where an error is a silent miss (a
   test that cannot fail, harness guards, locking, erasure, cross-cutting
   CI), `Sonnet` where a gate, a test or a mutation proof catches it.
