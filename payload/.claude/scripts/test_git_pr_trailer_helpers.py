@@ -423,6 +423,20 @@ class RevertHelper(Fixture):
         self.assertEqual("", self.git("ls-files", "c.txt"))
         self.assertEqual("b", self.git("show", "HEAD:b.txt"))
 
+    def test_a_narrowed_fetch_refspec_still_reads_main_as_origin_holds_it(self):
+        # Under a refspec that maps no main, a bare fetch writes FETCH_HEAD alone and leaves origin/main where it was.
+        self.land("a", 5)
+        stale = self.git("rev-parse", "HEAD")
+        self.land("c", 5)
+        self.git("update-ref", "refs/remotes/origin/main", stale)
+        self.git("config", "remote.origin.fetch", "+refs/heads/other:refs/remotes/origin/other")
+        self.git("checkout", "-q", "-b", "chore/undo")
+        out = self.run_helper(REVERT, pr="5")
+        self.assertEqual(0, out.returncode, out.stderr)
+        self.assertIn("reverted 2 commit(s) of #5", out.stdout)
+        subjects = self.git("log", "--format=%s", "main..HEAD").splitlines()
+        self.assertEqual(['Revert "docs: a"', 'Revert "docs: c"'], subjects)
+
     def test_a_pull_request_with_no_commits_refuses(self):
         self.land("a", 5)
         self.git("checkout", "-q", "-b", "chore/undo")
