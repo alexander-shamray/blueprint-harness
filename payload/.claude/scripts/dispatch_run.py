@@ -10,6 +10,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -493,11 +494,50 @@ def _resume_fields(data, keys=RESUME_KEYS, name=RESUME_RECORD):
     return data
 
 
+def _regular(path, cap):
+    """At most `cap` + 1 bytes of `path`, an executor's file: a link, a FIFO, a device or anything but a regular file
+    is refused unopened or unread, so none can hang the dispatcher, fill its memory or copy what it points at."""
+    name = Path(path).name
+    if Path(path).is_symlink():
+        raise Refusal(f"{name} is a link, which the dispatcher never follows")
+    # O_NONBLOCK opens a FIFO without waiting on a writer, so fstat can refuse it; O_NOFOLLOW closes the race.
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
+    try:
+        handle = os.open(path, flags)
+    except FileNotFoundError:
+        raise
+    except OSError as error:
+        raise Refusal(f"could not open {name}: {one_line(error, 200)}") from None
+    try:
+        if not stat.S_ISREG(os.fstat(handle).st_mode):
+            raise Refusal(f"{name} is not a regular file")
+        chunks, left = [], cap + 1
+        while left > 0:
+            chunk = os.read(handle, min(left, 1 << 16))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            left -= len(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(handle)
+
+
+def _bounded_text(path, cap=RESULT_CAP):
+    raw = _regular(path, cap)
+    if len(raw) > cap:
+        raise Refusal(f"{Path(path).name} is larger than {cap} bytes")
+    return raw.decode("utf-8")
+
+
 def _sha256(path):
     try:
-        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+        raw = _regular(path, RESULT_CAP)
     except OSError as error:
         raise Refusal(f"could not read {Path(path).name}: {one_line(error, 200)}") from None
+    if len(raw) > RESULT_CAP:
+        raise Refusal(f"{Path(path).name} is larger than {RESULT_CAP} bytes")
+    return hashlib.sha256(raw).hexdigest()
 
 
 def _handbacks(root):
@@ -534,10 +574,10 @@ def record_handback(root, run, gid, entry, text):
         store = _handbacks(root)
         if store.pop(_slash(worktree), None) is not None:
             _save_handbacks(root, store)
-        if not (tree / RESUME_RECORD).is_file():
+        if not os.path.lexists(tree / RESUME_RECORD):
             return None
         try:
-            data = _resume_fields(json.loads(_read(tree / RESUME_RECORD)))
+            data = _resume_fields(json.loads(_bounded_text(tree / RESUME_RECORD)))
         except (OSError, ValueError) as error:
             raise Refusal(f"{RESUME_RECORD} could not be read: {one_line(error, 200)}") from None
         issues = sorted(_field(entry, gid, "issues", _numbers_list))
@@ -606,7 +646,7 @@ def read_resume(root, worktree, record):
     tree = Path(root) / worktree
     head, script, receipt = data["head"], data["script"], data["receipt"]
     try:
-        lines = _read(tree / receipt).rstrip("\r\n").splitlines()
+        lines = _bounded_text(tree / receipt).rstrip("\r\n").splitlines()
     except (OSError, ValueError):
         raise Refusal(f"no {receipt}: the owner has not run {script}") from None
     verdict = lines[-1] if lines else ""
@@ -1083,11 +1123,13 @@ def validate_result(data, group, issues):
 def load_result(path, group, issues):
     """None when the executor wrote nothing; otherwise its result or why it is not one."""
     try:
-        if Path(path).stat().st_size > RESULT_CAP:
-            return Invalid(f"larger than {RESULT_CAP} bytes")
-        raw = Path(path).read_bytes()
+        raw = _regular(path, RESULT_CAP)
     except FileNotFoundError:
         return None
+    except Refusal as why:
+        return Invalid(str(why))
+    if len(raw) > RESULT_CAP:
+        return Invalid(f"larger than {RESULT_CAP} bytes")
     try:
         data = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, ValueError, RecursionError):
@@ -1639,13 +1681,18 @@ def absorb(root, run, gid, run_refused=None):
     # With none in the worktree, a copy already here is this launch's: an executor wrote it to the main checkout's run
     # directory, as H22 of run 20261108-071135 did, since the launch removed any earlier one before starting it and an
     # unread record is proof that removal ran.
+    issues = _field(entry, gid, "issues", _numbers_list)
+    unread = None
     try:
-        if source.is_file():
-            shutil.copyfile(source, copy)
+        if os.path.lexists(source):
+            content = _regular(source, RESULT_CAP)
+            with open(copy, "wb") as handle:
+                handle.write(content)
+    except Refusal as why:
+        unread = Invalid(str(why))
     except OSError as error:
         raise Refusal(f"could not copy {source}: {error}") from None
-    issues = _field(entry, gid, "issues", _numbers_list)
-    result = load_result(copy, gid, issues)
+    result = unread or load_result(copy, gid, issues)
     if not isinstance(result, Result):
         result = _merged_unreported(root, gid, entry, worktree, issues) or result
     end = session_end(raw)

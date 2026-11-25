@@ -18,6 +18,7 @@ from unittest import mock
 import dispatch_board as db
 import dispatch_run as dr
 from test_dispatch_board import FIXTURE, OWNED, NO_BRANCH, REMAINING_ROWS, line, stub, tasks_of
+from test_link_skips import skip_only_without_links
 
 # The run half: a run directory under a scratch root the test changes into, as the dispatcher runs from the
 # main checkout.
@@ -859,6 +860,38 @@ class ResultTests(unittest.TestCase):
             self.assertIsInstance(dr.load_result(path, "S1", [1682, 1683]), dr.Result)
         self.assertEqual("relaunch", dr.classify(end(exit_code=1, is_error=True), None, 0, NOW))
 
+    def test_a_link_a_fifo_or_an_oversized_file_is_refused_unread(self):
+        # The executor writes these files; a link would copy what it points at, a FIFO hang the read, a huge file fill
+        # memory, so each is refused before or while it is opened, never read through.
+        with tempfile.TemporaryDirectory() as tmp:
+            outside = Path(tmp) / "outside.json"
+            outside.write_text(json.dumps(MERGED_S1), encoding="utf-8")
+            link = Path(tmp) / "S1.json"
+            try:
+                os.symlink(outside, link)
+            except (OSError, NotImplementedError) as refused:
+                skip_only_without_links(refused, "symbolic link")
+            got = dr.load_result(link, "S1", [1682, 1683])
+            self.assertIsInstance(got, dr.Invalid)
+            self.assertIn("is a link", got.why)
+            for read in (dr._sha256, dr._bounded_text):
+                with self.subTest(read=read.__name__), self.assertRaisesRegex(db.Refusal, "is a link"):
+                    read(link)
+            big = Path(tmp) / "big.json"
+            big.write_bytes(b" " * (dr.RESULT_CAP + 1))
+            self.assertEqual(dr.Invalid(f"larger than {dr.RESULT_CAP} bytes"), dr.load_result(big, "S1", [1682]))
+            for read in (dr._sha256, dr._bounded_text):
+                with self.subTest(read=read.__name__), self.assertRaisesRegex(db.Refusal, "larger than"):
+                    read(big)
+            if hasattr(os, "mkfifo"):
+                fifo = Path(tmp) / "fifo.json"
+                os.mkfifo(fifo)
+                got = dr.load_result(fifo, "S1", [1682, 1683])
+                self.assertEqual(dr.Invalid("fifo.json is not a regular file"), got)
+                for read in (dr._sha256, dr._bounded_text):
+                    with self.subTest(read=read.__name__), self.assertRaisesRegex(db.Refusal, "not a regular file"):
+                        read(fifo)
+
     def test_a_result_for_another_group_is_no_result(self):
         for change in ({"group": "S2"}, {"issues": [1682]},
                        {"verdict": "merged"}):
@@ -1133,6 +1166,24 @@ class ResultCommandTests(InRoot):
         other = {**HANDED_S1, "reason": "the run directory's"}
         self.assertEqual("S1: merged-claimed pr #1690", self.absorb(MERGED_S1, in_run_directory=other)[0])
         self.assertEqual(MERGED_S1, json.loads((state_dir() / "S1.json").read_text(encoding="utf-8")))
+
+    def test_a_result_the_executor_left_as_a_link_is_not_copied_through_it(self):
+        outside = self.root / "outside.json"
+        outside.write_text(json.dumps(MERGED_S1), encoding="utf-8")
+        self.absorb(None)
+        target = Path(WORKTREE) / "artifacts" / "dispatch" / RUN / "S1.json"
+        try:
+            os.symlink(outside, target)
+        except (OSError, NotImplementedError) as refused:
+            skip_only_without_links(refused, "symbolic link")
+        record(RUN, "S1", status="running", branch=BRANCH, worktree=WORKTREE, crashes=0)
+        (state_dir() / "S1.session.json").write_text(json.dumps(
+            {"exit": 0, "started": (NOW + timedelta(minutes=1)).isoformat(), "ended": NOW.isoformat(),
+             "stdout": json.dumps(SUCCESS), "stderr": ""}), encoding="utf-8")
+        with mock.patch.object(dr, "PROJECTS", self.root / "projects"):
+            lines = run_cli(["result", RUN, "S1"]).splitlines()
+        self.assertFalse(lines[0].startswith("S1: merged-claimed"), lines)
+        self.assertFalse((state_dir() / "S1.json").exists(), "nothing was copied through the link")
 
     def test_usage_sums_every_session_the_group_ran(self):
         earlier = {"input_tokens": 100, "cache_read_input_tokens": 1000, "output_tokens": 50}
