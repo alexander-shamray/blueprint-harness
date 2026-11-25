@@ -250,6 +250,21 @@ class ReadyTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(verdict, db.ready(group_of(line(depends=text)), issues, TODAY))
 
+    def test_a_live_label_added_after_the_row_was_placed_holds_it(self):
+        # The Labels cell is written when the row is placed and nothing rewrites it, so the live labels decide too.
+        listed = json.dumps([{"number": 1700, "title": "x", "state": "OPEN",
+                              "labels": [{"name": "code"}, {"name": "Question"}]},
+                             {"number": 1701, "title": "y", "state": "OPEN", "labels": [{"name": "paused"}]},
+                             {"number": 1702, "title": "z", "state": "OPEN", "labels": [{"name": "code"}]}])
+        with mock.patch.object(db, "helper", return_value=listed):
+            issues = db.open_issues(".")
+        for number, verdict in ((1700, (False, "waits on a human")), (1701, (False, "labelled paused")),
+                                (1702, (True, ""))):
+            with self.subTest(number=number):
+                self.assertEqual(verdict, db.ready(group_of(line(number=number, labels="code")), issues, TODAY))
+        self.assertEqual((True, ""), db.ready(group_of(line(labels="code")), issues, TODAY, berserk=True),
+                         "--berserk lifts a live question as it lifts one in the cell")
+
     def test_a_question_label_or_an_owed_row_is_not_ready(self):
         self.assertEqual((False, "waits on a human"), self.ready(line(labels="question, low")))
         owed = line().replace("| 1700 |", "| owed (not filed) |")
@@ -1893,6 +1908,25 @@ class BoardTests(unittest.TestCase):
         self.assertTrue(lines[0].startswith("S1 | wave 1 | ready | "), lines[0])
         self.assertIn("J1 | wave 2 | not ready: waits until 2026-11-09", lines[-1])
         self.assertEqual(before, self.path.read_bytes(), "a dry run writes nothing")
+
+    def test_a_question_added_on_github_after_the_row_was_placed_holds_its_group(self):
+        # S3's row says `security, code`; the owner then labels its issue `question`, and no reconcile rewrites the cell.
+        def listed(labels):
+            data = json.dumps([{"number": 1681, "title": "x", "state": "OPEN", "labels": labels},
+                               {"number": 1440, "title": "y", "state": "OPEN", "labels": []}])
+            with mock.patch.object(db, "helper", return_value=data):
+                return db.open_issues(".")
+        for labels, readiness in (([{"name": "security"}], "ready"),
+                                  ([{"name": "security"}, {"name": "question"}], "not ready: waits on a human")):
+            with self.subTest(labels=labels):
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    code = db.main(["board", "--tasks", str(self.path), "--today", "2026-11-01"],
+                                   body_source=lambda n: "", open_source=lambda: listed(labels),
+                                   branch_source=NO_BRANCH, owned_source=OWNED)
+                self.assertEqual(0, code)
+                s3 = next(ln for ln in out.getvalue().splitlines() if ln.startswith("S3"))
+                self.assertTrue(s3.startswith(f"S3 | wave 1 | {readiness} | "), s3)
 
     def test_a_board_on_a_run_takes_the_flag_from_its_state_and_no_other(self):
         run = Path(self.tmp.name) / "artifacts" / "dispatch" / RUN

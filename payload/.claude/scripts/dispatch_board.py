@@ -430,6 +430,8 @@ def _blocker(row, open_issues, today, bodies, berserk=False, restored=None):
     cell = row.cells[DEPENDS] if restored is None else restored
     # GitHub's label names are case-insensitive: `Question` asks as `question` does.
     labels = {label.strip().casefold() for label in row.cells[LABELS].split(",")}
+    # The cell is written once, when the row is placed; a label added on GitHub since holds the row all the same.
+    labels |= getattr(open_issues, "labels", {}).get(row.number, frozenset())
     if not berserk and ("question" in labels or OWNER.search(f"{row.cells[TASK]} {cell}")):
         return "waits on a human"
     for label in ("paused", "tracking"):
@@ -1622,11 +1624,13 @@ def issue_body(root, number):
 
 
 class OpenIssues(frozenset):
-    """The open issues' numbers, and as `known` every number the list holds, open or closed."""
+    """The open issues' numbers, as `known` every number the list holds, open or closed, and as `labels` each
+    listed issue's live labels, casefolded."""
 
-    def __new__(cls, numbers=(), known=None):
+    def __new__(cls, numbers=(), known=None, labels=None):
         made = super().__new__(cls, numbers)
         made.known = None if known is None else frozenset(known)
+        made.labels = {number: frozenset(names) for number, names in (labels or {}).items()}
         return made
 
     @classmethod
@@ -1644,7 +1648,14 @@ def open_issues(root):
         raise Refusal("gh-issue-list.sh did not print a list")
     issues = [item for item in data if isinstance(item, dict) and _number(item.get("number"))]
     return OpenIssues((item["number"] for item in issues if item.get("state") == "OPEN"),
-                      known=(item["number"] for item in issues))
+                      known=(item["number"] for item in issues),
+                      labels={item["number"]: _label_names(item) for item in issues})
+
+
+def _label_names(item):
+    labels = item.get("labels")
+    names = (label.get("name") if isinstance(label, dict) else label for label in labels or ())
+    return {name.casefold() for name in names if isinstance(name, str) and name} if isinstance(labels, list) else set()
 
 
 def all_issues(root):
