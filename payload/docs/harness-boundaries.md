@@ -1817,8 +1817,9 @@ refused every sync; that fails closed.
 `Bash(bash .claude/scripts/git-worktree-sync.sh:*)` admits `<path> <branch>`
 and nothing else. A prefix grant on `git worktree add` also buys `-B`, which
 resets an existing branch past the `git branch --force` deny, so the helper
-spells `git fetch origin <branch>` and `git worktree add --track -b <branch>
-<path> origin/<branch>` itself. The branch must match `SYNC_HEAD` in full,
+spells the fetch of `<branch>` into `origin/<branch>`, by an explicit refspec,
+and `git worktree add --track -b <branch> <path> origin/<branch>` itself. The
+branch must match `SYNC_HEAD` in full,
 `main` included, and a harness test holds the helper's pattern to `pr.py`'s;
 the path and root checks are `git-worktree-fork.sh`'s; a branch that exists
 locally, or that origin lacks, is refused. A name that matches is not a proved
