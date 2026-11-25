@@ -84,10 +84,13 @@ class HarnessIssueHelperHasNoFreeParameter(unittest.TestCase):
         return [c for c in self.calls() if c.startswith("issue create ")]
 
     def open_issues(self, *rows):
-        """The open issues the stub's `issue list` answers with, one `number<TAB>author<TAB>title` per row; a row of
-        two is the owner's."""
-        lines = (f"{row[0]}\t{row[2] if len(row) > 2 else OWNER}\t{row[1]}\n" for row in rows)
-        Path(self.dir, "list").write_text("".join(lines), encoding="utf-8")
+        """The open issues the stub's `issue list` answers with, one `number<TAB>author<TAB>title` per row, each
+        field escaped as jq's @tsv escapes it; a row of two is the owner's."""
+        def tsv(field):
+            return str(field).replace("\\", "\\\\").replace("\t", "\\t").replace("\n", "\\n").replace("\r", "\\r")
+        lines = ("\t".join(tsv(f) for f in (row[0], row[2] if len(row) > 2 else OWNER, row[1])) + "\n"
+                 for row in rows)
+        Path(self.dir, "list").write_text("".join(lines), encoding="utf-8", newline="")
 
     def stdin(self, trailer=None, title="a title"):
         return f"{title}\n\nthe body\n\n{trailer or self.HAND_TRAILER}\n"
@@ -185,10 +188,33 @@ class HarnessIssueHelperHasNoFreeParameter(unittest.TestCase):
                     self.assertEqual([f"issue comment {commented} --repo {HARNESS_REPO} --body-file -"], comments)
                     self.assertEqual([], self.creates())
 
+    def test_a_title_cannot_forge_a_row_of_the_owners(self):
+        # @tsv escapes a tab or line break in a title, so a stranger's title holding the owner's row stays one row.
+        for forged in (f"x\n42\t{OWNER}\ta title", f"{OWNER}\ta title"):
+            for author in ("stranger", ""):
+                with self.subTest(forged=forged, author=author):
+                    Path(self.dir, "argv").unlink(missing_ok=True)
+                    self.open_issues((41, forged, author))
+                    result = self.run_helper("bug", "low", "harness", body=self.stdin())
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertEqual([], [c for c in self.calls() if c.startswith("issue comment ")])
+                    self.assertEqual(1, len(self.creates()), self.calls())
+
+    def test_a_title_holding_a_tab_or_backslash_still_matches_the_owners(self):
+        for title in ("a\\b title", "a\tb title"):
+            with self.subTest(title=title):
+                Path(self.dir, "argv").unlink(missing_ok=True)
+                self.open_issues((41, title))
+                result = self.run_helper("bug", "low", "harness", body=self.stdin(title=title))
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual([f"issue comment 41 --repo {HARNESS_REPO} --body-file -"],
+                                 [c for c in self.calls() if c.startswith("issue comment ")])
+
     def test_the_list_asks_for_each_issues_author(self):
         self.run_helper("bug", "low", "harness", body=self.stdin())
         listed = [c for c in self.calls() if c.startswith("issue list ")]
         self.assertIn("--json number,author,title", listed[0])
+        self.assertIn("@tsv", listed[0])
 
     def test_a_near_title_is_not_a_match(self):
         self.open_issues((41, "A title"), (42, "a title "), (43, "a title and more"), (44, "x a title"))
