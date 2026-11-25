@@ -72,9 +72,21 @@ if [ -n "$open" ] && [ "$(printf '%s\n' "$open" | wc -l)" -ge "$limit" ]; then
   echo "cannot search the harness's open issues: $limit or more are open, so the list may hide a match" >&2
   exit 3
 fi
-# @tsv escapes a tab, line break or backslash in a title, so no title text can
-# make a row of its own; the title sought is escaped the same way to compare.
-wanted="${title//\\/\\\\}"; wanted="${wanted//$'\t'/\\t}"
+# @tsv escapes a backslash, tab, CR or line break in a title, so no title text
+# can make a row of its own. The title sought is escaped the same way, a
+# character at a time: a `${//}` replacement's backslashes differ by bash version.
+wanted=""
+i=0
+while [ "$i" -lt "${#title}" ]; do
+  c="${title:i:1}"
+  case "$c" in
+    '\') wanted+='\\' ;;
+    $'\t') wanted+='\t' ;;
+    $'\r') wanted+='\r' ;;
+    *) wanted+="$c" ;;
+  esac
+  i=$((i + 1))
+done
 while IFS= read -r row; do
   row="${row%$'\r'}"
   number="${row%%$'\t'*}"; rest="${row#*$'\t'}"

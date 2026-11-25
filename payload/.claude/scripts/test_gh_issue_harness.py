@@ -66,13 +66,15 @@ class HarnessIssueHelperHasNoFreeParameter(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.dir, ignore_errors=True)
 
-    def run_helper(self, *args, body="", timeout_program=None):
+    def run_helper(self, *args, body="", timeout_program=None, compat=""):
         # `timeout_program` names the program gh-read-bound.sh's `bounded` looks for, so one that is not there takes
         # the watchdog a host without GNU `timeout` runs, as macOS does.
         env = dict(os.environ)
         env["PATH"] = self.dir + os.pathsep + env["PATH"]
         if timeout_program is not None:
             env["GH_READ_TIMEOUT"] = timeout_program
+        if compat:
+            env["BASH_COMPAT"] = compat
         return subprocess.run([BASH, str(self.HELPER), *args], capture_output=True, text=True,
                               encoding="utf-8", input=body, env=env)
 
@@ -201,14 +203,16 @@ class HarnessIssueHelperHasNoFreeParameter(unittest.TestCase):
                     self.assertEqual(1, len(self.creates()), self.calls())
 
     def test_a_title_holding_a_tab_or_backslash_still_matches_the_owners(self):
-        for title in ("a\\b title", "a\tb title"):
-            with self.subTest(title=title):
-                Path(self.dir, "argv").unlink(missing_ok=True)
-                self.open_issues((41, title))
-                result = self.run_helper("bug", "low", "harness", body=self.stdin(title=title))
-                self.assertEqual(0, result.returncode, result.stderr)
-                self.assertEqual([f"issue comment 41 --repo {HARNESS_REPO} --body-file -"],
-                                 [c for c in self.calls() if c.startswith("issue comment ")])
+        # BASH_COMPAT=42 reads a `${//}` replacement as macOS's bash 3.2 does, where its backslashes are not removed.
+        for title in ("a\\b title", "a\tb title", "a\rb title", "a\\\\t\t\\ title"):
+            for compat in ("", "42"):
+                with self.subTest(title=title, compat=compat):
+                    Path(self.dir, "argv").unlink(missing_ok=True)
+                    self.open_issues((41, title))
+                    result = self.run_helper("bug", "low", "harness", body=self.stdin(title=title), compat=compat)
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertEqual([f"issue comment 41 --repo {HARNESS_REPO} --body-file -"],
+                                     [c for c in self.calls() if c.startswith("issue comment ")])
 
     def test_the_list_asks_for_each_issues_author(self):
         self.run_helper("bug", "low", "harness", body=self.stdin())
