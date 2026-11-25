@@ -55,7 +55,7 @@ jobs:
       # records.
       HARNESS_REPO: https://github.com/alexander-shamray/blueprint-harness
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The enforcing copies come out of the base commit, the commit gate's
           # range is base..head and the comment gate's diff needs the merge
@@ -65,7 +65,7 @@ jobs:
           # every git command below is local or reads the public harness.
           persist-credentials: false
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         id: setup
         with:
           python-version: '3.12'
