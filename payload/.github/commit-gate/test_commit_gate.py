@@ -292,7 +292,7 @@ COMPOUNDS = frozenset({"if", "while", "until", "{"}) | HEADERS
 # other than these, or an action not named here.
 STEP_HEAD_CODE = re.compile(r"^\s*working-directory:", re.M)
 USES = re.compile(r"^\s*(?:- )?uses:(.*)$", re.M)
-SAFE_ACTIONS = re.compile(r"actions/(?:checkout|setup-python)@[\w.-]+")
+SAFE_ACTIONS = re.compile(r"actions/(?:checkout|setup-python)@[\w.-]+(?: +#[^\n]*)?")
 SHELL = re.compile(r"^\s*(?:- )?shell: *(.*)$", re.M)
 SAFE_SHELLS = frozenset({"bash", "sh"})
 # The step's own key, at the column steps_of splits on, so a `run:` inside an env or with block is not it.

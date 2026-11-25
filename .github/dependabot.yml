@@ -1,0 +1,13 @@
+# Weekly version updates for the Actions every workflow pins by commit SHA, the
+# root's and the payload's gates.yml, which the sync renders into each target.
+# docs/harness/working-rules.md, Pull requests, says why the commit gate skips a
+# Dependabot pull request and who merges it.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories: [/, /payload]
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+      include: scope
